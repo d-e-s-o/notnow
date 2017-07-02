@@ -10,3 +10,15 @@ keywords = ["TODO", "tasks", "planner"]
 description = """
 A terminal based task and TODO management software.
 """
+
+[dependencies.serde]
+version = "1.0"
+
+[dependencies.serde_derive]
+version = "1.0"
+
+[dependencies.serde_json]
+version = "1.0"
+
+[dev-dependencies.libc]
+version = "0.2"

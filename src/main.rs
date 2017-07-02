@@ -71,6 +71,12 @@
 
 //! A terminal based task management application.
 
+#[macro_use]
+extern crate serde_derive;
+extern crate serde_json;
+
+mod tasks;
+
 use std::process::exit;
 
 
