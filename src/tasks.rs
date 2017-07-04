@@ -22,16 +22,21 @@ use std::fs::OpenOptions;
 use std::io::ErrorKind;
 use std::io::Result;
 use std::io::Write;
+use std::iter::FromIterator;
+use std::slice;
 
 use serde_json::from_reader;
 use serde_json::to_string as to_json;
 
 
 /// A struct representing a task item.
-#[derive(Debug, Deserialize, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Task {
   pub summary: String,
 }
+
+
+pub type TaskIter<'a> = slice::Iter<'a, Task>;
 
 
 /// A management struct for tasks and their associated data.
@@ -42,7 +47,6 @@ pub struct Tasks {
 
 impl Tasks {
   /// Create a new `Tasks` object by loading tasks from a file.
-  #[allow(dead_code)]
   pub fn new(path: &str) -> Result<Self> {
     match File::open(path) {
       Ok(file) => Ok(from_reader(&file)?),
@@ -70,6 +74,11 @@ impl Tasks {
       .write_all(serialized.as_ref())?;
     Ok(())
   }
+
+  /// Retrieve an iterator over the tasks.
+  pub fn iter(&self) -> TaskIter {
+    self.tasks.iter()
+  }
 }
 
 impl Default for Tasks {
@@ -80,11 +89,23 @@ impl Default for Tasks {
   }
 }
 
+impl FromIterator<Task> for Tasks {
+  /// Create a `Tasks` object from an iterator of `Task` objects.
+  fn from_iter<I>(iter: I) -> Self
+  where
+    I: IntoIterator<Item = Task>,
+  {
+    Tasks {
+      tasks: Vec::<Task>::from_iter(iter),
+    }
+  }
+}
+
 
 // Our tests can live with having unsafe code in them.
 #[allow(unsafe_code)]
 #[cfg(test)]
-mod tests {
+pub mod tests {
   extern crate libc;
 
   use super::*;
@@ -94,6 +115,15 @@ mod tests {
 
   use serde_json::from_str as from_json;
 
+
+  pub fn make_tasks(count: usize) -> Tasks {
+    Tasks::from_iter(
+      (0..count)
+        .map(|i| Task {
+          summary: format!("{}", i + 1),
+        })
+    )
+  }
 
   #[link(name = "c")]
   extern "C" {

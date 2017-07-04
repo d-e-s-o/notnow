@@ -20,6 +20,7 @@
 #![allow(
   unknown_lints,
   redundant_field_names,
+  single_match,
 )]
 // We basically deny most lints that "warn" by default, except for
 // "deprecated" (which would be enabled by "warnings"). We want to avoid
@@ -74,14 +75,57 @@
 #[macro_use]
 extern crate serde_derive;
 extern crate serde_json;
+extern crate termion;
 
+mod controller;
+mod orchestrator;
 mod tasks;
+mod termui;
+mod view;
 
+use std::io::Result;
+use std::io::stdin;
+use std::io::stdout;
 use std::process::exit;
 
+use termion::raw::IntoRawMode;
+use termion::screen::AlternateScreen;
 
+use orchestrator::Orchestrator;
+use termui::TermUi;
+use view::Quit;
+use view::View;
+
+
+/// Run the program.
+fn run_prog() -> Result<()> {
+  // TODO: Figure out how to handle '~' (expand user or something?).
+  let task_path = "/home/deso/.config/notnow/tasks.json";
+  let mut orchestrator = Orchestrator::new(task_path)?;
+  let screen = AlternateScreen::from(stdout().into_raw_mode()?);
+  let mut ui = TermUi::new(stdin(), screen, &mut orchestrator)?;
+
+  // Initially we need to trigger an update of all views in order to
+  // have them present the current data.
+  ui.update()?;
+
+  loop {
+    if let Quit::Yes = ui.poll()? {
+      break
+    }
+  }
+  Ok(())
+}
+
+/// Run the program and handle errors.
 fn run() -> i32 {
-  0
+  match run_prog() {
+    Ok(_) => 0,
+    Err(err) => {
+      eprintln!("Error: {}", err);
+      1
+    },
+  }
 }
 
 fn main() {

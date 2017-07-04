@@ -20,5 +20,8 @@ version = "1.0"
 [dependencies.serde_json]
 version = "1.0"
 
+[dependencies.termion]
+version = "1.5"
+
 [dev-dependencies.libc]
 version = "0.2"
