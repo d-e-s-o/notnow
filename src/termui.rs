@@ -17,22 +17,46 @@
 // * along with this program.  If not, see <http://www.gnu.org/licenses/>. *
 // *************************************************************************
 
+use std::cmp::max;
+use std::cmp::min;
 use std::io::BufWriter;
 use std::io::Read;
 use std::io::Write;
 
 use termion::clear::All;
+use termion::color::Bg;
+use termion::color::Color;
+use termion::color::Fg;
+use termion::color::Reset;
+use termion::color::Rgb;
+use termion::cursor::Goto;
 use termion::cursor::Hide;
 use termion::cursor::Show;
 use termion::event::Event;
 use termion::event::Key;
 use termion::input::Events;
 use termion::input::TermRead;
+use termion::terminal_size;
 
 use controller::Controller;
 use view::Quit;
 use view::Result;
 use view::View;
+
+
+const MAIN_MARGIN_X: u16 = 3;
+const MAIN_MARGIN_Y: u16 = 2;
+const TASK_SPACE: u16 = 2;
+
+// TODO: Make the colors run time configurable at some point.
+// Color 0.
+const UNSELECTED_TASK_FG: &Rgb = &Rgb(0x00, 0x00, 0x00);
+/// The terminal default background.
+const UNSELECTED_TASK_BG: &Reset = &Reset;
+/// Color 15.
+const SELECTED_TASK_FG: &Rgb = &Rgb(0xff, 0xff, 0xff);
+/// Color 240.
+const SELECTED_TASK_BG: &Rgb = &Rgb(0x58, 0x58, 0x58);
 
 
 /// An implementation of a terminal based view.
@@ -43,8 +67,9 @@ where
 {
   writer: BufWriter<W>,
   events: Events<R>,
-  #[allow(dead_code)]
   controller: &'ctrl mut Controller,
+  offset: isize,
+  selection: isize,
 }
 
 
@@ -71,7 +96,76 @@ where
       writer: writer,
       events: events,
       controller: controller,
+      offset: 0,
+      selection: 0,
     })
+  }
+
+  /// Change the currently selected task.
+  fn select(&mut self, change: isize) {
+    self.selection += change;
+  }
+
+  /// Retrieve the number of tasks that fit on the screen.
+  fn displayable_tasks(&self) -> Result<isize> {
+    let (_, h) = terminal_size()?;
+    Ok(((h - MAIN_MARGIN_Y) / TASK_SPACE) as isize)
+  }
+
+  /// Sanitize selection and offset about what is being displayed.
+  ///
+  /// This functionality is to be called from inside the "update" path
+  /// where we visualize the current data.
+  fn sanitize_view<T>(&self, iter: T) -> Result<(isize, isize, isize)>
+  where
+    T: Iterator,
+  {
+    let task_limit = self.displayable_tasks()?;
+    let task_count = iter.count() as isize;
+
+    let mut select = self.selection;
+    let mut offset = self.offset;
+
+    select = max(0, min(task_count - 1, select));
+    offset = min(select, max(offset, select - (task_limit - 1)));
+
+    Ok((offset, select, task_limit))
+  }
+
+  /// Update, i.e., redraw, all the tasks.
+  fn update_tasks(&mut self) -> Result<()> {
+    let x = MAIN_MARGIN_X;
+    let mut y = MAIN_MARGIN_Y;
+
+    let iter = self.controller.tasks();
+    let (offset, selection, limit) = self.sanitize_view(iter.clone())?;
+
+    for (i, task) in iter.enumerate().skip(offset as usize) {
+      if i as isize >= offset + limit {
+        break
+      }
+
+      let (fg, bg) = if i as isize == selection {
+        (SELECTED_TASK_FG as &Color, SELECTED_TASK_BG as &Color)
+      } else {
+        (UNSELECTED_TASK_FG as &Color, UNSELECTED_TASK_BG as &Color)
+      };
+
+      write!(
+        self.writer,
+        "{}{}{}{}",
+        Goto(x + 1, y + 1),
+        Fg(fg),
+        Bg(bg),
+        task.summary
+      )?;
+      y += TASK_SPACE;
+    }
+
+    self.offset = offset;
+    self.selection = selection;
+
+    Ok(())
   }
 }
 
@@ -84,14 +178,26 @@ where
   /// Check for new input and react to it.
   fn poll(&mut self) -> Result<Quit> {
     if let Some(event) = self.events.next() {
-      match event? {
+      let needs_update = match event? {
         Event::Key(key) => {
           match key {
+            Key::Char('j') => {
+              self.select(1);
+              true
+            },
+            Key::Char('k') => {
+              self.select(-1);
+              true
+            },
             Key::Char('q') => return Ok(Quit::Yes),
-            _ => (),
+            _ => false,
           }
         },
-        _ => (),
+        _ => false,
+      };
+
+      if needs_update {
+        self.update()?
       }
     }
     Ok(Quit::No)
@@ -99,6 +205,15 @@ where
 
   /// Update the view by redrawing the user interface.
   fn update(&mut self) -> Result<()> {
+    write!(
+      self.writer,
+      "{}{}{}",
+      Fg(Reset),
+      Bg(Reset),
+      All
+    )?;
+    self.update_tasks()?;
+    self.writer.flush()?;
     Ok(())
   }
 }
