@@ -57,6 +57,29 @@ const UNSELECTED_TASK_BG: &Reset = &Reset;
 const SELECTED_TASK_FG: &Rgb = &Rgb(0xff, 0xff, 0xff);
 /// Color 240.
 const SELECTED_TASK_BG: &Rgb = &Rgb(0x58, 0x58, 0x58);
+/// Color 0.
+const IN_OUT_SUCCESS_FG: &Rgb = &Rgb(0x00, 0x00, 0x00);
+/// Color 40.
+const IN_OUT_SUCCESS_BG: &Rgb = &Rgb(0x00, 0xd7, 0x00);
+/// Color 0.
+const IN_OUT_ERROR_FG: &Rgb = &Rgb(0x00, 0x00, 0x00);
+/// Color 197.
+const IN_OUT_ERROR_BG: &Rgb = &Rgb(0xff, 0x00, 0x00);
+/// Color 0.
+const IN_OUT_STRING_FG: &Rgb = &Rgb(0x00, 0x00, 0x00);
+/// The terminal default background.
+const IN_OUT_STRING_BG: &Reset = &Reset;
+
+const SAVED_TEXT: &str = " Saved ";
+const ERROR_TEXT: &str = " Error ";
+
+
+/// An object representing the in/out area within the TermUi.
+enum InOutArea {
+  Saved,
+  Error(String),
+  Clear,
+}
 
 
 /// An implementation of a terminal based view.
@@ -68,6 +91,7 @@ where
   writer: BufWriter<W>,
   events: Events<R>,
   controller: &'ctrl mut Controller,
+  in_out: InOutArea,
   offset: isize,
   selection: isize,
 }
@@ -96,9 +120,18 @@ where
       writer: writer,
       events: events,
       controller: controller,
+      in_out: InOutArea::Clear,
       offset: 0,
       selection: 0,
     })
+  }
+
+  /// Save the current state.
+  fn save(&mut self) {
+    match self.controller.save() {
+      Ok(_) => self.in_out = InOutArea::Saved,
+      Err(err) => self.in_out = InOutArea::Error(format!("{}", err)),
+    }
   }
 
   /// Change the currently selected task.
@@ -167,6 +200,33 @@ where
 
     Ok(())
   }
+
+  fn update_input_output(&mut self) -> Result<()> {
+    let x = 0;
+    let (_, y) = terminal_size()?;
+
+    let (prefix, fg, bg, string) = match self.in_out {
+      InOutArea::Saved => (Some(SAVED_TEXT), IN_OUT_SUCCESS_FG, IN_OUT_SUCCESS_BG, None),
+      InOutArea::Error(ref e) => (Some(ERROR_TEXT), IN_OUT_ERROR_FG, IN_OUT_ERROR_BG, Some(e)),
+      InOutArea::Clear => return Ok(()),
+    };
+
+    write!(self.writer, "{}", Goto(x + 1, y + 1))?;
+
+    if let Some(prefix) = prefix {
+      write!(self.writer, "{}{}{}", Fg(*fg), Bg(*bg), prefix)?;
+    }
+    if let Some(string) = string {
+      write!(
+        self.writer,
+        "{}{} {}",
+        Fg(*IN_OUT_STRING_FG),
+        Bg(*IN_OUT_STRING_BG),
+        string
+      )?;
+    }
+    Ok(())
+  }
 }
 
 
@@ -180,6 +240,14 @@ where
     if let Some(event) = self.events.next() {
       let needs_update = match event? {
         Event::Key(key) => {
+          let update = if let InOutArea::Clear = self.in_out {
+            false
+          } else {
+            // We clear the input/output area after any key event.
+            self.in_out = InOutArea::Clear;
+            true
+          };
+
           match key {
             Key::Char('j') => {
               self.select(1);
@@ -190,7 +258,11 @@ where
               true
             },
             Key::Char('q') => return Ok(Quit::Yes),
-            _ => false,
+            Key::Char('w') => {
+              self.save();
+              true
+            },
+            _ => update,
           }
         },
         _ => false,
@@ -213,6 +285,7 @@ where
       All
     )?;
     self.update_tasks()?;
+    self.update_input_output()?;
     self.writer.flush()?;
     Ok(())
   }
@@ -232,6 +305,8 @@ where
 
 #[cfg(test)]
 mod tests {
+  use std::io;
+
   use super::*;
 
   use tasks::TaskIter;
@@ -260,6 +335,11 @@ mod tests {
   }
 
   impl Controller for MockController {
+    fn save(&self) -> io::Result<()> {
+      // No-op.
+      Ok(())
+    }
+
     fn tasks(&self) -> TaskIter {
       self.tasks.iter()
     }

@@ -17,11 +17,16 @@
 // * along with this program.  If not, see <http://www.gnu.org/licenses/>. *
 // *************************************************************************
 
+use std::io::Result;
+
 use tasks::TaskIter;
 
 
 /// A trait providing the basic interface a controller provides for views.
 pub trait Controller {
+  /// Save the tasks into a file.
+  fn save(&self) -> Result<()>;
+
   /// Retrieve the tasks associated with this controller.
   fn tasks(&self) -> TaskIter;
 }

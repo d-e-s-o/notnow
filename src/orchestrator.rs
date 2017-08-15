@@ -26,6 +26,7 @@ use tasks::Tasks;
 
 /// A concrete controller suitable for our intents and purposes.
 pub struct Orchestrator {
+  path: String,
   tasks: Tasks,
 }
 
@@ -35,12 +36,17 @@ impl Orchestrator {
     let tasks = Tasks::new(task_path)?;
 
     Ok(Orchestrator {
+      path: task_path.to_string(),
       tasks: tasks,
     })
   }
 }
 
 impl Controller for Orchestrator {
+  fn save(&self) -> Result<()> {
+    self.tasks.save(&self.path)
+  }
+
   fn tasks(&self) -> TaskIter {
     self.tasks.iter()
   }

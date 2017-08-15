@@ -20,7 +20,6 @@
 #![allow(
   unknown_lints,
   redundant_field_names,
-  single_match,
 )]
 // We basically deny most lints that "warn" by default, except for
 // "deprecated" (which would be enabled by "warnings"). We want to avoid

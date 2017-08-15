@@ -63,7 +63,6 @@ impl Tasks {
   }
 
   /// Persist the tasks into a file.
-  #[allow(dead_code)]
   pub fn save(&self, path: &str) -> Result<()> {
     let serialized = to_json(&self)?;
     OpenOptions::new()
