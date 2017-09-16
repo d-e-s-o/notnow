@@ -19,6 +19,7 @@
 
 use std::io::Result;
 
+use tasks::Task;
 use tasks::TaskIter;
 
 
@@ -29,4 +30,10 @@ pub trait Controller {
 
   /// Retrieve the tasks associated with this controller.
   fn tasks(&self) -> TaskIter;
+
+  /// Add a new task to the list of tasks.
+  fn add_task(&mut self, task: Task);
+
+  /// Remove the task at the given index.
+  fn remove_task(&mut self, index: usize);
 }

@@ -20,6 +20,7 @@
 use std::io::Result;
 
 use controller::Controller;
+use tasks::Task;
 use tasks::TaskIter;
 use tasks::Tasks;
 
@@ -49,5 +50,13 @@ impl Controller for Orchestrator {
 
   fn tasks(&self) -> TaskIter {
     self.tasks.iter()
+  }
+
+  fn add_task(&mut self, task: Task) {
+    self.tasks.add(task)
+  }
+
+  fn remove_task(&mut self, index: usize) {
+    self.tasks.remove(index)
   }
 }

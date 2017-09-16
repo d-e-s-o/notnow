@@ -78,6 +78,16 @@ impl Tasks {
   pub fn iter(&self) -> TaskIter {
     self.tasks.iter()
   }
+
+  /// Add a new task.
+  pub fn add(&mut self, task: Task) {
+    self.tasks.push(task);
+  }
+
+  /// Remove a task.
+  pub fn remove(&mut self, index: usize) {
+    self.tasks.remove(index);
+  }
 }
 
 impl Default for Tasks {
@@ -171,6 +181,35 @@ pub mod tests {
     }
   }
 
+
+  #[test]
+  fn add_task() {
+    let mut tasks = make_tasks(3);
+    tasks.add(Task{
+      summary: "4".to_string()
+    });
+
+    assert_eq!(tasks, make_tasks(4));
+  }
+
+  #[test]
+  fn remove_task() {
+    let mut tasks = make_tasks(3);
+    tasks.remove(1);
+
+    let expected = Tasks {
+      tasks: vec![
+        Task{
+          summary: "1".to_string(),
+        },
+        Task{
+          summary: "3".to_string(),
+        },
+      ]
+    };
+
+    assert_eq!(tasks, expected);
+  }
 
   #[test]
   fn serialize_deserialize_task() {

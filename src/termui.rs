@@ -39,6 +39,7 @@ use termion::input::TermRead;
 use termion::terminal_size;
 
 use controller::Controller;
+use tasks::Task;
 use view::Quit;
 use view::Result;
 use view::View;
@@ -72,14 +73,19 @@ const IN_OUT_STRING_BG: &Reset = &Reset;
 
 const SAVED_TEXT: &str = " Saved ";
 const ERROR_TEXT: &str = " Error ";
+const INPUT_TEXT: &str = " > ";
 
 
 /// An object representing the in/out area within the TermUi.
 enum InOutArea {
   Saved,
   Error(String),
+  Input(String),
   Clear,
 }
+
+
+type Handler<'ctrl, R, W> = fn(obj: &mut TermUi<'ctrl, R, W>, event: &Event) -> Result<Quit>;
 
 
 /// An implementation of a terminal based view.
@@ -91,6 +97,7 @@ where
   writer: BufWriter<W>,
   events: Events<R>,
   controller: &'ctrl mut Controller,
+  handler: Handler<'ctrl, R, W>,
   in_out: InOutArea,
   offset: isize,
   selection: isize,
@@ -120,6 +127,7 @@ where
       writer: writer,
       events: events,
       controller: controller,
+      handler: TermUi::<'ctrl, R, W>::handle,
       in_out: InOutArea::Clear,
       offset: 0,
       selection: 0,
@@ -208,6 +216,7 @@ where
     let (prefix, fg, bg, string) = match self.in_out {
       InOutArea::Saved => (Some(SAVED_TEXT), IN_OUT_SUCCESS_FG, IN_OUT_SUCCESS_BG, None),
       InOutArea::Error(ref e) => (Some(ERROR_TEXT), IN_OUT_ERROR_FG, IN_OUT_ERROR_BG, Some(e)),
+      InOutArea::Input(ref s) => (Some(INPUT_TEXT), IN_OUT_SUCCESS_FG, IN_OUT_SUCCESS_BG, Some(s)),
       InOutArea::Clear => return Ok(()),
     };
 
@@ -227,6 +236,102 @@ where
     }
     Ok(())
   }
+
+  fn handle(&mut self, event: &Event) -> Result<Quit> {
+    let needs_update = match *event {
+      Event::Key(key) => {
+        let update = if let InOutArea::Clear = self.in_out {
+          false
+        } else {
+          // We clear the input/output area after any key event.
+          self.in_out = InOutArea::Clear;
+          true
+        };
+
+        match key {
+          Key::Char('a') => {
+            self.in_out = InOutArea::Input("".to_string());
+            self.handler = Self::handle_input;
+            true
+          },
+          Key::Char('d') => {
+            let count = self.controller.tasks().count();
+            if count > 0 {
+              self.controller.remove_task(self.selection as usize);
+              self.select(0);
+              // We have removed a task. Always indicate that an update
+              // is necessary here.
+              true
+            } else {
+              false
+            }
+          },
+          Key::Char('j') => {
+            self.select(1);
+            true
+          },
+          Key::Char('k') => {
+            self.select(-1);
+            true
+          },
+          Key::Char('q') => return Ok(Quit::Yes),
+          Key::Char('w') => {
+            self.save();
+            true
+          },
+          _ => update,
+        }
+      },
+      _ => false,
+    };
+
+    if needs_update {
+      self.update()?
+    }
+    Ok(Quit::No)
+  }
+
+  fn handle_input(&mut self, event: &Event) -> Result<Quit> {
+    let needs_update = match *event {
+      Event::Key(key) => {
+        match key {
+          Key::Char('\n') => {
+            if let InOutArea::Input(ref s) = self.in_out {
+              self.controller.add_task(Task {
+                summary: s.clone(),
+              });
+            } else {
+              panic!("In/out area not used for input.");
+            }
+            self.in_out = InOutArea::Clear;
+            self.handler = Self::handle;
+            true
+          },
+          Key::Char(c) => {
+            self.in_out = InOutArea::Input(if let InOutArea::Input(ref mut s) = self.in_out {
+              s.push(c);
+              s.clone()
+            } else {
+              panic!("In/out area not used for input.");
+            });
+            true
+          },
+          Key::Esc => {
+            self.in_out = InOutArea::Clear;
+            self.handler = Self::handle;
+            true
+          },
+          _ => false,
+        }
+      },
+      _ => false,
+    };
+
+    if needs_update {
+      self.update()?
+    }
+    Ok(Quit::No)
+  }
 }
 
 
@@ -238,41 +343,10 @@ where
   /// Check for new input and react to it.
   fn poll(&mut self) -> Result<Quit> {
     if let Some(event) = self.events.next() {
-      let needs_update = match event? {
-        Event::Key(key) => {
-          let update = if let InOutArea::Clear = self.in_out {
-            false
-          } else {
-            // We clear the input/output area after any key event.
-            self.in_out = InOutArea::Clear;
-            true
-          };
-
-          match key {
-            Key::Char('j') => {
-              self.select(1);
-              true
-            },
-            Key::Char('k') => {
-              self.select(-1);
-              true
-            },
-            Key::Char('q') => return Ok(Quit::Yes),
-            Key::Char('w') => {
-              self.save();
-              true
-            },
-            _ => update,
-          }
-        },
-        _ => false,
-      };
-
-      if needs_update {
-        self.update()?
-      }
+      (self.handler)(self, &event?)
+    } else {
+      Ok(Quit::No)
     }
-    Ok(Quit::No)
   }
 
   /// Update the view by redrawing the user interface.
@@ -306,6 +380,7 @@ where
 #[cfg(test)]
 mod tests {
   use std::io;
+  use std::iter::FromIterator;
 
   use super::*;
 
@@ -343,32 +418,57 @@ mod tests {
     fn tasks(&self) -> TaskIter {
       self.tasks.iter()
     }
+
+    fn add_task(&mut self, task: Task) {
+      self.tasks.add(task)
+    }
+
+    fn remove_task(&mut self, index: usize) {
+      self.tasks.remove(index)
+    }
   }
 
 
-  // Test function for the TermUi.
-  //
-  // Instantiate the TermUi in a mock environment associating it with
-  // the given task list, supply the given input, and retrieve the
-  // resulting set of tasks.
-  fn test<R>(tasks: Tasks, input: R) -> Tasks
-  where
-    R: Read,
-  {
+  /// Test function for the TermUi that supports inputs of the escape key.
+  ///
+  /// This function performs the same basic task as `test` but it
+  /// supports multiple input streams. By doing so we implicitly support
+  /// passing in input that contains an escape key sequence. Handling of
+  /// the escape key in termion is tricky: An escape in the traditional
+  /// sense is just a byte with value 0x1b. Termion treats such a byte as
+  /// Key::Esc only if it is not followed by any additional input. If
+  /// additional bytes follow, 0x1b will just act as the introduction for
+  /// an escape sequence.
+  fn test_for_esc(tasks: Tasks, input: Vec<&[u8]>) -> Tasks {
     let mut controller = MockController::new(tasks);
 
     {
       let writer = vec![];
-      let mut ui = TermUi::new(input, writer, &mut controller).unwrap();
+      let mut last_len = input[0].len();
+      let mut ui = TermUi::new(input[0], writer, &mut controller).unwrap();
 
-      loop {
-        if let Quit::Yes = ui.poll().unwrap() {
-          break
+      for data in input {
+        let len = last_len;
+        for _ in 0..len {
+          if let Quit::Yes = ui.poll().unwrap() {
+            break
+          }
         }
+        last_len = data.len();
+        ui.events = data.events();
       }
     }
 
     controller.into()
+  }
+
+  /// Test function for the TermUi.
+  ///
+  /// Instantiate the TermUi in a mock environment associating it with
+  /// the given task list, supply the given input, and retrieve the
+  /// resulting set of tasks.
+  fn test(tasks: Tasks, input: &[u8]) -> Tasks {
+    test_for_esc(tasks, vec![input])
   }
 
 
@@ -378,5 +478,74 @@ mod tests {
     let input = String::from("q");
 
     assert_eq!(test(tasks, input.as_bytes()), make_tasks(0))
+  }
+
+  #[test]
+  fn remove_no_task() {
+    let tasks = make_tasks(0);
+    let input = String::from("dq");
+
+    assert_eq!(test(tasks, input.as_bytes()), make_tasks(0))
+  }
+
+  #[test]
+  fn remove_only_task() {
+    let tasks = make_tasks(1);
+    let input = String::from("dq");
+
+    assert_eq!(test(tasks, input.as_bytes()), make_tasks(0))
+  }
+
+  #[test]
+  fn remove_task_after_down_select() {
+    let tasks = make_tasks(2);
+    let input = String::from("jjjjjdq");
+
+    assert_eq!(test(tasks, input.as_bytes()), make_tasks(1))
+  }
+
+  #[test]
+  fn remove_task_after_up_select() {
+    let tasks = make_tasks(3);
+    let mut expected = make_tasks(3);
+    let input = String::from("jjkdq");
+
+    expected.remove(1);
+    assert_eq!(test(tasks, input.as_bytes()), expected)
+  }
+
+  #[test]
+  fn add_task() {
+    let tasks = make_tasks(0);
+    let input = String::from("afoobar\nq");
+    let expected = Tasks::from_iter(
+      vec![
+        Task {
+          summary: "foobar".to_string(),
+        },
+      ].iter().cloned()
+    );
+
+    assert_eq!(test(tasks, input.as_bytes()), expected)
+  }
+
+  #[test]
+  fn add_and_remove_tasks() {
+    let tasks = make_tasks(0);
+    let input = String::from("afoo\nabar\nddq");
+    let expected = Tasks::from_iter(Vec::new());
+
+    assert_eq!(test(tasks, input.as_bytes()), expected)
+  }
+
+  #[test]
+  fn add_task_cancel() {
+    let tasks = make_tasks(0);
+    let input1 = String::from("afoobaz\x1b");
+    let input2 = String::from("q");
+    let input = vec![input1.as_bytes(), input2.as_bytes()];
+    let expected = make_tasks(0);
+
+    assert_eq!(test_for_esc(tasks, input), expected)
   }
 }
