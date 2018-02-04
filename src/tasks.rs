@@ -26,7 +26,7 @@ use std::iter::FromIterator;
 use std::slice;
 
 use serde_json::from_reader;
-use serde_json::to_string as to_json;
+use serde_json::to_string_pretty as to_json;
 
 
 /// A struct representing a task item.
