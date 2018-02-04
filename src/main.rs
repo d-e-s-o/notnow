@@ -82,6 +82,9 @@ mod tasks;
 mod termui;
 mod view;
 
+use std::env;
+use std::io::Error;
+use std::io::ErrorKind;
 use std::io::Result;
 use std::io::stdin;
 use std::io::stdout;
@@ -96,11 +99,26 @@ use view::Quit;
 use view::View;
 
 
+/// Retrieve the path to the program's configuration file.
+fn config() -> Result<String> {
+  Ok(
+    env::home_dir()
+      .ok_or_else(|| Error::new(
+        ErrorKind::NotFound, "Unable to determine home directory"
+      ))?
+      .join(".config")
+      .join("notnow")
+      .join("tasks.json")
+      .into_os_string()
+      .to_string_lossy()
+      .to_string(),
+  )
+}
+
 /// Run the program.
 fn run_prog() -> Result<()> {
-  // TODO: Figure out how to handle '~' (expand user or something?).
-  let task_path = "/home/deso/.config/notnow/tasks.json";
-  let mut orchestrator = Orchestrator::new(task_path)?;
+  let task_path = config()?;
+  let mut orchestrator = Orchestrator::new(&task_path)?;
   let screen = AlternateScreen::from(stdout().into_raw_mode()?);
   let mut ui = TermUi::new(stdin(), screen, &mut orchestrator)?;
 
