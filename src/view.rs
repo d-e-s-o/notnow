@@ -1,7 +1,7 @@
 // view.rs
 
 // *************************************************************************
-// * Copyright (C) 2017 Daniel Mueller (deso@posteo.net)                   *
+// * Copyright (C) 2017-2018 Daniel Mueller (deso@posteo.net)              *
 // *                                                                       *
 // * This program is free software: you can redistribute it and/or modify  *
 // * it under the terms of the GNU General Public License as published by  *
@@ -19,6 +19,8 @@
 
 use std::io::Error;
 use std::result;
+
+use termion::event::Event;
 
 
 /// A result type as used by every view.
@@ -40,7 +42,7 @@ pub enum Quit {
 /// Views are the entities representing the actual data to the user.
 pub trait View {
   /// Check for and handle any new input on the view.
-  fn poll(&mut self) -> Result<Quit>;
+  fn handle(&mut self, event: &Event) -> Result<Quit>;
 
   /// Update the view to reflect new data.
   fn update(&mut self) -> Result<()>;

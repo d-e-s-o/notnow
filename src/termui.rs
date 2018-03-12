@@ -1,7 +1,7 @@
 // termui.rs
 
 // *************************************************************************
-// * Copyright (C) 2017 Daniel Mueller (deso@posteo.net)                   *
+// * Copyright (C) 2017-2018 Daniel Mueller (deso@posteo.net)              *
 // *                                                                       *
 // * This program is free software: you can redistribute it and/or modify  *
 // * it under the terms of the GNU General Public License as published by  *
@@ -20,7 +20,6 @@
 use std::cmp::max;
 use std::cmp::min;
 use std::io::BufWriter;
-use std::io::Read;
 use std::io::Write;
 
 use termion::clear::All;
@@ -34,8 +33,6 @@ use termion::cursor::Hide;
 use termion::cursor::Show;
 use termion::event::Event;
 use termion::event::Key;
-use termion::input::Events;
-use termion::input::TermRead;
 use termion::terminal_size;
 
 use controller::Controller;
@@ -85,33 +82,29 @@ enum InOutArea {
 }
 
 
-type Handler<'ctrl, R, W> = fn(obj: &mut TermUi<'ctrl, R, W>, event: &Event) -> Result<Quit>;
+type Handler<'ctrl, W> = fn(obj: &mut TermUi<'ctrl, W>, event: &Event) -> Result<Quit>;
 
 
 /// An implementation of a terminal based view.
-pub struct TermUi<'ctrl, R, W>
+pub struct TermUi<'ctrl, W>
 where
-  R: Read,
   W: Write,
 {
   writer: BufWriter<W>,
-  events: Events<R>,
   controller: &'ctrl mut Controller,
-  handler: Handler<'ctrl, R, W>,
+  handler: Handler<'ctrl, W>,
   in_out: InOutArea,
   offset: isize,
   selection: isize,
 }
 
 
-impl<'ctrl, R, W> TermUi<'ctrl, R, W>
+impl<'ctrl, W> TermUi<'ctrl, W>
 where
-  R: Read,
   W: Write,
 {
   /// Create a new view associated with the given controller.
-  pub fn new(reader: R, writer: W, controller: &'ctrl mut Controller) -> Result<Self> {
-    let events = reader.events();
+  pub fn new(writer: W, controller: &'ctrl mut Controller) -> Result<Self> {
     // Compared to termbox termion suffers from flickering when clearing
     // the entire screen as it lacks any double buffering capabilities
     // and uses an escape sequence for the clearing. One proposed
@@ -125,9 +118,8 @@ where
 
     Ok(TermUi {
       writer: writer,
-      events: events,
       controller: controller,
-      handler: TermUi::<'ctrl, R, W>::handle,
+      handler: TermUi::<'ctrl, W>::handle_event,
       in_out: InOutArea::Clear,
       offset: 0,
       selection: 0,
@@ -237,7 +229,7 @@ where
     Ok(())
   }
 
-  fn handle(&mut self, event: &Event) -> Result<Quit> {
+  fn handle_event(&mut self, event: &Event) -> Result<Quit> {
     let needs_update = match *event {
       Event::Key(key) => {
         let update = if let InOutArea::Clear = self.in_out {
@@ -304,7 +296,7 @@ where
               panic!("In/out area not used for input.");
             }
             self.in_out = InOutArea::Clear;
-            self.handler = Self::handle;
+            self.handler = Self::handle_event;
             true
           },
           Key::Char(c) => {
@@ -318,7 +310,7 @@ where
           },
           Key::Esc => {
             self.in_out = InOutArea::Clear;
-            self.handler = Self::handle;
+            self.handler = Self::handle_event;
             true
           },
           _ => false,
@@ -335,18 +327,13 @@ where
 }
 
 
-impl<'ctrl, R, W> View for TermUi<'ctrl, R, W>
+impl<'ctrl, W> View for TermUi<'ctrl, W>
 where
-  R: Read,
   W: Write,
 {
   /// Check for new input and react to it.
-  fn poll(&mut self) -> Result<Quit> {
-    if let Some(event) = self.events.next() {
-      (self.handler)(self, &event?)
-    } else {
-      Ok(Quit::No)
-    }
+  fn handle(&mut self, event: &Event) -> Result<Quit> {
+    (self.handler)(self, event)
   }
 
   /// Update the view by redrawing the user interface.
@@ -366,9 +353,8 @@ where
 }
 
 
-impl<'ctrl, R, W> Drop for TermUi<'ctrl, R, W>
+impl<'ctrl, W> Drop for TermUi<'ctrl, W>
 where
-  R: Read,
   W: Write,
 {
   fn drop(&mut self) {
@@ -381,6 +367,8 @@ where
 mod tests {
   use std::io;
   use std::iter::FromIterator;
+
+  use termion::input::TermRead;
 
   use super::*;
 
@@ -444,18 +432,15 @@ mod tests {
 
     {
       let writer = vec![];
-      let mut last_len = input[0].len();
-      let mut ui = TermUi::new(input[0], writer, &mut controller).unwrap();
+      let mut ui = TermUi::new(writer, &mut controller).unwrap();
 
       for data in input {
-        let len = last_len;
-        for _ in 0..len {
-          if let Quit::Yes = ui.poll().unwrap() {
+        let mut events = data.events();
+        for event in events {
+          if let Quit::Yes = ui.handle(&event.unwrap()).unwrap() {
             break
           }
         }
-        last_len = data.len();
-        ui.events = data.events();
       }
     }
 

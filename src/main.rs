@@ -1,7 +1,7 @@
 // main.rs
 
 // *************************************************************************
-// * Copyright (C) 2017 Daniel Mueller (deso@posteo.net)                   *
+// * Copyright (C) 2017-2018 Daniel Mueller (deso@posteo.net)              *
 // *                                                                       *
 // * This program is free software: you can redistribute it and/or modify  *
 // * it under the terms of the GNU General Public License as published by  *
@@ -90,6 +90,7 @@ use std::io::stdin;
 use std::io::stdout;
 use std::process::exit;
 
+use termion::input::TermRead;
 use termion::raw::IntoRawMode;
 use termion::screen::AlternateScreen;
 
@@ -120,15 +121,18 @@ fn run_prog() -> Result<()> {
   let task_path = config()?;
   let mut orchestrator = Orchestrator::new(&task_path)?;
   let screen = AlternateScreen::from(stdout().into_raw_mode()?);
-  let mut ui = TermUi::new(stdin(), screen, &mut orchestrator)?;
+  let mut ui = TermUi::new(screen, &mut orchestrator)?;
+  let mut events = stdin().events();
 
   // Initially we need to trigger an update of all views in order to
   // have them present the current data.
   ui.update()?;
 
   loop {
-    if let Quit::Yes = ui.poll()? {
-      break
+    if let Some(event) = events.next() {
+      if let Quit::Yes = ui.handle(&event?)? {
+        break
+      }
     }
   }
   Ok(())
