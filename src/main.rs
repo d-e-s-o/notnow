@@ -124,9 +124,9 @@ fn run_prog() -> Result<()> {
   let mut ui = TermUi::new(screen, &mut orchestrator)?;
   let mut events = stdin().events();
 
-  // Initially we need to trigger an update of all views in order to
-  // have them present the current data.
-  ui.update()?;
+  // Initially we need to trigger a render of all views in order to have
+  // them present the current data.
+  ui.render()?;
 
   loop {
     if let Some(event) = events.next() {

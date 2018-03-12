@@ -147,7 +147,7 @@ where
 
   /// Sanitize selection and offset about what is being displayed.
   ///
-  /// This functionality is to be called from inside the "update" path
+  /// This functionality is to be called from inside the "render" path
   /// where we visualize the current data.
   fn sanitize_view<T>(&self, iter: T) -> Result<(isize, isize, isize)>
   where
@@ -166,7 +166,7 @@ where
   }
 
   /// Update, i.e., redraw, all the tasks.
-  fn update_tasks(&mut self) -> Result<()> {
+  fn render_tasks(&mut self) -> Result<()> {
     let x = MAIN_MARGIN_X;
     let mut y = MAIN_MARGIN_Y;
 
@@ -201,7 +201,7 @@ where
     Ok(())
   }
 
-  fn update_input_output(&mut self) -> Result<()> {
+  fn render_input_output(&mut self) -> Result<()> {
     let x = 0;
     let (_, y) = terminal_size()?;
 
@@ -278,7 +278,7 @@ where
     };
 
     if needs_update {
-      self.update()?
+      self.render()?
     }
     Ok(Quit::No)
   }
@@ -320,7 +320,7 @@ where
     };
 
     if needs_update {
-      self.update()?
+      self.render()?
     }
     Ok(Quit::No)
   }
@@ -336,8 +336,8 @@ where
     (self.handler)(self, event)
   }
 
-  /// Update the view by redrawing the user interface.
-  fn update(&mut self) -> Result<()> {
+  /// Render the user interface.
+  fn render(&mut self) -> Result<()> {
     write!(
       self.writer,
       "{}{}{}",
@@ -345,8 +345,8 @@ where
       Bg(Reset),
       All
     )?;
-    self.update_tasks()?;
-    self.update_input_output()?;
+    self.render_tasks()?;
+    self.render_input_output()?;
     self.writer.flush()?;
     Ok(())
   }

@@ -44,6 +44,6 @@ pub trait View {
   /// Check for and handle any new input on the view.
   fn handle(&mut self, event: &Event) -> Result<Quit>;
 
-  /// Update the view to reflect new data.
-  fn update(&mut self) -> Result<()>;
+  /// Render the view to reflect new data.
+  fn render(&mut self) -> Result<()>;
 }
