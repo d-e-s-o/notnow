@@ -165,6 +165,21 @@ where
     Ok((offset, select, task_limit))
   }
 
+  /// Render the entire view.
+  fn render_all(&mut self) -> Result<()> {
+    write!(
+      self.writer,
+      "{}{}{}",
+      Fg(Reset),
+      Bg(Reset),
+      All
+    )?;
+    self.render_tasks()?;
+    self.render_input_output()?;
+    self.writer.flush()?;
+    Ok(())
+  }
+
   /// Update, i.e., redraw, all the tasks.
   fn render_tasks(&mut self) -> Result<()> {
     let x = MAIN_MARGIN_X;
@@ -278,7 +293,7 @@ where
     };
 
     if needs_update {
-      self.render()?
+      self.render()
     }
     Ok(Quit::No)
   }
@@ -320,7 +335,7 @@ where
     };
 
     if needs_update {
-      self.render()?
+      self.render()
     }
     Ok(Quit::No)
   }
@@ -337,18 +352,10 @@ where
   }
 
   /// Render the user interface.
-  fn render(&mut self) -> Result<()> {
-    write!(
-      self.writer,
-      "{}{}{}",
-      Fg(Reset),
-      Bg(Reset),
-      All
-    )?;
-    self.render_tasks()?;
-    self.render_input_output()?;
-    self.writer.flush()?;
-    Ok(())
+  fn render(&mut self) {
+    if let Err(e) = self.render_all() {
+      panic!("Rendering failed: {}", e);
+    }
   }
 }
 

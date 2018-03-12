@@ -126,7 +126,7 @@ fn run_prog() -> Result<()> {
 
   // Initially we need to trigger a render of all views in order to have
   // them present the current data.
-  ui.render()?;
+  ui.render();
 
   loop {
     if let Some(event) = events.next() {
