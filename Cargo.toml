@@ -11,6 +11,9 @@ description = """
 A terminal based task and TODO management software.
 """
 
+[dependencies.gui]
+version = "=0.1.0-alpha.0"
+
 [dependencies.serde]
 version = "1.0"
 

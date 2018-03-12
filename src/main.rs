@@ -71,12 +71,14 @@
 
 //! A terminal based task management application.
 
+extern crate gui;
 #[macro_use]
 extern crate serde_derive;
 extern crate serde_json;
 extern crate termion;
 
 mod controller;
+mod event;
 mod orchestrator;
 mod tasks;
 mod termui;
@@ -94,6 +96,7 @@ use termion::input::TermRead;
 use termion::raw::IntoRawMode;
 use termion::screen::AlternateScreen;
 
+use event::convert;
 use orchestrator::Orchestrator;
 use termui::TermUi;
 use view::Quit;
@@ -129,9 +132,15 @@ fn run_prog() -> Result<()> {
   ui.render();
 
   loop {
-    if let Some(event) = events.next() {
-      if let Quit::Yes = ui.handle(&event?) {
-        break
+    if let Some(term_event) = events.next() {
+      // Attempt to convert the event. If we fail the reason could be
+      // that it's not a key event (but a mouse event, for example) or
+      // that the key is not supported. Either way we just ignore the
+      // failure. The UI could not possibly react to it anyway.
+      if let Ok(event) = convert(term_event?) {
+        if let Quit::Yes = ui.handle(&event) {
+          break
+        }
       }
     }
   }

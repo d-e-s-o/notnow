@@ -1,7 +1,7 @@
-// view.rs
+// event.rs
 
 // *************************************************************************
-// * Copyright (C) 2017-2018 Daniel Mueller (deso@posteo.net)              *
+// * Copyright (C) 2018 Daniel Mueller (deso@posteo.net)                   *
 // *                                                                       *
 // * This program is free software: you can redistribute it and/or modify  *
 // * it under the terms of the GNU General Public License as published by  *
@@ -17,23 +17,25 @@
 // * along with this program.  If not, see <http://www.gnu.org/licenses/>. *
 // *************************************************************************
 
-use gui::Event;
+use termion::event::Event as TermEvent;
+use termion::event::Key as TermKey;
+
+use gui::Event as GuiEvent;
+use gui::Key as GuiKey;
 
 
-/// An enum to indicate whether the application should exit.
-pub enum Quit {
-  Yes,
-  No,
-}
-
-
-/// A trait defining the interface every view needs to implement.
+/// Convert a `termion::event::Event` into a `gui::Event`.
 ///
-/// Views are the entities representing the actual data to the user.
-pub trait View {
-  /// Check for and handle any new input on the view.
-  fn handle(&mut self, event: &Event) -> Quit;
-
-  /// Render the view to reflect new data.
-  fn render(&mut self);
+/// If the conversion fails, the original event is returned.
+pub fn convert(event: TermEvent) -> Result<GuiEvent, TermEvent> {
+  match event {
+    TermEvent::Key(key) => {
+      match key {
+        TermKey::Char(c) => Ok(GuiEvent::KeyDown(GuiKey::Char(c))),
+        TermKey::Esc => Ok(GuiEvent::KeyDown(GuiKey::Esc)),
+        _ => Err(event),
+      }
+    },
+    _ => Err(event),
+  }
 }

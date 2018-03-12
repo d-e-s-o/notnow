@@ -32,9 +32,10 @@ use termion::color::Rgb;
 use termion::cursor::Goto;
 use termion::cursor::Hide;
 use termion::cursor::Show;
-use termion::event::Event;
-use termion::event::Key;
 use termion::terminal_size;
+
+use gui::Event;
+use gui::Key;
 
 use controller::Controller;
 use tasks::Task;
@@ -246,7 +247,8 @@ where
 
   fn handle_event(&mut self, event: &Event) -> Quit {
     let needs_update = match *event {
-      Event::Key(key) => {
+      Event::KeyDown(key) |
+      Event::KeyUp(key) => {
         let update = if let InOutArea::Clear = self.in_out {
           false
         } else {
@@ -300,7 +302,8 @@ where
 
   fn handle_input(&mut self, event: &Event) -> Quit {
     let needs_update = match *event {
-      Event::Key(key) => {
+      Event::KeyDown(key) |
+      Event::KeyUp(key) => {
         match key {
           Key::Char('\n') => {
             if let InOutArea::Input(ref s) = self.in_out {
@@ -374,8 +377,6 @@ where
 mod tests {
   use std::iter::FromIterator;
 
-  use termion::input::TermRead;
-
   use super::*;
 
   use tasks::TaskIter;
@@ -441,9 +442,9 @@ mod tests {
       let mut ui = TermUi::new(writer, &mut controller).unwrap();
 
       for data in input {
-        let mut events = data.events();
-        for event in events {
-          if let Quit::Yes = ui.handle(&event.unwrap()) {
+        for byte in data {
+          let event = Event::KeyDown(Key::Char(*byte as char));
+          if let Quit::Yes = ui.handle(&event) {
             break
           }
         }
