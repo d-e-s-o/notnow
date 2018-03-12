@@ -130,7 +130,7 @@ fn run_prog() -> Result<()> {
 
   loop {
     if let Some(event) = events.next() {
-      if let Quit::Yes = ui.handle(&event?)? {
+      if let Quit::Yes = ui.handle(&event?) {
         break
       }
     }

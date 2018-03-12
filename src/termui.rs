@@ -20,6 +20,7 @@
 use std::cmp::max;
 use std::cmp::min;
 use std::io::BufWriter;
+use std::io::Result;
 use std::io::Write;
 
 use termion::clear::All;
@@ -38,7 +39,6 @@ use termion::terminal_size;
 use controller::Controller;
 use tasks::Task;
 use view::Quit;
-use view::Result;
 use view::View;
 
 
@@ -82,7 +82,7 @@ enum InOutArea {
 }
 
 
-type Handler<'ctrl, W> = fn(obj: &mut TermUi<'ctrl, W>, event: &Event) -> Result<Quit>;
+type Handler<'ctrl, W> = fn(obj: &mut TermUi<'ctrl, W>, event: &Event) -> Quit;
 
 
 /// An implementation of a terminal based view.
@@ -244,7 +244,7 @@ where
     Ok(())
   }
 
-  fn handle_event(&mut self, event: &Event) -> Result<Quit> {
+  fn handle_event(&mut self, event: &Event) -> Quit {
     let needs_update = match *event {
       Event::Key(key) => {
         let update = if let InOutArea::Clear = self.in_out {
@@ -281,7 +281,7 @@ where
             self.select(-1);
             true
           },
-          Key::Char('q') => return Ok(Quit::Yes),
+          Key::Char('q') => return Quit::Yes,
           Key::Char('w') => {
             self.save();
             true
@@ -295,10 +295,10 @@ where
     if needs_update {
       self.render()
     }
-    Ok(Quit::No)
+    Quit::No
   }
 
-  fn handle_input(&mut self, event: &Event) -> Result<Quit> {
+  fn handle_input(&mut self, event: &Event) -> Quit {
     let needs_update = match *event {
       Event::Key(key) => {
         match key {
@@ -337,7 +337,7 @@ where
     if needs_update {
       self.render()
     }
-    Ok(Quit::No)
+    Quit::No
   }
 }
 
@@ -347,7 +347,7 @@ where
   W: Write,
 {
   /// Check for new input and react to it.
-  fn handle(&mut self, event: &Event) -> Result<Quit> {
+  fn handle(&mut self, event: &Event) -> Quit {
     (self.handler)(self, event)
   }
 
@@ -372,7 +372,6 @@ where
 
 #[cfg(test)]
 mod tests {
-  use std::io;
   use std::iter::FromIterator;
 
   use termion::input::TermRead;
@@ -405,7 +404,7 @@ mod tests {
   }
 
   impl Controller for MockController {
-    fn save(&self) -> io::Result<()> {
+    fn save(&self) -> Result<()> {
       // No-op.
       Ok(())
     }
@@ -444,7 +443,7 @@ mod tests {
       for data in input {
         let mut events = data.events();
         for event in events {
-          if let Quit::Yes = ui.handle(&event.unwrap()).unwrap() {
+          if let Quit::Yes = ui.handle(&event.unwrap()) {
             break
           }
         }

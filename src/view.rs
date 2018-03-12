@@ -17,17 +17,7 @@
 // * along with this program.  If not, see <http://www.gnu.org/licenses/>. *
 // *************************************************************************
 
-use std::io::Error;
-use std::result;
-
 use termion::event::Event;
-
-
-/// A result type as used by every view.
-///
-/// TODO: For now we assume a view uses io::Error. This may change should
-///       we ever support more views.
-pub type Result<T> = result::Result<T, Error>;
 
 
 /// An enum to indicate whether the application should exit.
@@ -42,7 +32,7 @@ pub enum Quit {
 /// Views are the entities representing the actual data to the user.
 pub trait View {
   /// Check for and handle any new input on the view.
-  fn handle(&mut self, event: &Event) -> Result<Quit>;
+  fn handle(&mut self, event: &Event) -> Quit;
 
   /// Render the view to reflect new data.
   fn render(&mut self);
