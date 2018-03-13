@@ -1,7 +1,7 @@
 // orchestrator.rs
 
 // *************************************************************************
-// * Copyright (C) 2017 Daniel Mueller (deso@posteo.net)                   *
+// * Copyright (C) 2017-2018 Daniel Mueller (deso@posteo.net)              *
 // *                                                                       *
 // * This program is free software: you can redistribute it and/or modify  *
 // * it under the terms of the GNU General Public License as published by  *
@@ -18,6 +18,8 @@
 // *************************************************************************
 
 use std::io::Result;
+use std::path::Path;
+use std::path::PathBuf;
 
 use controller::Controller;
 use tasks::Task;
@@ -27,17 +29,20 @@ use tasks::Tasks;
 
 /// A concrete controller suitable for our intents and purposes.
 pub struct Orchestrator {
-  path: String,
+  path: PathBuf,
   tasks: Tasks,
 }
 
 impl Orchestrator {
   /// Create a new orchestrator object using the task data at the given path.
-  pub fn new(task_path: &str) -> Result<Self> {
-    let tasks = Tasks::new(task_path)?;
+  pub fn new<P>(task_path: P) -> Result<Self>
+  where
+    P: Into<PathBuf> + AsRef<Path>,
+  {
+    let tasks = Tasks::new(&task_path)?;
 
     Ok(Orchestrator {
-      path: task_path.to_string(),
+      path: task_path.into(),
       tasks: tasks,
     })
   }

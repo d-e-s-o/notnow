@@ -1,7 +1,7 @@
 // tasks.rs
 
 // *************************************************************************
-// * Copyright (C) 2017 Daniel Mueller (deso@posteo.net)                   *
+// * Copyright (C) 2017-2018 Daniel Mueller (deso@posteo.net)              *
 // *                                                                       *
 // * This program is free software: you can redistribute it and/or modify  *
 // * it under the terms of the GNU General Public License as published by  *
@@ -23,6 +23,7 @@ use std::io::ErrorKind;
 use std::io::Result;
 use std::io::Write;
 use std::iter::FromIterator;
+use std::path::Path;
 use std::slice;
 
 use serde_json::from_reader;
@@ -47,7 +48,10 @@ pub struct Tasks {
 
 impl Tasks {
   /// Create a new `Tasks` object by loading tasks from a file.
-  pub fn new(path: &str) -> Result<Self> {
+  pub fn new<P>(path: &P) -> Result<Self>
+  where
+    P: AsRef<Path>,
+  {
     match File::open(path) {
       Ok(file) => Ok(from_reader(&file)?),
       Err(e) => {
@@ -63,13 +67,16 @@ impl Tasks {
   }
 
   /// Persist the tasks into a file.
-  pub fn save(&self, path: &str) -> Result<()> {
+  pub fn save<P>(&self, path: &P) -> Result<()>
+  where
+    P: AsRef<Path>,
+  {
     let serialized = to_json(&self)?;
     OpenOptions::new()
       .create(true)
       .truncate(true)
       .write(true)
-      .open(&path)?
+      .open(path)?
       .write_all(serialized.as_ref())?;
     Ok(())
   }
@@ -121,6 +128,7 @@ pub mod tests {
   use std::ffi::CString;
   use std::fs::remove_file;
   use std::ops::Deref;
+  use std::path::PathBuf;
 
   use serde_json::from_str as from_json;
 
@@ -145,7 +153,7 @@ pub mod tests {
   /// This class is only meant for our internal testing!
   struct NamedTempFile {
     file: u64,
-    path: String,
+    path: PathBuf,
   }
 
   impl NamedTempFile {
@@ -157,17 +165,15 @@ pub mod tests {
 
       NamedTempFile {
         file: result as u64,
-        path: unsafe { CString::from_raw(raw) }
-          .into_string()
-          .unwrap(),
+        path: unsafe { PathBuf::from(CString::from_raw(raw).into_string().unwrap()) },
       }
     }
   }
 
   impl Deref for NamedTempFile {
-    type Target = String;
+    type Target = PathBuf;
 
-    fn deref(&self) -> &String {
+    fn deref(&self) -> &PathBuf {
       &self.path
     }
   }
@@ -260,9 +266,9 @@ pub mod tests {
       ],
     };
 
-    tasks.save(&file).unwrap();
+    tasks.save(&*file).unwrap();
 
-    let new_tasks = Tasks::new(&file).unwrap();
+    let new_tasks = Tasks::new(&*file).unwrap();
     assert_eq!(new_tasks, tasks);
   }
 
@@ -278,7 +284,7 @@ pub mod tests {
         ],
       };
 
-      tasks.save(&file).unwrap();
+      tasks.save(&*file).unwrap();
       file.clone()
     };
 

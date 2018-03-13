@@ -90,6 +90,7 @@ use std::io::ErrorKind;
 use std::io::Result;
 use std::io::stdin;
 use std::io::stdout;
+use std::path::PathBuf;
 use std::process::exit;
 
 use termion::input::TermRead;
@@ -104,7 +105,7 @@ use view::View;
 
 
 /// Retrieve the path to the program's configuration file.
-fn config() -> Result<String> {
+fn config() -> Result<PathBuf> {
   Ok(
     env::home_dir()
       .ok_or_else(|| Error::new(
@@ -112,10 +113,7 @@ fn config() -> Result<String> {
       ))?
       .join(".config")
       .join("notnow")
-      .join("tasks.json")
-      .into_os_string()
-      .to_string_lossy()
-      .to_string(),
+      .join("tasks.json"),
   )
 }
 
