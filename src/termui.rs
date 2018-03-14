@@ -370,6 +370,7 @@ where
 #[cfg(test)]
 mod tests {
   use std::iter::FromIterator;
+  use std::str::Chars;
 
   use super::*;
 
@@ -427,7 +428,7 @@ mod tests {
   /// Key::Esc only if it is not followed by any additional input. If
   /// additional bytes follow, 0x1b will just act as the introduction for
   /// an escape sequence.
-  fn test_for_esc(tasks: Tasks, input: Vec<&[u8]>) -> Tasks {
+  fn test_for_esc(tasks: Tasks, input: Vec<Chars>) -> Tasks {
     let mut controller = MockController::new(tasks);
 
     {
@@ -436,7 +437,7 @@ mod tests {
 
       for data in input {
         for byte in data {
-          let event = Event::KeyDown(Key::Char(*byte as char));
+          let event = Event::KeyDown(Key::Char(byte));
           if let Some(UiEvent::Quit) = ui.handle(&event) {
             break
           }
@@ -452,7 +453,7 @@ mod tests {
   /// Instantiate the TermUi in a mock environment associating it with
   /// the given task list, supply the given input, and retrieve the
   /// resulting set of tasks.
-  fn test(tasks: Tasks, input: &[u8]) -> Tasks {
+  fn test(tasks: Tasks, input: Chars) -> Tasks {
     test_for_esc(tasks, vec![input])
   }
 
@@ -462,7 +463,7 @@ mod tests {
     let tasks = make_tasks(0);
     let input = String::from("q");
 
-    assert_eq!(test(tasks, input.as_bytes()), make_tasks(0))
+    assert_eq!(test(tasks, input.chars()), make_tasks(0))
   }
 
   #[test]
@@ -470,7 +471,7 @@ mod tests {
     let tasks = make_tasks(0);
     let input = String::from("dq");
 
-    assert_eq!(test(tasks, input.as_bytes()), make_tasks(0))
+    assert_eq!(test(tasks, input.chars()), make_tasks(0))
   }
 
   #[test]
@@ -478,7 +479,7 @@ mod tests {
     let tasks = make_tasks(1);
     let input = String::from("dq");
 
-    assert_eq!(test(tasks, input.as_bytes()), make_tasks(0))
+    assert_eq!(test(tasks, input.chars()), make_tasks(0))
   }
 
   #[test]
@@ -486,7 +487,7 @@ mod tests {
     let tasks = make_tasks(2);
     let input = String::from("jjjjjdq");
 
-    assert_eq!(test(tasks, input.as_bytes()), make_tasks(1))
+    assert_eq!(test(tasks, input.chars()), make_tasks(1))
   }
 
   #[test]
@@ -496,7 +497,7 @@ mod tests {
     let input = String::from("jjkdq");
 
     expected.remove(1);
-    assert_eq!(test(tasks, input.as_bytes()), expected)
+    assert_eq!(test(tasks, input.chars()), expected)
   }
 
   #[test]
@@ -511,7 +512,7 @@ mod tests {
       ].iter().cloned()
     );
 
-    assert_eq!(test(tasks, input.as_bytes()), expected)
+    assert_eq!(test(tasks, input.chars()), expected)
   }
 
   #[test]
@@ -520,7 +521,7 @@ mod tests {
     let input = String::from("afoo\nabar\nddq");
     let expected = Tasks::from_iter(Vec::new());
 
-    assert_eq!(test(tasks, input.as_bytes()), expected)
+    assert_eq!(test(tasks, input.chars()), expected)
   }
 
   #[test]
@@ -528,7 +529,7 @@ mod tests {
     let tasks = make_tasks(0);
     let input1 = String::from("afoobaz\x1b");
     let input2 = String::from("q");
-    let input = vec![input1.as_bytes(), input2.as_bytes()];
+    let input = vec![input1.chars(), input2.chars()];
     let expected = make_tasks(0);
 
     assert_eq!(test_for_esc(tasks, input), expected)
