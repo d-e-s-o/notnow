@@ -73,6 +73,12 @@ const ERROR_TEXT: &str = " Error ";
 const INPUT_TEXT: &str = " > ";
 
 
+/// Sanitize a selection index.
+fn sanitize_selection(selection: isize, count: usize) -> usize {
+  max(0, min(count as isize - 1, selection)) as usize
+}
+
+
 /// An object representing the in/out area within the TermUi.
 enum InOutArea {
   Saved,
@@ -96,6 +102,7 @@ where
   in_out: InOutArea,
   offset: isize,
   selection: isize,
+  update: bool,
 }
 
 
@@ -123,6 +130,7 @@ where
       in_out: InOutArea::Clear,
       offset: 0,
       selection: 0,
+      update: true,
     })
   }
 
@@ -149,17 +157,12 @@ where
   ///
   /// This functionality is to be called from inside the "render" path
   /// where we visualize the current data.
-  fn sanitize_view<T>(&self, iter: T) -> Result<(isize, isize, isize)>
-  where
-    T: Iterator,
-  {
+  fn sanitize_view(&self, count: usize) -> Result<(isize, isize, isize)> {
     let task_limit = self.displayable_tasks()?;
-    let task_count = iter.count() as isize;
+    let select = sanitize_selection(self.selection, count) as isize;
 
-    let mut select = self.selection;
     let mut offset = self.offset;
 
-    select = max(0, min(task_count - 1, select));
     offset = min(select, max(offset, select - (task_limit - 1)));
 
     Ok((offset, select, task_limit))
@@ -174,16 +177,21 @@ where
 
   /// Render the entire view.
   fn render_all(&mut self) -> Result<()> {
-    write!(
-      self.writer,
-      "{}{}{}",
-      Fg(Reset),
-      Bg(Reset),
-      All
-    )?;
-    self.render_tasks()?;
-    self.render_input_output()?;
-    self.writer.flush()?;
+    if self.update {
+      write!(
+        self.writer,
+        "{}{}{}",
+        Fg(Reset),
+        Bg(Reset),
+        All
+      )?;
+      self.render_tasks()?;
+      self.render_input_output()?;
+      self.writer.flush()?;
+
+      // Until something changes, there is no need to redraw everything.
+      self.update = false;
+    }
     Ok(())
   }
 
@@ -193,7 +201,7 @@ where
     let mut y = MAIN_MARGIN_Y;
 
     let iter = self.controller.tasks();
-    let (offset, selection, limit) = self.sanitize_view(iter.clone())?;
+    let (offset, selection, limit) = self.sanitize_view(iter.clone().count())?;
 
     for (i, task) in iter.enumerate().skip(offset as usize) {
       if i as isize >= offset + limit {
@@ -257,7 +265,7 @@ where
   }
 
   fn handle_event(&mut self, event: &Event) -> Option<UiEvent> {
-    let needs_update = match *event {
+    self.update = match *event {
       Event::KeyDown(key) |
       Event::KeyUp(key) => {
         let update = if let InOutArea::Clear = self.in_out {
@@ -277,7 +285,8 @@ where
           Key::Char('d') => {
             let count = self.controller.tasks().count();
             if count > 0 {
-              self.controller.remove_task(self.selection as usize);
+              let selection = sanitize_selection(self.selection, count);
+              self.controller.remove_task(selection as usize);
               self.select(0);
               // We have removed a task. Always indicate that an update
               // is necessary here.
@@ -304,15 +313,11 @@ where
       },
       _ => false,
     };
-
-    if needs_update {
-      self.render()
-    }
     None
   }
 
   fn handle_input(&mut self, event: &Event) -> Option<UiEvent> {
-    let needs_update = match *event {
+    self.update = match *event {
       Event::KeyDown(key) |
       Event::KeyUp(key) => {
         match key {
@@ -347,10 +352,6 @@ where
       },
       _ => false,
     };
-
-    if needs_update {
-      self.render()
-    }
     None
   }
 }

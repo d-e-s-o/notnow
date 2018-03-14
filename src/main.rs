@@ -139,6 +139,8 @@ fn run_prog() -> Result<()> {
           break
         }
       }
+
+      ui.render();
     }
   }
   Ok(())
