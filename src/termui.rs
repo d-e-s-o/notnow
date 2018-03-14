@@ -36,11 +36,10 @@ use termion::terminal_size;
 
 use gui::Event;
 use gui::Key;
+use gui::UiEvent;
 
 use controller::Controller;
 use tasks::Task;
-use view::Quit;
-use view::View;
 
 
 const MAIN_MARGIN_X: u16 = 3;
@@ -83,7 +82,7 @@ enum InOutArea {
 }
 
 
-type Handler<'ctrl, W> = fn(obj: &mut TermUi<'ctrl, W>, event: &Event) -> Quit;
+type Handler<'ctrl, W> = fn(obj: &mut TermUi<'ctrl, W>, event: &Event) -> Option<UiEvent>;
 
 
 /// An implementation of a terminal based view.
@@ -166,6 +165,13 @@ where
     Ok((offset, select, task_limit))
   }
 
+  /// Render the user interface.
+  pub fn render(&mut self) {
+    if let Err(e) = self.render_all() {
+      panic!("Rendering failed: {}", e);
+    }
+  }
+
   /// Render the entire view.
   fn render_all(&mut self) -> Result<()> {
     write!(
@@ -245,7 +251,12 @@ where
     Ok(())
   }
 
-  fn handle_event(&mut self, event: &Event) -> Quit {
+  /// Check for new input and react to it.
+  pub fn handle(&mut self, event: &Event) -> Option<UiEvent> {
+    (self.handler)(self, event)
+  }
+
+  fn handle_event(&mut self, event: &Event) -> Option<UiEvent> {
     let needs_update = match *event {
       Event::KeyDown(key) |
       Event::KeyUp(key) => {
@@ -283,7 +294,7 @@ where
             self.select(-1);
             true
           },
-          Key::Char('q') => return Quit::Yes,
+          Key::Char('q') => return Some(UiEvent::Quit),
           Key::Char('w') => {
             self.save();
             true
@@ -297,10 +308,10 @@ where
     if needs_update {
       self.render()
     }
-    Quit::No
+    None
   }
 
-  fn handle_input(&mut self, event: &Event) -> Quit {
+  fn handle_input(&mut self, event: &Event) -> Option<UiEvent> {
     let needs_update = match *event {
       Event::KeyDown(key) |
       Event::KeyUp(key) => {
@@ -340,25 +351,7 @@ where
     if needs_update {
       self.render()
     }
-    Quit::No
-  }
-}
-
-
-impl<'ctrl, W> View for TermUi<'ctrl, W>
-where
-  W: Write,
-{
-  /// Check for new input and react to it.
-  fn handle(&mut self, event: &Event) -> Quit {
-    (self.handler)(self, event)
-  }
-
-  /// Render the user interface.
-  fn render(&mut self) {
-    if let Err(e) = self.render_all() {
-      panic!("Rendering failed: {}", e);
-    }
+    None
   }
 }
 
@@ -382,7 +375,6 @@ mod tests {
   use tasks::TaskIter;
   use tasks::Tasks;
   use tasks::tests::make_tasks;
-  use view::Quit;
 
 
   #[derive(Debug)]
@@ -444,7 +436,7 @@ mod tests {
       for data in input {
         for byte in data {
           let event = Event::KeyDown(Key::Char(*byte as char));
-          if let Quit::Yes = ui.handle(&event) {
+          if let Some(UiEvent::Quit) = ui.handle(&event) {
             break
           }
         }

@@ -82,7 +82,6 @@ mod event;
 mod orchestrator;
 mod tasks;
 mod termui;
-mod view;
 
 use std::env;
 use std::io::Error;
@@ -97,11 +96,11 @@ use termion::input::TermRead;
 use termion::raw::IntoRawMode;
 use termion::screen::AlternateScreen;
 
+use gui::UiEvent;
+
 use event::convert;
 use orchestrator::Orchestrator;
 use termui::TermUi;
-use view::Quit;
-use view::View;
 
 
 /// Retrieve the path to the program's configuration file.
@@ -125,8 +124,8 @@ fn run_prog() -> Result<()> {
   let mut ui = TermUi::new(screen, &mut orchestrator)?;
   let mut events = stdin().events();
 
-  // Initially we need to trigger a render of all views in order to have
-  // them present the current data.
+  // Initially we need to trigger a render in order to have the most
+  // recent data presented.
   ui.render();
 
   loop {
@@ -136,7 +135,7 @@ fn run_prog() -> Result<()> {
       // that the key is not supported. Either way we just ignore the
       // failure. The UI could not possibly react to it anyway.
       if let Ok(event) = convert(term_event?) {
-        if let Quit::Yes = ui.handle(&event) {
+        if let Some(UiEvent::Quit) = ui.handle(&event) {
           break
         }
       }
