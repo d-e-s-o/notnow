@@ -143,8 +143,12 @@ where
   }
 
   /// Change the currently selected task.
-  fn select(&mut self, change: isize) {
-    self.selection += change;
+  fn select(&mut self, change: isize) -> bool {
+    let count = self.controller.tasks().count();
+    let old_selection = sanitize_selection(self.selection, count) as isize;
+    self.selection = sanitize_selection(self.selection + change, count) as isize;
+
+    self.selection != old_selection
   }
 
   /// Retrieve the number of tasks that fit on the screen.
@@ -295,14 +299,8 @@ where
               false
             }
           },
-          Key::Char('j') => {
-            self.select(1);
-            true
-          },
-          Key::Char('k') => {
-            self.select(-1);
-            true
-          },
+          Key::Char('j') => self.select(1),
+          Key::Char('k') => self.select(-1),
           Key::Char('q') => return Some(UiEvent::Quit),
           Key::Char('w') => {
             self.save();
