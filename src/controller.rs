@@ -1,7 +1,7 @@
 // controller.rs
 
 // *************************************************************************
-// * Copyright (C) 2017 Daniel Mueller (deso@posteo.net)                   *
+// * Copyright (C) 2017-2018 Daniel Mueller (deso@posteo.net)              *
 // *                                                                       *
 // * This program is free software: you can redistribute it and/or modify  *
 // * it under the terms of the GNU General Public License as published by  *
@@ -18,22 +18,51 @@
 // *************************************************************************
 
 use std::io::Result;
+use std::path::Path;
+use std::path::PathBuf;
 
 use tasks::Task;
 use tasks::TaskIter;
+use tasks::Tasks;
 
 
-/// A trait providing the basic interface a controller provides for views.
-pub trait Controller {
+/// An object providing higher-level functionality relating to tasks.
+pub struct Controller {
+  path: PathBuf,
+  tasks: Tasks,
+}
+
+impl Controller {
+  /// Create a new controller object using the task data at the given path.
+  pub fn new<P>(task_path: P) -> Result<Self>
+  where
+    P: Into<PathBuf> + AsRef<Path>,
+  {
+    let tasks = Tasks::new(&task_path)?;
+
+    Ok(Controller {
+      path: task_path.into(),
+      tasks: tasks,
+    })
+  }
+
   /// Save the tasks into a file.
-  fn save(&self) -> Result<()>;
+  pub fn save(&self) -> Result<()> {
+    self.tasks.save(&self.path)
+  }
 
   /// Retrieve the tasks associated with this controller.
-  fn tasks(&self) -> TaskIter;
+  pub fn tasks(&self) -> TaskIter {
+    self.tasks.iter()
+  }
 
   /// Add a new task to the list of tasks.
-  fn add_task(&mut self, task: Task);
+  pub fn add_task(&mut self, task: Task) {
+    self.tasks.add(task)
+  }
 
   /// Remove the task at the given index.
-  fn remove_task(&mut self, index: usize);
+  pub fn remove_task(&mut self, index: usize) {
+    self.tasks.remove(index)
+  }
 }

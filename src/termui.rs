@@ -88,17 +88,17 @@ enum InOutArea {
 }
 
 
-type Handler<'ctrl, W> = fn(obj: &mut TermUi<'ctrl, W>, event: &Event) -> Option<UiEvent>;
+type Handler<W> = fn(obj: &mut TermUi<W>, event: &Event) -> Option<UiEvent>;
 
 
 /// An implementation of a terminal based view.
-pub struct TermUi<'ctrl, W>
+pub struct TermUi<W>
 where
   W: Write,
 {
   writer: BufWriter<W>,
-  controller: &'ctrl mut Controller,
-  handler: Handler<'ctrl, W>,
+  controller: Controller,
+  handler: Handler<W>,
   in_out: InOutArea,
   offset: isize,
   selection: isize,
@@ -106,12 +106,12 @@ where
 }
 
 
-impl<'ctrl, W> TermUi<'ctrl, W>
+impl<W> TermUi<W>
 where
   W: Write,
 {
   /// Create a new view associated with the given controller.
-  pub fn new(writer: W, controller: &'ctrl mut Controller) -> Result<Self> {
+  pub fn new(writer: W, controller: Controller) -> Result<Self> {
     // Compared to termbox termion suffers from flickering when clearing
     // the entire screen as it lacks any double buffering capabilities
     // and uses an escape sequence for the clearing. One proposed
@@ -126,12 +126,18 @@ where
     Ok(TermUi {
       writer: writer,
       controller: controller,
-      handler: TermUi::<'ctrl, W>::handle_event,
+      handler: TermUi::<W>::handle_event,
       in_out: InOutArea::Clear,
       offset: 0,
       selection: 0,
       update: true,
     })
+  }
+
+  /// Retrieve the UI's controller.
+  #[allow(dead_code)]
+  pub fn controller(&self) -> &Controller {
+    &self.controller
   }
 
   /// Save the current state.
@@ -355,7 +361,7 @@ where
 }
 
 
-impl<'ctrl, W> Drop for TermUi<'ctrl, W>
+impl<W> Drop for TermUi<W>
 where
   W: Write,
 {
@@ -372,48 +378,9 @@ mod tests {
 
   use super::*;
 
-  use tasks::TaskIter;
   use tasks::Tasks;
   use tasks::tests::make_tasks;
-
-
-  #[derive(Debug)]
-  struct MockController {
-    tasks: Tasks,
-  }
-
-  impl MockController {
-    fn new(tasks: Tasks) -> Self {
-      Self {
-        tasks: tasks,
-      }
-    }
-  }
-
-  impl Into<Tasks> for MockController {
-    fn into(self) -> Tasks {
-      self.tasks
-    }
-  }
-
-  impl Controller for MockController {
-    fn save(&self) -> Result<()> {
-      // No-op.
-      Ok(())
-    }
-
-    fn tasks(&self) -> TaskIter {
-      self.tasks.iter()
-    }
-
-    fn add_task(&mut self, task: Task) {
-      self.tasks.add(task)
-    }
-
-    fn remove_task(&mut self, index: usize) {
-      self.tasks.remove(index)
-    }
-  }
+  use tasks::tests::NamedTempFile;
 
 
   /// Test function for the TermUi that supports inputs of the escape key.
@@ -427,23 +394,23 @@ mod tests {
   /// additional bytes follow, 0x1b will just act as the introduction for
   /// an escape sequence.
   fn test_for_esc(tasks: Tasks, input: Vec<Chars>) -> Tasks {
-    let mut controller = MockController::new(tasks);
+    let writer = vec![];
+    let file = NamedTempFile::new();
+    tasks.save(&*file).unwrap();
+    let controller = Controller::new((*file).clone()).unwrap();
 
-    {
-      let writer = vec![];
-      let mut ui = TermUi::new(writer, &mut controller).unwrap();
+    let mut ui = TermUi::new(writer, controller).unwrap();
 
-      for data in input {
-        for byte in data {
-          let event = Event::KeyDown(Key::Char(byte));
-          if let Some(UiEvent::Quit) = ui.handle(&event) {
-            break
-          }
+    for data in input {
+      for byte in data {
+        let event = Event::KeyDown(Key::Char(byte));
+        if let Some(UiEvent::Quit) = ui.handle(&event) {
+          break
         }
       }
     }
 
-    controller.into()
+    Tasks::from_iter(ui.controller().tasks().cloned())
   }
 
   /// Test function for the TermUi.

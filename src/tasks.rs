@@ -151,7 +151,7 @@ pub mod tests {
   /// A temporary file with a visible file system path.
   ///
   /// This class is only meant for our internal testing!
-  struct NamedTempFile {
+  pub struct NamedTempFile {
     file: u64,
     path: PathBuf,
   }

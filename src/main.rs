@@ -79,7 +79,6 @@ extern crate termion;
 
 mod controller;
 mod event;
-mod orchestrator;
 mod tasks;
 mod termui;
 
@@ -98,8 +97,8 @@ use termion::screen::AlternateScreen;
 
 use gui::UiEvent;
 
+use controller::Controller;
 use event::convert;
-use orchestrator::Orchestrator;
 use termui::TermUi;
 
 
@@ -119,9 +118,9 @@ fn config() -> Result<PathBuf> {
 /// Run the program.
 fn run_prog() -> Result<()> {
   let task_path = config()?;
-  let mut orchestrator = Orchestrator::new(&task_path)?;
+  let controller = Controller::new(&task_path)?;
   let screen = AlternateScreen::from(stdout().into_raw_mode()?);
-  let mut ui = TermUi::new(screen, &mut orchestrator)?;
+  let mut ui = TermUi::new(screen, controller)?;
   let mut events = stdin().events();
 
   // Initially we need to trigger a render in order to have the most
