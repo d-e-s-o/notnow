@@ -32,19 +32,8 @@ use tasks::Task;
 
 
 /// Sanitize a selection index.
-pub fn sanitize_selection(selection: isize, count: usize) -> usize {
+fn sanitize_selection(selection: isize, count: usize) -> usize {
   max(0, min(count as isize - 1, selection)) as usize
-}
-
-/// Sanitize an offset.
-pub fn sanitize_offset(offset: usize, selection: usize, limit: usize) -> usize {
-  if selection <= offset {
-    selection
-  } else if selection > offset + (limit - 1) {
-    selection - (limit - 1)
-  } else {
-    offset
-  }
 }
 
 
@@ -66,7 +55,7 @@ pub struct TermUi {
   handler: Handler,
   in_out: InOutArea,
   offset: Cell<usize>,
-  selection: isize,
+  selection: usize,
   update: bool,
 }
 
@@ -86,10 +75,8 @@ impl TermUi {
 
   /// Retrieve the current selection index.
   ///
-  /// The selection index indicates the currently selected task. Note
-  /// that for various reasons such as resizing events the returned
-  /// index should be sanitized via `sanitize_selection` before usage.
-  pub fn selection(&self) -> isize {
+  /// The selection index indicates the currently selected task.
+  pub fn selection(&self) -> usize {
     self.selection
   }
 
@@ -123,8 +110,9 @@ impl TermUi {
   /// Change the currently selected task.
   fn select(&mut self, change: isize) -> bool {
     let count = self.controller.tasks().count();
-    let old_selection = sanitize_selection(self.selection, count) as isize;
-    self.selection = sanitize_selection(self.selection + change, count) as isize;
+    let old_selection = self.selection;
+    let new_selection = self.selection as isize + change;
+    self.selection = sanitize_selection(new_selection, count);
 
     self.selection != old_selection
   }
@@ -168,8 +156,7 @@ impl TermUi {
           Key::Char('d') => {
             let count = self.controller.tasks().count();
             if count > 0 {
-              let selection = sanitize_selection(self.selection, count);
-              self.controller.remove_task(selection as usize);
+              self.controller.remove_task(self.selection);
               self.select(0);
               // We have removed a task. Always indicate that an update
               // is necessary here.

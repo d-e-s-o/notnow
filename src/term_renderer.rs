@@ -37,8 +37,6 @@ use termion::terminal_size;
 use gui::Renderer;
 
 use termui::InOutArea;
-use termui::sanitize_offset;
-use termui::sanitize_selection;
 use termui::TermUi;
 
 const MAIN_MARGIN_X: u16 = 3;
@@ -70,6 +68,18 @@ const IN_OUT_ERROR_BG: &Rgb = &Rgb(0xff, 0x00, 0x00);
 const IN_OUT_STRING_FG: &Rgb = &Rgb(0x00, 0x00, 0x00);
 /// The terminal default background.
 const IN_OUT_STRING_BG: &Reset = &Reset;
+
+
+/// Sanitize an offset.
+fn sanitize_offset(offset: usize, selection: usize, limit: usize) -> usize {
+  if selection <= offset {
+    selection
+  } else if selection > offset + (limit - 1) {
+    selection - (limit - 1)
+  } else {
+    offset
+  }
+}
 
 
 pub struct TermRenderer<W>
@@ -113,9 +123,8 @@ where
     let mut y = MAIN_MARGIN_Y;
 
     let iter = ui.controller().tasks();
-    let count = iter.clone().count();
     let limit = self.displayable_tasks()?;
-    let selection = sanitize_selection(ui.selection(), count);
+    let selection = ui.selection();
     let offset = sanitize_offset(ui.offset(), selection, limit);
 
     for (i, task) in iter.enumerate().skip(offset) {
