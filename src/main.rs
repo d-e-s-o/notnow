@@ -80,6 +80,7 @@ extern crate termion;
 mod controller;
 mod event;
 mod tasks;
+mod term_renderer;
 mod termui;
 
 use std::env;
@@ -99,6 +100,7 @@ use gui::UiEvent;
 
 use controller::Controller;
 use event::convert;
+use term_renderer::TermRenderer;
 use termui::TermUi;
 
 
@@ -120,12 +122,13 @@ fn run_prog() -> Result<()> {
   let task_path = config()?;
   let controller = Controller::new(&task_path)?;
   let screen = AlternateScreen::from(stdout().into_raw_mode()?);
-  let mut ui = TermUi::new(screen, controller)?;
+  let renderer = TermRenderer::new(screen)?;
+  let mut ui = TermUi::new(controller)?;
   let mut events = stdin().events();
 
   // Initially we need to trigger a render in order to have the most
   // recent data presented.
-  ui.render();
+  ui.render(&renderer);
 
   loop {
     if let Some(term_event) = events.next() {
@@ -139,7 +142,7 @@ fn run_prog() -> Result<()> {
         }
       }
 
-      ui.render();
+      ui.render(&renderer);
     }
   }
   Ok(())

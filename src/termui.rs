@@ -17,70 +17,39 @@
 // * along with this program.  If not, see <http://www.gnu.org/licenses/>. *
 // *************************************************************************
 
+use std::cell::Cell;
 use std::cmp::max;
 use std::cmp::min;
-use std::io::BufWriter;
 use std::io::Result;
-use std::io::Write;
-
-use termion::clear::All;
-use termion::color::Bg;
-use termion::color::Color;
-use termion::color::Fg;
-use termion::color::Reset;
-use termion::color::Rgb;
-use termion::cursor::Goto;
-use termion::cursor::Hide;
-use termion::cursor::Show;
-use termion::terminal_size;
 
 use gui::Event;
 use gui::Key;
+use gui::Renderer;
 use gui::UiEvent;
 
 use controller::Controller;
 use tasks::Task;
 
 
-const MAIN_MARGIN_X: u16 = 3;
-const MAIN_MARGIN_Y: u16 = 2;
-const TASK_SPACE: u16 = 2;
-
-// TODO: Make the colors run time configurable at some point.
-// Color 0.
-const UNSELECTED_TASK_FG: &Rgb = &Rgb(0x00, 0x00, 0x00);
-/// The terminal default background.
-const UNSELECTED_TASK_BG: &Reset = &Reset;
-/// Color 15.
-const SELECTED_TASK_FG: &Rgb = &Rgb(0xff, 0xff, 0xff);
-/// Color 240.
-const SELECTED_TASK_BG: &Rgb = &Rgb(0x58, 0x58, 0x58);
-/// Color 0.
-const IN_OUT_SUCCESS_FG: &Rgb = &Rgb(0x00, 0x00, 0x00);
-/// Color 40.
-const IN_OUT_SUCCESS_BG: &Rgb = &Rgb(0x00, 0xd7, 0x00);
-/// Color 0.
-const IN_OUT_ERROR_FG: &Rgb = &Rgb(0x00, 0x00, 0x00);
-/// Color 197.
-const IN_OUT_ERROR_BG: &Rgb = &Rgb(0xff, 0x00, 0x00);
-/// Color 0.
-const IN_OUT_STRING_FG: &Rgb = &Rgb(0x00, 0x00, 0x00);
-/// The terminal default background.
-const IN_OUT_STRING_BG: &Reset = &Reset;
-
-const SAVED_TEXT: &str = " Saved ";
-const ERROR_TEXT: &str = " Error ";
-const INPUT_TEXT: &str = " > ";
-
-
 /// Sanitize a selection index.
-fn sanitize_selection(selection: isize, count: usize) -> usize {
+pub fn sanitize_selection(selection: isize, count: usize) -> usize {
   max(0, min(count as isize - 1, selection)) as usize
+}
+
+/// Sanitize an offset.
+pub fn sanitize_offset(offset: usize, selection: usize, limit: usize) -> usize {
+  if selection <= offset {
+    selection
+  } else if selection > offset + (limit - 1) {
+    selection - (limit - 1)
+  } else {
+    offset
+  }
 }
 
 
 /// An object representing the in/out area within the TermUi.
-enum InOutArea {
+pub enum InOutArea {
   Saved,
   Error(String),
   Input(String),
@@ -88,54 +57,57 @@ enum InOutArea {
 }
 
 
-type Handler<W> = fn(obj: &mut TermUi<W>, event: &Event) -> Option<UiEvent>;
+type Handler = fn(obj: &mut TermUi, event: &Event) -> Option<UiEvent>;
 
 
 /// An implementation of a terminal based view.
-pub struct TermUi<W>
-where
-  W: Write,
-{
-  writer: BufWriter<W>,
+pub struct TermUi {
   controller: Controller,
-  handler: Handler<W>,
+  handler: Handler,
   in_out: InOutArea,
-  offset: isize,
+  offset: Cell<usize>,
   selection: isize,
   update: bool,
 }
 
 
-impl<W> TermUi<W>
-where
-  W: Write,
-{
+impl TermUi {
   /// Create a new view associated with the given controller.
-  pub fn new(writer: W, controller: Controller) -> Result<Self> {
-    // Compared to termbox termion suffers from flickering when clearing
-    // the entire screen as it lacks any double buffering capabilities
-    // and uses an escape sequence for the clearing. One proposed
-    // solution is to use a io::BufWriter. Tests have shown that it does
-    // not change much but conceptually it makes sense to use it
-    // nevertheless -- so this is what we do. For a broader discussion
-    // of this issue see https://github.com/ticki/termion/issues/105.
-    let mut writer = BufWriter::new(writer);
-
-    write!(writer, "{}{}", Hide, All)?;
-
+  pub fn new(controller: Controller) -> Result<Self> {
     Ok(TermUi {
-      writer: writer,
       controller: controller,
-      handler: TermUi::<W>::handle_event,
+      handler: TermUi::handle_event,
       in_out: InOutArea::Clear,
-      offset: 0,
+      offset: Cell::new(0),
       selection: 0,
       update: true,
     })
   }
 
+  /// Retrieve the current selection index.
+  ///
+  /// The selection index indicates the currently selected task. Note
+  /// that for various reasons such as resizing events the returned
+  /// index should be sanitized via `sanitize_selection` before usage.
+  pub fn selection(&self) -> isize {
+    self.selection
+  }
+
+  /// Retrieve the current view offset.
+  ///
+  /// The offset indicates the task at which to start displaying. Not
+  /// that for various reasons such as resizing events the returned
+  /// index should be sanitized via `sanitize_offset` before usage.
+  pub fn offset(&self) -> usize {
+    self.offset.get()
+  }
+
+  /// Adjust the view offset to use.
+  pub fn reoffset(&self, offset: usize) {
+    self.offset.set(offset)
+  }
+
   /// Retrieve the UI's controller.
-  #[allow(dead_code)]
   pub fn controller(&self) -> &Controller {
     &self.controller
   }
@@ -157,116 +129,17 @@ where
     self.selection != old_selection
   }
 
-  /// Retrieve the number of tasks that fit on the screen.
-  fn displayable_tasks(&self) -> Result<isize> {
-    let (_, h) = terminal_size()?;
-    Ok(((h - MAIN_MARGIN_Y) / TASK_SPACE) as isize)
-  }
-
-  /// Sanitize selection and offset about what is being displayed.
-  ///
-  /// This functionality is to be called from inside the "render" path
-  /// where we visualize the current data.
-  fn sanitize_view(&self, count: usize) -> Result<(isize, isize, isize)> {
-    let task_limit = self.displayable_tasks()?;
-    let select = sanitize_selection(self.selection, count) as isize;
-
-    let mut offset = self.offset;
-
-    offset = min(select, max(offset, select - (task_limit - 1)));
-
-    Ok((offset, select, task_limit))
-  }
-
   /// Render the user interface.
-  pub fn render(&mut self) {
-    if let Err(e) = self.render_all() {
-      panic!("Rendering failed: {}", e);
-    }
-  }
-
-  /// Render the entire view.
-  fn render_all(&mut self) -> Result<()> {
+  pub fn render<R>(&mut self, renderer: &R)
+  where
+    R: Renderer,
+  {
     if self.update {
-      write!(
-        self.writer,
-        "{}{}{}",
-        Fg(Reset),
-        Bg(Reset),
-        All
-      )?;
-      self.render_tasks()?;
-      self.render_input_output()?;
-      self.writer.flush()?;
-
-      // Until something changes, there is no need to redraw everything.
-      self.update = false;
+      renderer.pre_render();
+      renderer.render(self);
+      renderer.render(&self.in_out);
+      renderer.post_render();
     }
-    Ok(())
-  }
-
-  /// Update, i.e., redraw, all the tasks.
-  fn render_tasks(&mut self) -> Result<()> {
-    let x = MAIN_MARGIN_X;
-    let mut y = MAIN_MARGIN_Y;
-
-    let iter = self.controller.tasks();
-    let (offset, selection, limit) = self.sanitize_view(iter.clone().count())?;
-
-    for (i, task) in iter.enumerate().skip(offset as usize) {
-      if i as isize >= offset + limit {
-        break
-      }
-
-      let (fg, bg) = if i as isize == selection {
-        (SELECTED_TASK_FG as &Color, SELECTED_TASK_BG as &Color)
-      } else {
-        (UNSELECTED_TASK_FG as &Color, UNSELECTED_TASK_BG as &Color)
-      };
-
-      write!(
-        self.writer,
-        "{}{}{}{}",
-        Goto(x + 1, y + 1),
-        Fg(fg),
-        Bg(bg),
-        task.summary
-      )?;
-      y += TASK_SPACE;
-    }
-
-    self.offset = offset;
-    self.selection = selection;
-
-    Ok(())
-  }
-
-  fn render_input_output(&mut self) -> Result<()> {
-    let x = 0;
-    let (_, y) = terminal_size()?;
-
-    let (prefix, fg, bg, string) = match self.in_out {
-      InOutArea::Saved => (Some(SAVED_TEXT), IN_OUT_SUCCESS_FG, IN_OUT_SUCCESS_BG, None),
-      InOutArea::Error(ref e) => (Some(ERROR_TEXT), IN_OUT_ERROR_FG, IN_OUT_ERROR_BG, Some(e)),
-      InOutArea::Input(ref s) => (Some(INPUT_TEXT), IN_OUT_SUCCESS_FG, IN_OUT_SUCCESS_BG, Some(s)),
-      InOutArea::Clear => return Ok(()),
-    };
-
-    write!(self.writer, "{}", Goto(x + 1, y + 1))?;
-
-    if let Some(prefix) = prefix {
-      write!(self.writer, "{}{}{}", Fg(*fg), Bg(*bg), prefix)?;
-    }
-    if let Some(string) = string {
-      write!(
-        self.writer,
-        "{}{} {}",
-        Fg(*IN_OUT_STRING_FG),
-        Bg(*IN_OUT_STRING_BG),
-        string
-      )?;
-    }
-    Ok(())
   }
 
   /// Check for new input and react to it.
@@ -361,16 +234,6 @@ where
 }
 
 
-impl<W> Drop for TermUi<W>
-where
-  W: Write,
-{
-  fn drop(&mut self) {
-    let _ = write!(self.writer, "{}", Show);
-  }
-}
-
-
 #[cfg(test)]
 mod tests {
   use std::iter::FromIterator;
@@ -394,12 +257,11 @@ mod tests {
   /// additional bytes follow, 0x1b will just act as the introduction for
   /// an escape sequence.
   fn test_for_esc(tasks: Tasks, input: Vec<Chars>) -> Tasks {
-    let writer = vec![];
     let file = NamedTempFile::new();
     tasks.save(&*file).unwrap();
     let controller = Controller::new((*file).clone()).unwrap();
 
-    let mut ui = TermUi::new(writer, controller).unwrap();
+    let mut ui = TermUi::new(controller).unwrap();
 
     for data in input {
       for byte in data {
