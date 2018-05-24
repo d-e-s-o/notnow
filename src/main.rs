@@ -96,6 +96,7 @@ use termion::input::TermRead;
 use termion::raw::IntoRawMode;
 use termion::screen::AlternateScreen;
 
+use gui::Ui;
 use gui::UiEvent;
 
 use controller::Controller;
@@ -120,11 +121,16 @@ fn config() -> Result<PathBuf> {
 /// Run the program.
 fn run_prog() -> Result<()> {
   let task_path = config()?;
-  let controller = Controller::new(&task_path)?;
+  let mut controller = Some(Controller::new(&task_path)?);
   let screen = AlternateScreen::from(stdout().into_raw_mode()?);
   let renderer = TermRenderer::new(screen)?;
-  let mut ui = TermUi::new(controller)?;
   let mut events = stdin().events();
+  let (mut ui, _) = Ui::new(&mut |id, _cap| {
+    let cntrl = controller.take().unwrap();
+    // TODO: We should be able to propagate errors properly on the `gui`
+    //       side of things.
+    Box::new(TermUi::new(id, cntrl).unwrap())
+  });
 
   // Initially we need to trigger a render in order to have the most
   // recent data presented.
@@ -137,7 +143,7 @@ fn run_prog() -> Result<()> {
       // that the key is not supported. Either way we just ignore the
       // failure. The UI could not possibly react to it anyway.
       if let Ok(event) = convert(term_event?) {
-        if let Some(UiEvent::Quit) = ui.handle(&event) {
+        if let Some(UiEvent::Quit) = ui.handle(event) {
           break
         }
       }

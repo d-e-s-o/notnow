@@ -27,6 +27,7 @@ use tasks::Tasks;
 
 
 /// An object providing higher-level functionality relating to tasks.
+#[derive(Debug)]
 pub struct Controller {
   path: PathBuf,
   tasks: Tasks,

@@ -20,15 +20,31 @@
 use std::cell::Cell;
 use std::cmp::max;
 use std::cmp::min;
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::fmt::Result as FmtResult;
 use std::io::Result;
+use std::iter::FromIterator;
+use std::ops::Deref;
 
+use gui::Cap;
+use gui::ChildIter;
 use gui::Event;
+use gui::Handleable;
+use gui::Id;
 use gui::Key;
+use gui::MetaEvent;
+use gui::Object;
+use gui::Renderable;
 use gui::Renderer;
+use gui::Ui;
 use gui::UiEvent;
+use gui::Widget;
+use gui::WidgetRef;
 
 use controller::Controller;
 use tasks::Task;
+use tasks::Tasks;
 
 
 /// Sanitize a selection index.
@@ -38,6 +54,7 @@ fn sanitize_selection(selection: isize, count: usize) -> usize {
 
 
 /// An object representing the in/out area within the TermUi.
+#[derive(Debug)]
 pub enum InOutArea {
   Saved,
   Error(String),
@@ -46,11 +63,30 @@ pub enum InOutArea {
 }
 
 
-type Handler = fn(obj: &mut TermUi, event: &Event) -> Option<UiEvent>;
+type HandlerFn = fn(obj: &mut TermUi, event: Event) -> Option<MetaEvent>;
+
+struct Handler(HandlerFn);
+
+impl Debug for Handler {
+  fn fmt(&self, f: &mut Formatter) -> FmtResult {
+    write!(f, "notnow::termui::Handler")
+  }
+}
+
+impl Deref for Handler {
+  type Target = HandlerFn;
+
+  fn deref(&self) -> &Self::Target {
+    &self.0
+  }
+}
 
 
 /// An implementation of a terminal based view.
+#[derive(Debug)]
 pub struct TermUi {
+  id: Id,
+  children: Vec<Id>,
   controller: Controller,
   handler: Handler,
   in_out: InOutArea,
@@ -62,10 +98,12 @@ pub struct TermUi {
 
 impl TermUi {
   /// Create a new view associated with the given controller.
-  pub fn new(controller: Controller) -> Result<Self> {
+  pub fn new(id: Id, controller: Controller) -> Result<Self> {
     Ok(TermUi {
+      id: id,
+      children: Vec::new(),
       controller: controller,
-      handler: TermUi::handle_event,
+      handler: Handler(TermUi::handle_event),
       in_out: InOutArea::Clear,
       offset: Cell::new(0),
       selection: 0,
@@ -117,26 +155,8 @@ impl TermUi {
     self.selection != old_selection
   }
 
-  /// Render the user interface.
-  pub fn render<R>(&mut self, renderer: &R)
-  where
-    R: Renderer,
-  {
-    if self.update {
-      renderer.pre_render();
-      renderer.render(self);
-      renderer.render(&self.in_out);
-      renderer.post_render();
-    }
-  }
-
-  /// Check for new input and react to it.
-  pub fn handle(&mut self, event: &Event) -> Option<UiEvent> {
-    (self.handler)(self, event)
-  }
-
-  fn handle_event(&mut self, event: &Event) -> Option<UiEvent> {
-    self.update = match *event {
+  fn handle_event(&mut self, event: Event) -> Option<MetaEvent> {
+    let (result, update) = match event {
       Event::KeyDown(key) |
       Event::KeyUp(key) => {
         let update = if let InOutArea::Clear = self.in_out {
@@ -150,8 +170,8 @@ impl TermUi {
         match key {
           Key::Char('a') => {
             self.in_out = InOutArea::Input("".to_string());
-            self.handler = Self::handle_input;
-            true
+            self.handler = Handler(Self::handle_input);
+            (None, true)
           },
           Key::Char('d') => {
             let count = self.controller.tasks().count();
@@ -160,28 +180,38 @@ impl TermUi {
               self.select(0);
               // We have removed a task. Always indicate that an update
               // is necessary here.
-              true
+              (None, true)
             } else {
-              false
+              (None, update)
             }
           },
-          Key::Char('j') => self.select(1),
-          Key::Char('k') => self.select(-1),
-          Key::Char('q') => return Some(UiEvent::Quit),
+          Key::Char('j') => (None, self.select(1)),
+          Key::Char('k') => (None, self.select(-1)),
+          Key::Char('q') => return Some(UiEvent::Quit.into()),
           Key::Char('w') => {
             self.save();
-            true
+            (None, true)
           },
-          _ => update,
+          _ => (Some(UiEvent::Event(event).into()), update),
         }
       },
-      _ => false,
+      Event::Custom(data) => {
+        match data.downcast::<Tasks>() {
+          Ok(_) => {
+            let tasks = Tasks::from_iter(self.controller.tasks().cloned());
+            (Some(Event::Custom(Box::new(tasks)).into()), false)
+          },
+          Err(e) => (Some(Event::Custom(e).into()), false),
+        }
+      },
     };
-    None
+
+    self.update = update;
+    result
   }
 
-  fn handle_input(&mut self, event: &Event) -> Option<UiEvent> {
-    self.update = match *event {
+  fn handle_input(&mut self, event: Event) -> Option<MetaEvent> {
+    let (result, update) = match event {
       Event::KeyDown(key) |
       Event::KeyUp(key) => {
         match key {
@@ -194,8 +224,8 @@ impl TermUi {
               panic!("In/out area not used for input.");
             }
             self.in_out = InOutArea::Clear;
-            self.handler = Self::handle_event;
-            true
+            self.handler = Handler(Self::handle_event);
+            (None, true)
           },
           Key::Char(c) => {
             self.in_out = InOutArea::Input(if let InOutArea::Input(ref mut s) = self.in_out {
@@ -204,19 +234,73 @@ impl TermUi {
             } else {
               panic!("In/out area not used for input.");
             });
-            true
+            (None, true)
           },
           Key::Esc => {
             self.in_out = InOutArea::Clear;
-            self.handler = Self::handle_event;
-            true
+            self.handler = Handler(Self::handle_event);
+            (None, true)
           },
-          _ => false,
+          _ => (None, false),
         }
       },
-      _ => false,
+      Event::Custom(x) => (Some(Event::Custom(x).into()), false),
     };
+
+    self.update = update;
+    result
+  }
+}
+
+impl Renderable for TermUi {
+  /// Render the user interface.
+  fn render(&self, renderer: &Renderer) {
+    // TODO: The conditional redraw logic we have here does not work
+    //       as-is for a widget. The reason is that the `Ui` invokes the
+    //       renderer's `pre_render` method without knowledge of whether
+    //       any of the components changed. As this method always clears
+    //       the screen we also always need to redraw. This will need to
+    //       be fixed in the future.
+    if true || self.update {
+      renderer.render(self);
+      renderer.render(&self.in_out);
+    }
+  }
+}
+
+impl Object for TermUi {
+  fn id(&self) -> Id {
+    self.id
+  }
+  fn parent_id(&self) -> Option<Id> {
     None
+  }
+  fn add_child(&mut self, widget: &WidgetRef) {
+    self.children.push(widget.as_id())
+  }
+  fn iter(&self) -> ChildIter {
+    ChildIter::with_iter(self.children.iter())
+  }
+}
+
+impl WidgetRef for TermUi {
+  fn as_widget<'s, 'ui: 's>(&'s self, _ui: &'ui Ui) -> &Widget {
+    self
+  }
+  fn as_mut_widget<'s, 'ui: 's>(&'s mut self, _ui: &'ui mut Ui) -> &mut Widget {
+    self
+  }
+  fn as_id(&self) -> Id {
+    self.id()
+  }
+}
+
+impl Widget for TermUi {}
+
+impl Handleable for TermUi {
+  /// Check for new input and react to it.
+  fn handle(&mut self, event: Event, _cap: &mut Cap) -> Option<MetaEvent> {
+    (self.handler)(self, event)
   }
 }
 
@@ -227,6 +311,8 @@ mod tests {
   use std::str::Chars;
 
   use super::*;
+
+  use gui::Ui;
 
   use tasks::Tasks;
   use tasks::tests::make_tasks;
@@ -246,20 +332,32 @@ mod tests {
   fn test_for_esc(tasks: Tasks, input: Vec<Chars>) -> Tasks {
     let file = NamedTempFile::new();
     tasks.save(&*file).unwrap();
-    let controller = Controller::new((*file).clone()).unwrap();
-
-    let mut ui = TermUi::new(controller).unwrap();
+    let (mut ui, _) = Ui::new(&mut |id, _cap| {
+      let controller = Controller::new((*file).clone()).unwrap();
+      Box::new(TermUi::new(id, controller).unwrap())
+    });
 
     for data in input {
       for byte in data {
         let event = Event::KeyDown(Key::Char(byte));
-        if let Some(UiEvent::Quit) = ui.handle(&event) {
+        if let Some(UiEvent::Quit) = ui.handle(event) {
           break
         }
       }
     }
 
-    Tasks::from_iter(ui.controller().tasks().cloned())
+    let tasks = Tasks::from_iter(Vec::new().iter().cloned());
+    let event = Event::Custom(Box::new(tasks));
+    let response = ui.handle(event).unwrap();
+    match response {
+      UiEvent::Event(event) => {
+        match event {
+          Event::Custom(x) => *x.downcast::<Tasks>().unwrap(),
+          _ => panic!("Unexpected event: {:?}", event),
+        }
+      },
+      _ => panic!("Unexpected event: {:?}", response),
+    }
   }
 
   /// Test function for the TermUi.
