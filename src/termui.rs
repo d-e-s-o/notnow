@@ -55,7 +55,7 @@ fn sanitize_selection(selection: isize, count: usize) -> usize {
 
 /// An object representing the in/out area within the TermUi.
 #[derive(Debug)]
-pub enum InOutArea {
+pub enum InOut {
   Saved,
   Error(String),
   Input(String),
@@ -89,7 +89,7 @@ pub struct TermUi {
   children: Vec<Id>,
   controller: Controller,
   handler: Handler,
-  in_out: InOutArea,
+  in_out: InOut,
   offset: Cell<usize>,
   selection: usize,
   update: bool,
@@ -104,7 +104,7 @@ impl TermUi {
       children: Vec::new(),
       controller: controller,
       handler: Handler(TermUi::handle_event),
-      in_out: InOutArea::Clear,
+      in_out: InOut::Clear,
       offset: Cell::new(0),
       selection: 0,
       update: true,
@@ -140,8 +140,8 @@ impl TermUi {
   /// Save the current state.
   fn save(&mut self) {
     match self.controller.save() {
-      Ok(_) => self.in_out = InOutArea::Saved,
-      Err(err) => self.in_out = InOutArea::Error(format!("{}", err)),
+      Ok(_) => self.in_out = InOut::Saved,
+      Err(err) => self.in_out = InOut::Error(format!("{}", err)),
     }
   }
 
@@ -159,17 +159,17 @@ impl TermUi {
     let (result, update) = match event {
       Event::KeyDown(key) |
       Event::KeyUp(key) => {
-        let update = if let InOutArea::Clear = self.in_out {
+        let update = if let InOut::Clear = self.in_out {
           false
         } else {
           // We clear the input/output area after any key event.
-          self.in_out = InOutArea::Clear;
+          self.in_out = InOut::Clear;
           true
         };
 
         match key {
           Key::Char('a') => {
-            self.in_out = InOutArea::Input("".to_string());
+            self.in_out = InOut::Input("".to_string());
             self.handler = Handler(Self::handle_input);
             (None, true)
           },
@@ -216,19 +216,19 @@ impl TermUi {
       Event::KeyUp(key) => {
         match key {
           Key::Char('\n') => {
-            if let InOutArea::Input(ref s) = self.in_out {
+            if let InOut::Input(ref s) = self.in_out {
               self.controller.add_task(Task {
                 summary: s.clone(),
               });
             } else {
               panic!("In/out area not used for input.");
             }
-            self.in_out = InOutArea::Clear;
+            self.in_out = InOut::Clear;
             self.handler = Handler(Self::handle_event);
             (None, true)
           },
           Key::Char(c) => {
-            self.in_out = InOutArea::Input(if let InOutArea::Input(ref mut s) = self.in_out {
+            self.in_out = InOut::Input(if let InOut::Input(ref mut s) = self.in_out {
               s.push(c);
               s.clone()
             } else {
@@ -237,7 +237,7 @@ impl TermUi {
             (None, true)
           },
           Key::Esc => {
-            self.in_out = InOutArea::Clear;
+            self.in_out = InOut::Clear;
             self.handler = Handler(Self::handle_event);
             (None, true)
           },
