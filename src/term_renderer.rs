@@ -36,7 +36,8 @@ use termion::terminal_size;
 
 use gui::Renderer;
 
-use termui::InOut;
+use in_out::InOut;
+use in_out::InOutArea;
 use termui::TermUi;
 
 const MAIN_MARGIN_X: u16 = 3;
@@ -155,12 +156,12 @@ where
     Ok(())
   }
 
-  /// Render an `InOut`.
-  fn render_input_output(&self, in_out: &InOut) -> Result<()> {
+  /// Render an `InOutArea`.
+  fn render_input_output(&self, in_out: &InOutArea) -> Result<()> {
     let x = 0;
     let (_, y) = terminal_size()?;
 
-    let (prefix, fg, bg, string) = match *in_out {
+    let (prefix, fg, bg, string) = match in_out.state() {
       InOut::Saved => (Some(SAVED_TEXT), IN_OUT_SUCCESS_FG, IN_OUT_SUCCESS_BG, None),
       InOut::Error(ref e) => (Some(ERROR_TEXT), IN_OUT_ERROR_FG, IN_OUT_ERROR_BG, Some(e)),
       InOut::Input(ref s) => (Some(INPUT_TEXT), IN_OUT_SUCCESS_FG, IN_OUT_SUCCESS_BG, Some(s)),
@@ -207,7 +208,7 @@ where
 
     if let Some(ui) = widget.downcast_ref::<TermUi>() {
       err = self.render_term_ui(ui)
-    } else if let Some(in_out) = widget.downcast_ref::<InOut>() {
+    } else if let Some(in_out) = widget.downcast_ref::<InOutArea>() {
       err = self.render_input_output(in_out);
     } else {
       panic!("Widget {:?} is unknown to the renderer", widget)

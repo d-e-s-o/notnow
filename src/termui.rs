@@ -17,15 +17,12 @@
 // * along with this program.  If not, see <http://www.gnu.org/licenses/>. *
 // *************************************************************************
 
+use std::any::Any;
 use std::cell::Cell;
 use std::cmp::max;
 use std::cmp::min;
-use std::fmt::Debug;
-use std::fmt::Formatter;
-use std::fmt::Result as FmtResult;
 use std::io::Result;
 use std::iter::FromIterator;
-use std::ops::Deref;
 
 use gui::Cap;
 use gui::ChildIter;
@@ -43,6 +40,8 @@ use gui::Widget;
 use gui::WidgetRef;
 
 use controller::Controller;
+use in_out::InOut;
+use in_out::InOutArea;
 use tasks::Task;
 use tasks::Tasks;
 
@@ -53,43 +52,13 @@ fn sanitize_selection(selection: isize, count: usize) -> usize {
 }
 
 
-/// An object representing the in/out area within the TermUi.
-#[derive(Debug)]
-pub enum InOut {
-  Saved,
-  Error(String),
-  Input(String),
-  Clear,
-}
-
-
-type HandlerFn = fn(obj: &mut TermUi, event: Event) -> Option<MetaEvent>;
-
-struct Handler(HandlerFn);
-
-impl Debug for Handler {
-  fn fmt(&self, f: &mut Formatter) -> FmtResult {
-    write!(f, "notnow::termui::Handler")
-  }
-}
-
-impl Deref for Handler {
-  type Target = HandlerFn;
-
-  fn deref(&self) -> &Self::Target {
-    &self.0
-  }
-}
-
-
 /// An implementation of a terminal based view.
 #[derive(Debug)]
 pub struct TermUi {
   id: Id,
+  in_out: Id,
   children: Vec<Id>,
   controller: Controller,
-  handler: Handler,
-  in_out: InOut,
   offset: Cell<usize>,
   selection: usize,
   update: bool,
@@ -98,13 +67,16 @@ pub struct TermUi {
 
 impl TermUi {
   /// Create a new view associated with the given controller.
-  pub fn new(id: Id, controller: Controller) -> Result<Self> {
+  pub fn new(mut id: Id, cap: &mut Cap, controller: Controller) -> Result<Self> {
+    let in_out = cap.add_widget(&mut id, &mut |parent, id, _cap| {
+      Box::new(InOutArea::new(parent, id))
+    });
+
     Ok(TermUi {
       id: id,
+      in_out: in_out,
       children: Vec::new(),
       controller: controller,
-      handler: Handler(TermUi::handle_event),
-      in_out: InOut::Clear,
       offset: Cell::new(0),
       selection: 0,
       update: true,
@@ -138,11 +110,12 @@ impl TermUi {
   }
 
   /// Save the current state.
-  fn save(&mut self) {
-    match self.controller.save() {
-      Ok(_) => self.in_out = InOut::Saved,
-      Err(err) => self.in_out = InOut::Error(format!("{}", err)),
-    }
+  fn save(&mut self) -> UiEvent {
+    let in_out = match self.controller.save() {
+      Ok(_) => InOut::Saved,
+      Err(err) => InOut::Error(format!("{}", err)),
+    };
+    UiEvent::Custom(self.in_out, Box::new(in_out))
   }
 
   /// Change the currently selected task.
@@ -155,96 +128,78 @@ impl TermUi {
     self.selection != old_selection
   }
 
-  fn handle_event(&mut self, event: Event) -> Option<MetaEvent> {
+  fn handle_tasks_event(&mut self, data: &Box<Any>) -> Option<(Option<MetaEvent>, bool)> {
+    if let Some(_) = data.downcast_ref::<Tasks>() {
+      let tasks = Tasks::from_iter(self.controller.tasks().cloned());
+      Some((Some(Event::Custom(Box::new(tasks)).into()), false))
+    } else {
+      None
+    }
+  }
+
+  fn handle_in_out_event(&mut self, data: &Box<Any>) -> Option<(Option<MetaEvent>, bool)> {
+    if let Some(in_out) = data.downcast_ref::<InOut>() {
+      match in_out {
+        InOut::Input(s) => {
+          self.controller.add_task(Task {
+            summary: s.clone(),
+          })
+        },
+        _ => panic!("Unexpected input/output message: {:?}", in_out),
+      };
+      Some((None, true))
+    } else {
+      None
+    }
+  }
+
+  /// Handle a custom event.
+  fn handle_custom_event(&mut self, data: &Box<Any>) -> Option<(Option<MetaEvent>, bool)> {
+    None
+      .or_else(|| self.handle_tasks_event(data))
+      .or_else(|| self.handle_in_out_event(data))
+  }
+}
+
+impl Handleable for TermUi {
+  /// Check for new input and react to it.
+  fn handle(&mut self, event: Event, cap: &mut Cap) -> Option<MetaEvent> {
     let (result, update) = match event {
       Event::KeyDown(key) |
       Event::KeyUp(key) => {
-        let update = if let InOut::Clear = self.in_out {
-          false
-        } else {
-          // We clear the input/output area after any key event.
-          self.in_out = InOut::Clear;
-          true
-        };
-
         match key {
           Key::Char('a') => {
-            self.in_out = InOut::Input("".to_string());
-            self.handler = Handler(Self::handle_input);
-            (None, true)
+            let event = UiEvent::Custom(self.in_out, Box::new(InOut::Input("".to_string())));
+            cap.focus(&self.in_out);
+            (Some(event.into()), true)
           },
           Key::Char('d') => {
+            let event = UiEvent::Custom(self.in_out, Box::new(InOut::Clear));
             let count = self.controller.tasks().count();
             if count > 0 {
               self.controller.remove_task(self.selection);
               self.select(0);
               // We have removed a task. Always indicate that an update
               // is necessary here.
-              (None, true)
+              (Some(event.into()), true)
             } else {
-              (None, update)
+              (Some(event.into()), false)
             }
           },
           Key::Char('j') => (None, self.select(1)),
           Key::Char('k') => (None, self.select(-1)),
           Key::Char('q') => return Some(UiEvent::Quit.into()),
-          Key::Char('w') => {
-            self.save();
-            (None, true)
-          },
-          _ => (Some(UiEvent::Event(event).into()), update),
+          Key::Char('w') => (Some(self.save().into()), false),
+          _ => (Some(UiEvent::Event(event).into()), false),
         }
       },
       Event::Custom(data) => {
-        match data.downcast::<Tasks>() {
-          Ok(_) => {
-            let tasks = Tasks::from_iter(self.controller.tasks().cloned());
-            (Some(Event::Custom(Box::new(tasks)).into()), false)
-          },
-          Err(e) => (Some(Event::Custom(e).into()), false),
+        match self.handle_custom_event(&data) {
+          Some(x) => x,
+          // If the event did not get handled we bubble it up.
+          None => (Some(Event::Custom(data).into()), false),
         }
       },
-    };
-
-    self.update = update;
-    result
-  }
-
-  fn handle_input(&mut self, event: Event) -> Option<MetaEvent> {
-    let (result, update) = match event {
-      Event::KeyDown(key) |
-      Event::KeyUp(key) => {
-        match key {
-          Key::Char('\n') => {
-            if let InOut::Input(ref s) = self.in_out {
-              self.controller.add_task(Task {
-                summary: s.clone(),
-              });
-            } else {
-              panic!("In/out area not used for input.");
-            }
-            self.in_out = InOut::Clear;
-            self.handler = Handler(Self::handle_event);
-            (None, true)
-          },
-          Key::Char(c) => {
-            self.in_out = InOut::Input(if let InOut::Input(ref mut s) = self.in_out {
-              s.push(c);
-              s.clone()
-            } else {
-              panic!("In/out area not used for input.");
-            });
-            (None, true)
-          },
-          Key::Esc => {
-            self.in_out = InOut::Clear;
-            self.handler = Handler(Self::handle_event);
-            (None, true)
-          },
-          _ => (None, false),
-        }
-      },
-      Event::Custom(x) => (Some(Event::Custom(x).into()), false),
     };
 
     self.update = update;
@@ -263,7 +218,6 @@ impl Renderable for TermUi {
     //       be fixed in the future.
     if true || self.update {
       renderer.render(self);
-      renderer.render(&self.in_out);
     }
   }
 }
@@ -297,13 +251,6 @@ impl WidgetRef for TermUi {
 
 impl Widget for TermUi {}
 
-impl Handleable for TermUi {
-  /// Check for new input and react to it.
-  fn handle(&mut self, event: Event, _cap: &mut Cap) -> Option<MetaEvent> {
-    (self.handler)(self, event)
-  }
-}
-
 
 #[cfg(test)]
 mod tests {
@@ -332,9 +279,9 @@ mod tests {
   fn test_for_esc(tasks: Tasks, input: Vec<Chars>) -> Tasks {
     let file = NamedTempFile::new();
     tasks.save(&*file).unwrap();
-    let (mut ui, _) = Ui::new(&mut |id, _cap| {
+    let (mut ui, _) = Ui::new(&mut |id, cap| {
       let controller = Controller::new((*file).clone()).unwrap();
-      Box::new(TermUi::new(id, controller).unwrap())
+      Box::new(TermUi::new(id, cap, controller).unwrap())
     });
 
     for data in input {

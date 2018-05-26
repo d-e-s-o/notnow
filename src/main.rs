@@ -73,12 +73,15 @@
 
 extern crate gui;
 #[macro_use]
+extern crate gui_derive;
+#[macro_use]
 extern crate serde_derive;
 extern crate serde_json;
 extern crate termion;
 
 mod controller;
 mod event;
+mod in_out;
 mod tasks;
 mod term_renderer;
 mod termui;
@@ -125,11 +128,11 @@ fn run_prog() -> Result<()> {
   let screen = AlternateScreen::from(stdout().into_raw_mode()?);
   let renderer = TermRenderer::new(screen)?;
   let mut events = stdin().events();
-  let (mut ui, _) = Ui::new(&mut |id, _cap| {
+  let (mut ui, _) = Ui::new(&mut |id, cap| {
     let cntrl = controller.take().unwrap();
     // TODO: We should be able to propagate errors properly on the `gui`
     //       side of things.
-    Box::new(TermUi::new(id, cntrl).unwrap())
+    Box::new(TermUi::new(id, cap, cntrl).unwrap())
   });
 
   // Initially we need to trigger a render in order to have the most
