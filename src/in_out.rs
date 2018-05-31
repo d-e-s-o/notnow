@@ -77,6 +77,11 @@ impl InOutArea {
   pub fn state(&self) -> &InOut {
     &self.in_out
   }
+
+  /// Return whether the widget has updated data.
+  pub fn has_update(&self) -> bool {
+    self.update
+  }
 }
 
 impl Handleable for InOutArea {

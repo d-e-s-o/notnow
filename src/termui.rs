@@ -25,19 +25,12 @@ use std::io::Result;
 use std::iter::FromIterator;
 
 use gui::Cap;
-use gui::ChildIter;
 use gui::Event;
 use gui::Handleable;
 use gui::Id;
 use gui::Key;
 use gui::MetaEvent;
-use gui::Object;
-use gui::Renderable;
-use gui::Renderer;
-use gui::Ui;
 use gui::UiEvent;
-use gui::Widget;
-use gui::WidgetRef;
 
 use controller::Controller;
 use in_out::InOut;
@@ -53,7 +46,7 @@ fn sanitize_selection(selection: isize, count: usize) -> usize {
 
 
 /// An implementation of a terminal based view.
-#[derive(Debug)]
+#[derive(Debug, GuiRootWidget)]
 pub struct TermUi {
   id: Id,
   in_out: Id,
@@ -107,6 +100,11 @@ impl TermUi {
   /// Retrieve the UI's controller.
   pub fn controller(&self) -> &Controller {
     &self.controller
+  }
+
+  /// Return whether the widget has updated data.
+  pub fn has_update(&self) -> bool {
+    self.update
   }
 
   /// Save the current state.
@@ -206,50 +204,6 @@ impl Handleable for TermUi {
     result
   }
 }
-
-impl Renderable for TermUi {
-  /// Render the user interface.
-  fn render(&self, renderer: &Renderer) {
-    // TODO: The conditional redraw logic we have here does not work
-    //       as-is for a widget. The reason is that the `Ui` invokes the
-    //       renderer's `pre_render` method without knowledge of whether
-    //       any of the components changed. As this method always clears
-    //       the screen we also always need to redraw. This will need to
-    //       be fixed in the future.
-    if true || self.update {
-      renderer.render(self);
-    }
-  }
-}
-
-impl Object for TermUi {
-  fn id(&self) -> Id {
-    self.id
-  }
-  fn parent_id(&self) -> Option<Id> {
-    None
-  }
-  fn add_child(&mut self, widget: &WidgetRef) {
-    self.children.push(widget.as_id())
-  }
-  fn iter(&self) -> ChildIter {
-    ChildIter::with_iter(self.children.iter())
-  }
-}
-
-impl WidgetRef for TermUi {
-  fn as_widget<'s, 'ui: 's>(&'s self, _ui: &'ui Ui) -> &Widget {
-    self
-  }
-  fn as_mut_widget<'s, 'ui: 's>(&'s mut self, _ui: &'ui mut Ui) -> &mut Widget {
-    self
-  }
-  fn as_id(&self) -> Id {
-    self.id()
-  }
-}
-
-impl Widget for TermUi {}
 
 
 #[cfg(test)]
