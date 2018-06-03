@@ -208,9 +208,6 @@ impl Handleable for TermUi {
 
 #[cfg(test)]
 mod tests {
-  use std::iter::FromIterator;
-  use std::str::Chars;
-
   use super::*;
 
   use gui::Ui;
@@ -220,17 +217,12 @@ mod tests {
   use tasks::tests::NamedTempFile;
 
 
-  /// Test function for the TermUi that supports inputs of the escape key.
+  /// Test function for the TermUi.
   ///
-  /// This function performs the same basic task as `test` but it
-  /// supports multiple input streams. By doing so we implicitly support
-  /// passing in input that contains an escape key sequence. Handling of
-  /// the escape key in termion is tricky: An escape in the traditional
-  /// sense is just a byte with value 0x1b. Termion treats such a byte as
-  /// Key::Esc only if it is not followed by any additional input. If
-  /// additional bytes follow, 0x1b will just act as the introduction for
-  /// an escape sequence.
-  fn test_for_esc(tasks: Tasks, input: Vec<Chars>) -> Tasks {
+  /// Instantiate the TermUi in a mock environment associating it with
+  /// the given task list, supply the given input, and retrieve the
+  /// resulting set of tasks.
+  fn test(tasks: Tasks, events: Vec<UiEvent>) -> Tasks {
     let file = NamedTempFile::new();
     tasks.save(&*file).unwrap();
     let (mut ui, _) = Ui::new(&mut |id, cap| {
@@ -238,12 +230,9 @@ mod tests {
       Box::new(TermUi::new(id, cap, controller).unwrap())
     });
 
-    for data in input {
-      for byte in data {
-        let event = Event::KeyDown(Key::Char(byte));
-        if let Some(UiEvent::Quit) = ui.handle(event) {
-          break
-        }
+    for event in events {
+      if let Some(UiEvent::Quit) = ui.handle(event) {
+        break
       }
     }
 
@@ -261,62 +250,86 @@ mod tests {
     }
   }
 
-  /// Test function for the TermUi.
-  ///
-  /// Instantiate the TermUi in a mock environment associating it with
-  /// the given task list, supply the given input, and retrieve the
-  /// resulting set of tasks.
-  fn test(tasks: Tasks, input: Chars) -> Tasks {
-    test_for_esc(tasks, vec![input])
-  }
-
 
   #[test]
   fn exit_on_quit() {
     let tasks = make_tasks(0);
-    let input = String::from("q");
+    let events = vec![
+      Event::KeyDown(Key::Char('q')).into(),
+    ];
 
-    assert_eq!(test(tasks, input.chars()), make_tasks(0))
+    assert_eq!(test(tasks, events), Tasks::from(make_tasks(0)))
   }
 
   #[test]
   fn remove_no_task() {
     let tasks = make_tasks(0);
-    let input = String::from("dq");
+    let events = vec![
+      Event::KeyDown(Key::Char('d')).into(),
+      Event::KeyDown(Key::Char('q')).into(),
+    ];
 
-    assert_eq!(test(tasks, input.chars()), make_tasks(0))
+    assert_eq!(test(tasks, events), make_tasks(0))
   }
 
   #[test]
   fn remove_only_task() {
     let tasks = make_tasks(1);
-    let input = String::from("dq");
+    let events = vec![
+      Event::KeyDown(Key::Char('d')).into(),
+      Event::KeyDown(Key::Char('q')).into(),
+    ];
 
-    assert_eq!(test(tasks, input.chars()), make_tasks(0))
+    assert_eq!(test(tasks, events), make_tasks(0))
   }
 
   #[test]
   fn remove_task_after_down_select() {
     let tasks = make_tasks(2);
-    let input = String::from("jjjjjdq");
+    let events = vec![
+      Event::KeyDown(Key::Char('j')).into(),
+      Event::KeyDown(Key::Char('j')).into(),
+      Event::KeyDown(Key::Char('j')).into(),
+      Event::KeyDown(Key::Char('j')).into(),
+      Event::KeyDown(Key::Char('j')).into(),
+      Event::KeyDown(Key::Char('d')).into(),
+      Event::KeyDown(Key::Char('q')).into(),
+    ];
 
-    assert_eq!(test(tasks, input.chars()), make_tasks(1))
+    assert_eq!(test(tasks, events), make_tasks(1))
   }
 
   #[test]
   fn remove_task_after_up_select() {
     let tasks = make_tasks(3);
     let mut expected = make_tasks(3);
-    let input = String::from("jjkdq");
+    let events = vec![
+      Event::KeyDown(Key::Char('j')).into(),
+      Event::KeyDown(Key::Char('j')).into(),
+      Event::KeyDown(Key::Char('k')).into(),
+      Event::KeyDown(Key::Char('d')).into(),
+      Event::KeyDown(Key::Char('q')).into(),
+    ];
 
     expected.remove(1);
-    assert_eq!(test(tasks, input.chars()), expected)
+    assert_eq!(test(tasks, events), expected)
   }
 
   #[test]
   fn add_task() {
     let tasks = make_tasks(0);
-    let input = String::from("afoobar\nq");
+    let events = vec![
+      Event::KeyDown(Key::Char('a')).into(),
+      Event::KeyDown(Key::Char('f')).into(),
+      Event::KeyDown(Key::Char('o')).into(),
+      Event::KeyDown(Key::Char('o')).into(),
+      Event::KeyDown(Key::Char('b')).into(),
+      Event::KeyDown(Key::Char('a')).into(),
+      Event::KeyDown(Key::Char('r')).into(),
+      // TODO: It would be nicer to have a special value for Return.
+      Event::KeyDown(Key::Char('\n')).into(),
+      Event::KeyDown(Key::Char('q')).into(),
+    ];
     let expected = Tasks::from_iter(
       vec![
         Task {
@@ -325,26 +338,48 @@ mod tests {
       ].iter().cloned()
     );
 
-    assert_eq!(test(tasks, input.chars()), expected)
+    assert_eq!(test(tasks, events), expected)
   }
 
   #[test]
   fn add_and_remove_tasks() {
     let tasks = make_tasks(0);
-    let input = String::from("afoo\nabar\nddq");
+    let events = vec![
+      Event::KeyDown(Key::Char('a')).into(),
+      Event::KeyDown(Key::Char('f')).into(),
+      Event::KeyDown(Key::Char('o')).into(),
+      Event::KeyDown(Key::Char('o')).into(),
+      Event::KeyDown(Key::Char('\n')).into(),
+      Event::KeyDown(Key::Char('a')).into(),
+      Event::KeyDown(Key::Char('b')).into(),
+      Event::KeyDown(Key::Char('a')).into(),
+      Event::KeyDown(Key::Char('r')).into(),
+      Event::KeyDown(Key::Char('\n')).into(),
+      Event::KeyDown(Key::Char('d')).into(),
+      Event::KeyDown(Key::Char('d')).into(),
+      Event::KeyDown(Key::Char('q')).into(),
+    ];
     let expected = Tasks::from_iter(Vec::new());
 
-    assert_eq!(test(tasks, input.chars()), expected)
+    assert_eq!(test(tasks, events), expected)
   }
 
   #[test]
   fn add_task_cancel() {
     let tasks = make_tasks(0);
-    let input1 = String::from("afoobaz\x1b");
-    let input2 = String::from("q");
-    let input = vec![input1.chars(), input2.chars()];
+    let events = vec![
+      Event::KeyDown(Key::Char('a')).into(),
+      Event::KeyDown(Key::Char('f')).into(),
+      Event::KeyDown(Key::Char('o')).into(),
+      Event::KeyDown(Key::Char('o')).into(),
+      Event::KeyDown(Key::Char('b')).into(),
+      Event::KeyDown(Key::Char('a')).into(),
+      Event::KeyDown(Key::Char('z')).into(),
+      Event::KeyDown(Key::Esc).into(),
+      Event::KeyDown(Key::Char('q')).into(),
+    ];
     let expected = make_tasks(0);
 
-    assert_eq!(test_for_esc(tasks, input), expected)
+    assert_eq!(test(tasks, events), expected)
   }
 }
