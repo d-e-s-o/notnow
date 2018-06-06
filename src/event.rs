@@ -31,8 +31,20 @@ pub fn convert(event: TermEvent) -> Result<GuiEvent, TermEvent> {
   match event {
     TermEvent::Key(key) => {
       match key {
+        TermKey::Backspace => Ok(GuiEvent::KeyDown(GuiKey::Backspace)),
+        TermKey::Char(c) if c == '\n' => Ok(GuiEvent::KeyDown(GuiKey::Return)),
         TermKey::Char(c) => Ok(GuiEvent::KeyDown(GuiKey::Char(c))),
+        TermKey::Delete => Ok(GuiEvent::KeyDown(GuiKey::Delete)),
+        TermKey::Down => Ok(GuiEvent::KeyDown(GuiKey::Down)),
+        TermKey::End => Ok(GuiEvent::KeyDown(GuiKey::End)),
         TermKey::Esc => Ok(GuiEvent::KeyDown(GuiKey::Esc)),
+        TermKey::Home => Ok(GuiEvent::KeyDown(GuiKey::Home)),
+        TermKey::Insert => Ok(GuiEvent::KeyDown(GuiKey::Insert)),
+        TermKey::Left => Ok(GuiEvent::KeyDown(GuiKey::Left)),
+        TermKey::PageDown => Ok(GuiEvent::KeyDown(GuiKey::PageDown)),
+        TermKey::PageUp => Ok(GuiEvent::KeyDown(GuiKey::PageUp)),
+        TermKey::Right => Ok(GuiEvent::KeyDown(GuiKey::Right)),
+        TermKey::Up => Ok(GuiEvent::KeyDown(GuiKey::Up)),
         _ => Err(event),
       }
     },

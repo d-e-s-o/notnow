@@ -326,8 +326,7 @@ mod tests {
       Event::KeyDown(Key::Char('b')).into(),
       Event::KeyDown(Key::Char('a')).into(),
       Event::KeyDown(Key::Char('r')).into(),
-      // TODO: It would be nicer to have a special value for Return.
-      Event::KeyDown(Key::Char('\n')).into(),
+      Event::KeyDown(Key::Return).into(),
       Event::KeyDown(Key::Char('q')).into(),
     ];
     let expected = Tasks::from_iter(
@@ -349,12 +348,12 @@ mod tests {
       Event::KeyDown(Key::Char('f')).into(),
       Event::KeyDown(Key::Char('o')).into(),
       Event::KeyDown(Key::Char('o')).into(),
-      Event::KeyDown(Key::Char('\n')).into(),
+      Event::KeyDown(Key::Return).into(),
       Event::KeyDown(Key::Char('a')).into(),
       Event::KeyDown(Key::Char('b')).into(),
       Event::KeyDown(Key::Char('a')).into(),
       Event::KeyDown(Key::Char('r')).into(),
-      Event::KeyDown(Key::Char('\n')).into(),
+      Event::KeyDown(Key::Return).into(),
       Event::KeyDown(Key::Char('d')).into(),
       Event::KeyDown(Key::Char('d')).into(),
       Event::KeyDown(Key::Char('q')).into(),
@@ -379,6 +378,31 @@ mod tests {
       Event::KeyDown(Key::Char('q')).into(),
     ];
     let expected = make_tasks(0);
+
+    assert_eq!(test(tasks, events), expected)
+  }
+
+  #[test]
+  fn add_task_with_character_removal() {
+    let tasks = Tasks::from(make_tasks(1));
+    let events = vec![
+      Event::KeyDown(Key::Char('a')).into(),
+      Event::KeyDown(Key::Char('f')).into(),
+      Event::KeyDown(Key::Char('o')).into(),
+      Event::KeyDown(Key::Char('o')).into(),
+      Event::KeyDown(Key::Backspace).into(),
+      Event::KeyDown(Key::Backspace).into(),
+      Event::KeyDown(Key::Backspace).into(),
+      Event::KeyDown(Key::Char('b')).into(),
+      Event::KeyDown(Key::Char('a')).into(),
+      Event::KeyDown(Key::Char('z')).into(),
+      Event::KeyDown(Key::Return).into(),
+      Event::KeyDown(Key::Char('q')).into(),
+    ];
+    let mut expected = make_tasks(1);
+    expected.add(Task {
+      summary: "baz".to_string(),
+    });
 
     assert_eq!(test(tasks, events), expected)
   }

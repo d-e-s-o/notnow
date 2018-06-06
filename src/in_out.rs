@@ -91,7 +91,7 @@ impl Handleable for InOutArea {
       Event::KeyDown(key) |
       Event::KeyUp(key) => {
         match key {
-          Key::Char('\n') => {
+          Key::Return => {
             let s = if let InOut::Input(ref s) = self.in_out {
               s.clone()
             } else {
@@ -112,6 +112,17 @@ impl Handleable for InOutArea {
                 s.clone()
               },
               InOut::Clear => c.to_string(),
+              _ => panic!("In/out area not used for input."),
+            });
+            (None, true)
+          },
+          Key::Backspace => {
+            self.in_out = InOut::Input(match self.in_out {
+              InOut::Input(ref mut s) => {
+                s.pop();
+                s.clone()
+              },
+              InOut::Clear => "".to_string(),
               _ => panic!("In/out area not used for input."),
             });
             (None, true)
