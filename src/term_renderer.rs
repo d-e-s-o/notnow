@@ -18,7 +18,6 @@
 // *************************************************************************
 
 use std::any::Any;
-use std::cell::Cell;
 use std::cell::RefCell;
 use std::io::BufWriter;
 use std::io::Result;
@@ -89,11 +88,6 @@ where
   W: Write,
 {
   writer: RefCell<BufWriter<W>>,
-  /// A flag indicating whether a terminal reset is required before any
-  /// other rendering takes place. That is mostly required because if
-  /// nothing has changed in the UI we should avoid doing any actual
-  /// redrawing.
-  reset: Cell<bool>,
 }
 
 impl<W> TermRenderer<W>
@@ -115,7 +109,6 @@ where
 
     Ok(TermRenderer {
       writer: writer,
-      reset: Cell::new(true),
     })
   }
 
@@ -191,23 +184,6 @@ where
     }
     Ok(())
   }
-
-  fn check_reset(&self) {
-    if self.reset.get() {
-      let err = write!(
-        self.writer.borrow_mut(),
-        "{}{}{}",
-        Fg(Reset),
-        Bg(Reset),
-        All
-      );
-      if let Err(e) = err {
-        panic!("Pre-render failed: {}", e);
-      }
-
-      self.reset.set(false)
-    }
-  }
 }
 
 impl<W> Renderer for TermRenderer<W>
@@ -215,25 +191,25 @@ where
   W: Write,
 {
   fn pre_render(&self) {
-    self.reset.set(true);
+    let err = write!(
+      self.writer.borrow_mut(),
+      "{}{}{}",
+      Fg(Reset),
+      Bg(Reset),
+      All
+    );
+    if let Err(e) = err {
+      panic!("Pre-render failed: {}", e);
+    }
   }
 
   fn render(&self, widget: &Any) {
-    let mut err = Ok(());
+    let err;
 
     if let Some(ui) = widget.downcast_ref::<TermUi>() {
-      // TODO: The conditional redraw logic we have here does not work
-      //       as-is. The reason is that the `Ui` invokes this Renderer
-      //       and we have no knowledge about which widgets changed.
-      if true || ui.has_update() {
-        self.check_reset();
-        err = self.render_term_ui(ui)
-      }
+      err = self.render_term_ui(ui)
     } else if let Some(in_out) = widget.downcast_ref::<InOutArea>() {
-      if true || in_out.has_update() {
-        self.check_reset();
-        err = self.render_input_output(in_out);
-      }
+      err = self.render_input_output(in_out);
     } else {
       panic!("Widget {:?} is unknown to the renderer", widget)
     }

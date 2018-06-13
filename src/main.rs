@@ -99,11 +99,13 @@ use termion::input::TermRead;
 use termion::raw::IntoRawMode;
 use termion::screen::AlternateScreen;
 
+use gui::Event;
 use gui::Ui;
 use gui::UiEvent;
 
 use controller::Controller;
 use event::convert;
+use event::Updated;
 use term_renderer::TermRenderer;
 use termui::TermUi;
 
@@ -146,12 +148,16 @@ fn run_prog() -> Result<()> {
       // that the key is not supported. Either way we just ignore the
       // failure. The UI could not possibly react to it anyway.
       if let Ok(event) = convert(term_event?) {
-        if let Some(UiEvent::Quit) = ui.handle(event) {
-          break
+        match ui.handle(event) {
+          Some(UiEvent::Quit) => break,
+          Some(UiEvent::Event(Event::Custom(data))) => {
+            if data.downcast::<Updated>().is_ok() {
+              ui.render(&renderer);
+            }
+          },
+          _ => (),
         }
       }
-
-      ui.render(&renderer);
     }
   }
   Ok(())

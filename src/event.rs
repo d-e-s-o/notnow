@@ -21,7 +21,45 @@ use termion::event::Event as TermEvent;
 use termion::event::Key as TermKey;
 
 use gui::Event as GuiEvent;
+use gui::EventChain;
 use gui::Key as GuiKey;
+use gui::MetaEvent as GuiMetaEvent;
+
+
+/// A type indicating that some component changed and that we should
+/// re-render everything.
+pub struct Updated();
+
+
+pub trait EventUpdated {
+  /// Chain an update event onto yourself.
+  fn update(self) -> Option<GuiMetaEvent>;
+
+  /// Potentially chain an update event onto yourself.
+  fn maybe_update(self, update: bool) -> Option<GuiMetaEvent>;
+}
+
+impl<E> EventUpdated for Option<E>
+where
+  E: Into<GuiMetaEvent>,
+{
+  fn update(self) -> Option<GuiMetaEvent> {
+    let updated = GuiEvent::Custom(Box::new(Updated {}));
+
+    Some(match self {
+      Some(event) => event.chain(updated),
+      None => updated.into(),
+    })
+  }
+
+  fn maybe_update(self, update: bool) -> Option<GuiMetaEvent> {
+    if update {
+      self.update()
+    } else {
+      self.and_then(|x| Some(x.into()))
+    }
+  }
+}
 
 
 /// Convert a `termion::event::Event` into a `gui::Event`.
@@ -49,5 +87,70 @@ pub fn convert(event: TermEvent) -> Result<GuiEvent, TermEvent> {
       }
     },
     _ => Err(event),
+  }
+}
+
+
+#[cfg(test)]
+pub mod tests {
+  use super::*;
+
+  use gui::Event;
+  use gui::Key;
+  use gui::MetaEvent;
+  use gui::UiEvent;
+
+
+  #[test]
+  fn update_none() {
+    let event = (None as Option<Event>).update();
+    match event.unwrap() {
+      MetaEvent::UiEvent(event) => {
+        match event {
+          UiEvent::Event(event) => {
+            match event {
+              Event::Custom(data) => assert!(data.downcast::<Updated>().is_ok()),
+              _ => assert!(false),
+            }
+          },
+          _ => assert!(false),
+        }
+      },
+      _ => assert!(false),
+    }
+  }
+
+  #[test]
+  fn update_some_event() {
+    let event = Some(Event::KeyUp(Key::Char(' '))).update();
+    match event.unwrap() {
+      MetaEvent::Chain(event, meta_event) => {
+        match event {
+          UiEvent::Event(event) => {
+            match event {
+              Event::KeyUp(key) => assert_eq!(key, Key::Char(' ')),
+              _ => assert!(false),
+            }
+          },
+          _ => assert!(false),
+        };
+
+        match *meta_event {
+          MetaEvent::UiEvent(event) => {
+            match event {
+              UiEvent::Event(event) => {
+                match event {
+                  Event::Custom(data) => assert!(data.downcast::<Updated>().is_ok()),
+                  _ => assert!(false),
+                }
+              },
+              _ => assert!(false),
+            }
+          },
+          _ => assert!(false),
+        };
+      },
+      _ => assert!(false),
+    }
   }
 }

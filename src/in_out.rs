@@ -27,6 +27,8 @@ use gui::Key;
 use gui::MetaEvent;
 use gui::WidgetRef;
 
+use event::EventUpdated;
+
 
 /// An object representing the in/out area within the TermUi.
 #[derive(Debug, Eq, PartialEq)]
@@ -44,7 +46,6 @@ pub struct InOutArea {
   id: Id,
   parent_id: Id,
   in_out: InOut,
-  update: bool,
 }
 
 impl InOutArea {
@@ -54,22 +55,20 @@ impl InOutArea {
       id: id,
       parent_id: parent.as_id(),
       in_out: InOut::Clear,
-      update: true,
     }
   }
 
-  fn handle_in_out_event(&mut self, data: Box<Any>) -> (Option<MetaEvent>, bool) {
+  fn handle_in_out_event(&mut self, data: Box<Any>) -> Option<MetaEvent> {
     match data.downcast::<InOut>() {
       Ok(in_out) => {
-        let update = if *in_out != self.in_out {
+        if *in_out != self.in_out {
           self.in_out = *in_out;
-          true
+          (None as Option<Event>).update()
         } else {
-          false
-        };
-        (None, update)
+          None
+        }
       },
-      Err(data) => (Some(Event::Custom(data).into()), false),
+      Err(data) => Some(Event::Custom(data).into()),
     }
   }
 
@@ -77,17 +76,12 @@ impl InOutArea {
   pub fn state(&self) -> &InOut {
     &self.in_out
   }
-
-  /// Return whether the widget has updated data.
-  pub fn has_update(&self) -> bool {
-    self.update
-  }
 }
 
 impl Handleable for InOutArea {
   /// Handle an event.
   fn handle(&mut self, event: Event, cap: &mut Cap) -> Option<MetaEvent> {
-    let (result, update) = match event {
+    match event {
       Event::KeyDown(key) |
       Event::KeyUp(key) => {
         match key {
@@ -102,8 +96,8 @@ impl Handleable for InOutArea {
             cap.focus(&self.parent_id);
             // Send the content of the input/output area to the parent
             // widget. It can then do whatever it pleases with it.
-            let event = Event::Custom(Box::new(InOut::Input(s))).into();
-            (Some(event), true)
+            let event = Event::Custom(Box::new(InOut::Input(s)));
+            Some(event).update()
           },
           Key::Char(c) => {
             self.in_out = InOut::Input(match self.in_out {
@@ -114,7 +108,7 @@ impl Handleable for InOutArea {
               InOut::Clear => c.to_string(),
               _ => panic!("In/out area not used for input."),
             });
-            (None, true)
+            (None as Option<Event>).update()
           },
           Key::Backspace => {
             self.in_out = InOut::Input(match self.in_out {
@@ -125,20 +119,17 @@ impl Handleable for InOutArea {
               InOut::Clear => "".to_string(),
               _ => panic!("In/out area not used for input."),
             });
-            (None, true)
+            (None as Option<Event>).update()
           },
           Key::Esc => {
             self.in_out = InOut::Clear;
             cap.focus(&self.parent_id);
-            (None, true)
+            (None as Option<Event>).update()
           },
-          _ => (None, false),
+          _ => None,
         }
       },
       Event::Custom(data) => self.handle_in_out_event(data),
-    };
-
-    self.update = update;
-    result
+    }
   }
 }

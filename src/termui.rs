@@ -33,6 +33,7 @@ use gui::MetaEvent;
 use gui::UiEvent;
 
 use controller::Controller;
+use event::EventUpdated;
 use in_out::InOut;
 use in_out::InOutArea;
 use tasks::Task;
@@ -54,7 +55,6 @@ pub struct TermUi {
   controller: Controller,
   offset: Cell<usize>,
   selection: usize,
-  update: bool,
 }
 
 
@@ -72,7 +72,6 @@ impl TermUi {
       controller: controller,
       offset: Cell::new(0),
       selection: 0,
-      update: true,
     })
   }
 
@@ -102,18 +101,13 @@ impl TermUi {
     &self.controller
   }
 
-  /// Return whether the widget has updated data.
-  pub fn has_update(&self) -> bool {
-    self.update
-  }
-
   /// Save the current state.
-  fn save(&mut self) -> UiEvent {
+  fn save(&mut self) -> MetaEvent {
     let in_out = match self.controller.save() {
       Ok(_) => InOut::Saved,
       Err(err) => InOut::Error(format!("{}", err)),
     };
-    UiEvent::Custom(self.in_out, Box::new(in_out))
+    UiEvent::Custom(self.in_out, Box::new(in_out)).into()
   }
 
   /// Change the currently selected task.
@@ -126,16 +120,16 @@ impl TermUi {
     self.selection != old_selection
   }
 
-  fn handle_tasks_event(&mut self, data: &Box<Any>) -> Option<(Option<MetaEvent>, bool)> {
+  fn handle_tasks_event(&mut self, data: &Box<Any>) -> Option<Option<MetaEvent>> {
     if let Some(_) = data.downcast_ref::<Tasks>() {
       let tasks = Tasks::from_iter(self.controller.tasks().cloned());
-      Some((Some(Event::Custom(Box::new(tasks)).into()), false))
+      Some(Some(Event::Custom(Box::new(tasks)).into()))
     } else {
       None
     }
   }
 
-  fn handle_in_out_event(&mut self, data: &Box<Any>) -> Option<(Option<MetaEvent>, bool)> {
+  fn handle_in_out_event(&mut self, data: &Box<Any>) -> Option<Option<MetaEvent>> {
     if let Some(in_out) = data.downcast_ref::<InOut>() {
       match in_out {
         InOut::Input(s) => {
@@ -145,14 +139,14 @@ impl TermUi {
         },
         _ => panic!("Unexpected input/output message: {:?}", in_out),
       };
-      Some((None, true))
+      Some((None as Option<Event>).update())
     } else {
       None
     }
   }
 
   /// Handle a custom event.
-  fn handle_custom_event(&mut self, data: &Box<Any>) -> Option<(Option<MetaEvent>, bool)> {
+  fn handle_custom_event(&mut self, data: &Box<Any>) -> Option<Option<MetaEvent>> {
     None
       .or_else(|| self.handle_tasks_event(data))
       .or_else(|| self.handle_in_out_event(data))
@@ -162,14 +156,14 @@ impl TermUi {
 impl Handleable for TermUi {
   /// Check for new input and react to it.
   fn handle(&mut self, event: Event, cap: &mut Cap) -> Option<MetaEvent> {
-    let (result, update) = match event {
+    match event {
       Event::KeyDown(key) |
       Event::KeyUp(key) => {
         match key {
           Key::Char('a') => {
             let event = UiEvent::Custom(self.in_out, Box::new(InOut::Input("".to_string())));
             cap.focus(&self.in_out);
-            (Some(event.into()), true)
+            Some(event).update()
           },
           Key::Char('d') => {
             let event = UiEvent::Custom(self.in_out, Box::new(InOut::Clear));
@@ -179,29 +173,26 @@ impl Handleable for TermUi {
               self.select(0);
               // We have removed a task. Always indicate that an update
               // is necessary here.
-              (Some(event.into()), true)
+              Some(event).update()
             } else {
-              (Some(event.into()), false)
+              Some(event.into())
             }
           },
-          Key::Char('j') => (None, self.select(1)),
-          Key::Char('k') => (None, self.select(-1)),
-          Key::Char('q') => return Some(UiEvent::Quit.into()),
-          Key::Char('w') => (Some(self.save().into()), false),
-          _ => (Some(UiEvent::Event(event).into()), false),
+          Key::Char('j') => (None as Option<Event>).maybe_update(self.select(1)),
+          Key::Char('k') => (None as Option<Event>).maybe_update(self.select(-1)),
+          Key::Char('q') => Some(UiEvent::Quit.into()),
+          Key::Char('w') => Some(self.save()),
+          _ => Some(event.into()),
         }
       },
       Event::Custom(data) => {
         match self.handle_custom_event(&data) {
           Some(x) => x,
           // If the event did not get handled we bubble it up.
-          None => (Some(Event::Custom(data).into()), false),
+          None => Some(Event::Custom(data).into()),
         }
       },
-    };
-
-    self.update = update;
-    result
+    }
   }
 }
 
