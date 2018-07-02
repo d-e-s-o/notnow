@@ -34,6 +34,7 @@ use termion::cursor::Hide;
 use termion::cursor::Show;
 use termion::terminal_size;
 
+use gui::BBox;
 use gui::Renderer;
 
 use in_out::InOut;
@@ -112,19 +113,18 @@ where
     })
   }
 
-  /// Retrieve the number of tasks that fit on the screen.
-  fn displayable_tasks(&self) -> Result<usize> {
-    let (_, h) = terminal_size()?;
-    Ok(((h - MAIN_MARGIN_Y) / TASK_SPACE) as usize)
+  /// Retrieve the number of tasks that fit in the given `BBox`.
+  fn displayable_tasks(&self, bbox: BBox) -> usize {
+    ((bbox.h - MAIN_MARGIN_Y) / TASK_SPACE) as usize
   }
 
   /// Render a `TermUi`.
-  fn render_term_ui(&self, ui: &TermUi) -> Result<()> {
-    let x = MAIN_MARGIN_X;
-    let mut y = MAIN_MARGIN_Y;
+  fn render_term_ui(&self, ui: &TermUi, bbox: BBox) -> Result<BBox> {
+    let x = bbox.x + MAIN_MARGIN_X;
+    let mut y = bbox.y + MAIN_MARGIN_Y;
 
     let iter = ui.controller().tasks();
-    let limit = self.displayable_tasks()?;
+    let limit = self.displayable_tasks(bbox);
     let selection = ui.selection();
     let offset = sanitize_offset(ui.offset(), selection, limit);
 
@@ -153,19 +153,19 @@ where
     // We need to adjust the offset we use in order to be able to give
     // the correct impression of a sliding selection window.
     ui.reoffset(offset);
-    Ok(())
+    Ok(bbox)
   }
 
   /// Render an `InOutArea`.
-  fn render_input_output(&self, in_out: &InOutArea) -> Result<()> {
-    let x = 0;
-    let (_, y) = terminal_size()?;
+  fn render_input_output(&self, in_out: &InOutArea, bbox: BBox) -> Result<BBox> {
+    let x = bbox.x;
+    let y = bbox.y + bbox.h;
 
     let (prefix, fg, bg, string) = match in_out.state() {
       InOut::Saved => (Some(SAVED_TEXT), IN_OUT_SUCCESS_FG, IN_OUT_SUCCESS_BG, None),
       InOut::Error(ref e) => (Some(ERROR_TEXT), IN_OUT_ERROR_FG, IN_OUT_ERROR_BG, Some(e)),
       InOut::Input(ref s) => (Some(INPUT_TEXT), IN_OUT_SUCCESS_FG, IN_OUT_SUCCESS_BG, Some(s)),
-      InOut::Clear => return Ok(()),
+      InOut::Clear => return Ok(Default::default()),
     };
 
     write!(self.writer.borrow_mut(), "{}", Goto(x + 1, y + 1))?;
@@ -182,7 +182,7 @@ where
         string
       )?;
     }
-    Ok(())
+    Ok(Default::default())
   }
 }
 
@@ -190,6 +190,20 @@ impl<W> Renderer for TermRenderer<W>
 where
   W: Write,
 {
+  fn renderable_area(&self) -> BBox {
+    match terminal_size() {
+      Ok((w, h)) => {
+        BBox {
+          x: 0,
+          y: 0,
+          w: w,
+          h: h,
+        }
+      },
+      Err(e) => panic!("Retrieving terminal size failed: {}", e),
+    }
+  }
+
   fn pre_render(&self) {
     let err = write!(
       self.writer.borrow_mut(),
@@ -203,19 +217,20 @@ where
     }
   }
 
-  fn render(&self, widget: &Any) {
-    let err;
+  fn render(&self, widget: &Any, bbox: BBox) -> BBox {
+    let result;
 
     if let Some(ui) = widget.downcast_ref::<TermUi>() {
-      err = self.render_term_ui(ui)
+      result = self.render_term_ui(ui, bbox)
     } else if let Some(in_out) = widget.downcast_ref::<InOutArea>() {
-      err = self.render_input_output(in_out);
+      result = self.render_input_output(in_out, bbox);
     } else {
       panic!("Widget {:?} is unknown to the renderer", widget)
     }
 
-    if let Err(e) = err {
-      panic!("Rendering failed: {}", e);
+    match result {
+      Ok(b) => b,
+      Err(e) => panic!("Rendering failed: {}", e),
     }
   }
 
