@@ -17,6 +17,7 @@
 // * along with this program.  If not, see <http://www.gnu.org/licenses/>. *
 // *************************************************************************
 
+use std::cmp::PartialEq;
 use std::fs::File;
 use std::fs::OpenOptions;
 use std::io::ErrorKind;
@@ -25,15 +26,55 @@ use std::io::Write;
 use std::iter::FromIterator;
 use std::path::Path;
 use std::slice;
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering;
 
 use serde_json::from_reader;
 use serde_json::to_string_pretty as to_json;
 
 
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
+pub struct Id {
+  id: usize,
+}
+
+fn unique_id() -> Id {
+  static NEXT_ID: AtomicUsize = AtomicUsize::new(0);
+
+  Id {
+    id: NEXT_ID.fetch_add(1, Ordering::Relaxed),
+  }
+}
+
+
 /// A struct representing a task item.
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Task {
+  // The task's ID never ends up being serialized or deserialized by
+  // virtue of tagging it with "skip". We need `Id`s to be unique and
+  // when persistence comes into play that is way harder to enforce.
+  #[serde(default = "unique_id", skip)]
+  pub id: Id,
   pub summary: String,
+}
+
+impl Task {
+  /// Create a new task.
+  pub fn new(summary: impl Into<String>) -> Self {
+    Task {
+      id: unique_id(),
+      summary: summary.into(),
+    }
+  }
+}
+
+impl PartialEq for Task {
+  fn eq(&self, other: &Task) -> bool {
+    // For our intents and purposes two `Task` objects are equal as long
+    // as all fields with exception of `id` (which we don't care about)
+    // are equal.
+    self.summary == other.summary
+  }
 }
 
 
@@ -134,12 +175,7 @@ pub mod tests {
 
 
   pub fn make_tasks(count: usize) -> Tasks {
-    Tasks::from_iter(
-      (0..count)
-        .map(|i| Task {
-          summary: format!("{}", i + 1),
-        })
-    )
+    Tasks::from_iter((0..count).map(|i| Task::new(format!("{}", i + 1))))
   }
 
   #[link(name = "c")]
@@ -189,11 +225,17 @@ pub mod tests {
 
 
   #[test]
+  fn unique_id_increases() {
+    let id1 = unique_id();
+    let id2 = unique_id();
+
+    assert!(id2.id > id1.id);
+  }
+
+  #[test]
   fn add_task() {
     let mut tasks = make_tasks(3);
-    tasks.add(Task{
-      summary: "4".to_string()
-    });
+    tasks.add(Task::new("4"));
 
     assert_eq!(tasks, make_tasks(4));
   }
@@ -205,12 +247,8 @@ pub mod tests {
 
     let expected = Tasks {
       tasks: vec![
-        Task{
-          summary: "1".to_string(),
-        },
-        Task{
-          summary: "3".to_string(),
-        },
+        Task::new("1".to_string()),
+        Task::new("3".to_string()),
       ]
     };
 
@@ -219,9 +257,7 @@ pub mod tests {
 
   #[test]
   fn serialize_deserialize_task() {
-    let task = Task {
-      summary: "this is a TODO".to_string(),
-    };
+    let task = Task::new("this is a TODO");
     let serialized = to_json(&task).unwrap();
     let deserialized = from_json::<Task>(&serialized).unwrap();
 
@@ -232,15 +268,9 @@ pub mod tests {
   fn serialize_deserialize_tasks() {
     let tasks = Tasks {
       tasks: vec![
-        Task {
-          summary: "this is the first TODO".to_string(),
-        },
-        Task {
-          summary: "here goes the second one".to_string(),
-        },
-        Task {
-          summary: "and now for the final task".to_string(),
-        },
+        Task::new("this is the first TODO"),
+        Task::new("here goes the second one"),
+        Task::new("and now for the final task"),
       ],
     };
     let serialized = to_json(&tasks).unwrap();
@@ -254,15 +284,9 @@ pub mod tests {
     let file = NamedTempFile::new();
     let tasks = Tasks {
       tasks: vec![
-        Task {
-          summary: "this is the first TODO".to_string(),
-        },
-        Task {
-          summary: "here goes the second one".to_string(),
-        },
-        Task {
-          summary: "and now for the final task".to_string(),
-        },
+        Task::new("this is the first TODO"),
+        Task::new("here goes the second one"),
+        Task::new("and now for the final task"),
       ],
     };
 
@@ -277,11 +301,7 @@ pub mod tests {
     let path = {
       let file = NamedTempFile::new();
       let tasks = Tasks {
-        tasks: vec![
-          Task {
-            summary: "make this not empty".to_string(),
-          },
-        ],
+        tasks: vec![Task::new("make this not empty")],
       };
 
       tasks.save(&*file).unwrap();

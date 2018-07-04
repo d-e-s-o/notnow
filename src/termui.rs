@@ -132,11 +132,7 @@ impl TermUi {
   fn handle_in_out_event(&mut self, data: &Box<Any>) -> Option<Option<MetaEvent>> {
     if let Some(in_out) = data.downcast_ref::<InOut>() {
       match in_out {
-        InOut::Input(s) => {
-          self.controller.add_task(Task {
-            summary: s.clone(),
-          })
-        },
+        InOut::Input(s) => self.controller.add_task(Task::new(s.clone())),
         _ => panic!("Unexpected input/output message: {:?}", in_out),
       };
       Some((None as Option<Event>).update())
@@ -322,9 +318,7 @@ mod tests {
     ];
     let expected = Tasks::from_iter(
       vec![
-        Task {
-          summary: "foobar".to_string(),
-        },
+        Task::new("foobar".to_string())
       ].iter().cloned()
     );
 
@@ -391,9 +385,7 @@ mod tests {
       Event::KeyDown(Key::Char('q')).into(),
     ];
     let mut expected = make_tasks(1);
-    expected.add(Task {
-      summary: "baz".to_string(),
-    });
+    expected.add(Task::new("baz".to_string()));
 
     assert_eq!(test(tasks, events), expected)
   }
