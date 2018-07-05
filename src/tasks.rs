@@ -133,8 +133,13 @@ impl Tasks {
   }
 
   /// Remove a task.
-  pub fn remove(&mut self, index: usize) {
-    self.tasks.remove(index);
+  pub fn remove(&mut self, id: Id) {
+    self
+      .tasks
+      .iter()
+      .position(|x| x.id == id)
+      .map(|x| self.tasks.remove(x))
+      .unwrap();
   }
 }
 
@@ -243,7 +248,8 @@ pub mod tests {
   #[test]
   fn remove_task() {
     let mut tasks = make_tasks(3);
-    tasks.remove(1);
+    let id = tasks.iter().nth(1).unwrap().id;
+    tasks.remove(id);
 
     let expected = Tasks {
       tasks: vec![

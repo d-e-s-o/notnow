@@ -165,7 +165,8 @@ impl Handleable for TermUi {
             let event = UiEvent::Custom(self.in_out, Box::new(InOut::Clear));
             let count = self.controller.tasks().count();
             if count > 0 {
-              self.controller.remove_task(self.selection);
+              let id = self.controller.tasks().nth(self.selection).unwrap().id;
+              self.controller.remove_task(id);
               self.select(0);
               // We have removed a task. Always indicate that an update
               // is necessary here.
@@ -298,7 +299,8 @@ mod tests {
       Event::KeyDown(Key::Char('q')).into(),
     ];
 
-    expected.remove(1);
+    let id = expected.iter().nth(1).unwrap().id;
+    expected.remove(id);
     assert_eq!(test(tasks, events), expected)
   }
 

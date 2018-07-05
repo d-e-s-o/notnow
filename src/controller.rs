@@ -21,6 +21,7 @@ use std::io::Result;
 use std::path::Path;
 use std::path::PathBuf;
 
+use tasks::Id as TaskId;
 use tasks::Task;
 use tasks::TaskIter;
 use tasks::Tasks;
@@ -62,8 +63,8 @@ impl Controller {
     self.tasks.add(task)
   }
 
-  /// Remove the task at the given index.
-  pub fn remove_task(&mut self, index: usize) {
-    self.tasks.remove(index)
+  /// Remove the task with the given `TaskId`.
+  pub fn remove_task(&mut self, id: TaskId) {
+    self.tasks.remove(id)
   }
 }
