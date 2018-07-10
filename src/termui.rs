@@ -26,6 +26,7 @@ use std::iter::FromIterator;
 
 use gui::Cap;
 use gui::Event;
+use gui::EventChain;
 use gui::Handleable;
 use gui::Id;
 use gui::Key;
@@ -36,6 +37,7 @@ use controller::Controller;
 use event::EventUpdated;
 use in_out::InOut;
 use in_out::InOutArea;
+use tasks::Id as TaskId;
 use tasks::Task;
 use tasks::Tasks;
 
@@ -129,6 +131,15 @@ impl TermUi {
     }
   }
 
+  fn handle_task_remove_event(&mut self, data: &Box<Any>) -> Option<Option<MetaEvent>> {
+    if let Some(task_id) = data.downcast_ref::<TaskId>() {
+      self.controller.remove_task(*task_id);
+      Some(None)
+    } else {
+      None
+    }
+  }
+
   fn handle_in_out_event(&mut self, data: &Box<Any>) -> Option<Option<MetaEvent>> {
     if let Some(in_out) = data.downcast_ref::<InOut>() {
       match in_out {
@@ -145,6 +156,7 @@ impl TermUi {
   fn handle_custom_event(&mut self, data: &Box<Any>) -> Option<Option<MetaEvent>> {
     None
       .or_else(|| self.handle_tasks_event(data))
+      .or_else(|| self.handle_task_remove_event(data))
       .or_else(|| self.handle_in_out_event(data))
   }
 }
@@ -162,17 +174,19 @@ impl Handleable for TermUi {
             Some(event).update()
           },
           Key::Char('d') => {
-            let event = UiEvent::Custom(self.in_out, Box::new(InOut::Clear));
+            let clear = UiEvent::Custom(self.in_out, Box::new(InOut::Clear));
             let count = self.controller.tasks().count();
             if count > 0 {
               let id = self.controller.tasks().nth(self.selection).unwrap().id;
-              self.controller.remove_task(id);
-              self.select(0);
-              // We have removed a task. Always indicate that an update
-              // is necessary here.
-              Some(event).update()
+              let remove = UiEvent::Custom(self.id, Box::new(id));
+              // The task will get removed so move the selection up by
+              // one.
+              self.select(-1);
+              // We are about to remove a task. Always indicate that an
+              // update is necessary here.
+              Some(clear.chain(remove)).update()
             } else {
-              Some(event.into())
+              Some(clear.into())
             }
           },
           Key::Char('j') => (None as Option<Event>).maybe_update(self.select(1)),
@@ -301,6 +315,26 @@ mod tests {
 
     let id = expected.iter().nth(1).unwrap().id;
     expected.remove(id);
+    assert_eq!(test(tasks, events), expected)
+  }
+
+  #[test]
+  fn remove_last_task() {
+    let tasks = make_tasks(3);
+    let mut expected = make_tasks(3);
+    let events = vec![
+      Event::KeyDown(Key::Char('j')).into(),
+      Event::KeyDown(Key::Char('j')).into(),
+      Event::KeyDown(Key::Char('d')).into(),
+      Event::KeyDown(Key::Char('k')).into(),
+      Event::KeyDown(Key::Char('d')).into(),
+    ];
+
+    let id = expected.iter().next().unwrap().id;
+    expected.remove(id);
+    let id = expected.iter().nth(1).unwrap().id;
+    expected.remove(id);
+
     assert_eq!(test(tasks, events), expected)
   }
 
