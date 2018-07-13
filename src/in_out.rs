@@ -93,7 +93,8 @@ impl Handleable for InOutArea {
             };
 
             self.in_out = InOut::Clear;
-            cap.focus(&self.parent_id);
+            let to_focus = cap.last_focused().unwrap_or(self.parent_id);
+            cap.focus(&to_focus);
             // Send the content of the input/output area to the parent
             // widget. It can then do whatever it pleases with it.
             let event = Event::Custom(Box::new(InOut::Input(s)));
@@ -123,7 +124,8 @@ impl Handleable for InOutArea {
           },
           Key::Esc => {
             self.in_out = InOut::Clear;
-            cap.focus(&self.parent_id);
+            let to_focus = cap.last_focused().unwrap_or(self.parent_id);
+            cap.focus(&to_focus);
             (None as Option<Event>).update()
           },
           _ => None,
