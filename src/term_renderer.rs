@@ -20,6 +20,7 @@
 use std::any::Any;
 use std::cell::RefCell;
 use std::io::BufWriter;
+use std::io::Error;
 use std::io::Result;
 use std::io::Write;
 
@@ -123,32 +124,35 @@ where
     let x = bbox.x + MAIN_MARGIN_X;
     let mut y = bbox.y + MAIN_MARGIN_Y;
 
-    let iter = ui.controller().tasks();
+    let query = ui.controller().tasks();
     let limit = self.displayable_tasks(bbox);
     let selection = ui.selection();
     let offset = sanitize_offset(ui.offset(), selection, limit);
 
-    for (i, task) in iter.enumerate().skip(offset) {
+    query.enumerate::<Error, _>(|i, task| {
       if i >= offset + limit {
-        break
-      }
-
-      let (fg, bg) = if i == selection {
-        (SELECTED_TASK_FG as &Color, SELECTED_TASK_BG as &Color)
+        Ok(false)
+      } else if i < offset {
+        Ok(true)
       } else {
-        (UNSELECTED_TASK_FG as &Color, UNSELECTED_TASK_BG as &Color)
-      };
+        let (fg, bg) = if i == selection {
+          (SELECTED_TASK_FG as &Color, SELECTED_TASK_BG as &Color)
+        } else {
+          (UNSELECTED_TASK_FG as &Color, UNSELECTED_TASK_BG as &Color)
+        };
 
-      write!(
-        self.writer.borrow_mut(),
-        "{}{}{}{}",
-        Goto(x + 1, y + 1),
-        Fg(fg),
-        Bg(bg),
-        task.summary
-      )?;
-      y += TASK_SPACE;
-    }
+        write!(
+          self.writer.borrow_mut(),
+          "{}{}{}{}",
+          Goto(x + 1, y + 1),
+          Fg(fg),
+          Bg(bg),
+          task.summary
+        )?;
+        y += TASK_SPACE;
+        Ok(true)
+      }
+    })?;
 
     // We need to adjust the offset we use in order to be able to give
     // the correct impression of a sliding selection window.

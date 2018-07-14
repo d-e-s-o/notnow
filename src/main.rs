@@ -82,6 +82,7 @@ extern crate termion;
 mod controller;
 mod event;
 mod in_out;
+mod query;
 mod tasks;
 mod term_renderer;
 mod termui;

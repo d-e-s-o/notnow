@@ -151,6 +151,15 @@ impl Default for Tasks {
   }
 }
 
+impl From<Vec<Task>> for Tasks {
+  /// Create a 'Tasks' object from a vector of tasks.
+  fn from(tasks: Vec<Task>) -> Self {
+    Tasks {
+      tasks: tasks,
+    }
+  }
+}
+
 impl FromIterator<Task> for Tasks {
   /// Create a `Tasks` object from an iterator of `Task` objects.
   fn from_iter<I>(iter: I) -> Self

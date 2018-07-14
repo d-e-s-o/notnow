@@ -22,7 +22,6 @@ use std::cell::Cell;
 use std::cmp::max;
 use std::cmp::min;
 use std::io::Result;
-use std::iter::FromIterator;
 
 use gui::Cap;
 use gui::Event;
@@ -114,7 +113,8 @@ impl TermUi {
 
   /// Change the currently selected task.
   fn select(&mut self, change: isize) -> bool {
-    let count = self.controller.tasks().count();
+    let query = self.controller.tasks();
+    let count = query.count();
     let old_selection = self.selection;
     let new_selection = self.selection as isize + change;
     self.selection = sanitize_selection(new_selection, count);
@@ -124,7 +124,8 @@ impl TermUi {
 
   fn handle_tasks_event(&mut self, data: &Box<Any>) -> Option<Option<MetaEvent>> {
     if let Some(_) = data.downcast_ref::<Tasks>() {
-      let tasks = Tasks::from_iter(self.controller.tasks().cloned());
+      let query = self.controller.tasks();
+      let tasks = Tasks::from(query.collect::<Vec<Task>>());
       Some(Some(Event::Custom(Box::new(tasks)).into()))
     } else {
       None
@@ -175,9 +176,9 @@ impl Handleable for TermUi {
           },
           Key::Char('d') => {
             let clear = UiEvent::Custom(self.in_out, Box::new(InOut::Clear));
-            let count = self.controller.tasks().count();
-            if count > 0 {
-              let id = self.controller.tasks().nth(self.selection).unwrap().id;
+            let query = self.controller.tasks();
+            if !query.is_empty() {
+              let id = query.nth(self.selection).unwrap().id;
               let remove = UiEvent::Custom(self.id, Box::new(id));
               // The task will get removed so move the selection up by
               // one.
@@ -210,6 +211,8 @@ impl Handleable for TermUi {
 
 #[cfg(test)]
 mod tests {
+  use std::iter::FromIterator;
+
   use super::*;
 
   use gui::Ui;

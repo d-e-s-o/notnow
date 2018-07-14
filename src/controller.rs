@@ -17,13 +17,15 @@
 // * along with this program.  If not, see <http://www.gnu.org/licenses/>. *
 // *************************************************************************
 
+use std::cell::RefCell;
 use std::io::Result;
 use std::path::Path;
 use std::path::PathBuf;
+use std::rc::Rc;
 
+use query::Query;
 use tasks::Id as TaskId;
 use tasks::Task;
-use tasks::TaskIter;
 use tasks::Tasks;
 
 
@@ -31,7 +33,7 @@ use tasks::Tasks;
 #[derive(Debug)]
 pub struct Controller {
   path: PathBuf,
-  tasks: Tasks,
+  tasks: Rc<RefCell<Tasks>>,
 }
 
 impl Controller {
@@ -44,27 +46,27 @@ impl Controller {
 
     Ok(Controller {
       path: task_path.into(),
-      tasks: tasks,
+      tasks: Rc::new(RefCell::new(tasks)),
     })
   }
 
   /// Save the tasks into a file.
   pub fn save(&self) -> Result<()> {
-    self.tasks.save(&self.path)
+    self.tasks.borrow().save(&self.path)
   }
 
   /// Retrieve the tasks associated with this controller.
-  pub fn tasks(&self) -> TaskIter {
-    self.tasks.iter()
+  pub fn tasks(&self) -> Query {
+    Query::new(self.tasks.clone())
   }
 
   /// Add a new task to the list of tasks.
-  pub fn add_task(&mut self, task: Task) {
-    self.tasks.add(task)
+  pub fn add_task(&self, task: Task) {
+    self.tasks.borrow_mut().add(task)
   }
 
   /// Remove the task with the given `TaskId`.
-  pub fn remove_task(&mut self, id: TaskId) {
-    self.tasks.remove(id)
+  pub fn remove_task(&self, id: TaskId) {
+    self.tasks.borrow_mut().remove(id)
   }
 }
