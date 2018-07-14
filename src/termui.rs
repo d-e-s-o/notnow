@@ -18,14 +18,10 @@
 // *************************************************************************
 
 use std::any::Any;
-use std::cell::Cell;
-use std::cmp::max;
-use std::cmp::min;
 use std::io::Result;
 
 use gui::Cap;
 use gui::Event;
-use gui::EventChain;
 use gui::Handleable;
 use gui::Id;
 use gui::Key;
@@ -36,15 +32,10 @@ use controller::Controller;
 use event::EventUpdated;
 use in_out::InOut;
 use in_out::InOutArea;
+use task_list_box::TaskListBox;
 use tasks::Id as TaskId;
 use tasks::Task;
 use tasks::Tasks;
-
-
-/// Sanitize a selection index.
-fn sanitize_selection(selection: isize, count: usize) -> usize {
-  max(0, min(count as isize - 1, selection)) as usize
-}
 
 
 /// An implementation of a terminal based view.
@@ -54,8 +45,6 @@ pub struct TermUi {
   in_out: Id,
   children: Vec<Id>,
   controller: Controller,
-  offset: Cell<usize>,
-  selection: usize,
 }
 
 
@@ -65,41 +54,17 @@ impl TermUi {
     let in_out = cap.add_widget(&mut id, &mut |parent, id, _cap| {
       Box::new(InOutArea::new(parent, id))
     });
+    let task_list = cap.add_widget(&mut id, &mut |parent, id, _cap| {
+      Box::new(TaskListBox::new(parent, id, in_out, controller.tasks()))
+    });
+    cap.focus(&task_list);
 
     Ok(TermUi {
       id: id,
       in_out: in_out,
       children: Vec::new(),
       controller: controller,
-      offset: Cell::new(0),
-      selection: 0,
     })
-  }
-
-  /// Retrieve the current selection index.
-  ///
-  /// The selection index indicates the currently selected task.
-  pub fn selection(&self) -> usize {
-    self.selection
-  }
-
-  /// Retrieve the current view offset.
-  ///
-  /// The offset indicates the task at which to start displaying. Not
-  /// that for various reasons such as resizing events the returned
-  /// index should be sanitized via `sanitize_offset` before usage.
-  pub fn offset(&self) -> usize {
-    self.offset.get()
-  }
-
-  /// Adjust the view offset to use.
-  pub fn reoffset(&self, offset: usize) {
-    self.offset.set(offset)
-  }
-
-  /// Retrieve the UI's controller.
-  pub fn controller(&self) -> &Controller {
-    &self.controller
   }
 
   /// Save the current state.
@@ -109,17 +74,6 @@ impl TermUi {
       Err(err) => InOut::Error(format!("{}", err)),
     };
     UiEvent::Custom(self.in_out, Box::new(in_out)).into()
-  }
-
-  /// Change the currently selected task.
-  fn select(&mut self, change: isize) -> bool {
-    let query = self.controller.tasks();
-    let count = query.count();
-    let old_selection = self.selection;
-    let new_selection = self.selection as isize + change;
-    self.selection = sanitize_selection(new_selection, count);
-
-    self.selection != old_selection
   }
 
   fn handle_tasks_event(&mut self, data: &Box<Any>) -> Option<Option<MetaEvent>> {
@@ -164,34 +118,11 @@ impl TermUi {
 
 impl Handleable for TermUi {
   /// Check for new input and react to it.
-  fn handle(&mut self, event: Event, cap: &mut Cap) -> Option<MetaEvent> {
+  fn handle(&mut self, event: Event, _cap: &mut Cap) -> Option<MetaEvent> {
     match event {
       Event::KeyDown(key) |
       Event::KeyUp(key) => {
         match key {
-          Key::Char('a') => {
-            let event = UiEvent::Custom(self.in_out, Box::new(InOut::Input("".to_string())));
-            cap.focus(&self.in_out);
-            Some(event).update()
-          },
-          Key::Char('d') => {
-            let clear = UiEvent::Custom(self.in_out, Box::new(InOut::Clear));
-            let query = self.controller.tasks();
-            if !query.is_empty() {
-              let id = query.nth(self.selection).unwrap().id;
-              let remove = UiEvent::Custom(self.id, Box::new(id));
-              // The task will get removed so move the selection up by
-              // one.
-              self.select(-1);
-              // We are about to remove a task. Always indicate that an
-              // update is necessary here.
-              Some(clear.chain(remove)).update()
-            } else {
-              Some(clear.into())
-            }
-          },
-          Key::Char('j') => (None as Option<Event>).maybe_update(self.select(1)),
-          Key::Char('k') => (None as Option<Event>).maybe_update(self.select(-1)),
           Key::Char('q') => Some(UiEvent::Quit.into()),
           Key::Char('w') => Some(self.save()),
           _ => Some(event.into()),

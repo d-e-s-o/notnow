@@ -40,6 +40,7 @@ use gui::Renderer;
 
 use in_out::InOut;
 use in_out::InOutArea;
+use task_list_box::TaskListBox;
 use termui::TermUi;
 
 const MAIN_MARGIN_X: u16 = 3;
@@ -120,14 +121,19 @@ where
   }
 
   /// Render a `TermUi`.
-  fn render_term_ui(&self, ui: &TermUi, bbox: BBox) -> Result<BBox> {
+  fn render_term_ui(&self, _ui: &TermUi, bbox: BBox) -> Result<BBox> {
+    Ok(bbox)
+  }
+
+  /// Render a `TaskListBox`.
+  fn render_task_list_box(&self, task_list: &TaskListBox, bbox: BBox) -> Result<BBox> {
     let x = bbox.x + MAIN_MARGIN_X;
     let mut y = bbox.y + MAIN_MARGIN_Y;
 
-    let query = ui.controller().tasks();
+    let query = task_list.query();
     let limit = self.displayable_tasks(bbox);
-    let selection = ui.selection();
-    let offset = sanitize_offset(ui.offset(), selection, limit);
+    let selection = task_list.selection();
+    let offset = sanitize_offset(task_list.offset(), selection, limit);
 
     query.enumerate::<Error, _>(|i, task| {
       if i >= offset + limit {
@@ -156,7 +162,7 @@ where
 
     // We need to adjust the offset we use in order to be able to give
     // the correct impression of a sliding selection window.
-    ui.reoffset(offset);
+    task_list.reoffset(offset);
     Ok(bbox)
   }
 
@@ -228,6 +234,8 @@ where
       result = self.render_term_ui(ui, bbox)
     } else if let Some(in_out) = widget.downcast_ref::<InOutArea>() {
       result = self.render_input_output(in_out, bbox);
+    } else if let Some(task_list) = widget.downcast_ref::<TaskListBox>() {
+      result = self.render_task_list_box(task_list, bbox);
     } else {
       panic!("Widget {:?} is unknown to the renderer", widget)
     }
