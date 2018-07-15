@@ -69,4 +69,9 @@ impl Controller {
   pub fn remove_task(&self, id: TaskId) {
     self.tasks.borrow_mut().remove(id)
   }
+
+  /// Update a task.
+  pub fn update_task(&self, task: Task) {
+    self.tasks.borrow_mut().update(task)
+  }
 }

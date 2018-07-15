@@ -113,6 +113,13 @@ impl Handleable for TaskListBox {
       Event::KeyDown(key) |
       Event::KeyUp(key) => {
         match key {
+          Key::Char(' ') => {
+            let mut task = self.query().nth(self.selection).unwrap();
+            task.state = task.state.cycle();
+            let event = TermUiEvent::UpdateTask(task);
+            let event = Event::Custom(Box::new(event));
+            Some(event).update()
+          },
           Key::Char('a') => {
             let event = TermUiEvent::SetInOut(InOut::Input("".to_string()));
             let event = UiEvent::Custom(self.in_out, Box::new(event));

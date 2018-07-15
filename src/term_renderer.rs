@@ -41,6 +41,7 @@ use gui::Renderer;
 use in_out::InOut;
 use in_out::InOutArea;
 use task_list_box::TaskListBox;
+use tasks::State;
 use termui::TermUi;
 
 const MAIN_MARGIN_X: u16 = 3;
@@ -60,6 +61,14 @@ const UNSELECTED_TASK_BG: &Reset = &Reset;
 const SELECTED_TASK_FG: &Rgb = &Rgb(0xff, 0xff, 0xff);
 /// Color 240.
 const SELECTED_TASK_BG: &Rgb = &Rgb(0x58, 0x58, 0x58);
+/// Soft red.
+const TASK_NOT_STARTED_FG: &Rgb = &Rgb(0xfe, 0x0d, 0x0c);
+/// Color 15.
+const TASK_NOT_STARTED_BG: &Reset = &Reset;
+/// Bright green.
+const TASK_DONE_FG: &Rgb = &Rgb(0x00, 0xd7, 0x00);
+/// Color 15.
+const TASK_DONE_BG: &Reset = &Reset;
 /// Color 0.
 const IN_OUT_SUCCESS_FG: &Rgb = &Rgb(0x00, 0x00, 0x00);
 /// Color 40.
@@ -141,7 +150,24 @@ where
       } else if i < offset {
         Ok(true)
       } else {
-        let (fg, bg) = if i == selection {
+        let (state, state_fg, state_bg) = match task.state {
+          State::NotStarted => {
+            (
+              "[ ]",
+              TASK_NOT_STARTED_FG as &Color,
+              TASK_NOT_STARTED_BG as &Color,
+            )
+          },
+          State::Completed => {
+            (
+              "[X]",
+              TASK_DONE_FG as &Color,
+              TASK_DONE_BG as &Color,
+            )
+          },
+        };
+
+        let (task_fg, task_bg) = if i == selection {
           (SELECTED_TASK_FG as &Color, SELECTED_TASK_BG as &Color)
         } else {
           (UNSELECTED_TASK_FG as &Color, UNSELECTED_TASK_BG as &Color)
@@ -149,10 +175,13 @@ where
 
         write!(
           self.writer.borrow_mut(),
-          "{}{}{}{}",
+          "{}{}{}{} {}{}{}",
           Goto(x + 1, y + 1),
-          Fg(fg),
-          Bg(bg),
+          Fg(state_fg),
+          Bg(state_bg),
+          state,
+          Fg(task_fg),
+          Bg(task_bg),
           task.summary
         )?;
         y += TASK_SPACE;

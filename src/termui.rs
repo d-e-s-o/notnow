@@ -45,6 +45,8 @@ pub enum TermUiEvent {
   AddTask(String),
   /// Remove the task with the given ID.
   RemoveTask(TaskId),
+  /// Update the given task.
+  UpdateTask(Task),
   /// Set the state of the input/output area.
   SetInOut(InOut),
   /// A indication that some component changed and that we should
@@ -116,6 +118,10 @@ impl TermUi {
       },
       TermUiEvent::RemoveTask(id) => {
         self.controller.remove_task(id);
+        (None as Option<Event>).update()
+      },
+      TermUiEvent::UpdateTask(task) => {
+        self.controller.update_task(task);
         (None as Option<Event>).update()
       },
       #[cfg(test)]

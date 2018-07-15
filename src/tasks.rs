@@ -47,6 +47,29 @@ fn unique_id() -> Id {
 }
 
 
+/// An enumeration describing the states a `Task` can be in.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub enum State {
+  NotStarted,
+  Completed,
+}
+
+impl State {
+  pub fn cycle(&mut self) -> Self {
+    match self {
+      State::NotStarted => State::Completed,
+      State::Completed => State::NotStarted,
+    }
+  }
+}
+
+impl Default for State {
+  fn default() -> Self {
+    State::NotStarted
+  }
+}
+
+
 /// A struct representing a task item.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Task {
@@ -56,6 +79,8 @@ pub struct Task {
   #[serde(default = "unique_id", skip)]
   pub id: Id,
   pub summary: String,
+  #[serde(default)]
+  pub state: State,
 }
 
 impl Task {
@@ -64,6 +89,7 @@ impl Task {
     Task {
       id: unique_id(),
       summary: summary.into(),
+      state: State::NotStarted,
     }
   }
 }
@@ -139,6 +165,16 @@ impl Tasks {
       .iter()
       .position(|x| x.id == id)
       .map(|x| self.tasks.remove(x))
+      .unwrap();
+  }
+
+  /// Update a task.
+  pub fn update(&mut self, task: Task) {
+    self
+      .tasks
+      .iter_mut()
+      .position(|x| x.id == task.id)
+      .map(|x| self.tasks[x] = task)
       .unwrap();
   }
 }
@@ -263,6 +299,24 @@ pub mod tests {
     let expected = Tasks {
       tasks: vec![
         Task::new("1".to_string()),
+        Task::new("3".to_string()),
+      ]
+    };
+
+    assert_eq!(tasks, expected);
+  }
+
+  #[test]
+  fn update_task() {
+    let mut tasks = make_tasks(3);
+    let mut task = tasks.iter().nth(1).unwrap().clone();
+    task.summary = "amended".to_string();
+    tasks.update(task);
+
+    let expected = Tasks {
+      tasks: vec![
+        Task::new("1".to_string()),
+        Task::new("amended".to_string()),
         Task::new("3".to_string()),
       ]
     };
