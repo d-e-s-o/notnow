@@ -25,10 +25,7 @@ use gui::EventChain;
 use gui::Key as GuiKey;
 use gui::MetaEvent as GuiMetaEvent;
 
-
-/// A type indicating that some component changed and that we should
-/// re-render everything.
-pub struct Updated();
+use termui::TermUiEvent;
 
 
 pub trait EventUpdated {
@@ -44,7 +41,7 @@ where
   E: Into<GuiMetaEvent>,
 {
   fn update(self) -> Option<GuiMetaEvent> {
-    let updated = GuiEvent::Custom(Box::new(Updated {}));
+    let updated = GuiEvent::Custom(Box::new(TermUiEvent::Updated));
 
     Some(match self {
       Some(event) => event.chain(updated),
@@ -109,7 +106,10 @@ pub mod tests {
         match event {
           UiEvent::Event(event) => {
             match event {
-              Event::Custom(data) => assert!(data.downcast::<Updated>().is_ok()),
+              Event::Custom(data) => {
+                let event = data.downcast::<TermUiEvent>().unwrap();
+                assert!(event.is_updated())
+              },
               _ => assert!(false),
             }
           },
@@ -140,7 +140,10 @@ pub mod tests {
             match event {
               UiEvent::Event(event) => {
                 match event {
-                  Event::Custom(data) => assert!(data.downcast::<Updated>().is_ok()),
+                  Event::Custom(data) => {
+                    let event = data.downcast::<TermUiEvent>().unwrap();
+                    assert!(event.is_updated())
+                  },
                   _ => assert!(false),
                 }
               },

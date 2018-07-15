@@ -18,6 +18,7 @@
 // *************************************************************************
 
 use std::cell::RefCell;
+#[cfg(test)]
 use std::iter::FromIterator;
 use std::rc::Rc;
 
@@ -73,6 +74,7 @@ impl Query {
   }
 
   /// Create a collection from the query.
+  #[cfg(test)]
   pub fn collect<C>(&self) -> C
   where
     C: FromIterator<Task>,

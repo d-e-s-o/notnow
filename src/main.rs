@@ -107,9 +107,9 @@ use gui::UiEvent;
 
 use controller::Controller;
 use event::convert;
-use event::Updated;
 use term_renderer::TermRenderer;
 use termui::TermUi;
+use termui::TermUiEvent;
 
 
 /// Retrieve the path to the program's configuration file.
@@ -153,8 +153,14 @@ fn run_prog() -> Result<()> {
         match ui.handle(event) {
           Some(UiEvent::Quit) => break,
           Some(UiEvent::Event(Event::Custom(data))) => {
-            if data.downcast::<Updated>().is_ok() {
-              ui.render(&renderer);
+            match data.downcast::<TermUiEvent>() {
+              Ok(event) => {
+                match *event {
+                  TermUiEvent::Updated => ui.render(&renderer),
+                  _ => debug_assert!(false, "Unexpected TermUiEvent variant escaped: {:?}", event),
+                }
+              },
+              Err(event) => panic!("Received unexpected custom event: {:?}", event),
             }
           },
           _ => (),

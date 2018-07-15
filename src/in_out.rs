@@ -17,8 +17,6 @@
 // * along with this program.  If not, see <http://www.gnu.org/licenses/>. *
 // *************************************************************************
 
-use std::any::Any;
-
 use gui::Cap;
 use gui::Event;
 use gui::Handleable;
@@ -28,6 +26,7 @@ use gui::MetaEvent;
 use gui::WidgetRef;
 
 use event::EventUpdated;
+use termui::TermUiEvent;
 
 
 /// An object representing the in/out area within the TermUi.
@@ -58,17 +57,18 @@ impl InOutArea {
     }
   }
 
-  fn handle_in_out_event(&mut self, data: Box<Any>) -> Option<MetaEvent> {
-    match data.downcast::<InOut>() {
-      Ok(in_out) => {
-        if *in_out != self.in_out {
-          self.in_out = *in_out;
+  /// Handle a custom event.
+  fn handle_custom_event(&mut self, event: Box<TermUiEvent>) -> Option<MetaEvent> {
+    match *event {
+      TermUiEvent::SetInOut(in_out) => {
+        if in_out != self.in_out {
+          self.in_out = in_out;
           (None as Option<Event>).update()
         } else {
           None
         }
       },
-      Err(data) => Some(Event::Custom(data).into()),
+      _ => Some(Event::Custom(event).into()),
     }
   }
 
@@ -95,9 +95,7 @@ impl Handleable for InOutArea {
             self.in_out = InOut::Clear;
             let to_focus = cap.last_focused().unwrap_or(self.parent_id);
             cap.focus(&to_focus);
-            // Send the content of the input/output area to the parent
-            // widget. It can then do whatever it pleases with it.
-            let event = Event::Custom(Box::new(InOut::Input(s)));
+            let event = Event::Custom(Box::new(TermUiEvent::AddTask(s)));
             Some(event).update()
           },
           Key::Char(c) => {
@@ -131,7 +129,12 @@ impl Handleable for InOutArea {
           _ => None,
         }
       },
-      Event::Custom(data) => self.handle_in_out_event(data),
+      Event::Custom(data) => {
+        match data.downcast::<TermUiEvent>() {
+          Ok(e) => self.handle_custom_event(e),
+          Err(e) => panic!("Received unexpected custom event: {:?}", e),
+        }
+      },
     }
   }
 }

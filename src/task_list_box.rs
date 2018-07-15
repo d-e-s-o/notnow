@@ -34,6 +34,7 @@ use gui::WidgetRef;
 use event::EventUpdated;
 use in_out::InOut;
 use query::Query;
+use termui::TermUiEvent;
 
 
 /// Sanitize a selection index.
@@ -113,15 +114,17 @@ impl Handleable for TaskListBox {
       Event::KeyUp(key) => {
         match key {
           Key::Char('a') => {
-            let event = UiEvent::Custom(self.in_out, Box::new(InOut::Input("".to_string())));
+            let event = TermUiEvent::SetInOut(InOut::Input("".to_string()));
+            let event = UiEvent::Custom(self.in_out, Box::new(event));
             cap.focus(&self.in_out);
             Some(event).update()
           },
           Key::Char('d') => {
-            let clear = UiEvent::Custom(self.in_out, Box::new(InOut::Clear));
-            if !self.query.is_empty() {
+            let event = TermUiEvent::SetInOut(InOut::Clear);
+            let clear = UiEvent::Custom(self.in_out, Box::new(event));
+            if !self.query().is_empty() {
               let id = self.query().nth(self.selection).unwrap().id;
-              let remove = UiEvent::Custom(self.id, Box::new(id));
+              let remove = UiEvent::Custom(self.id, Box::new(TermUiEvent::RemoveTask(id)));
               // The task will get removed so move the selection up by
               // one.
               self.select(-1);

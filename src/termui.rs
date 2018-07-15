@@ -17,7 +17,6 @@
 // * along with this program.  If not, see <http://www.gnu.org/licenses/>. *
 // *************************************************************************
 
-use std::any::Any;
 use std::io::Result;
 
 use gui::Cap;
@@ -35,7 +34,38 @@ use in_out::InOutArea;
 use task_list_box::TaskListBox;
 use tasks::Id as TaskId;
 use tasks::Task;
+#[cfg(test)]
 use tasks::Tasks;
+
+
+/// An enumeration comprising all custom events we support.
+#[derive(Debug)]
+pub enum TermUiEvent {
+  /// Add a task with the given summary.
+  AddTask(String),
+  /// Remove the task with the given ID.
+  RemoveTask(TaskId),
+  /// Set the state of the input/output area.
+  SetInOut(InOut),
+  /// A indication that some component changed and that we should
+  /// re-render everything.
+  Updated,
+  /// Retrieve the current set of tasks.
+  #[cfg(test)]
+  GetTasks,
+}
+
+impl TermUiEvent {
+  /// Check whether the event is the `Updated` variant.
+  #[cfg(test)]
+  pub fn is_updated(&self) -> bool {
+    if let TermUiEvent::Updated = self {
+      true
+    } else {
+      false
+    }
+  }
+}
 
 
 /// An implementation of a terminal based view.
@@ -73,46 +103,28 @@ impl TermUi {
       Ok(_) => InOut::Saved,
       Err(err) => InOut::Error(format!("{}", err)),
     };
-    UiEvent::Custom(self.in_out, Box::new(in_out)).into()
-  }
-
-  fn handle_tasks_event(&mut self, data: &Box<Any>) -> Option<Option<MetaEvent>> {
-    if let Some(_) = data.downcast_ref::<Tasks>() {
-      let query = self.controller.tasks();
-      let tasks = Tasks::from(query.collect::<Vec<Task>>());
-      Some(Some(Event::Custom(Box::new(tasks)).into()))
-    } else {
-      None
-    }
-  }
-
-  fn handle_task_remove_event(&mut self, data: &Box<Any>) -> Option<Option<MetaEvent>> {
-    if let Some(task_id) = data.downcast_ref::<TaskId>() {
-      self.controller.remove_task(*task_id);
-      Some(None)
-    } else {
-      None
-    }
-  }
-
-  fn handle_in_out_event(&mut self, data: &Box<Any>) -> Option<Option<MetaEvent>> {
-    if let Some(in_out) = data.downcast_ref::<InOut>() {
-      match in_out {
-        InOut::Input(s) => self.controller.add_task(Task::new(s.clone())),
-        _ => panic!("Unexpected input/output message: {:?}", in_out),
-      };
-      Some((None as Option<Event>).update())
-    } else {
-      None
-    }
+    let event = TermUiEvent::SetInOut(in_out);
+    UiEvent::Custom(self.in_out, Box::new(event)).into()
   }
 
   /// Handle a custom event.
-  fn handle_custom_event(&mut self, data: &Box<Any>) -> Option<Option<MetaEvent>> {
-    None
-      .or_else(|| self.handle_tasks_event(data))
-      .or_else(|| self.handle_task_remove_event(data))
-      .or_else(|| self.handle_in_out_event(data))
+  fn handle_custom_event(&mut self, event: Box<TermUiEvent>) -> Option<MetaEvent> {
+    match *event {
+      TermUiEvent::AddTask(s) => {
+        self.controller.add_task(Task::new(s));
+        (None as Option<Event>).update()
+      },
+      TermUiEvent::RemoveTask(id) => {
+        self.controller.remove_task(id);
+        (None as Option<Event>).update()
+      },
+      #[cfg(test)]
+      TermUiEvent::GetTasks => {
+        let tasks = Tasks::from(self.controller.tasks().collect::<Vec<Task>>());
+        Some(Event::Custom(Box::new(tasks)).into())
+      },
+      _ => Some(Event::Custom(event).into()),
+    }
   }
 }
 
@@ -129,10 +141,9 @@ impl Handleable for TermUi {
         }
       },
       Event::Custom(data) => {
-        match self.handle_custom_event(&data) {
-          Some(x) => x,
-          // If the event did not get handled we bubble it up.
-          None => Some(Event::Custom(data).into()),
+        match data.downcast::<TermUiEvent>() {
+          Ok(e) => self.handle_custom_event(e),
+          Err(e) => panic!("Received unexpected custom event: {:?}", e),
         }
       },
     }
@@ -172,8 +183,7 @@ mod tests {
       }
     }
 
-    let tasks = Tasks::from_iter(Vec::new().iter().cloned());
-    let event = Event::Custom(Box::new(tasks));
+    let event = Event::Custom(Box::new(TermUiEvent::GetTasks));
     let response = ui.handle(event).unwrap();
     match response {
       UiEvent::Event(event) => {
