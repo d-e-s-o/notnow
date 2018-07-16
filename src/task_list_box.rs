@@ -20,6 +20,7 @@
 use std::cell::Cell;
 use std::cmp::max;
 use std::cmp::min;
+use std::isize;
 
 use gui::Cap;
 use gui::Event;
@@ -96,13 +97,18 @@ impl TaskListBox {
   }
 
   /// Change the currently selected task.
-  fn select(&mut self, change: isize) -> bool {
+  fn set_select(&mut self, new_selection: isize) -> bool {
     let count = self.query().count();
     let old_selection = self.selection;
-    let new_selection = self.selection as isize + change;
     self.selection = sanitize_selection(new_selection, count);
 
     self.selection != old_selection
+  }
+
+  /// Change the currently selected task.
+  fn select(&mut self, change: isize) -> bool {
+    let new_selection = self.selection as isize + change;
+    self.set_select(new_selection)
   }
 }
 
@@ -142,6 +148,8 @@ impl Handleable for TaskListBox {
               Some(clear.into())
             }
           },
+          Key::Char('g') => (None as Option<Event>).maybe_update(self.set_select(0)),
+          Key::Char('G') => (None as Option<Event>).maybe_update(self.set_select(isize::MAX)),
           Key::Char('j') => (None as Option<Event>).maybe_update(self.select(1)),
           Key::Char('k') => (None as Option<Event>).maybe_update(self.select(-1)),
           _ => Some(event.into()),
