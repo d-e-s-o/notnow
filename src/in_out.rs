@@ -23,7 +23,6 @@ use gui::Handleable;
 use gui::Id;
 use gui::Key;
 use gui::MetaEvent;
-use gui::WidgetRef;
 
 use event::EventUpdated;
 use termui::TermUiEvent;
@@ -43,16 +42,14 @@ pub enum InOut {
 #[derive(Debug, GuiWidget)]
 pub struct InOutArea {
   id: Id,
-  parent_id: Id,
   in_out: InOut,
 }
 
 impl InOutArea {
   /// Create a new input/output area object.
-  pub fn new(parent: &mut WidgetRef, id: Id) -> Self {
+  pub fn new(id: Id) -> Self {
     InOutArea {
       id: id,
-      parent_id: parent.as_id(),
       in_out: InOut::Clear,
     }
   }
@@ -69,6 +66,17 @@ impl InOutArea {
         }
       },
       _ => Some(Event::Custom(event).into()),
+    }
+  }
+
+  /// Focus the previously focused widget or the parent.
+  fn restore_focus(&mut self, cap: &mut Cap) {
+    let to_focus = cap.last_focused().or_else(|| cap.parent_id(self.id));
+    match to_focus {
+      Some(to_focus) => cap.focus(to_focus),
+      // Really should never happen. We are not the root widget so at
+      // the very least there must be a parent to focus.
+      None => assert!(false, "No previous widget to focus"),
     }
   }
 
@@ -93,8 +101,7 @@ impl Handleable for InOutArea {
             };
 
             self.in_out = InOut::Clear;
-            let to_focus = cap.last_focused().unwrap_or(self.parent_id);
-            cap.focus(&to_focus);
+            self.restore_focus(cap);
             let event = Event::Custom(Box::new(TermUiEvent::AddTask(s)));
             Some(event).update()
           },
@@ -122,8 +129,7 @@ impl Handleable for InOutArea {
           },
           Key::Esc => {
             self.in_out = InOut::Clear;
-            let to_focus = cap.last_focused().unwrap_or(self.parent_id);
-            cap.focus(&to_focus);
+            self.restore_focus(cap);
             (None as Option<Event>).update()
           },
           _ => None,

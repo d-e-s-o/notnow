@@ -72,33 +72,31 @@ impl TermUiEvent {
 
 
 /// An implementation of a terminal based view.
-#[derive(Debug, GuiRootWidget)]
+#[derive(Debug, GuiWidget)]
 pub struct TermUi {
   id: Id,
   in_out: Id,
-  children: Vec<Id>,
   controller: Controller,
 }
 
 
 impl TermUi {
   /// Create a new view associated with the given controller.
-  pub fn new(mut id: Id, cap: &mut Cap, controller: Controller) -> Result<Self> {
-    let in_out = cap.add_widget(&mut id, &mut |parent, id, _cap| {
-      Box::new(InOutArea::new(parent, id))
+  pub fn new(id: Id, cap: &mut Cap, controller: Controller) -> Result<Self> {
+    let in_out = cap.add_widget(id, &mut |id, _cap| {
+      Box::new(InOutArea::new(id))
     });
-    let mut tab_bar = cap.add_widget(&mut id, &mut |parent, id, _cap| {
-      Box::new(TabBar::new(parent, id))
+    let tab_bar = cap.add_widget(id, &mut |id, _cap| {
+      Box::new(TabBar::new(id))
     });
-    let task_list = cap.add_widget(&mut tab_bar, &mut |parent, id, _cap| {
-      Box::new(TaskListBox::new(parent, id, in_out, controller.tasks()))
+    let task_list = cap.add_widget(tab_bar, &mut |id, _cap| {
+      Box::new(TaskListBox::new(id, in_out, controller.tasks()))
     });
-    cap.focus(&task_list);
+    cap.focus(task_list);
 
     Ok(TermUi {
       id: id,
       in_out: in_out,
-      children: Vec::new(),
       controller: controller,
     })
   }

@@ -27,7 +27,6 @@ use gui::Handleable;
 use gui::Id;
 use gui::Key;
 use gui::MetaEvent;
-use gui::WidgetRef;
 
 use event::EventUpdated;
 
@@ -39,11 +38,9 @@ fn sanitize_selection(selection: isize, count: usize) -> usize {
 
 
 /// A widget representing a tabbed container for other widgets.
-#[derive(Debug, GuiContainer)]
+#[derive(Debug, GuiWidget)]
 pub struct TabBar {
-  parent_id: Id,
   id: Id,
-  children: Vec<Id>,
   tabs: Vec<String>,
   offset: Cell<usize>,
   selection: usize,
@@ -51,11 +48,9 @@ pub struct TabBar {
 
 impl TabBar {
   /// Create a new `TabBar` widget.
-  pub fn new(parent: &mut WidgetRef, id: Id) -> Self {
+  pub fn new(id: Id) -> Self {
     TabBar {
-      parent_id: parent.as_id(),
       id: id,
-      children: Vec::new(),
       // TODO: We need a dynamic mechanism to infer the tab titles.
       tabs: vec!["All".to_string()],
       offset: Cell::new(0),

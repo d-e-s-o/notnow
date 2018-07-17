@@ -30,7 +30,6 @@ use gui::Id;
 use gui::Key;
 use gui::MetaEvent;
 use gui::UiEvent;
-use gui::WidgetRef;
 
 use event::EventUpdated;
 use in_out::InOut;
@@ -47,10 +46,8 @@ fn sanitize_selection(selection: isize, count: usize) -> usize {
 /// A widget representing a list of `Task` objects.
 #[derive(Debug, GuiWidget)]
 pub struct TaskListBox {
-  parent_id: Id,
   id: Id,
   in_out: Id,
-  children: Vec<Id>,
   query: Query,
   offset: Cell<usize>,
   selection: usize,
@@ -58,12 +55,10 @@ pub struct TaskListBox {
 
 impl TaskListBox {
   /// Create a new `TaskListBox` widget.
-  pub fn new(parent: &mut WidgetRef, id: Id, in_out: Id, query: Query) -> Self {
+  pub fn new(id: Id, in_out: Id, query: Query) -> Self {
     TaskListBox {
-      parent_id: parent.as_id(),
       id: id,
       in_out: in_out,
-      children: Vec::new(),
       query: query,
       offset: Cell::new(0),
       selection: 0,
@@ -129,7 +124,7 @@ impl Handleable for TaskListBox {
           Key::Char('a') => {
             let event = TermUiEvent::SetInOut(InOut::Input("".to_string()));
             let event = UiEvent::Custom(self.in_out, Box::new(event));
-            cap.focus(&self.in_out);
+            cap.focus(self.in_out);
             Some(event).update()
           },
           Key::Char('d') => {
