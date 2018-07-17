@@ -31,6 +31,7 @@ use controller::Controller;
 use event::EventUpdated;
 use in_out::InOut;
 use in_out::InOutArea;
+use tab_bar::TabBar;
 use task_list_box::TaskListBox;
 use tasks::Id as TaskId;
 use tasks::Task;
@@ -86,7 +87,10 @@ impl TermUi {
     let in_out = cap.add_widget(&mut id, &mut |parent, id, _cap| {
       Box::new(InOutArea::new(parent, id))
     });
-    let task_list = cap.add_widget(&mut id, &mut |parent, id, _cap| {
+    let mut tab_bar = cap.add_widget(&mut id, &mut |parent, id, _cap| {
+      Box::new(TabBar::new(parent, id))
+    });
+    let task_list = cap.add_widget(&mut tab_bar, &mut |parent, id, _cap| {
       Box::new(TaskListBox::new(parent, id, in_out, controller.tasks()))
     });
     cap.focus(&task_list);

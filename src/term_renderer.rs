@@ -23,6 +23,7 @@ use std::io::BufWriter;
 use std::io::Error;
 use std::io::Result;
 use std::io::Write;
+use std::iter::repeat;
 
 use termion::clear::All;
 use termion::color::Bg;
@@ -40,6 +41,7 @@ use gui::Renderer;
 
 use in_out::InOut;
 use in_out::InOutArea;
+use tab_bar::TabBar;
 use task_list_box::TaskListBox;
 use tasks::State;
 use termui::TermUi;
@@ -47,12 +49,21 @@ use termui::TermUi;
 const MAIN_MARGIN_X: u16 = 3;
 const MAIN_MARGIN_Y: u16 = 2;
 const TASK_SPACE: u16 = 2;
+const TAB_TITLE_WIDTH: u16 = 30;
 
 const SAVED_TEXT: &str = " Saved ";
 const ERROR_TEXT: &str = " Error ";
 const INPUT_TEXT: &str = " > ";
 
 // TODO: Make the colors run time configurable at some point.
+/// Color 15.
+const SELECTED_QUERY_FG: &Rgb = &Rgb(0xff, 0xff, 0xff);
+/// Color 240.
+const SELECTED_QUERY_BG: &Rgb = &Rgb(0x58, 0x58, 0x58);
+/// Color 15.
+const UNSELECTED_QUERY_FG: &Rgb = &Rgb(0xff, 0xff, 0xff);
+/// Color 235.
+const UNSELECTED_QUERY_BG: &Rgb = &Rgb(0x26, 0x26, 0x26);
 /// Color 0.
 const UNSELECTED_TASK_FG: &Rgb = &Rgb(0x00, 0x00, 0x00);
 /// The terminal default background.
@@ -94,6 +105,28 @@ fn sanitize_offset(offset: usize, selection: usize, limit: usize) -> usize {
   }
 }
 
+/// Align string centrally in the given `width` or cut it off if it is too long.
+fn align_center(string: impl Into<String>, width: usize) -> String {
+  let mut string = string.into();
+  let length = string.len();
+
+  if length > width {
+    // Note: May underflow if width < 3. That's not really a supported
+    //       use case, though, so we ignore it here.
+    string.replace_range(width - 3..length, "...");
+  } else if length < width {
+    let pad_right = (width - length) / 2;
+    let pad_left = width - length - pad_right;
+
+    let pad_right = repeat(" ").take(pad_right).collect::<String>();
+    let pad_left = repeat(" ").take(pad_left).collect::<String>();
+
+    string.insert_str(0, &pad_right);
+    string.push_str(&pad_left);
+  }
+  string
+}
+
 
 pub struct TermRenderer<W>
 where
@@ -129,8 +162,67 @@ where
     ((bbox.h - MAIN_MARGIN_Y) / TASK_SPACE) as usize
   }
 
+  /// Retrieve the number of tabs that fit in the given `BBox`.
+  fn displayable_tabs(&self, bbox: BBox) -> usize {
+    (bbox.w / TAB_TITLE_WIDTH) as usize
+  }
+
   /// Render a `TermUi`.
   fn render_term_ui(&self, _ui: &TermUi, bbox: BBox) -> Result<BBox> {
+    Ok(bbox)
+  }
+
+  /// Render a `TabBar`.
+  fn render_tab_bar(&self, tab_bar: &TabBar, mut bbox: BBox) -> Result<BBox> {
+    let mut x = bbox.x;
+
+    // TODO: We have some amount of duplication with the logic used to
+    //       render a TaskListBox. Deduplicate?
+    // TODO: This logic (and the task rendering, although for it the
+    //       consequences are less severe) is not correct in the face of
+    //       terminal resizes. If the width of the terminal is increased
+    //       the offset would need to be adjusted. Should/can this be
+    //       fixed?
+    let limit = self.displayable_tabs(bbox);
+    let selection = tab_bar.selection();
+    let offset = sanitize_offset(tab_bar.offset(), selection, limit);
+
+    for (i, tab) in tab_bar.iter().enumerate().skip(offset).take(limit) {
+      let (fg, bg) = if i == selection {
+        (SELECTED_QUERY_FG as &Color, SELECTED_QUERY_BG as &Color)
+      } else {
+        (UNSELECTED_QUERY_FG as &Color, UNSELECTED_QUERY_BG as &Color)
+      };
+
+      let title = format!("  {}  ", align_center(tab.clone(), TAB_TITLE_WIDTH as usize - 4));
+
+      write!(
+        self.writer.borrow_mut(),
+        "{}{}{}{}",
+        Goto(x + 1, bbox.y),
+        Fg(fg),
+        Bg(bg),
+        title,
+      )?;
+
+      x += TAB_TITLE_WIDTH;
+    }
+
+    if x < bbox.x + bbox.w {
+      write!(
+        self.writer.borrow_mut(),
+        "{}{}{}",
+        Goto(x + 1, bbox.y),
+        Bg(UNSELECTED_QUERY_BG as &Color),
+        repeat(" ").take((bbox.x + bbox.w - x) as usize).collect::<String>()
+      )?
+    }
+
+    tab_bar.reoffset(offset);
+
+    // Account for the one line the tab bar occupies.
+    bbox.y += 1;
+    bbox.h -= 1;
     Ok(bbox)
   }
 
@@ -263,6 +355,8 @@ where
       result = self.render_term_ui(ui, bbox)
     } else if let Some(in_out) = widget.downcast_ref::<InOutArea>() {
       result = self.render_input_output(in_out, bbox);
+    } else if let Some(tab_bar) = widget.downcast_ref::<TabBar>() {
+      result = self.render_tab_bar(tab_bar, bbox);
     } else if let Some(task_list) = widget.downcast_ref::<TaskListBox>() {
       result = self.render_task_list_box(task_list, bbox);
     } else {
@@ -289,5 +383,30 @@ where
 {
   fn drop(&mut self) {
     let _ = write!(self.writer.borrow_mut(), "{}", Show);
+  }
+}
+
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn pad_string() {
+    assert_eq!(align_center("", 0), "");
+    assert_eq!(align_center("", 1), " ");
+    assert_eq!(align_center("", 8), "        ");
+    assert_eq!(align_center("a", 1), "a");
+    assert_eq!(align_center("a", 2), "a ");
+    assert_eq!(align_center("a", 3), " a ");
+    assert_eq!(align_center("a", 4), " a  ");
+    assert_eq!(align_center("hello", 20), "       hello        ");
+  }
+
+  #[test]
+  fn crop_string() {
+    assert_eq!(align_center("hello", 4), "h...");
+    assert_eq!(align_center("hello", 5), "hello");
+    assert_eq!(align_center("that's a test", 8), "that'...");
   }
 }

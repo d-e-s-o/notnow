@@ -83,6 +83,7 @@ mod controller;
 mod event;
 mod in_out;
 mod query;
+mod tab_bar;
 mod task_list_box;
 mod tasks;
 mod term_renderer;
