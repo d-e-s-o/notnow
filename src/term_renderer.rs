@@ -220,9 +220,11 @@ where
 
     tab_bar.reoffset(offset);
 
-    // Account for the one line the tab bar occupies.
+    // Account for the one line the tab bar occupies at the top and
+    // another one to have some space at the bottom to the input/output
+    // area.
     bbox.y += 1;
-    bbox.h -= 1;
+    bbox.h -= 2;
     Ok(bbox)
   }
 
