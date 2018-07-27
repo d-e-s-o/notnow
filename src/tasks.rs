@@ -77,7 +77,7 @@ pub struct Task {
   // virtue of tagging it with "skip". We need `Id`s to be unique and
   // when persistence comes into play that is way harder to enforce.
   #[serde(default = "unique_id", skip)]
-  pub id: Id,
+  id: Id,
   pub summary: String,
   #[serde(default)]
   pub state: State,
@@ -91,6 +91,11 @@ impl Task {
       summary: summary.into(),
       state: State::NotStarted,
     }
+  }
+
+  /// Retrieve this task's `Id`.
+  pub fn id(&self) -> Id {
+    self.id
   }
 }
 
@@ -163,7 +168,7 @@ impl Tasks {
     self
       .tasks
       .iter()
-      .position(|x| x.id == id)
+      .position(|x| x.id() == id)
       .map(|x| self.tasks.remove(x))
       .unwrap();
   }
@@ -173,7 +178,7 @@ impl Tasks {
     self
       .tasks
       .iter_mut()
-      .position(|x| x.id == task.id)
+      .position(|x| x.id() == task.id())
       .map(|x| self.tasks[x] = task)
       .unwrap();
   }
@@ -293,7 +298,7 @@ pub mod tests {
   #[test]
   fn remove_task() {
     let mut tasks = make_tasks(3);
-    let id = tasks.iter().nth(1).unwrap().id;
+    let id = tasks.iter().nth(1).unwrap().id();
     tasks.remove(id);
 
     let expected = Tasks {

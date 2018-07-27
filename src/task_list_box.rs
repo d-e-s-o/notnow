@@ -131,7 +131,7 @@ impl Handleable for TaskListBox {
             let event = TermUiEvent::SetInOut(InOut::Clear);
             let clear = UiEvent::Custom(self.in_out, Box::new(event));
             if !self.query().is_empty() {
-              let id = self.query().nth(self.selection).unwrap().id;
+              let id = self.query().nth(self.selection).unwrap().id();
               let remove = UiEvent::Custom(self.id, Box::new(TermUiEvent::RemoveTask(id)));
               // The task will get removed so move the selection up by
               // one.

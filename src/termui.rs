@@ -265,7 +265,7 @@ mod tests {
       Event::KeyDown(Key::Char('q')).into(),
     ];
 
-    let id = expected.iter().nth(1).unwrap().id;
+    let id = expected.iter().nth(1).unwrap().id();
     expected.remove(id);
     assert_eq!(test(tasks, events), expected)
   }
@@ -282,9 +282,9 @@ mod tests {
       Event::KeyDown(Key::Char('d')).into(),
     ];
 
-    let id = expected.iter().next().unwrap().id;
+    let id = expected.iter().next().unwrap().id();
     expected.remove(id);
-    let id = expected.iter().nth(1).unwrap().id;
+    let id = expected.iter().nth(1).unwrap().id();
     expected.remove(id);
 
     assert_eq!(test(tasks, events), expected)
