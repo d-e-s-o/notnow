@@ -26,25 +26,16 @@ use std::io::Write;
 use std::iter::FromIterator;
 use std::path::Path;
 use std::slice;
-use std::sync::atomic::AtomicUsize;
-use std::sync::atomic::Ordering;
 
 use serde_json::from_reader;
 use serde_json::to_string_pretty as to_json;
 
+use id::Id as IdT;
 
-#[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
-pub struct Id {
-  id: usize,
-}
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct T(());
 
-fn unique_id() -> Id {
-  static NEXT_ID: AtomicUsize = AtomicUsize::new(0);
-
-  Id {
-    id: NEXT_ID.fetch_add(1, Ordering::Relaxed),
-  }
-}
+pub type Id = IdT<T>;
 
 
 /// An enumeration describing the states a `Task` can be in.
@@ -76,7 +67,7 @@ pub struct Task {
   // The task's ID never ends up being serialized or deserialized by
   // virtue of tagging it with "skip". We need `Id`s to be unique and
   // when persistence comes into play that is way harder to enforce.
-  #[serde(default = "unique_id", skip)]
+  #[serde(default = "Id::new", skip)]
   id: Id,
   pub summary: String,
   #[serde(default)]
@@ -87,7 +78,7 @@ impl Task {
   /// Create a new task.
   pub fn new(summary: impl Into<String>) -> Self {
     Task {
-      id: unique_id(),
+      id: Id::new(),
       summary: summary.into(),
       state: State::NotStarted,
     }
@@ -278,14 +269,6 @@ pub mod tests {
     }
   }
 
-
-  #[test]
-  fn unique_id_increases() {
-    let id1 = unique_id();
-    let id2 = unique_id();
-
-    assert!(id2.id > id1.id);
-  }
 
   #[test]
   fn add_task() {

@@ -81,6 +81,7 @@ extern crate termion;
 
 mod controller;
 mod event;
+mod id;
 mod in_out;
 mod query;
 mod tab_bar;
