@@ -30,6 +30,8 @@ use serde_json::from_reader;
 use serde_json::to_string_pretty as to_json;
 
 use id::Id as IdT;
+use ser::tasks::Task as SerTask;
+use ser::tasks::Tasks as SerTasks;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct T(());
@@ -38,7 +40,7 @@ pub type Id = IdT<T>;
 
 
 /// An enumeration describing the states a `Task` can be in.
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum State {
   NotStarted,
   Completed,
@@ -61,15 +63,10 @@ impl Default for State {
 
 
 /// A struct representing a task item.
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug)]
 pub struct Task {
-  // The task's ID never ends up being serialized or deserialized by
-  // virtue of tagging it with "skip". We need `Id`s to be unique and
-  // when persistence comes into play that is way harder to enforce.
-  #[serde(default = "Id::new", skip)]
   id: Id,
   pub summary: String,
-  #[serde(default)]
   pub state: State,
 }
 
@@ -80,6 +77,22 @@ impl Task {
       id: Id::new(),
       summary: summary.into(),
       state: State::NotStarted,
+    }
+  }
+
+  /// Create a new task from a serializable one.
+  fn with_serde(task: SerTask) -> Task {
+    Task {
+      id: Id::new(),
+      summary: task.summary,
+      state: State::NotStarted,
+    }
+  }
+
+  /// Convert this task into a serializable one.
+  pub fn to_serde(&self) -> SerTask {
+    SerTask {
+      summary: self.summary.clone(),
     }
   }
 
@@ -103,7 +116,7 @@ pub type TaskIter<'a> = slice::Iter<'a, Task>;
 
 
 /// A management struct for tasks and their associated data.
-#[derive(Debug, Deserialize, PartialEq, Serialize)]
+#[derive(Debug, PartialEq)]
 pub struct Tasks {
   tasks: Vec<Task>,
 }
@@ -115,7 +128,7 @@ impl Tasks {
     P: AsRef<Path>,
   {
     match File::open(path) {
-      Ok(file) => Ok(from_reader(&file)?),
+      Ok(file) => Self::with_serde(from_reader::<File, SerTasks>(file)?),
       Err(e) => {
         // If the file does not exist we create an empty object and work
         // with that.
@@ -130,12 +143,33 @@ impl Tasks {
     }
   }
 
+  /// Create a new `Tasks` object from a serializable one.
+  fn with_serde(mut tasks: SerTasks) -> Result<Self> {
+    let tasks = tasks
+      .tasks
+      .drain(..)
+      .map(Task::with_serde)
+      .collect();
+
+    Ok(Tasks {
+      tasks: tasks,
+    })
+  }
+
+  /// Convert this object into a serializable one.
+  fn to_serde(&self) -> SerTasks {
+    SerTasks {
+      tasks: self.tasks.iter().map(|x| x.to_serde()).collect(),
+    }
+  }
+
   /// Persist the tasks into a file.
   pub fn save<P>(&self, path: &P) -> Result<()>
   where
     P: AsRef<Path>,
   {
-    let serialized = to_json(&self)?;
+    let tasks = self.to_serde();
+    let serialized = to_json(&tasks)?;
     OpenOptions::new()
       .create(true)
       .truncate(true)
@@ -351,8 +385,8 @@ pub mod tests {
   #[test]
   fn serialize_deserialize_task() {
     let task = Task::new("this is a TODO");
-    let serialized = to_json(&task).unwrap();
-    let deserialized = from_json::<Task>(&serialized).unwrap();
+    let serialized = to_json(&task.to_serde()).unwrap();
+    let deserialized = from_json::<SerTask>(&serialized).unwrap();
 
     assert_eq!(deserialized.summary, task.summary);
   }
@@ -365,10 +399,11 @@ pub mod tests {
       Task::new("and now for the final task"),
     ]);
     let tasks = Tasks::from(task_vec.clone());
-    let serialized = to_json(&tasks).unwrap();
-    let deserialized = from_json::<Tasks>(&serialized).unwrap();
+    let serialized = to_json(&tasks.to_serde()).unwrap();
+    let deserialized = from_json::<SerTasks>(&serialized).unwrap();
+    let tasks = Tasks::with_serde(deserialized).unwrap();
 
-    assert_eq!(TaskVec::from(deserialized), task_vec);
+    assert_eq!(TaskVec::from(tasks), task_vec);
   }
 
   #[test]

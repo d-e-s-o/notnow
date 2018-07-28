@@ -84,6 +84,7 @@ mod event;
 mod id;
 mod in_out;
 mod query;
+mod ser;
 mod tab_bar;
 mod task_list_box;
 mod tasks;
