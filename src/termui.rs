@@ -179,9 +179,9 @@ mod tests {
   /// resulting set of tasks.
   fn test(tasks: Tasks, events: Vec<UiEvent>) -> Tasks {
     let file = NamedTempFile::new();
-    tasks.save(&*file).unwrap();
+    tasks.save(file.path()).unwrap();
     let (mut ui, _) = Ui::new(&mut |id, cap| {
-      let controller = Controller::new((*file).clone()).unwrap();
+      let controller = Controller::new(file.path()).unwrap();
       Box::new(TermUi::new(id, cap, controller).unwrap())
     });
 

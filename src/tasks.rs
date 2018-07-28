@@ -214,7 +214,6 @@ pub mod tests {
   use super::*;
   use std::ffi::CString;
   use std::fs::remove_file;
-  use std::ops::Deref;
   use std::path::PathBuf;
 
   use serde_json::from_str as from_json;
@@ -250,12 +249,8 @@ pub mod tests {
         path: unsafe { PathBuf::from(CString::from_raw(raw).into_string().unwrap()) },
       }
     }
-  }
 
-  impl Deref for NamedTempFile {
-    type Target = PathBuf;
-
-    fn deref(&self) -> &PathBuf {
+    pub fn path(&self) -> &PathBuf {
       &self.path
     }
   }
@@ -347,9 +342,9 @@ pub mod tests {
       ],
     };
 
-    tasks.save(&*file).unwrap();
+    tasks.save(file.path()).unwrap();
 
-    let new_tasks = Tasks::new(&*file).unwrap();
+    let new_tasks = Tasks::new(file.path()).unwrap();
     assert_eq!(new_tasks, tasks);
   }
 
@@ -361,8 +356,8 @@ pub mod tests {
         tasks: vec![Task::new("make this not empty")],
       };
 
-      tasks.save(&*file).unwrap();
-      file.clone()
+      tasks.save(file.path()).unwrap();
+      file.path().clone()
     };
 
     // The file is removed by now, so we can test that Tasks handles
