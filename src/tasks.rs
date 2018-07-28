@@ -38,7 +38,7 @@ pub type Id = IdT<T>;
 
 
 /// An enumeration describing the states a `Task` can be in.
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub enum State {
   NotStarted,
   Completed,
@@ -91,10 +91,10 @@ impl Task {
 
 impl PartialEq for Task {
   fn eq(&self, other: &Task) -> bool {
-    // For our intents and purposes two `Task` objects are equal as long
-    // as all fields with exception of `id` (which we don't care about)
-    // are equal.
-    self.summary == other.summary
+    let result = self.id == other.id;
+    assert!(!result || self.summary == other.summary);
+    assert!(!result || self.state == other.state);
+    result
   }
 }
 
@@ -196,13 +196,74 @@ pub mod tests {
   use super::*;
   use std::ffi::CString;
   use std::fs::remove_file;
+  use std::iter::FromIterator;
+  use std::ops::Deref;
+  use std::ops::DerefMut;
   use std::path::PathBuf;
 
   use serde_json::from_str as from_json;
 
 
-  pub fn make_tasks_vec(count: usize) -> Vec<Task> {
-    (0..count).map(|i| Task::new(format!("{}", i + 1))).collect()
+  #[derive(Debug)]
+  pub struct TaskVec(pub Vec<Task>);
+
+  impl Deref for TaskVec {
+    type Target = Vec<Task>;
+
+    fn deref(&self) -> &Self::Target {
+      &self.0
+    }
+  }
+
+  impl DerefMut for TaskVec {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+      &mut self.0
+    }
+  }
+
+  impl From<Tasks> for TaskVec {
+    fn from(tasks: Tasks) -> Self {
+      TaskVec::from_iter(tasks.iter().cloned())
+    }
+  }
+
+  impl FromIterator<Task> for TaskVec {
+    fn from_iter<I>(iter: I) -> Self
+    where
+      I: IntoIterator<Item = Task>,
+    {
+      TaskVec(Vec::<Task>::from_iter(iter))
+    }
+  }
+
+  impl PartialEq for TaskVec {
+    fn eq(&self, other: &TaskVec) -> bool {
+      if self.len() != other.len() {
+        false
+      } else {
+        for (x, y) in self.iter().zip(other.iter()) {
+          if x.summary != y.summary {
+            return false
+          }
+        }
+        true
+      }
+    }
+  }
+
+  impl From<TaskVec> for Tasks {
+    fn from(tasks: TaskVec) -> Self {
+      Self::from(tasks.0)
+    }
+  }
+
+
+  pub fn make_tasks_vec(count: usize) -> TaskVec {
+    TaskVec(
+      (0..count)
+        .map(|i| Task::new(format!("{}", i + 1)))
+        .collect(),
+    )
   }
 
   pub fn make_tasks(count: usize) -> Tasks {
@@ -256,7 +317,7 @@ pub mod tests {
     let mut tasks = make_tasks(3);
     tasks.add(Task::new("4"));
 
-    assert_eq!(tasks, make_tasks(4));
+    assert_eq!(TaskVec::from(tasks), make_tasks_vec(4));
   }
 
   #[test]
@@ -265,14 +326,10 @@ pub mod tests {
     let id = tasks.iter().nth(1).unwrap().id();
     tasks.remove(id);
 
-    let expected = Tasks {
-      tasks: vec![
-        Task::new("1".to_string()),
-        Task::new("3".to_string()),
-      ]
-    };
+    let mut expected = make_tasks_vec(3);
+    expected.remove(1);
 
-    assert_eq!(tasks, expected);
+    assert_eq!(TaskVec::from(tasks), expected);
   }
 
   #[test]
@@ -282,15 +339,13 @@ pub mod tests {
     task.summary = "amended".to_string();
     tasks.update(task);
 
-    let expected = Tasks {
-      tasks: vec![
-        Task::new("1".to_string()),
-        Task::new("amended".to_string()),
-        Task::new("3".to_string()),
-      ]
-    };
+    let expected = TaskVec(vec![
+      Task::new("1".to_string()),
+      Task::new("amended".to_string()),
+      Task::new("3".to_string()),
+    ]);
 
-    assert_eq!(tasks, expected);
+    assert_eq!(TaskVec::from(tasks), expected);
   }
 
   #[test]
@@ -299,48 +354,42 @@ pub mod tests {
     let serialized = to_json(&task).unwrap();
     let deserialized = from_json::<Task>(&serialized).unwrap();
 
-    assert_eq!(deserialized, task);
+    assert_eq!(deserialized.summary, task.summary);
   }
 
   #[test]
   fn serialize_deserialize_tasks() {
-    let tasks = Tasks {
-      tasks: vec![
-        Task::new("this is the first TODO"),
-        Task::new("here goes the second one"),
-        Task::new("and now for the final task"),
-      ],
-    };
+    let task_vec = TaskVec(vec![
+      Task::new("this is the first TODO"),
+      Task::new("here goes the second one"),
+      Task::new("and now for the final task"),
+    ]);
+    let tasks = Tasks::from(task_vec.clone());
     let serialized = to_json(&tasks).unwrap();
     let deserialized = from_json::<Tasks>(&serialized).unwrap();
 
-    assert_eq!(deserialized, tasks);
+    assert_eq!(TaskVec::from(deserialized), task_vec);
   }
 
   #[test]
   fn save_and_load_tasks() {
     let file = NamedTempFile::new();
-    let tasks = Tasks {
-      tasks: vec![
-        Task::new("this is the first TODO"),
-        Task::new("here goes the second one"),
-        Task::new("and now for the final task"),
-      ],
-    };
-
-    tasks.save(file.path()).unwrap();
+    let task_vec = TaskVec(vec![
+      Task::new("this is the first TODO"),
+      Task::new("here goes the second one"),
+      Task::new("and now for the final task"),
+    ]);
+    Tasks::from(task_vec.clone()).save(file.path()).unwrap();
 
     let new_tasks = Tasks::new(file.path()).unwrap();
-    assert_eq!(new_tasks, tasks);
+    assert_eq!(TaskVec::from(new_tasks), task_vec);
   }
 
   #[test]
   fn load_tasks_file_not_found() {
     let path = {
       let file = NamedTempFile::new();
-      let tasks = Tasks {
-        tasks: vec![Task::new("make this not empty")],
-      };
+      let tasks = Tasks::from(vec![Task::new("make this not empty")]);
 
       tasks.save(file.path()).unwrap();
       file.path().clone()
@@ -349,6 +398,6 @@ pub mod tests {
     // The file is removed by now, so we can test that Tasks handles
     // such a missing file gracefully.
     let new_tasks = Tasks::new(&path).unwrap();
-    assert_eq!(new_tasks, Tasks::from(Vec::new()));
+    assert_eq!(TaskVec::from(new_tasks), TaskVec(Vec::new()));
   }
 }

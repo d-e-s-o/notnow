@@ -94,6 +94,7 @@ mod tests {
   use super::*;
 
   use tasks::tests::make_tasks;
+  use tasks::tests::TaskVec;
 
 
   #[test]
@@ -106,7 +107,7 @@ mod tests {
   fn nth() {
     let query = Query::new(Rc::new(RefCell::new(make_tasks(7))));
     let expected = make_tasks(7).iter().cloned().nth(3);
-    assert_eq!(query.nth(3), expected);
+    assert_eq!(query.nth(3).as_ref().unwrap().summary, expected.unwrap().summary);
   }
 
   #[test]
@@ -144,8 +145,8 @@ mod tests {
   #[test]
   fn collect() {
     let query = Query::new(Rc::new(RefCell::new(make_tasks(3))));
-    let result = query.collect::<Vec<Task>>();
-    let expected = make_tasks(3).iter().cloned().collect::<Vec<Task>>();
+    let result = query.collect::<TaskVec>();
+    let expected = make_tasks(3).iter().cloned().collect::<TaskVec>();
     assert_eq!(result, expected);
   }
 

@@ -166,6 +166,7 @@ mod tests {
   use tasks::Tasks;
   use tasks::tests::make_tasks_vec;
   use tasks::tests::NamedTempFile;
+  use tasks::tests::TaskVec;
 
 
   /// Test function for the TermUi.
@@ -173,7 +174,7 @@ mod tests {
   /// Instantiate the TermUi in a mock environment associating it with
   /// the given task list, supply the given input, and retrieve the
   /// resulting set of tasks.
-  fn test(task_vec: Vec<Task>, events: Vec<UiEvent>) -> Vec<Task> {
+  fn test(task_vec: TaskVec, events: Vec<UiEvent>) -> TaskVec {
     let mut tasks = Some(Tasks::from(task_vec));
     let file = NamedTempFile::new();
     let (mut ui, _) = Ui::new(&mut |id, cap| {
@@ -193,7 +194,7 @@ mod tests {
     match response {
       UiEvent::Event(event) => {
         match event {
-          Event::Custom(x) => *x.downcast::<Vec<Task>>().unwrap(),
+          Event::Custom(x) => TaskVec(*x.downcast::<Vec<Task>>().unwrap()),
           _ => panic!("Unexpected event: {:?}", event),
         }
       },
@@ -298,9 +299,9 @@ mod tests {
       Event::KeyDown(Key::Return).into(),
       Event::KeyDown(Key::Char('q')).into(),
     ];
-    let expected = vec![
+    let expected = TaskVec(vec![
       Task::new("foobar")
-    ];
+    ]);
 
     assert_eq!(test(tasks, events), expected)
   }
@@ -323,7 +324,7 @@ mod tests {
       Event::KeyDown(Key::Char('d')).into(),
       Event::KeyDown(Key::Char('q')).into(),
     ];
-    let expected = Vec::new();
+    let expected = TaskVec(Vec::new());
 
     assert_eq!(test(tasks, events), expected)
   }
