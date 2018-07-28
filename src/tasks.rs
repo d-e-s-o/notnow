@@ -23,7 +23,6 @@ use std::fs::OpenOptions;
 use std::io::ErrorKind;
 use std::io::Result;
 use std::io::Write;
-use std::iter::FromIterator;
 use std::path::Path;
 use std::slice;
 
@@ -192,18 +191,6 @@ impl From<Vec<Task>> for Tasks {
   }
 }
 
-impl FromIterator<Task> for Tasks {
-  /// Create a `Tasks` object from an iterator of `Task` objects.
-  fn from_iter<I>(iter: I) -> Self
-  where
-    I: IntoIterator<Item = Task>,
-  {
-    Tasks {
-      tasks: Vec::<Task>::from_iter(iter),
-    }
-  }
-}
-
 
 // Our tests can live with having unsafe code in them.
 #[allow(unsafe_code)]
@@ -219,8 +206,12 @@ pub mod tests {
   use serde_json::from_str as from_json;
 
 
+  pub fn make_tasks_vec(count: usize) -> Vec<Task> {
+    (0..count).map(|i| Task::new(format!("{}", i + 1))).collect()
+  }
+
   pub fn make_tasks(count: usize) -> Tasks {
-    Tasks::from_iter((0..count).map(|i| Task::new(format!("{}", i + 1))))
+    Tasks::from(make_tasks_vec(count))
   }
 
   #[link(name = "c")]

@@ -35,8 +35,6 @@ use tab_bar::TabBar;
 use task_list_box::TaskListBox;
 use tasks::Id as TaskId;
 use tasks::Task;
-#[cfg(test)]
-use tasks::Tasks;
 
 
 /// An enumeration comprising all custom events we support.
@@ -128,7 +126,7 @@ impl TermUi {
       },
       #[cfg(test)]
       TermUiEvent::GetTasks => {
-        let tasks = Tasks::from(self.controller.tasks().collect::<Vec<Task>>());
+        let tasks = self.controller.tasks().collect::<Vec<Task>>();
         Some(Event::Custom(Box::new(tasks)).into())
       },
       _ => Some(Event::Custom(event).into()),
@@ -161,14 +159,12 @@ impl Handleable for TermUi {
 
 #[cfg(test)]
 mod tests {
-  use std::iter::FromIterator;
-
   use super::*;
 
   use gui::Ui;
 
   use tasks::Tasks;
-  use tasks::tests::make_tasks;
+  use tasks::tests::make_tasks_vec;
   use tasks::tests::NamedTempFile;
 
 
@@ -177,7 +173,8 @@ mod tests {
   /// Instantiate the TermUi in a mock environment associating it with
   /// the given task list, supply the given input, and retrieve the
   /// resulting set of tasks.
-  fn test(tasks: Tasks, events: Vec<UiEvent>) -> Tasks {
+  fn test(task_vec: Vec<Task>, events: Vec<UiEvent>) -> Vec<Task> {
+    let tasks = Tasks::from(task_vec);
     let file = NamedTempFile::new();
     tasks.save(file.path()).unwrap();
     let (mut ui, _) = Ui::new(&mut |id, cap| {
@@ -196,7 +193,7 @@ mod tests {
     match response {
       UiEvent::Event(event) => {
         match event {
-          Event::Custom(x) => *x.downcast::<Tasks>().unwrap(),
+          Event::Custom(x) => *x.downcast::<Vec<Task>>().unwrap(),
           _ => panic!("Unexpected event: {:?}", event),
         }
       },
@@ -207,39 +204,39 @@ mod tests {
 
   #[test]
   fn exit_on_quit() {
-    let tasks = make_tasks(0);
+    let tasks = make_tasks_vec(0);
     let events = vec![
       Event::KeyDown(Key::Char('q')).into(),
     ];
 
-    assert_eq!(test(tasks, events), Tasks::from(make_tasks(0)))
+    assert_eq!(test(tasks, events), make_tasks_vec(0))
   }
 
   #[test]
   fn remove_no_task() {
-    let tasks = make_tasks(0);
+    let tasks = make_tasks_vec(0);
     let events = vec![
       Event::KeyDown(Key::Char('d')).into(),
       Event::KeyDown(Key::Char('q')).into(),
     ];
 
-    assert_eq!(test(tasks, events), make_tasks(0))
+    assert_eq!(test(tasks, events), make_tasks_vec(0))
   }
 
   #[test]
   fn remove_only_task() {
-    let tasks = make_tasks(1);
+    let tasks = make_tasks_vec(1);
     let events = vec![
       Event::KeyDown(Key::Char('d')).into(),
       Event::KeyDown(Key::Char('q')).into(),
     ];
 
-    assert_eq!(test(tasks, events), make_tasks(0))
+    assert_eq!(test(tasks, events), make_tasks_vec(0))
   }
 
   #[test]
   fn remove_task_after_down_select() {
-    let tasks = make_tasks(2);
+    let tasks = make_tasks_vec(2);
     let events = vec![
       Event::KeyDown(Key::Char('j')).into(),
       Event::KeyDown(Key::Char('j')).into(),
@@ -250,13 +247,13 @@ mod tests {
       Event::KeyDown(Key::Char('q')).into(),
     ];
 
-    assert_eq!(test(tasks, events), make_tasks(1))
+    assert_eq!(test(tasks, events), make_tasks_vec(1))
   }
 
   #[test]
   fn remove_task_after_up_select() {
-    let tasks = make_tasks(3);
-    let mut expected = make_tasks(3);
+    let tasks = make_tasks_vec(3);
+    let mut expected = make_tasks_vec(3);
     let events = vec![
       Event::KeyDown(Key::Char('j')).into(),
       Event::KeyDown(Key::Char('j')).into(),
@@ -265,15 +262,14 @@ mod tests {
       Event::KeyDown(Key::Char('q')).into(),
     ];
 
-    let id = expected.iter().nth(1).unwrap().id();
-    expected.remove(id);
+    expected.remove(1);
     assert_eq!(test(tasks, events), expected)
   }
 
   #[test]
   fn remove_last_task() {
-    let tasks = make_tasks(3);
-    let mut expected = make_tasks(3);
+    let tasks = make_tasks_vec(3);
+    let mut expected = make_tasks_vec(3);
     let events = vec![
       Event::KeyDown(Key::Char('j')).into(),
       Event::KeyDown(Key::Char('j')).into(),
@@ -282,17 +278,15 @@ mod tests {
       Event::KeyDown(Key::Char('d')).into(),
     ];
 
-    let id = expected.iter().next().unwrap().id();
-    expected.remove(id);
-    let id = expected.iter().nth(1).unwrap().id();
-    expected.remove(id);
+    expected.remove(0);
+    expected.remove(1);
 
     assert_eq!(test(tasks, events), expected)
   }
 
   #[test]
   fn add_task() {
-    let tasks = make_tasks(0);
+    let tasks = make_tasks_vec(0);
     let events = vec![
       Event::KeyDown(Key::Char('a')).into(),
       Event::KeyDown(Key::Char('f')).into(),
@@ -304,18 +298,16 @@ mod tests {
       Event::KeyDown(Key::Return).into(),
       Event::KeyDown(Key::Char('q')).into(),
     ];
-    let expected = Tasks::from_iter(
-      vec![
-        Task::new("foobar".to_string())
-      ].iter().cloned()
-    );
+    let expected = vec![
+      Task::new("foobar")
+    ];
 
     assert_eq!(test(tasks, events), expected)
   }
 
   #[test]
   fn add_and_remove_tasks() {
-    let tasks = make_tasks(0);
+    let tasks = make_tasks_vec(0);
     let events = vec![
       Event::KeyDown(Key::Char('a')).into(),
       Event::KeyDown(Key::Char('f')).into(),
@@ -331,14 +323,14 @@ mod tests {
       Event::KeyDown(Key::Char('d')).into(),
       Event::KeyDown(Key::Char('q')).into(),
     ];
-    let expected = Tasks::from_iter(Vec::new());
+    let expected = Vec::new();
 
     assert_eq!(test(tasks, events), expected)
   }
 
   #[test]
   fn add_task_cancel() {
-    let tasks = make_tasks(0);
+    let tasks = make_tasks_vec(0);
     let events = vec![
       Event::KeyDown(Key::Char('a')).into(),
       Event::KeyDown(Key::Char('f')).into(),
@@ -350,14 +342,14 @@ mod tests {
       Event::KeyDown(Key::Esc).into(),
       Event::KeyDown(Key::Char('q')).into(),
     ];
-    let expected = make_tasks(0);
+    let expected = make_tasks_vec(0);
 
     assert_eq!(test(tasks, events), expected)
   }
 
   #[test]
   fn add_task_with_character_removal() {
-    let tasks = Tasks::from(make_tasks(1));
+    let tasks = make_tasks_vec(1);
     let events = vec![
       Event::KeyDown(Key::Char('a')).into(),
       Event::KeyDown(Key::Char('f')).into(),
@@ -372,8 +364,8 @@ mod tests {
       Event::KeyDown(Key::Return).into(),
       Event::KeyDown(Key::Char('q')).into(),
     ];
-    let mut expected = make_tasks(1);
-    expected.add(Task::new("baz".to_string()));
+    let mut expected = make_tasks_vec(1);
+    expected.push(Task::new("baz"));
 
     assert_eq!(test(tasks, events), expected)
   }
