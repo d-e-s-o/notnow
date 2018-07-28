@@ -174,11 +174,11 @@ mod tests {
   /// the given task list, supply the given input, and retrieve the
   /// resulting set of tasks.
   fn test(task_vec: Vec<Task>, events: Vec<UiEvent>) -> Vec<Task> {
-    let tasks = Tasks::from(task_vec);
+    let mut tasks = Some(Tasks::from(task_vec));
     let file = NamedTempFile::new();
-    tasks.save(file.path()).unwrap();
     let (mut ui, _) = Ui::new(&mut |id, cap| {
-      let controller = Controller::new(file.path()).unwrap();
+      let tasks = tasks.take().unwrap();
+      let controller = Controller::with_tasks_and_path(tasks, file.path());
       Box::new(TermUi::new(id, cap, controller).unwrap())
     });
 

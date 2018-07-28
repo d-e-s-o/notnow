@@ -43,11 +43,19 @@ impl Controller {
     P: Into<PathBuf> + AsRef<Path>,
   {
     let tasks = Tasks::new(&task_path)?;
+    Ok(Self::with_tasks_and_path(tasks, task_path))
+  }
 
-    Ok(Controller {
-      path: task_path.into(),
+  /// Create a new controller object with the given `Tasks` object, with
+  /// all future `save` operations happening into the provided path.
+  pub fn with_tasks_and_path<P>(tasks: Tasks, path: P) -> Self
+  where
+    P: Into<PathBuf> + AsRef<Path>,
+  {
+    Controller {
+      path: path.into(),
       tasks: Rc::new(RefCell::new(tasks)),
-    })
+    }
   }
 
   /// Save the tasks into a file.
