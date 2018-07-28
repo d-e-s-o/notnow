@@ -120,7 +120,9 @@ impl Tasks {
         // If the file does not exist we create an empty object and work
         // with that.
         if e.kind() == ErrorKind::NotFound {
-          Ok(Default::default())
+          Ok(Tasks {
+            tasks: Vec::new(),
+          })
         } else {
           Err(e)
         }
@@ -174,14 +176,7 @@ impl Tasks {
   }
 }
 
-impl Default for Tasks {
-  fn default() -> Self {
-    Tasks {
-      tasks: Vec::new(),
-    }
-  }
-}
-
+#[cfg(test)]
 impl From<Vec<Task>> for Tasks {
   /// Create a 'Tasks' object from a vector of tasks.
   fn from(tasks: Vec<Task>) -> Self {
@@ -354,6 +349,6 @@ pub mod tests {
     // The file is removed by now, so we can test that Tasks handles
     // such a missing file gracefully.
     let new_tasks = Tasks::new(&path).unwrap();
-    assert_eq!(new_tasks, Default::default());
+    assert_eq!(new_tasks, Tasks::from(Vec::new()));
   }
 }
