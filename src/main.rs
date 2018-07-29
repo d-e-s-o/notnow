@@ -87,6 +87,7 @@ mod in_out;
 mod query;
 mod ser;
 mod tab_bar;
+mod tags;
 mod task_list_box;
 mod tasks;
 mod term_renderer;

@@ -30,13 +30,25 @@ use serde::ser::Serializer;
 
 
 /// An ID that can be serialized and deserialized.
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
 pub struct Id<T>
 where
   T: Copy,
 {
   id: usize,
   phantom: PhantomData<T>,
+}
+
+impl<T> Id<T>
+where
+  T: Copy,
+{
+  pub fn new(id: usize) -> Self {
+    Id {
+      id: id,
+      phantom: PhantomData,
+    }
+  }
 }
 
 impl<T> Debug for Id<T>
@@ -100,10 +112,7 @@ mod tests {
 
   #[test]
   fn serialize_deserialize_id() {
-    let id = TestId {
-      id: 42,
-      phantom: PhantomData,
-    };
+    let id = TestId::new(42);
     let serialized = to_json(&id).unwrap();
     let deserialized = from_json::<TestId>(&serialized).unwrap();
 
@@ -112,10 +121,7 @@ mod tests {
 
   #[test]
   fn serialize_as_number() {
-    let id = TestId {
-      id: 1337,
-      phantom: PhantomData,
-    };
+    let id = TestId::new(1337);
     let serialized = to_json(&id).unwrap();
 
     assert_eq!(serialized, "1337");

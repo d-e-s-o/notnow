@@ -25,6 +25,8 @@ use std::marker::PhantomData;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 
+use ser::id::Id as SerId;
+
 
 /// A struct representing IDs usable for various purposes.
 ///
@@ -33,7 +35,7 @@ use std::sync::atomic::Ordering;
 /// provides them. Note furthermore that we want all ID objects to be
 /// lightweight and, hence, require the implementation of `Copy` for `T`
 /// (which we do not for all the other, optional, traits).
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct Id<T>
 where
   T: Copy,
@@ -55,6 +57,19 @@ where
       id: id,
       phantom: PhantomData,
     }
+  }
+
+  /// Convert this `Id` into a serializable one.
+  ///
+  /// Note that it is generally safe to convert this unique in-memory ID
+  /// into a serializable one. However, the inverse conversion is not
+  /// allowed, for there is no way to guarantee uniqueness of the
+  /// resulting in-memory ID.
+  pub fn to_serde<U>(self) -> SerId<U>
+  where
+    U: Copy,
+  {
+    SerId::new(self.id)
   }
 }
 

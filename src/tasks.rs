@@ -18,12 +18,15 @@
 // *************************************************************************
 
 use std::cmp::PartialEq;
+use std::collections::BTreeMap;
 use std::fs::File;
 use std::fs::OpenOptions;
 use std::io::ErrorKind;
+use std::io::Read;
 use std::io::Result;
 use std::io::Write;
 use std::path::Path;
+use std::rc::Rc;
 use std::slice;
 
 use serde_json::from_reader;
@@ -32,8 +35,12 @@ use serde_json::to_string_pretty as to_json;
 use id::Id as IdT;
 use ser::tasks::Task as SerTask;
 use ser::tasks::Tasks as SerTasks;
+use tags::Id as TagId;
+use tags::Tag;
+use tags::TagMap;
+use tags::Templates;
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct T(());
 
 pub type Id = IdT<T>;
@@ -68,6 +75,7 @@ pub struct Task {
   id: Id,
   pub summary: String,
   pub state: State,
+  tags: BTreeMap<TagId, Tag>,
 }
 
 impl Task {
@@ -77,15 +85,26 @@ impl Task {
       id: Id::new(),
       summary: summary.into(),
       state: State::NotStarted,
+      tags: Default::default(),
     }
   }
 
   /// Create a new task from a serializable one.
-  fn with_serde(task: SerTask) -> Task {
+  fn with_serde(mut task: SerTask, templates: Rc<Templates>, map: &TagMap) -> Task {
+    let tags = task
+      .tags
+      .drain(..)
+      .map(|x| {
+        let id = map.get(&x.id).unwrap();
+        (*id, templates.instantiate(*id))
+      })
+      .collect();
+
     Task {
       id: Id::new(),
       summary: task.summary,
       state: State::NotStarted,
+      tags: tags,
     }
   }
 
@@ -93,12 +112,19 @@ impl Task {
   pub fn to_serde(&self) -> SerTask {
     SerTask {
       summary: self.summary.clone(),
+      tags: self.tags.iter().map(|(_, x)| x.to_serde()).collect(),
     }
   }
 
   /// Retrieve this task's `Id`.
   pub fn id(&self) -> Id {
     self.id
+  }
+
+  /// Retrieve an iterator over this task's tags.
+  #[cfg(test)]
+  fn tags(&self) -> impl Iterator<Item=&Tag> {
+    self.tags.values()
   }
 }
 
@@ -107,6 +133,7 @@ impl PartialEq for Task {
     let result = self.id == other.id;
     assert!(!result || self.summary == other.summary);
     assert!(!result || self.state == other.state);
+    assert!(!result || self.tags == other.tags);
     result
   }
 }
@@ -118,6 +145,7 @@ pub type TaskIter<'a> = slice::Iter<'a, Task>;
 /// A management struct for tasks and their associated data.
 #[derive(Debug, PartialEq)]
 pub struct Tasks {
+  templates: Rc<Templates>,
   tasks: Vec<Task>,
 }
 
@@ -128,12 +156,13 @@ impl Tasks {
     P: AsRef<Path>,
   {
     match File::open(path) {
-      Ok(file) => Self::with_serde(from_reader::<File, SerTasks>(file)?),
+      Ok(file) => Self::with_reader(file),
       Err(e) => {
         // If the file does not exist we create an empty object and work
         // with that.
         if e.kind() == ErrorKind::NotFound {
           Ok(Tasks {
+            templates: Rc::new(Templates::new()),
             tasks: Vec::new(),
           })
         } else {
@@ -143,15 +172,31 @@ impl Tasks {
     }
   }
 
+  /// Create a new `Tasks` object using the given reader.
+  fn with_reader<R>(reader: R) -> Result<Self>
+  where
+    R: Read,
+  {
+    Self::with_serde(from_reader::<R, SerTasks>(reader)?)
+  }
+
   /// Create a new `Tasks` object from a serializable one.
   fn with_serde(mut tasks: SerTasks) -> Result<Self> {
+    // Make sure that what we got supplied is actually valid data, i.e.,
+    // there must not be any references to tags that do not actually
+    // exist.
+    tasks.validate_tags()?;
+
+    let (templates, map) = Templates::with_serde(tasks.templates);
+    let templates = Rc::new(templates);
     let tasks = tasks
       .tasks
       .drain(..)
-      .map(Task::with_serde)
+      .map(|x| Task::with_serde(x, templates.clone(), &map))
       .collect();
 
     Ok(Tasks {
+      templates: templates,
       tasks: tasks,
     })
   }
@@ -159,6 +204,7 @@ impl Tasks {
   /// Convert this object into a serializable one.
   fn to_serde(&self) -> SerTasks {
     SerTasks {
+      templates: self.templates.to_serde(),
       tasks: self.tasks.iter().map(|x| x.to_serde()).collect(),
     }
   }
@@ -214,7 +260,12 @@ impl Tasks {
 impl From<Vec<Task>> for Tasks {
   /// Create a 'Tasks' object from a vector of tasks.
   fn from(tasks: Vec<Task>) -> Self {
+    // Test code using this constructor is assumed to only have tasks
+    // that have no tags.
+    tasks.iter().for_each(|x| assert!(x.tags.is_empty()));
+
     Tasks {
+      templates: Rc::new(Templates::new()),
       tasks: tasks,
     }
   }
@@ -236,6 +287,11 @@ pub mod tests {
   use std::path::PathBuf;
 
   use serde_json::from_str as from_json;
+
+  use ser::tags::Id as SerId;
+  use ser::tags::Tag as SerTag;
+  use ser::tags::Template as SerTemplate;
+  use ser::tags::Templates as SerTemplates;
 
 
   #[derive(Debug)]
@@ -434,5 +490,99 @@ pub mod tests {
     // such a missing file gracefully.
     let new_tasks = Tasks::new(&path).unwrap();
     assert_eq!(TaskVec::from(new_tasks), TaskVec(Vec::new()));
+  }
+
+  #[test]
+  fn load_tasks_with_invalid_tag() {
+    let tasks = SerTasks {
+      templates: Default::default(),
+      tasks: vec![
+        SerTask {
+          summary: "a task!".to_string(),
+          tags: vec![
+            SerTag {
+              id: SerId::new(42),
+            },
+          ],
+        },
+      ],
+    };
+
+    let err = Tasks::with_serde(tasks).unwrap_err();
+    assert_eq!(err.to_string(), "Encountered invalid tag Id 42")
+  }
+
+  #[test]
+  fn load_tasks() {
+    let id_tag1 = SerId::new(29);
+    let id_tag2 = SerId::new(1337 + 42 - 1);
+
+    let tasks = SerTasks {
+      templates: SerTemplates(vec![
+        SerTemplate {
+          id: id_tag1,
+          name: "tag1".to_string(),
+        },
+        SerTemplate {
+          id: id_tag2,
+          name: "tag2".to_string(),
+        },
+      ]),
+      tasks: vec![
+        SerTask {
+          summary: "a task!".to_string(),
+          tags: vec![
+            SerTag {
+              id: id_tag2,
+            },
+          ],
+        },
+        SerTask {
+          summary: "an untagged task".to_string(),
+          tags: Default::default(),
+        },
+        SerTask {
+          summary: "a tag1 task".to_string(),
+          tags: vec![
+            SerTag {
+              id: id_tag1,
+            },
+          ],
+        },
+        SerTask {
+          summary: "a doubly tagged task".to_string(),
+          tags: vec![
+            SerTag {
+              id: id_tag2,
+            },
+            SerTag {
+              id: id_tag1,
+            },
+          ],
+        },
+      ],
+    };
+
+    let tasks = Tasks::with_serde(tasks).unwrap();
+    let mut it = tasks.iter();
+
+    let task1 = it.next().unwrap();
+    let mut tags = task1.tags();
+    assert_eq!(tags.next().unwrap().name(), "tag2");
+    assert!(tags.next().is_none());
+
+    let task2 = it.next().unwrap();
+    assert!(task2.tags().next().is_none());
+
+    let task3 = it.next().unwrap();
+    let mut tags = task3.tags();
+    assert_eq!(tags.next().unwrap().name(), "tag1");
+    assert!(tags.next().is_none());
+
+    let task4 = it.next().unwrap();
+    let mut tags = task4.tags();
+    assert!(tags.next().is_some());
+    assert!(tags.next().is_some());
+    assert!(tags.next().is_none());
   }
 }
