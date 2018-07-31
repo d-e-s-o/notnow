@@ -80,7 +80,18 @@ pub struct Task {
 
 impl Task {
   /// Create a new task.
+  #[cfg(test)]
   pub fn new(summary: impl Into<String>) -> Self {
+    Task {
+      id: Id::new(),
+      summary: summary.into(),
+      state: State::NotStarted,
+      tags: Default::default(),
+    }
+  }
+
+  /// Create a task using the given summary.
+  fn with_summary(summary: impl Into<String>) -> Self {
     Task {
       id: Id::new(),
       summary: summary.into(),
@@ -231,7 +242,8 @@ impl Tasks {
   }
 
   /// Add a new task.
-  pub fn add(&mut self, task: Task) {
+  pub fn add(&mut self, summary: impl Into<String>) {
+    let task = Task::with_summary(summary);
     self.tasks.push(task);
   }
 
@@ -405,7 +417,7 @@ pub mod tests {
   #[test]
   fn add_task() {
     let mut tasks = make_tasks(3);
-    tasks.add(Task::new("4"));
+    tasks.add("4");
 
     assert_eq!(TaskVec::from(tasks), make_tasks_vec(4));
   }

@@ -113,7 +113,7 @@ impl TermUi {
   fn handle_custom_event(&mut self, event: Box<TermUiEvent>) -> Option<MetaEvent> {
     match *event {
       TermUiEvent::AddTask(s) => {
-        self.controller.add_task(Task::new(s));
+        self.controller.add_task(s);
         (None as Option<Event>).update()
       },
       TermUiEvent::RemoveTask(id) => {
