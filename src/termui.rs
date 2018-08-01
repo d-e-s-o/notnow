@@ -370,4 +370,22 @@ mod tests {
 
     assert_eq!(test(tasks, events), expected)
   }
+
+  #[test]
+  fn complete_task() {
+    let tasks = make_tasks_vec(3);
+    let events = vec![
+      Event::KeyDown(Key::Char('j')).into(),
+      Event::KeyDown(Key::Char(' ')).into(),
+      Event::KeyDown(Key::Char('j')).into(),
+      Event::KeyDown(Key::Char(' ')).into(),
+      Event::KeyDown(Key::Char(' ')).into(),
+      Event::KeyDown(Key::Char('q')).into(),
+    ];
+
+    let tasks = test(tasks, events);
+    assert!(!tasks[0].is_complete());
+    assert!(tasks[1].is_complete());
+    assert!(!tasks[2].is_complete());
+  }
 }

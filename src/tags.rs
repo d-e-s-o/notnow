@@ -224,7 +224,6 @@ impl Templates {
   }
 
   /// Retrieve a reference to the 'complete' tag template.
-  #[cfg(test)]
   pub fn complete_tag(&self) -> &Template {
     &self.complete
   }

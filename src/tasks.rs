@@ -46,36 +46,13 @@ pub struct T(());
 pub type Id = IdT<T>;
 
 
-/// An enumeration describing the states a `Task` can be in.
-#[derive(Clone, Debug, PartialEq)]
-pub enum State {
-  NotStarted,
-  Completed,
-}
-
-impl State {
-  pub fn cycle(&mut self) -> Self {
-    match self {
-      State::NotStarted => State::Completed,
-      State::Completed => State::NotStarted,
-    }
-  }
-}
-
-impl Default for State {
-  fn default() -> Self {
-    State::NotStarted
-  }
-}
-
-
 /// A struct representing a task item.
 #[derive(Clone, Debug)]
 pub struct Task {
   id: Id,
   pub summary: String,
-  pub state: State,
   tags: BTreeMap<TagId, Tag>,
+  templates: Rc<Templates>,
 }
 
 impl Task {
@@ -85,18 +62,18 @@ impl Task {
     Task {
       id: Id::new(),
       summary: summary.into(),
-      state: State::NotStarted,
       tags: Default::default(),
+      templates: Rc::new(Templates::new()),
     }
   }
 
   /// Create a task using the given summary.
-  fn with_summary(summary: impl Into<String>) -> Self {
+  fn with_summary(summary: impl Into<String>, templates: Rc<Templates>) -> Self {
     Task {
       id: Id::new(),
       summary: summary.into(),
-      state: State::NotStarted,
       tags: Default::default(),
+      templates: templates,
     }
   }
 
@@ -114,8 +91,8 @@ impl Task {
     Task {
       id: Id::new(),
       summary: task.summary,
-      state: State::NotStarted,
       tags: tags,
+      templates: templates,
     }
   }
 
@@ -137,13 +114,31 @@ impl Task {
   fn tags(&self) -> impl Iterator<Item=&Tag> {
     self.tags.values()
   }
+
+  /// Check whether the task is tagged as complete or not.
+  pub fn is_complete(&self) -> bool {
+    let id = self.templates.complete_tag().id();
+    self.tags.contains_key(&id)
+  }
+
+  /// Toggle the completion state of the task.
+  pub fn toggle_complete(&mut self) {
+    let id = self.templates.complete_tag().id();
+
+    // Try removing the complete tag, if that succeeds we are done (as
+    // the tag was present and got removed), otherwise insert it (as it
+    // was not present).
+    if self.tags.remove(&id).is_none() {
+      let tag = self.templates.instantiate(id);
+      self.tags.insert(id, tag);
+    }
+  }
 }
 
 impl PartialEq for Task {
   fn eq(&self, other: &Task) -> bool {
     let result = self.id == other.id;
     assert!(!result || self.summary == other.summary);
-    assert!(!result || self.state == other.state);
     assert!(!result || self.tags == other.tags);
     result
   }
@@ -243,7 +238,7 @@ impl Tasks {
 
   /// Add a new task.
   pub fn add(&mut self, summary: impl Into<String>) {
-    let task = Task::with_summary(summary);
+    let task = Task::with_summary(summary, self.templates.clone());
     self.tasks.push(task);
   }
 
@@ -448,6 +443,14 @@ pub mod tests {
     ]);
 
     assert_eq!(TaskVec::from(tasks), expected);
+  }
+
+  #[test]
+  fn task_completion() {
+    let mut task = Task::new("test task");
+    assert!(!task.is_complete());
+    task.toggle_complete();
+    assert!(task.is_complete());
   }
 
   #[test]

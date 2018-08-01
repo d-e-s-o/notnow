@@ -43,7 +43,6 @@ use in_out::InOut;
 use in_out::InOutArea;
 use tab_bar::TabBar;
 use task_list_box::TaskListBox;
-use tasks::State;
 use termui::TermUi;
 
 const MAIN_MARGIN_X: u16 = 3;
@@ -244,21 +243,19 @@ where
       } else if i < offset {
         Ok(true)
       } else {
-        let (state, state_fg, state_bg) = match task.state {
-          State::NotStarted => {
-            (
-              "[ ]",
-              TASK_NOT_STARTED_FG as &Color,
-              TASK_NOT_STARTED_BG as &Color,
-            )
-          },
-          State::Completed => {
-            (
-              "[X]",
-              TASK_DONE_FG as &Color,
-              TASK_DONE_BG as &Color,
-            )
-          },
+        let complete = task.is_complete();
+        let (state, state_fg, state_bg) = if !complete {
+          (
+            "[ ]",
+            TASK_NOT_STARTED_FG as &Color,
+            TASK_NOT_STARTED_BG as &Color,
+          )
+        } else {
+          (
+            "[X]",
+            TASK_DONE_FG as &Color,
+            TASK_DONE_BG as &Color,
+          )
         };
 
         let (task_fg, task_bg) = if i == selection {

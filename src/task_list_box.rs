@@ -116,7 +116,7 @@ impl Handleable for TaskListBox {
         match key {
           Key::Char(' ') => {
             let mut task = self.query().nth(self.selection).unwrap();
-            task.state = task.state.cycle();
+            task.toggle_complete();
             let event = TermUiEvent::UpdateTask(task);
             let event = Event::Custom(Box::new(event));
             Some(event).update()
