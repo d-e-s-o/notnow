@@ -87,6 +87,10 @@ impl TermUi {
     let tab_bar = cap.add_widget(id, &mut |id, _cap| {
       Box::new(TabBar::new(id))
     });
+    // Careful with the ordering of children here. The TaskListBox
+    // rendering process sets the cursor to the currently selected task.
+    // That will only work if this widget is the one being rendered
+    // last.
     let task_list = cap.add_widget(tab_bar, &mut |id, _cap| {
       Box::new(TaskListBox::new(id, in_out, controller.tasks()))
     });

@@ -197,6 +197,13 @@ where
     Ok(())
   }
 
+  /// Move the cursor to the given position.
+  fn goto(&self, x: u16, y: u16) -> Result<()> {
+    let x = self.bbox.get().x + x + 1;
+    let y = self.bbox.get().y + y + 1;
+    write!(self.writer.borrow_mut(), "{}", Goto(x, y))
+  }
+
   /// Clear the terminal content.
   fn clear_all(&self) -> Result<()> {
     write!(self.writer.borrow_mut(), "{}{}{}", Fg(Reset), Bg(Reset), All)
@@ -312,6 +319,7 @@ where
   fn render_task_list_box(&self, task_list: &TaskListBox, bbox: BBox) -> Result<BBox> {
     let x = MAIN_MARGIN_X;
     let mut y = MAIN_MARGIN_Y;
+    let mut cursor = None;
 
     let query = task_list.query();
     let limit = self.displayable_tasks(bbox);
@@ -340,10 +348,22 @@ where
         self.writer.write(x, y, state_fg, state_bg, state)?;
         let x = x + state.len() as u16 + 1;
         self.writer.write(x, y, task_fg, task_bg, &task.summary)?;
+
+        if i == selection {
+          cursor = Some((x, y));
+        }
+
         y += TASK_SPACE;
         Ok(true)
       }
     })?;
+
+    // Set the cursor to the first character of the selected item. This
+    // allows for more convenient copying of the currently selected task
+    // with programs such as tmux.
+    if let Some((x, y)) = cursor {
+      self.writer.goto(x, y)?;
+    }
 
     // We need to adjust the offset we use in order to be able to give
     // the correct impression of a sliding selection window.
