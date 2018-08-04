@@ -18,6 +18,7 @@
 // *************************************************************************
 
 use std::any::Any;
+use std::cell::Cell;
 use std::cell::RefCell;
 use std::io::BufWriter;
 use std::io::Error;
@@ -56,41 +57,41 @@ const INPUT_TEXT: &str = " > ";
 
 // TODO: Make the colors run time configurable at some point.
 /// Color 15.
-const SELECTED_QUERY_FG: &Rgb = &Rgb(0xff, 0xff, 0xff);
+const SELECTED_QUERY_FG: Rgb = Rgb(0xff, 0xff, 0xff);
 /// Color 240.
-const SELECTED_QUERY_BG: &Rgb = &Rgb(0x58, 0x58, 0x58);
+const SELECTED_QUERY_BG: Rgb = Rgb(0x58, 0x58, 0x58);
 /// Color 15.
-const UNSELECTED_QUERY_FG: &Rgb = &Rgb(0xff, 0xff, 0xff);
+const UNSELECTED_QUERY_FG: Rgb = Rgb(0xff, 0xff, 0xff);
 /// Color 235.
-const UNSELECTED_QUERY_BG: &Rgb = &Rgb(0x26, 0x26, 0x26);
+const UNSELECTED_QUERY_BG: Rgb = Rgb(0x26, 0x26, 0x26);
 /// Color 0.
-const UNSELECTED_TASK_FG: &Rgb = &Rgb(0x00, 0x00, 0x00);
+const UNSELECTED_TASK_FG: Rgb = Rgb(0x00, 0x00, 0x00);
 /// The terminal default background.
-const UNSELECTED_TASK_BG: &Reset = &Reset;
+const UNSELECTED_TASK_BG: Reset = Reset;
 /// Color 15.
-const SELECTED_TASK_FG: &Rgb = &Rgb(0xff, 0xff, 0xff);
+const SELECTED_TASK_FG: Rgb = Rgb(0xff, 0xff, 0xff);
 /// Color 240.
-const SELECTED_TASK_BG: &Rgb = &Rgb(0x58, 0x58, 0x58);
+const SELECTED_TASK_BG: Rgb = Rgb(0x58, 0x58, 0x58);
 /// Soft red.
-const TASK_NOT_STARTED_FG: &Rgb = &Rgb(0xfe, 0x0d, 0x0c);
+const TASK_NOT_STARTED_FG: Rgb = Rgb(0xfe, 0x0d, 0x0c);
 /// Color 15.
-const TASK_NOT_STARTED_BG: &Reset = &Reset;
+const TASK_NOT_STARTED_BG: Reset = Reset;
 /// Bright green.
-const TASK_DONE_FG: &Rgb = &Rgb(0x00, 0xd7, 0x00);
+const TASK_DONE_FG: Rgb = Rgb(0x00, 0xd7, 0x00);
 /// Color 15.
-const TASK_DONE_BG: &Reset = &Reset;
+const TASK_DONE_BG: Reset = Reset;
 /// Color 0.
-const IN_OUT_SUCCESS_FG: &Rgb = &Rgb(0x00, 0x00, 0x00);
+const IN_OUT_SUCCESS_FG: Rgb = Rgb(0x00, 0x00, 0x00);
 /// Color 40.
-const IN_OUT_SUCCESS_BG: &Rgb = &Rgb(0x00, 0xd7, 0x00);
+const IN_OUT_SUCCESS_BG: Rgb = Rgb(0x00, 0xd7, 0x00);
 /// Color 0.
-const IN_OUT_ERROR_FG: &Rgb = &Rgb(0x00, 0x00, 0x00);
+const IN_OUT_ERROR_FG: Rgb = Rgb(0x00, 0x00, 0x00);
 /// Color 197.
-const IN_OUT_ERROR_BG: &Rgb = &Rgb(0xff, 0x00, 0x00);
+const IN_OUT_ERROR_BG: Rgb = Rgb(0xff, 0x00, 0x00);
 /// Color 0.
-const IN_OUT_STRING_FG: &Rgb = &Rgb(0x00, 0x00, 0x00);
+const IN_OUT_STRING_FG: Rgb = Rgb(0x00, 0x00, 0x00);
 /// The terminal default background.
-const IN_OUT_STRING_BG: &Reset = &Reset;
+const IN_OUT_STRING_BG: Reset = Reset;
 
 
 /// Sanitize an offset.
@@ -126,12 +127,102 @@ fn align_center(string: impl Into<String>, width: usize) -> String {
   string
 }
 
+/// Clip a string according to the active bounding box.
+fn clip(x: u16, y: u16, string: &str, bbox: BBox) -> &str {
+  let w = bbox.w;
+  let h = bbox.h;
+
+  if y < h {
+    if x + string.len() as u16 >= w {
+      &string[..(w - x) as usize]
+    } else {
+      string
+    }
+  } else {
+    ""
+  }
+}
+
+
+/// A writer that clips writes according to a bounding box.
+struct ClippingWriter<W>
+where
+  W: Write,
+{
+  writer: RefCell<W>,
+  bbox: Cell<BBox>,
+}
+
+impl<W> ClippingWriter<W>
+where
+  W: Write,
+{
+  /// Create a new `ClippingWriter` object.
+  fn new(writer: W) -> Self {
+    ClippingWriter {
+      writer: RefCell::new(writer),
+      bbox: Default::default(),
+    }
+  }
+
+  /// Set the `BBox` to restrict the rendering area to.
+  fn restrict(&self, bbox: BBox) {
+    self.bbox.set(bbox)
+  }
+
+  /// Write a string to the terminal.
+  fn write<F, B, S>(&self, x: u16, y: u16, fg: F, bg: B, string: S) -> Result<()>
+  where
+    F: Color,
+    B: Color,
+    S: AsRef<str>,
+  {
+    let string = clip(x, y, string.as_ref(), self.bbox.get());
+    if !string.is_empty() {
+      // Specified coordinates are always relative to the bounding box
+      // set. Termion works with an origin at (1,1). We fudge that by
+      // adjusting all coordinates accordingly.
+      let x = self.bbox.get().x + x + 1;
+      let y = self.bbox.get().y + y + 1;
+
+      write!(
+        self.writer.borrow_mut(),
+        "{}{}{}{}",
+        Goto(x, y),
+        Fg(fg),
+        Bg(bg),
+        string,
+      )?
+    }
+    Ok(())
+  }
+
+  /// Clear the terminal content.
+  fn clear_all(&self) -> Result<()> {
+    write!(self.writer.borrow_mut(), "{}{}{}", Fg(Reset), Bg(Reset), All)
+  }
+
+  /// Flush everything written so far.
+  fn flush(&self) -> Result<()> {
+    self.writer.borrow_mut().flush()
+  }
+
+  /// Hide the cursor.
+  fn hide(&self) -> Result<()> {
+    write!(self.writer.borrow_mut(), "{}", Hide)
+  }
+
+  /// Show the cursor.
+  fn show(&self) -> Result<()> {
+    write!(self.writer.borrow_mut(), "{}", Show)
+  }
+}
 
 pub struct TermRenderer<W>
 where
   W: Write,
 {
-  writer: RefCell<BufWriter<W>>,
+  writer: ClippingWriter<BufWriter<W>>,
 }
 
 impl<W> TermRenderer<W>
@@ -147,9 +238,9 @@ where
     // not change much but conceptually it makes sense to use it
     // nevertheless -- so this is what we do. For a broader discussion
     // of this issue see https://github.com/ticki/termion/issues/105.
-    let writer = RefCell::new(BufWriter::new(writer));
+    let writer = ClippingWriter::new(BufWriter::new(writer));
 
-    write!(writer.borrow_mut(), "{}{}", Hide, All)?;
+    writer.hide()?;
 
     Ok(TermRenderer {
       writer: writer,
@@ -173,7 +264,7 @@ where
 
   /// Render a `TabBar`.
   fn render_tab_bar(&self, tab_bar: &TabBar, mut bbox: BBox) -> Result<BBox> {
-    let mut x = bbox.x;
+    let mut x = 0;
 
     // TODO: We have some amount of duplication with the logic used to
     //       render a TaskListBox. Deduplicate?
@@ -188,33 +279,23 @@ where
 
     for (i, tab) in tab_bar.iter().enumerate().skip(offset).take(limit) {
       let (fg, bg) = if i == selection {
-        (SELECTED_QUERY_FG as &Color, SELECTED_QUERY_BG as &Color)
+        (SELECTED_QUERY_FG, SELECTED_QUERY_BG)
       } else {
-        (UNSELECTED_QUERY_FG as &Color, UNSELECTED_QUERY_BG as &Color)
+        (UNSELECTED_QUERY_FG, UNSELECTED_QUERY_BG)
       };
 
-      let title = format!("  {}  ", align_center(tab.clone(), TAB_TITLE_WIDTH as usize - 4));
-
-      write!(
-        self.writer.borrow_mut(),
-        "{}{}{}{}",
-        Goto(x + 1, bbox.y),
-        Fg(fg),
-        Bg(bg),
-        title,
-      )?;
+      let title = align_center(tab.clone(), TAB_TITLE_WIDTH as usize - 4);
+      let padded = format!("  {}  ", title);
+      self.writer.write(x, 0, fg, bg, padded)?;
 
       x += TAB_TITLE_WIDTH;
     }
 
-    if x < bbox.x + bbox.w {
-      write!(
-        self.writer.borrow_mut(),
-        "{}{}{}",
-        Goto(x + 1, bbox.y),
-        Bg(UNSELECTED_QUERY_BG as &Color),
-        repeat(" ").take((bbox.x + bbox.w - x) as usize).collect::<String>()
-      )?
+    if x < bbox.w {
+      let pad = repeat(" ").take((bbox.w - x) as usize).collect::<String>();
+      let fg = UNSELECTED_QUERY_FG;
+      let bg = UNSELECTED_QUERY_BG;
+      self.writer.write(x, 0, fg, bg, pad)?
     }
 
     tab_bar.reoffset(offset);
@@ -229,8 +310,8 @@ where
 
   /// Render a `TaskListBox`.
   fn render_task_list_box(&self, task_list: &TaskListBox, bbox: BBox) -> Result<BBox> {
-    let x = bbox.x + MAIN_MARGIN_X;
-    let mut y = bbox.y + MAIN_MARGIN_Y;
+    let x = MAIN_MARGIN_X;
+    let mut y = MAIN_MARGIN_Y;
 
     let query = task_list.query();
     let limit = self.displayable_tasks(bbox);
@@ -245,36 +326,20 @@ where
       } else {
         let complete = task.is_complete();
         let (state, state_fg, state_bg) = if !complete {
-          (
-            "[ ]",
-            TASK_NOT_STARTED_FG as &Color,
-            TASK_NOT_STARTED_BG as &Color,
-          )
+          ("[ ]", TASK_NOT_STARTED_FG, TASK_NOT_STARTED_BG)
         } else {
-          (
-            "[X]",
-            TASK_DONE_FG as &Color,
-            TASK_DONE_BG as &Color,
-          )
+          ("[X]", TASK_DONE_FG, TASK_DONE_BG)
         };
 
         let (task_fg, task_bg) = if i == selection {
-          (SELECTED_TASK_FG as &Color, SELECTED_TASK_BG as &Color)
+          (SELECTED_TASK_FG, &SELECTED_TASK_BG as &Color)
         } else {
-          (UNSELECTED_TASK_FG as &Color, UNSELECTED_TASK_BG as &Color)
+          (UNSELECTED_TASK_FG, &UNSELECTED_TASK_BG as &Color)
         };
 
-        write!(
-          self.writer.borrow_mut(),
-          "{}{}{}{} {}{}{}",
-          Goto(x + 1, y + 1),
-          Fg(state_fg),
-          Bg(state_bg),
-          state,
-          Fg(task_fg),
-          Bg(task_bg),
-          task.summary
-        )?;
+        self.writer.write(x, y, state_fg, state_bg, state)?;
+        let x = x + state.len() as u16 + 1;
+        self.writer.write(x, y, task_fg, task_bg, &task.summary)?;
         y += TASK_SPACE;
         Ok(true)
       }
@@ -288,29 +353,21 @@ where
 
   /// Render an `InOutArea`.
   fn render_input_output(&self, in_out: &InOutArea, bbox: BBox) -> Result<BBox> {
-    let x = bbox.x;
-    let y = bbox.y + bbox.h;
-
     let (prefix, fg, bg, string) = match in_out.state() {
-      InOut::Saved => (Some(SAVED_TEXT), IN_OUT_SUCCESS_FG, IN_OUT_SUCCESS_BG, None),
-      InOut::Error(ref e) => (Some(ERROR_TEXT), IN_OUT_ERROR_FG, IN_OUT_ERROR_BG, Some(e)),
-      InOut::Input(ref s) => (Some(INPUT_TEXT), IN_OUT_SUCCESS_FG, IN_OUT_SUCCESS_BG, Some(s)),
+      InOut::Saved => (SAVED_TEXT, IN_OUT_SUCCESS_FG, IN_OUT_SUCCESS_BG, None),
+      InOut::Error(ref e) => (ERROR_TEXT, IN_OUT_ERROR_FG, IN_OUT_ERROR_BG, Some(e)),
+      InOut::Input(ref s) => (INPUT_TEXT, IN_OUT_SUCCESS_FG, IN_OUT_SUCCESS_BG, Some(s)),
       InOut::Clear => return Ok(Default::default()),
     };
 
-    write!(self.writer.borrow_mut(), "{}", Goto(x + 1, y + 1))?;
+    self.writer.write(0, bbox.h - 1, fg, bg, prefix)?;
 
-    if let Some(prefix) = prefix {
-      write!(self.writer.borrow_mut(), "{}{}{}", Fg(*fg), Bg(*bg), prefix)?;
-    }
     if let Some(string) = string {
-      write!(
-        self.writer.borrow_mut(),
-        "{}{} {}",
-        Fg(*IN_OUT_STRING_FG),
-        Bg(*IN_OUT_STRING_BG),
-        string
-      )?;
+      let x = prefix.len() as u16 + 1;
+      let fg = IN_OUT_STRING_FG;
+      let bg = IN_OUT_STRING_BG;
+
+      self.writer.write(x, bbox.h - 1, fg, bg, string)?;
     }
     Ok(Default::default())
   }
@@ -335,13 +392,7 @@ where
   }
 
   fn pre_render(&self) {
-    let err = write!(
-      self.writer.borrow_mut(),
-      "{}{}{}",
-      Fg(Reset),
-      Bg(Reset),
-      All
-    );
+    let err = self.writer.clear_all();
     if let Err(e) = err {
       panic!("Pre-render failed: {}", e);
     }
@@ -349,6 +400,8 @@ where
 
   fn render(&self, widget: &Any, bbox: BBox) -> BBox {
     let result;
+
+    self.writer.restrict(bbox);
 
     if let Some(ui) = widget.downcast_ref::<TermUi>() {
       result = self.render_term_ui(ui, bbox)
@@ -369,7 +422,7 @@ where
   }
 
   fn post_render(&self) {
-    let err = self.writer.borrow_mut().flush();
+    let err = self.writer.flush();
     if let Err(e) = err {
       panic!("Post-render failed: {}", e);
     }
@@ -381,7 +434,7 @@ where
   W: Write,
 {
   fn drop(&mut self) {
-    let _ = write!(self.writer.borrow_mut(), "{}", Show);
+    let _ = self.writer.show();
   }
 }
 
@@ -407,5 +460,36 @@ mod tests {
     assert_eq!(align_center("hello", 4), "h...");
     assert_eq!(align_center("hello", 5), "hello");
     assert_eq!(align_center("that's a test", 8), "that'...");
+  }
+
+  #[test]
+  fn clip_string() {
+    let bbox = BBox {
+      x: 0,
+      y: 0,
+      w: 0,
+      h: 0,
+    };
+    assert_eq!(clip(0, 0, "hello", bbox), "");
+    assert_eq!(clip(1, 0, "foobar", bbox), "");
+    assert_eq!(clip(1, 1, "baz?", bbox), "");
+
+    // The position of the bounding box should not matter.
+    for x in 0..5 {
+      for y in 0..3 {
+        let bbox = BBox {
+          x: x,
+          y: y,
+          w: 5,
+          h: 3,
+        };
+        assert_eq!(clip(0, 2, "inside", bbox), "insid");
+        assert_eq!(clip(0, 3, "outside", bbox), "");
+
+        assert_eq!(clip(1, 2, "inside", bbox), "insi");
+        assert_eq!(clip(2, 0, "inside", bbox), "ins");
+        assert_eq!(clip(2, 3, "outside", bbox), "");
+      }
+    }
   }
 }
