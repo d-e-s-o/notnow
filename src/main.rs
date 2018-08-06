@@ -107,6 +107,8 @@ use termion::raw::IntoRawMode;
 use termion::screen::AlternateScreen;
 
 use gui::Event;
+use gui::MetaEvent;
+use gui::Renderer;
 use gui::Ui;
 use gui::UiEvent;
 
@@ -115,6 +117,12 @@ use event::convert;
 use term_renderer::TermRenderer;
 use termui::TermUi;
 use termui::TermUiEvent;
+
+
+/// A type indicating the desire to continue execution.
+///
+/// If set to `Some` we continue, in case of `None` we stop.
+type Continue = Option<()>;
 
 
 /// Retrieve the path to the program's configuration file.
@@ -128,6 +136,39 @@ fn config() -> Result<PathBuf> {
       .join("notnow")
       .join("tasks.json"),
   )
+}
+
+/// Handle the given `UiEvent`.
+fn handle_ui_event(event: UiEvent, ui: &Ui, renderer: &Renderer) -> Continue {
+  match event {
+    UiEvent::Quit => None,
+    UiEvent::Event(Event::Custom(data)) => {
+      match data.downcast::<TermUiEvent>() {
+        Ok(event) => {
+          match *event {
+            TermUiEvent::Updated => {
+              ui.render(renderer);
+              Some(())
+            },
+            _ => panic!("Unexpected TermUiEvent variant escaped: {:?}", event),
+          }
+        },
+        Err(event) => panic!("Received unexpected custom event: {:?}", event),
+      }
+    },
+    _ => Some(()),
+  }
+}
+
+/// Handle the given `MetaEvent`.
+fn handle_meta_event(event: MetaEvent, ui: &Ui, renderer: &Renderer) -> Continue {
+  match event {
+    MetaEvent::UiEvent(ui_event) => handle_ui_event(ui_event, ui, renderer),
+    MetaEvent::Chain(ui_event, meta_event) => {
+      handle_ui_event(ui_event, ui, renderer)?;
+      handle_meta_event(*meta_event, ui, renderer)
+    },
+  }
 }
 
 /// Run the program.
@@ -155,20 +196,10 @@ fn run_prog() -> Result<()> {
       // that the key is not supported. Either way we just ignore the
       // failure. The UI could not possibly react to it anyway.
       if let Ok(event) = convert(term_event?) {
-        match ui.handle(event) {
-          Some(UiEvent::Quit) => break,
-          Some(UiEvent::Event(Event::Custom(data))) => {
-            match data.downcast::<TermUiEvent>() {
-              Ok(event) => {
-                match *event {
-                  TermUiEvent::Updated => ui.render(&renderer),
-                  _ => debug_assert!(false, "Unexpected TermUiEvent variant escaped: {:?}", event),
-                }
-              },
-              Err(event) => panic!("Received unexpected custom event: {:?}", event),
-            }
-          },
-          _ => (),
+        if let Some(event) = ui.handle(event) {
+          if handle_meta_event(event, &ui, &renderer).is_none() {
+            break
+          }
         }
       }
     }

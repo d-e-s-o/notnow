@@ -24,10 +24,43 @@ use gui::Event as GuiEvent;
 use gui::EventChain;
 use gui::Key as GuiKey;
 use gui::MetaEvent as GuiMetaEvent;
+use gui::UiEvent as GuiUiEvent;
 
 use termui::TermUiEvent;
 
 
+fn is_event_updated(event: &GuiEvent) -> bool {
+  match event {
+    GuiEvent::Custom(data) => {
+      if let Some(event) = data.downcast_ref::<TermUiEvent>() {
+        event.is_updated()
+      } else {
+        false
+      }
+    },
+    _ => false,
+  }
+}
+
+fn is_ui_event_updated(event: &GuiUiEvent) -> bool {
+  match event {
+    GuiUiEvent::Event(event) => is_event_updated(event),
+    _ => false,
+  }
+}
+
+/// Check whether `update` has ever been called on the given event.
+pub fn is_updated(event: &GuiMetaEvent) -> bool {
+  match event {
+    GuiMetaEvent::UiEvent(event) => is_ui_event_updated(event),
+    GuiMetaEvent::Chain(event, meta_event) => {
+      is_ui_event_updated(event) || is_updated(meta_event)
+    },
+  }
+}
+
+
+/// A trait to chain a `TermUiEvent::Updated` event to an event.
 pub trait EventUpdated {
   /// Chain an update event onto yourself.
   fn update(self) -> Option<GuiMetaEvent>;
@@ -44,7 +77,17 @@ where
     let updated = GuiEvent::Custom(Box::new(TermUiEvent::Updated));
 
     Some(match self {
-      Some(event) => event.chain(updated),
+      Some(event) => {
+        let event = event.into();
+        // Redrawing everything is expensive (and we do that for every
+        // `Updated` event we encounter), so make sure that we only ever
+        // have one.
+        if !is_updated(&event) {
+          event.chain(updated)
+        } else {
+          event
+        }
+      },
       None => updated.into(),
     })
   }
@@ -100,7 +143,7 @@ pub mod tests {
 
   #[test]
   fn update_none() {
-    let event = (None as Option<Event>).update();
+    let event = (None as Option<Event>).update().update();
     match event.unwrap() {
       MetaEvent::UiEvent(event) => {
         match event {
@@ -122,7 +165,7 @@ pub mod tests {
 
   #[test]
   fn update_some_event() {
-    let event = Some(Event::KeyUp(Key::Char(' '))).update();
+    let event = Some(Event::KeyUp(Key::Char(' '))).update().update();
     match event.unwrap() {
       MetaEvent::Chain(event, meta_event) => {
         match event {

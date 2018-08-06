@@ -17,7 +17,6 @@
 // * along with this program.  If not, see <http://www.gnu.org/licenses/>. *
 // *************************************************************************
 
-use std::any::Any;
 use std::cell::Cell;
 use std::cell::RefCell;
 use std::io::BufWriter;
@@ -39,6 +38,7 @@ use termion::terminal_size;
 
 use gui::BBox;
 use gui::Renderer;
+use gui::Widget;
 
 use in_out::InOut;
 use in_out::InOutArea;
@@ -418,7 +418,7 @@ where
     }
   }
 
-  fn render(&self, widget: &Any, bbox: BBox) -> BBox {
+  fn render(&self, widget: &Widget, bbox: BBox) -> BBox {
     let result;
 
     self.writer.restrict(bbox);

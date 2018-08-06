@@ -58,7 +58,6 @@ pub enum TermUiEvent {
 
 impl TermUiEvent {
   /// Check whether the event is the `Updated` variant.
-  #[cfg(test)]
   pub fn is_updated(&self) -> bool {
     if let TermUiEvent::Updated = self {
       true
@@ -188,17 +187,24 @@ mod tests {
     });
 
     for event in events {
-      if let Some(UiEvent::Quit) = ui.handle(event) {
-        break
+      if let Some(event) = ui.handle(event) {
+        if let UiEvent::Quit = event.into_last() {
+          break
+        }
       }
     }
 
     let event = Event::Custom(Box::new(TermUiEvent::GetTasks));
     let response = ui.handle(event).unwrap();
     match response {
-      UiEvent::Event(event) => {
+      MetaEvent::UiEvent(event) => {
         match event {
-          Event::Custom(x) => TaskVec(*x.downcast::<Vec<Task>>().unwrap()),
+          UiEvent::Event(event) => {
+            match event {
+              Event::Custom(x) => TaskVec(*x.downcast::<Vec<Task>>().unwrap()),
+              _ => panic!("Unexpected event: {:?}", event),
+            }
+          },
           _ => panic!("Unexpected event: {:?}", event),
         }
       },
