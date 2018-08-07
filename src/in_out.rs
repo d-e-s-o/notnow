@@ -23,6 +23,7 @@ use gui::Handleable;
 use gui::Id;
 use gui::Key;
 use gui::MetaEvent;
+use gui::Widget;
 
 use event::EventUpdated;
 use termui::TermUiEvent;
@@ -47,24 +48,51 @@ pub struct InOutArea {
 
 impl InOutArea {
   /// Create a new input/output area object.
-  pub fn new(id: Id) -> Self {
+  pub fn new(id: Id, cap: &mut Cap) -> Self {
+    // Install a hook to be able to reset the input/output area into
+    // "clear" state on every key press.
+    cap.hook_events(id, Some(&InOutArea::handle_hooked_event));
+
     InOutArea {
       id: id,
       in_out: InOut::Clear,
     }
   }
 
+  /// Conditionally change the `InOut` state of the widget.
+  fn change_state(&mut self, in_out: InOut) -> Option<MetaEvent> {
+    if in_out != self.in_out {
+      self.in_out = in_out;
+      (None as Option<Event>).update()
+    } else {
+      None
+    }
+  }
+
+  /// Handle a hooked event.
+  fn handle_hooked_event(widget: &mut Widget, event: &Event, cap: &Cap) -> Option<MetaEvent> {
+    let in_out = widget.downcast_mut::<InOutArea>();
+    if let Some(in_out) = in_out {
+      // If we are focused then text is being entered and we should not
+      // clear the state.
+      if !cap.is_focused(in_out.id) {
+        match event {
+          Event::KeyDown(_) |
+          Event::KeyUp(_) => in_out.change_state(InOut::Clear),
+          _ => None,
+        }
+      } else {
+        None
+      }
+    } else {
+      panic!("Widget {:?} is unexpected", in_out)
+    }
+  }
+
   /// Handle a custom event.
   fn handle_custom_event(&mut self, event: Box<TermUiEvent>) -> Option<MetaEvent> {
     match *event {
-      TermUiEvent::SetInOut(in_out) => {
-        if in_out != self.in_out {
-          self.in_out = in_out;
-          (None as Option<Event>).update()
-        } else {
-          None
-        }
-      },
+      TermUiEvent::SetInOut(in_out) => self.change_state(in_out),
       _ => Some(Event::Custom(event).into()),
     }
   }

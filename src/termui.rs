@@ -80,8 +80,8 @@ pub struct TermUi {
 impl TermUi {
   /// Create a new view associated with the given controller.
   pub fn new(id: Id, cap: &mut Cap, controller: Controller) -> Result<Self> {
-    let in_out = cap.add_widget(id, &mut |id, _cap| {
-      Box::new(InOutArea::new(id))
+    let in_out = cap.add_widget(id, &mut |id, cap| {
+      Box::new(InOutArea::new(id, cap))
     });
     let tab_bar = cap.add_widget(id, &mut |id, _cap| {
       Box::new(TabBar::new(id))

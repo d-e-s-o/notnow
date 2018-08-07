@@ -24,7 +24,6 @@ use std::isize;
 
 use gui::Cap;
 use gui::Event;
-use gui::EventChain;
 use gui::Handleable;
 use gui::Id;
 use gui::Key;
@@ -128,8 +127,6 @@ impl Handleable for TaskListBox {
             Some(event).update()
           },
           Key::Char('d') => {
-            let event = TermUiEvent::SetInOut(InOut::Clear);
-            let clear = UiEvent::Custom(self.in_out, Box::new(event));
             if !self.query().is_empty() {
               let id = self.query().nth(self.selection).unwrap().id();
               let remove = UiEvent::Custom(self.id, Box::new(TermUiEvent::RemoveTask(id)));
@@ -138,9 +135,9 @@ impl Handleable for TaskListBox {
               self.select(-1);
               // We are about to remove a task. Always indicate that an
               // update is necessary here.
-              Some(clear.chain(remove)).update()
+              Some(remove).update()
             } else {
-              Some(clear.into())
+              None
             }
           },
           Key::Char('g') => (None as Option<Event>).maybe_update(self.set_select(0)),
