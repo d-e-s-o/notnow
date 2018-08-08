@@ -166,6 +166,7 @@ mod tests {
 
   use gui::Ui;
 
+  use event::tests::CustomEvent;
   use tasks::Tasks;
   use tasks::tests::make_tasks_vec;
   use tasks::tests::NamedTempFile;
@@ -195,21 +196,8 @@ mod tests {
     }
 
     let event = Event::Custom(Box::new(TermUiEvent::GetTasks));
-    let response = ui.handle(event).unwrap();
-    match response {
-      MetaEvent::UiEvent(event) => {
-        match event {
-          UiEvent::Event(event) => {
-            match event {
-              Event::Custom(x) => TaskVec(*x.downcast::<Vec<Task>>().unwrap()),
-              _ => panic!("Unexpected event: {:?}", event),
-            }
-          },
-          _ => panic!("Unexpected event: {:?}", event),
-        }
-      },
-      _ => panic!("Unexpected event: {:?}", response),
-    }
+    let tasks = ui.handle(event).unwrap().unwrap_custom::<Vec<Task>>();
+    TaskVec(tasks)
   }
 
 

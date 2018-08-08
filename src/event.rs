@@ -141,6 +141,51 @@ pub mod tests {
   use gui::UiEvent;
 
 
+  /// A trait for working with custom events.
+  pub trait CustomEvent {
+    /// Unwrap a custom event of type `T`.
+    fn unwrap_custom<T>(self) -> T
+    where
+      T: 'static;
+  }
+
+  impl CustomEvent for Event {
+    fn unwrap_custom<T>(self) -> T
+    where
+      T: 'static,
+    {
+      match self {
+        Event::Custom(x) => *x.downcast::<T>().unwrap(),
+        _ => panic!("Unexpected event: {:?}", self),
+      }
+    }
+  }
+
+  impl CustomEvent for UiEvent {
+    fn unwrap_custom<T>(self) -> T
+    where
+      T: 'static,
+    {
+      match self {
+        UiEvent::Event(event) => event.unwrap_custom(),
+        _ => panic!("Unexpected event: {:?}", self),
+      }
+    }
+  }
+
+  impl CustomEvent for MetaEvent {
+    fn unwrap_custom<T>(self) -> T
+    where
+      T: 'static,
+    {
+      match self {
+        MetaEvent::UiEvent(event) => event.unwrap_custom(),
+        _ => panic!("Unexpected event: {:?}", self),
+      }
+    }
+  }
+
+
   #[test]
   fn update_none() {
     let event = (None as Option<Event>).update().update();
@@ -198,5 +243,24 @@ pub mod tests {
       },
       _ => assert!(false),
     }
+  }
+
+  #[test]
+  fn unwrap_meta_event() {
+    let event = Event::Custom(Box::new(42u64));
+    let event = UiEvent::Event(event);
+    let event = MetaEvent::UiEvent(event);
+
+    assert_eq!(event.unwrap_custom::<u64>(), 42);
+  }
+
+  #[test]
+  #[should_panic(expected = "Unexpected event")]
+  fn unwrap_meta_event_of_wrong_type() {
+    let event = Event::KeyUp(Key::Esc);
+    let event = UiEvent::Event(event);
+    let event = MetaEvent::UiEvent(event);
+
+    event.unwrap_custom::<u64>();
   }
 }
