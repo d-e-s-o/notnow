@@ -54,6 +54,15 @@ pub enum TermUiEvent {
   /// Retrieve the current set of tasks.
   #[cfg(test)]
   GetTasks,
+  /// The response to the `GetTasks` event.
+  #[cfg(test)]
+  GetTasksResp(Vec<Task>),
+  /// Retrieve the current state of the input/output area.
+  #[cfg(test)]
+  GetInOut,
+  /// The response to the `GetInOut` event.
+  #[cfg(test)]
+  GetInOutResp(InOut),
 }
 
 impl TermUiEvent {
@@ -130,7 +139,14 @@ impl TermUi {
       #[cfg(test)]
       TermUiEvent::GetTasks => {
         let tasks = self.controller.tasks().collect::<Vec<Task>>();
-        Some(Event::Custom(Box::new(tasks)).into())
+        let resp = TermUiEvent::GetTasksResp(tasks);
+        Some(Event::Custom(Box::new(resp)).into())
+      },
+      #[cfg(test)]
+      TermUiEvent::GetInOut => {
+        // We merely relay this event to the InOutArea widget, which is
+        // the only entity able to satisfy the request.
+        Some(UiEvent::Custom(self.in_out, event).into())
       },
       _ => Some(Event::Custom(event).into()),
     }
@@ -173,12 +189,7 @@ mod tests {
   use tasks::tests::TaskVec;
 
 
-  /// Test function for the TermUi.
-  ///
-  /// Instantiate the TermUi in a mock environment associating it with
-  /// the given task list, supply the given input, and retrieve the
-  /// resulting set of tasks.
-  fn test(task_vec: TaskVec, events: Vec<UiEvent>) -> TaskVec {
+  fn test_ui(task_vec: TaskVec, mut events: Vec<UiEvent>) -> Ui {
     let mut tasks = Some(Tasks::from(task_vec));
     let file = NamedTempFile::new();
     let (mut ui, _) = Ui::new(&mut |id, cap| {
@@ -187,19 +198,32 @@ mod tests {
       Box::new(TermUi::new(id, cap, controller).unwrap())
     });
 
-    for event in events {
+    for event in events.drain(..) {
       if let Some(event) = ui.handle(event) {
         if let UiEvent::Quit = event.into_last() {
           break
         }
       }
     }
-
-    let event = Event::Custom(Box::new(TermUiEvent::GetTasks));
-    let tasks = ui.handle(event).unwrap().unwrap_custom::<Vec<Task>>();
-    TaskVec(tasks)
+    ui
   }
 
+  /// Test function for the TermUi.
+  ///
+  /// Instantiate the TermUi in a mock environment associating it with
+  /// the given task list, supply the given input, and retrieve the
+  /// resulting set of tasks.
+  fn test(task_vec: TaskVec, events: Vec<UiEvent>) -> TaskVec {
+    let mut ui = test_ui(task_vec, events);
+    let event = Event::Custom(Box::new(TermUiEvent::GetTasks));
+    let resp = ui.handle(event).unwrap().unwrap_custom::<TermUiEvent>();
+    let tasks = if let TermUiEvent::GetTasksResp(tasks) = resp {
+      tasks
+    } else {
+      panic!("Unexpected response: {:?}", resp)
+    };
+    TaskVec(tasks)
+  }
 
   #[test]
   fn exit_on_quit() {
@@ -385,5 +409,77 @@ mod tests {
     assert!(!tasks[0].is_complete());
     assert!(tasks[1].is_complete());
     assert!(!tasks[2].is_complete());
+  }
+
+  /// Test function for the `TermUi` that returns the state of the `InOutArea` widget.
+  fn test_state(task_vec: TaskVec, events: Vec<UiEvent>) -> InOut {
+    let mut ui = test_ui(task_vec, events);
+    let event = Event::Custom(Box::new(TermUiEvent::GetInOut));
+    let resp = ui.handle(event).unwrap().unwrap_custom::<TermUiEvent>();
+
+    if let TermUiEvent::GetInOutResp(in_out) = resp {
+      in_out
+    } else {
+      panic!("Unexpected response: {:?}", resp)
+    }
+  }
+
+  #[test]
+  fn in_out_state_after_write() {
+    let tasks = make_tasks_vec(2);
+    let events = vec![
+      Event::KeyDown(Key::Char('w')).into(),
+    ];
+
+    assert_eq!(test_state(tasks, events), InOut::Saved);
+  }
+
+  #[test]
+  fn in_out_state_after_write_and_key_press() {
+    fn with_key(key: Key) -> InOut {
+      let tasks = make_tasks_vec(2);
+      let events = vec![
+        Event::KeyDown(Key::Char('w')).into(),
+        Event::KeyDown(key).into(),
+      ];
+
+      test_state(tasks, events)
+    }
+
+    // We test all ASCII chars.
+    for c in 0u8..127u8 {
+      let c = c as char;
+      if c != 'a' && c != 'w' {
+        assert_eq!(with_key(Key::Char(c as char)), InOut::Clear, "char: {} ({})", c, c as u8);
+      }
+    }
+
+    assert_eq!(with_key(Key::Esc), InOut::Clear);
+    assert_eq!(with_key(Key::Return), InOut::Clear);
+    assert_eq!(with_key(Key::PageDown), InOut::Clear);
+  }
+
+  #[test]
+  fn in_out_state_on_edit() {
+    fn with_key(key: Key) -> InOut {
+      let tasks = make_tasks_vec(4);
+      let events = vec![
+        Event::KeyDown(Key::Char('a')).into(),
+        Event::KeyDown(key).into(),
+      ];
+
+      test_state(tasks, events)
+    }
+
+    for c in 0u8..127u8 {
+      let state = with_key(Key::Char(c as char));
+      match state {
+        InOut::Input(_) => (),
+        _ => assert!(false, "Unexpected state {:?} for char {}", state, c),
+      }
+    }
+
+    assert_eq!(with_key(Key::Esc), InOut::Clear);
+    assert_eq!(with_key(Key::Return), InOut::Clear);
   }
 }

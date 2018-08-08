@@ -30,7 +30,7 @@ use termui::TermUiEvent;
 
 
 /// An object representing the in/out area within the TermUi.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum InOut {
   Saved,
   Error(String),
@@ -93,6 +93,11 @@ impl InOutArea {
   fn handle_custom_event(&mut self, event: Box<TermUiEvent>) -> Option<MetaEvent> {
     match *event {
       TermUiEvent::SetInOut(in_out) => self.change_state(in_out),
+      #[cfg(test)]
+      TermUiEvent::GetInOut => {
+        let resp = TermUiEvent::GetInOutResp(self.in_out.clone());
+        Some(Event::Custom(Box::new(resp)).into())
+      },
       _ => Some(Event::Custom(event).into()),
     }
   }
