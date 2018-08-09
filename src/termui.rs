@@ -93,7 +93,7 @@ impl TermUi {
       Box::new(InOutArea::new(id, cap))
     });
     let tab_bar = cap.add_widget(id, &mut |id, cap| {
-      Box::new(TabBar::new(id, cap, in_out, &controller))
+      Box::new(TabBar::new(id, cap, &controller))
     });
 
     Ok(TermUi {
@@ -128,6 +128,9 @@ impl TermUi {
       TermUiEvent::UpdateTask(task) => {
         self.controller.update_task(task);
         (None as Option<Event>).update()
+      },
+      TermUiEvent::SetInOut(_) => {
+        Some(UiEvent::Custom(self.in_out, event).into())
       },
       #[cfg(test)]
       TermUiEvent::GetTasks => {

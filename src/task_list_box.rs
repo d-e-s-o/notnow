@@ -46,7 +46,6 @@ fn sanitize_selection(selection: isize, count: usize) -> usize {
 #[derive(Debug, GuiWidget)]
 pub struct TaskListBox {
   id: Id,
-  in_out: Id,
   query: Query,
   offset: Cell<usize>,
   selection: usize,
@@ -54,10 +53,9 @@ pub struct TaskListBox {
 
 impl TaskListBox {
   /// Create a new `TaskListBox` widget.
-  pub fn new(id: Id, in_out: Id, query: Query) -> Self {
+  pub fn new(id: Id, query: Query) -> Self {
     TaskListBox {
       id: id,
-      in_out: in_out,
       query: query,
       offset: Cell::new(0),
       selection: 0,
@@ -108,7 +106,7 @@ impl TaskListBox {
 
 impl Handleable for TaskListBox {
   /// Check for new input and react to it.
-  fn handle(&mut self, event: Event, cap: &mut Cap) -> Option<MetaEvent> {
+  fn handle(&mut self, event: Event, _cap: &mut Cap) -> Option<MetaEvent> {
     match event {
       Event::KeyDown(key) |
       Event::KeyUp(key) => {
@@ -122,8 +120,7 @@ impl Handleable for TaskListBox {
           },
           Key::Char('a') => {
             let event = TermUiEvent::SetInOut(InOut::Input("".to_string()));
-            let event = UiEvent::Custom(self.in_out, Box::new(event));
-            cap.focus(self.in_out);
+            let event = Event::Custom(Box::new(event));
             Some(event).update()
           },
           Key::Char('d') => {

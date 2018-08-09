@@ -50,7 +50,7 @@ pub struct TabBar {
 
 impl TabBar {
   /// Create a new `TabBar` widget.
-  pub fn new(id: Id, cap: &mut Cap, in_out: Id, controller: &Controller) -> Self {
+  pub fn new(id: Id, cap: &mut Cap, controller: &Controller) -> Self {
     let selection = 0;
     // TODO: We need a dynamic mechanism to retrieve all Query objects
     //       we are interested in.
@@ -63,7 +63,7 @@ impl TabBar {
       .map(|(i, (name, query))| {
         let mut query = Some(query);
         let task_list = cap.add_widget(id, &mut |id, _cap| {
-          Box::new(TaskListBox::new(id, in_out, query.take().unwrap()))
+          Box::new(TaskListBox::new(id, query.take().unwrap()))
         });
 
         if i == selection {

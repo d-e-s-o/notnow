@@ -43,6 +43,7 @@ pub enum InOut {
 #[derive(Debug, GuiWidget)]
 pub struct InOutArea {
   id: Id,
+  prev_focused: Option<Id>,
   in_out: InOut,
 }
 
@@ -55,6 +56,7 @@ impl InOutArea {
 
     InOutArea {
       id: id,
+      prev_focused: None,
       in_out: InOut::Clear,
     }
   }
@@ -90,9 +92,15 @@ impl InOutArea {
   }
 
   /// Handle a custom event.
-  fn handle_custom_event(&mut self, event: Box<TermUiEvent>) -> Option<MetaEvent> {
+  fn handle_custom_event(&mut self, event: Box<TermUiEvent>, cap: &mut Cap) -> Option<MetaEvent> {
     match *event {
-      TermUiEvent::SetInOut(in_out) => self.change_state(in_out),
+      TermUiEvent::SetInOut(in_out) => {
+        if let InOut::Input(_) = in_out {
+          self.prev_focused = cap.focused();
+          cap.focus(self.id);
+        };
+        self.change_state(in_out)
+      },
       #[cfg(test)]
       TermUiEvent::GetInOut => {
         let resp = TermUiEvent::GetInOutResp(self.in_out.clone());
@@ -104,7 +112,7 @@ impl InOutArea {
 
   /// Focus the previously focused widget or the parent.
   fn restore_focus(&mut self, cap: &mut Cap) {
-    let to_focus = cap.last_focused().or_else(|| cap.parent_id(self.id));
+    let to_focus = self.prev_focused.or_else(|| cap.parent_id(self.id));
     match to_focus {
       Some(to_focus) => cap.focus(to_focus),
       // Really should never happen. We are not the root widget so at
@@ -170,7 +178,7 @@ impl Handleable for InOutArea {
       },
       Event::Custom(data) => {
         match data.downcast::<TermUiEvent>() {
-          Ok(e) => self.handle_custom_event(e),
+          Ok(e) => self.handle_custom_event(e, cap),
           Err(e) => panic!("Received unexpected custom event: {:?}", e),
         }
       },
