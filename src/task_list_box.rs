@@ -33,6 +33,7 @@ use gui::UiEvent;
 use event::EventUpdated;
 use in_out::InOut;
 use query::Query;
+use tasks::Task;
 use termui::TermUiEvent;
 
 
@@ -49,6 +50,7 @@ pub struct TaskListBox {
   query: Query,
   offset: Cell<usize>,
   selection: usize,
+  editing: Option<Task>,
 }
 
 impl TaskListBox {
@@ -59,6 +61,7 @@ impl TaskListBox {
       query: query,
       offset: Cell::new(0),
       selection: 0,
+      editing: None,
     }
   }
 
@@ -76,6 +79,17 @@ impl TaskListBox {
           // a different set of tasks. A more sophisticated solution
           // will have to be found once that time comes.
           panic!("No task with Id {} found", id)
+        }
+      },
+      TermUiEvent::EnteredText(text) => {
+        if let Some(mut task) = self.editing.take() {
+          task.summary = text;
+
+          let event = TermUiEvent::UpdateTask(task);
+          let event = Event::Custom(Box::new(event));
+          Some(event).update()
+        } else {
+          Some(Event::Custom(Box::new(TermUiEvent::AddTask(text)))).update()
         }
       },
       _ => Some(Event::Custom(event).into()),
@@ -156,6 +170,14 @@ impl Handleable for TaskListBox {
             } else {
               None
             }
+          },
+          Key::Char('e') => {
+            let task = self.query().nth(self.selection).unwrap();
+            let event = TermUiEvent::SetInOut(InOut::Input(task.summary.clone()));
+            let event = Event::Custom(Box::new(event));
+
+            self.editing = Some(task);
+            Some(event.into())
           },
           Key::Char('g') => (None as Option<Event>).maybe_update(self.set_select(0)),
           Key::Char('G') => (None as Option<Event>).maybe_update(self.set_select(isize::MAX)),

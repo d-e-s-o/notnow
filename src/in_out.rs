@@ -23,6 +23,7 @@ use gui::Handleable;
 use gui::Id;
 use gui::Key;
 use gui::MetaEvent;
+use gui::UiEvent;
 use gui::Widget;
 
 use event::EventUpdated;
@@ -142,9 +143,14 @@ impl Handleable for InOutArea {
             };
 
             self.in_out = InOut::Clear;
+
+            let event = if let Some(id) = self.prev_focused {
+              Some(UiEvent::Custom(id, Box::new(TermUiEvent::EnteredText(s))))
+            } else {
+              None
+            };
             self.restore_focus(cap);
-            let event = Event::Custom(Box::new(TermUiEvent::AddTask(s)));
-            Some(event).update()
+            event.update()
           },
           Key::Char(c) => {
             self.in_out = InOut::Input(match self.in_out {

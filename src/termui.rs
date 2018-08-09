@@ -49,6 +49,8 @@ pub enum TermUiEvent {
   UpdateTask(Task),
   /// Set the state of the input/output area.
   SetInOut(InOut),
+  /// Text has been entered.
+  EnteredText(String),
   /// A indication that some component changed and that we should
   /// re-render everything.
   Updated,
@@ -414,6 +416,26 @@ mod tests {
     assert!(!tasks[2].is_complete());
   }
 
+  #[test]
+  fn edit_task() {
+    let tasks = make_tasks_vec(3);
+    let events = vec![
+      Event::KeyDown(Key::Char('j')).into(),
+      Event::KeyDown(Key::Char('e')).into(),
+      Event::KeyDown(Key::Backspace).into(),
+      Event::KeyDown(Key::Char('a')).into(),
+      Event::KeyDown(Key::Char('m')).into(),
+      Event::KeyDown(Key::Char('e')).into(),
+      Event::KeyDown(Key::Char('n')).into(),
+      Event::KeyDown(Key::Char('d')).into(),
+      Event::KeyDown(Key::Return).into(),
+      Event::KeyDown(Key::Char('q')).into(),
+    ];
+
+    let tasks = test(tasks, events);
+    assert_eq!(tasks[1].summary, "amend".to_string());
+  }
+
   /// Test function for the `TermUi` that returns the state of the `InOutArea` widget.
   fn test_state(task_vec: TaskVec, events: Vec<UiEvent>) -> InOut {
     let mut ui = test_ui(task_vec, events);
@@ -452,7 +474,7 @@ mod tests {
     // We test all ASCII chars.
     for c in 0u8..127u8 {
       let c = c as char;
-      if c != 'a' && c != 'w' {
+      if c != 'a' && c != 'e' && c != 'w' {
         assert_eq!(with_key(Key::Char(c as char)), InOut::Clear, "char: {} ({})", c, c as u8);
       }
     }
