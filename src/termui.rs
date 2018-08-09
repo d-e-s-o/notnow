@@ -32,7 +32,6 @@ use event::EventUpdated;
 use in_out::InOut;
 use in_out::InOutArea;
 use tab_bar::TabBar;
-use task_list_box::TaskListBox;
 use tasks::Id as TaskId;
 use tasks::Task;
 
@@ -82,6 +81,7 @@ impl TermUiEvent {
 pub struct TermUi {
   id: Id,
   in_out: Id,
+  tab_bar: Id,
   controller: Controller,
 }
 
@@ -92,21 +92,14 @@ impl TermUi {
     let in_out = cap.add_widget(id, &mut |id, cap| {
       Box::new(InOutArea::new(id, cap))
     });
-    let tab_bar = cap.add_widget(id, &mut |id, _cap| {
-      Box::new(TabBar::new(id))
+    let tab_bar = cap.add_widget(id, &mut |id, cap| {
+      Box::new(TabBar::new(id, cap, in_out, &controller))
     });
-    // Careful with the ordering of children here. The TaskListBox
-    // rendering process sets the cursor to the currently selected task.
-    // That will only work if this widget is the one being rendered
-    // last.
-    let task_list = cap.add_widget(tab_bar, &mut |id, _cap| {
-      Box::new(TaskListBox::new(id, in_out, controller.tasks()))
-    });
-    cap.focus(task_list);
 
     Ok(TermUi {
       id: id,
       in_out: in_out,
+      tab_bar: tab_bar,
       controller: controller,
     })
   }

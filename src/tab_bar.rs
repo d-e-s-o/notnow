@@ -28,7 +28,9 @@ use gui::Id;
 use gui::Key;
 use gui::MetaEvent;
 
+use controller::Controller;
 use event::EventUpdated;
+use task_list_box::TaskListBox;
 
 
 /// Sanitize a selection index.
@@ -41,26 +43,48 @@ fn sanitize_selection(selection: isize, count: usize) -> usize {
 #[derive(Debug, GuiWidget)]
 pub struct TabBar {
   id: Id,
-  tabs: Vec<String>,
+  tabs: Vec<(String, Id)>,
   offset: Cell<usize>,
   selection: usize,
 }
 
 impl TabBar {
   /// Create a new `TabBar` widget.
-  pub fn new(id: Id) -> Self {
+  pub fn new(id: Id, cap: &mut Cap, in_out: Id, controller: &Controller) -> Self {
+    let selection = 0;
+    // TODO: We need a dynamic mechanism to retrieve all Query objects
+    //       we are interested in.
+    let mut queries = vec![
+      ("all".to_string(), controller.tasks()),
+    ];
+    let tabs = queries
+      .drain(..)
+      .enumerate()
+      .map(|(i, (name, query))| {
+        let mut query = Some(query);
+        let task_list = cap.add_widget(id, &mut |id, _cap| {
+          Box::new(TaskListBox::new(id, in_out, query.take().unwrap()))
+        });
+
+        if i == selection {
+          cap.focus(task_list);
+        } else {
+          cap.hide(task_list);
+        }
+        (name, task_list)
+      }).collect();
+
     TabBar {
       id: id,
-      // TODO: We need a dynamic mechanism to infer the tab titles.
-      tabs: vec!["All".to_string()],
+      tabs: tabs,
       offset: Cell::new(0),
-      selection: 0,
+      selection: selection,
     }
   }
 
   /// Retrieve an iterator over the names of all the tabs.
   pub fn iter(&self) -> impl Iterator<Item=&String> {
-    self.tabs.iter()
+    self.tabs.iter().map(|(x, _)| x)
   }
 
   /// Retrieve the current tab offset.
