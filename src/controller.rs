@@ -69,7 +69,7 @@ impl Controller {
   }
 
   /// Add a new task to the list of tasks.
-  pub fn add_task(&self, summary: impl Into<String>) {
+  pub fn add_task(&self, summary: impl Into<String>) -> TaskId {
     self.tasks.borrow_mut().add(summary)
   }
 

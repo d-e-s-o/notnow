@@ -62,6 +62,26 @@ impl TaskListBox {
     }
   }
 
+  /// Handle a custom event.
+  fn handle_custom_event(&mut self, event: Box<TermUiEvent>) -> Option<MetaEvent> {
+    match *event {
+      TermUiEvent::AddTaskResp(id) => {
+        let idx = self.query.position(|x| x.id() == id);
+        if let Some(idx) = idx {
+          let update = self.set_select(idx as isize);
+          (None as Option<Event>).maybe_update(update)
+        } else {
+          // We anticipate being able to hit this case once we have
+          // multiple task list box widgets each potentially displaying
+          // a different set of tasks. A more sophisticated solution
+          // will have to be found once that time comes.
+          panic!("No task with Id {} found", id)
+        }
+      },
+      _ => Some(Event::Custom(event).into()),
+    }
+  }
+
   /// Retrieve the query associated with this widget.
   pub fn query(&self) -> Query {
     self.query.clone()
@@ -121,7 +141,7 @@ impl Handleable for TaskListBox {
           Key::Char('a') => {
             let event = TermUiEvent::SetInOut(InOut::Input("".to_string()));
             let event = Event::Custom(Box::new(event));
-            Some(event).update()
+            Some(event.into())
           },
           Key::Char('d') => {
             if !self.query().is_empty() {
@@ -144,7 +164,12 @@ impl Handleable for TaskListBox {
           _ => Some(event.into()),
         }
       },
-      Event::Custom(_) => Some(event.into()),
+      Event::Custom(data) => {
+        match data.downcast::<TermUiEvent>() {
+          Ok(e) => self.handle_custom_event(e),
+          Err(e) => panic!("Received unexpected custom event: {:?}", e),
+        }
+      },
     }
   }
 }

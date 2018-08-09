@@ -237,9 +237,11 @@ impl Tasks {
   }
 
   /// Add a new task.
-  pub fn add(&mut self, summary: impl Into<String>) {
+  pub fn add(&mut self, summary: impl Into<String>) -> Id {
     let task = Task::with_summary(summary, self.templates.clone());
+    let id = task.id;
     self.tasks.push(task);
+    id
   }
 
   /// Remove a task.

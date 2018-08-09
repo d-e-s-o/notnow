@@ -73,6 +73,14 @@ impl Query {
     Ok(())
   }
 
+  /// Find the position of a `Task` satisfying the given predicate.
+  pub fn position<P>(&self, predicate: P) -> Option<usize>
+  where
+    P: FnMut(&Task) -> bool,
+  {
+    self.tasks.borrow().iter().position(predicate)
+  }
+
   /// Create a collection from the query.
   #[cfg(test)]
   pub fn collect<C>(&self) -> C
@@ -140,6 +148,14 @@ mod tests {
       }).unwrap();
 
     assert_eq!(counter, 10)
+  }
+
+  #[test]
+  fn position() {
+    let query = Query::new(Rc::new(RefCell::new(make_tasks(3))));
+    let idx = query.position(|task| task.summary == format!("{}", 2));
+
+    assert_eq!(idx.unwrap(), 1)
   }
 
   #[test]

@@ -41,6 +41,8 @@ use tasks::Task;
 pub enum TermUiEvent {
   /// Add a task with the given summary.
   AddTask(String),
+  /// The response to the `AddTask` event.
+  AddTaskResp(TaskId),
   /// Remove the task with the given ID.
   RemoveTask(TaskId),
   /// Update the given task.
@@ -118,8 +120,13 @@ impl TermUi {
   fn handle_custom_event(&mut self, event: Box<TermUiEvent>) -> Option<MetaEvent> {
     match *event {
       TermUiEvent::AddTask(s) => {
-        self.controller.add_task(s);
-        (None as Option<Event>).update()
+        let id = self.controller.add_task(s);
+        // We have no knowledge of which `TaskListBox` widget is
+        // currently active. So send the response to the `TabBar` to
+        // forward it accordingly.
+        let resp = TermUiEvent::AddTaskResp(id);
+        let event = UiEvent::Custom(self.tab_bar, Box::new(resp));
+        Some(MetaEvent::UiEvent(event)).update()
       },
       TermUiEvent::RemoveTask(id) => {
         self.controller.remove_task(id);

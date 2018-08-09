@@ -27,10 +27,12 @@ use gui::Handleable;
 use gui::Id;
 use gui::Key;
 use gui::MetaEvent;
+use gui::UiEvent;
 
 use controller::Controller;
 use event::EventUpdated;
 use task_list_box::TaskListBox;
+use termui::TermUiEvent;
 
 
 /// Sanitize a selection index.
@@ -82,6 +84,19 @@ impl TabBar {
     }
   }
 
+  /// Handle a custom event.
+  fn handle_custom_event(&mut self, event: Box<TermUiEvent>) -> Option<MetaEvent> {
+    match *event {
+      TermUiEvent::AddTaskResp(_) => {
+        // Forward the response to the currently active `TaskListBox`.
+        let tab = self.selected_tab();
+        let event = UiEvent::Custom(tab, event);
+        Some(MetaEvent::UiEvent(event))
+      },
+      _ => Some(Event::Custom(event).into()),
+    }
+  }
+
   /// Retrieve an iterator over the names of all the tabs.
   pub fn iter(&self) -> impl Iterator<Item=&String> {
     self.tabs.iter().map(|(x, _)| x)
@@ -104,6 +119,11 @@ impl TabBar {
   /// Retrieve the index of the currently selected tab.
   pub fn selection(&self) -> usize {
     self.selection
+  }
+
+  /// Retrieve the `Id` of the selected tab.
+  fn selected_tab(&self) -> Id {
+    self.tabs[self.selection].1
   }
 
   /// Change the currently selected tab.
@@ -129,7 +149,12 @@ impl Handleable for TabBar {
           _ => Some(event.into()),
         }
       },
-      Event::Custom(_) => Some(event.into()),
+      Event::Custom(data) => {
+        match data.downcast::<TermUiEvent>() {
+          Ok(e) => self.handle_custom_event(e),
+          Err(e) => panic!("Received unexpected custom event: {:?}", e),
+        }
+      },
     }
   }
 }
