@@ -19,6 +19,7 @@
 
 #![allow(
   unknown_lints,
+  let_and_return,
   redundant_field_names,
 )]
 // We basically deny most lints that "warn" by default, except for

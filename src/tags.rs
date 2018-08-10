@@ -36,7 +36,7 @@ pub struct T(());
 pub type Id = IdT<T>;
 
 /// The name of a tag describing the completion state of a task.
-const COMPLETE_TAG: &str = "complete";
+pub const COMPLETE_TAG: &str = "complete";
 
 
 /// A struct defining a particular tag.

@@ -110,8 +110,7 @@ impl Task {
   }
 
   /// Retrieve an iterator over this task's tags.
-  #[cfg(test)]
-  fn tags(&self) -> impl Iterator<Item=&Tag> {
+  pub fn tags(&self) -> impl Iterator<Item=&Tag> + Clone {
     self.tags.values()
   }
 
@@ -263,6 +262,12 @@ impl Tasks {
       .map(|x| self.tasks[x] = task)
       .unwrap();
   }
+
+  /// Retrieve the internally used `Templates` object.
+  #[cfg(test)]
+  pub fn templates(&self) -> &Templates {
+    &self.templates
+  }
 }
 
 #[cfg(test)]
@@ -301,6 +306,7 @@ pub mod tests {
   use ser::tags::Tag as SerTag;
   use ser::tags::Template as SerTemplate;
   use ser::tags::Templates as SerTemplates;
+  use tags::COMPLETE_TAG;
 
 
   #[derive(Debug)]
@@ -367,6 +373,90 @@ pub mod tests {
 
   pub fn make_tasks(count: usize) -> Tasks {
     Tasks::from(make_tasks_vec(count))
+  }
+
+  /// Create a set of tasks that have associated tags.
+  ///
+  /// Tags are assigned in the following fashion:
+  /// task1  -> []
+  /// task2  -> [complete]
+  /// task3  -> []
+  /// task4  -> [complete]
+  ///
+  /// task5  -> [tag1]
+  /// task6  -> [tag1 + complete]
+  /// task7  -> [tag1]
+  /// task8  -> [tag1 + complete]
+  ///
+  /// task9  -> [tag2]
+  /// task10 -> [tag2 + complete]
+  /// task11 -> [tag2 + tag1]
+  /// task12 -> [tag2 + tag1 + complete]
+  ///
+  /// task13 -> [tag3]
+  /// task14 -> [tag3 + complete]
+  /// task15 -> [tag3 + tag2 + tag1]
+  /// task16 -> [tag3 + tag2 + tag1 + complete]
+  ///
+  /// task17 -> [tag4]
+  /// task18 -> [tag4 + complete]
+  /// task19 -> [tag4 + tag3 + tag2 + tag1]
+  /// task20 -> [tag4 + tag3 + tag2 + tag1 + complete]
+  ///
+  /// ...
+  pub fn make_tasks_with_tags(count: usize) -> Tasks {
+    let tag_ids = (0..count / 4 + 1)
+      .map(|x| SerId::new(x))
+      .collect::<Vec<_>>();
+    let templates = (0..count / 4 + 1)
+      .map(|x| if x == 0 {
+        SerTemplate {
+          id: tag_ids[x],
+          name: COMPLETE_TAG.to_string(),
+        }
+      } else {
+        SerTemplate {
+          id: tag_ids[x],
+          name: format!("tag{}", x),
+        }
+      })
+      .collect::<Vec<_>>();
+    let tasks = (0..count)
+      .map(|x| {
+        let mut tags = Vec::new();
+        // Add 'complete' tag for uneven tasks.
+        if x % 2 == 1 {
+          tags.push(tag_ids[0])
+        }
+        // Add the "newest" tag.
+        if x >= 4 {
+          tags.push(tag_ids[x / 4])
+        }
+        // Add all previous tags.
+        if x >= 8 && x % 4 >= 2 {
+          tags.extend_from_slice(&tag_ids[1..x / 4])
+        }
+        let tags = tags
+          .drain(..)
+          .map(|x| {
+            SerTag {
+              id: x,
+            }
+          })
+          .collect();
+        SerTask {
+          summary: format!("{}", x + 1),
+          tags: tags,
+        }
+      })
+      .collect();
+
+    let tasks = SerTasks {
+      templates: SerTemplates(templates),
+      tasks: tasks,
+    };
+
+    Tasks::with_serde(tasks).unwrap()
   }
 
   #[link(name = "c")]

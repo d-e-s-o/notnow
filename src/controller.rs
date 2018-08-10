@@ -24,6 +24,7 @@ use std::path::PathBuf;
 use std::rc::Rc;
 
 use query::Query;
+use query::QueryBuilder;
 use tasks::Id as TaskId;
 use tasks::Task;
 use tasks::Tasks;
@@ -65,7 +66,7 @@ impl Controller {
 
   /// Retrieve the tasks associated with this controller.
   pub fn tasks(&self) -> Query {
-    Query::new(self.tasks.clone())
+    QueryBuilder::new(self.tasks.clone()).build()
   }
 
   /// Add a new task to the list of tasks.
