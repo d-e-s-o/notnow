@@ -134,14 +134,14 @@ impl Handleable for InOutArea {
     match event {
       Event::KeyDown(key) |
       Event::KeyUp(key) => {
+        let mut s = if let InOut::Input(s) = &self.in_out {
+          s.clone()
+        } else {
+          panic!("In/out area not used for input.");
+        };
+
         match key {
           Key::Return => {
-            let s = if let InOut::Input(ref s) = self.in_out {
-              s.clone()
-            } else {
-              panic!("In/out area not used for input.");
-            };
-
             self.in_out = InOut::Clear;
 
             let event = if let Some(id) = self.prev_focused {
@@ -153,25 +153,13 @@ impl Handleable for InOutArea {
             event.update()
           },
           Key::Char(c) => {
-            self.in_out = InOut::Input(match self.in_out {
-              InOut::Input(ref mut s) => {
-                s.push(c);
-                s.clone()
-              },
-              InOut::Clear => c.to_string(),
-              _ => panic!("In/out area not used for input."),
-            });
+            s.push(c);
+            self.in_out = InOut::Input(s);
             (None as Option<Event>).update()
           },
           Key::Backspace => {
-            self.in_out = InOut::Input(match self.in_out {
-              InOut::Input(ref mut s) => {
-                s.pop();
-                s.clone()
-              },
-              InOut::Clear => "".to_string(),
-              _ => panic!("In/out area not used for input."),
-            });
+            s.pop();
+            self.in_out = InOut::Input(s);
             (None as Option<Event>).update()
           },
           Key::Esc => {
