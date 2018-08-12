@@ -376,7 +376,7 @@ where
     let (prefix, fg, bg, string) = match in_out.state() {
       InOut::Saved => (SAVED_TEXT, IN_OUT_SUCCESS_FG, IN_OUT_SUCCESS_BG, None),
       InOut::Error(ref e) => (ERROR_TEXT, IN_OUT_ERROR_FG, IN_OUT_ERROR_BG, Some(e)),
-      InOut::Input(ref s) => (INPUT_TEXT, IN_OUT_SUCCESS_FG, IN_OUT_SUCCESS_BG, Some(s)),
+      InOut::Input(ref s, _) => (INPUT_TEXT, IN_OUT_SUCCESS_FG, IN_OUT_SUCCESS_BG, Some(s)),
       InOut::Clear => return Ok(Default::default()),
     };
 
@@ -389,9 +389,9 @@ where
 
       self.writer.write(x, bbox.h - 1, fg, bg, string)?;
 
-      if let InOut::Input(_) = in_out.state() {
+      if let InOut::Input(_, idx) = in_out.state() {
         debug_assert!(cap.is_focused(in_out.id()));
-        self.writer.goto(x + string.len() as u16, bbox.h - 1)?;
+        self.writer.goto(x + *idx as u16, bbox.h - 1)?;
         self.writer.show()?
       }
     }

@@ -35,7 +35,7 @@ use termui::TermUiEvent;
 pub enum InOut {
   Saved,
   Error(String),
-  Input(String),
+  Input(String, usize),
   Clear,
 }
 
@@ -96,7 +96,11 @@ impl InOutArea {
   fn handle_custom_event(&mut self, event: Box<TermUiEvent>, cap: &mut Cap) -> Option<MetaEvent> {
     match *event {
       TermUiEvent::SetInOut(in_out) => {
-        if let InOut::Input(_) = in_out {
+        if let InOut::Input(ref s, idx) = in_out {
+          // TODO: It is not nice that we allow clients to provide
+          //       potentially unsanitized inputs.
+          debug_assert!(idx <= s.len());
+
           self.prev_focused = cap.focused();
           cap.focus(self.id);
         };
@@ -134,8 +138,8 @@ impl Handleable for InOutArea {
     match event {
       Event::KeyDown(key) |
       Event::KeyUp(key) => {
-        let mut s = if let InOut::Input(s) = &self.in_out {
-          s.clone()
+        let (mut s, mut idx) = if let InOut::Input(s, idx) = &self.in_out {
+          (s.clone(), *idx)
         } else {
           panic!("In/out area not used for input.");
         };
@@ -153,13 +157,16 @@ impl Handleable for InOutArea {
             event.update()
           },
           Key::Char(c) => {
-            s.push(c);
-            self.in_out = InOut::Input(s);
+            s.insert(idx, c);
+            self.in_out = InOut::Input(s, idx + 1);
             (None as Option<Event>).update()
           },
           Key::Backspace => {
-            s.pop();
-            self.in_out = InOut::Input(s);
+            if idx > 0 {
+              s.remove(idx - 1);
+              idx -= 1;
+            }
+            self.in_out = InOut::Input(s, idx);
             (None as Option<Event>).update()
           },
           Key::Esc => {

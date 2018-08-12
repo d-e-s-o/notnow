@@ -153,7 +153,7 @@ impl Handleable for TaskListBox {
             Some(event).update()
           },
           Key::Char('a') => {
-            let event = TermUiEvent::SetInOut(InOut::Input("".to_string()));
+            let event = TermUiEvent::SetInOut(InOut::Input("".to_string(), 0));
             let event = Event::Custom(Box::new(event));
             Some(event.into())
           },
@@ -173,7 +173,9 @@ impl Handleable for TaskListBox {
           },
           Key::Char('e') => {
             let task = self.query().nth(self.selection).unwrap();
-            let event = TermUiEvent::SetInOut(InOut::Input(task.summary.clone()));
+            let string = task.summary.clone();
+            let idx = string.len();
+            let event = TermUiEvent::SetInOut(InOut::Input(string, idx));
             let event = Event::Custom(Box::new(event));
 
             self.editing = Some(task);

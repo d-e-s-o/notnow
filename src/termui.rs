@@ -499,7 +499,7 @@ mod tests {
     for c in 0u8..127u8 {
       let state = with_key(Key::Char(c as char));
       match state {
-        InOut::Input(_) => (),
+        InOut::Input(_, _) => (),
         _ => assert!(false, "Unexpected state {:?} for char {}", state, c),
       }
     }
