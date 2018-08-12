@@ -399,6 +399,33 @@ mod tests {
   }
 
   #[test]
+  fn add_task_with_cursor_movement() {
+    let tasks = make_tasks_vec(1);
+    let events = vec![
+      Event::KeyDown(Key::Char('a')).into(),
+      Event::KeyDown(Key::Delete).into(),
+      Event::KeyDown(Key::Right).into(),
+      Event::KeyDown(Key::Char('s')).into(),
+      Event::KeyDown(Key::Char('t')).into(),
+      Event::KeyDown(Key::Home).into(),
+      Event::KeyDown(Key::Home).into(),
+      Event::KeyDown(Key::Char('t')).into(),
+      Event::KeyDown(Key::Char('e')).into(),
+      Event::KeyDown(Key::End).into(),
+      Event::KeyDown(Key::End).into(),
+      Event::KeyDown(Key::Delete).into(),
+      Event::KeyDown(Key::Char('4')).into(),
+      Event::KeyDown(Key::Char('2')).into(),
+      Event::KeyDown(Key::Return).into(),
+      Event::KeyDown(Key::Char('q')).into(),
+    ];
+    let mut expected = make_tasks_vec(1);
+    expected.push(Task::new("test42"));
+
+    assert_eq!(test(tasks, events), expected)
+  }
+
+  #[test]
   fn complete_task() {
     let tasks = make_tasks_vec(3);
     let events = vec![
@@ -434,6 +461,35 @@ mod tests {
 
     let tasks = test(tasks, events);
     assert_eq!(tasks[1].summary, "amend".to_string());
+  }
+
+  #[test]
+  fn edit_task_with_cursor_movement() {
+    let tasks = make_tasks_vec(3);
+    let events = vec![
+      Event::KeyDown(Key::Char('j')).into(),
+      Event::KeyDown(Key::Char('j')).into(),
+      Event::KeyDown(Key::Char('e')).into(),
+      Event::KeyDown(Key::Left).into(),
+      Event::KeyDown(Key::Left).into(),
+      Event::KeyDown(Key::Left).into(),
+      Event::KeyDown(Key::Delete).into(),
+      Event::KeyDown(Key::Char('t')).into(),
+      Event::KeyDown(Key::Char('a')).into(),
+      Event::KeyDown(Key::Left).into(),
+      Event::KeyDown(Key::Delete).into(),
+      Event::KeyDown(Key::Right).into(),
+      Event::KeyDown(Key::Char('e')).into(),
+      Event::KeyDown(Key::Char('s')).into(),
+      Event::KeyDown(Key::Char('t')).into(),
+      Event::KeyDown(Key::Right).into(),
+      Event::KeyDown(Key::Right).into(),
+      Event::KeyDown(Key::Return).into(),
+      Event::KeyDown(Key::Char('q')).into(),
+    ];
+
+    let tasks = test(tasks, events);
+    assert_eq!(tasks[2].summary, "test".to_string());
   }
 
   /// Test function for the `TermUi` that returns the state of the `InOutArea` widget.

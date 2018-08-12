@@ -169,6 +169,49 @@ impl Handleable for InOutArea {
             self.in_out = InOut::Input(s, idx);
             (None as Option<Event>).update()
           },
+          Key::Delete => {
+            if idx < s.len() {
+              s.remove(idx);
+              if idx > s.len() {
+                idx -= 1;
+              }
+            }
+            self.in_out = InOut::Input(s, idx);
+            (None as Option<Event>).update()
+          },
+          Key::Left => {
+            if idx > 0 {
+              self.in_out = InOut::Input(s, idx - 1);
+              (None as Option<Event>).update()
+            } else {
+              None
+            }
+          },
+          Key::Right => {
+            if idx < s.len() {
+              self.in_out = InOut::Input(s, idx + 1);
+              (None as Option<Event>).update()
+            } else {
+              None
+            }
+          },
+          Key::Home => {
+            if idx != 0 {
+              self.in_out = InOut::Input(s, 0);
+              (None as Option<Event>).update()
+            } else {
+              None
+            }
+          },
+          Key::End => {
+            let length = s.len();
+            if idx != length {
+              self.in_out = InOut::Input(s, length);
+              (None as Option<Event>).update()
+            } else {
+              None
+            }
+          },
           Key::Esc => {
             self.in_out = InOut::Clear;
             self.restore_focus(cap);
