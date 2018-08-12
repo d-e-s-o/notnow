@@ -37,6 +37,8 @@ use termion::cursor::Show;
 use termion::terminal_size;
 
 use gui::BBox;
+use gui::Cap;
+use gui::Object;
 use gui::Renderer;
 use gui::Widget;
 
@@ -247,8 +249,6 @@ where
     // of this issue see https://github.com/ticki/termion/issues/105.
     let writer = ClippingWriter::new(BufWriter::new(writer));
 
-    writer.hide()?;
-
     Ok(TermRenderer {
       writer: writer,
     })
@@ -372,7 +372,7 @@ where
   }
 
   /// Render an `InOutArea`.
-  fn render_input_output(&self, in_out: &InOutArea, bbox: BBox) -> Result<BBox> {
+  fn render_input_output(&self, in_out: &InOutArea, bbox: BBox, cap: &Cap) -> Result<BBox> {
     let (prefix, fg, bg, string) = match in_out.state() {
       InOut::Saved => (SAVED_TEXT, IN_OUT_SUCCESS_FG, IN_OUT_SUCCESS_BG, None),
       InOut::Error(ref e) => (ERROR_TEXT, IN_OUT_ERROR_FG, IN_OUT_ERROR_BG, Some(e)),
@@ -388,6 +388,12 @@ where
       let bg = IN_OUT_STRING_BG;
 
       self.writer.write(x, bbox.h - 1, fg, bg, string)?;
+
+      if let InOut::Input(_) = in_out.state() {
+        debug_assert!(cap.is_focused(in_out.id()));
+        self.writer.goto(x + string.len() as u16, bbox.h - 1)?;
+        self.writer.show()?
+      }
     }
     Ok(Default::default())
   }
@@ -412,13 +418,16 @@ where
   }
 
   fn pre_render(&self) {
-    let err = self.writer.clear_all();
+    // By default we disable the cursor, but we may opt for enabling it
+    // again when rendering certain widgets.
+    let err = self.writer.clear_all().and_then(|_| self.writer.hide());
+
     if let Err(e) = err {
       panic!("Pre-render failed: {}", e);
     }
   }
 
-  fn render(&self, widget: &Widget, bbox: BBox) -> BBox {
+  fn render(&self, widget: &Widget, bbox: BBox, cap: &Cap) -> BBox {
     let result;
 
     self.writer.restrict(bbox);
@@ -426,7 +435,7 @@ where
     if let Some(ui) = widget.downcast_ref::<TermUi>() {
       result = self.render_term_ui(ui, bbox)
     } else if let Some(in_out) = widget.downcast_ref::<InOutArea>() {
-      result = self.render_input_output(in_out, bbox);
+      result = self.render_input_output(in_out, bbox, cap);
     } else if let Some(tab_bar) = widget.downcast_ref::<TabBar>() {
       result = self.render_tab_bar(tab_bar, bbox);
     } else if let Some(task_list) = widget.downcast_ref::<TaskListBox>() {
