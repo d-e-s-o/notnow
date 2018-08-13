@@ -81,12 +81,12 @@ extern crate serde_derive;
 extern crate serde_json;
 extern crate termion;
 
-mod controller;
 mod event;
 mod id;
 mod in_out;
 mod query;
 mod ser;
+mod state;
 mod tab_bar;
 mod tags;
 mod task_list_box;
@@ -113,8 +113,8 @@ use gui::Renderer;
 use gui::Ui;
 use gui::UiEvent;
 
-use controller::Controller;
 use event::convert;
+use state::State;
 use term_renderer::TermRenderer;
 use termui::TermUi;
 use termui::TermUiEvent;
@@ -175,15 +175,15 @@ fn handle_meta_event(event: MetaEvent, ui: &Ui, renderer: &Renderer) -> Continue
 /// Run the program.
 fn run_prog() -> Result<()> {
   let task_path = config()?;
-  let mut controller = Some(Controller::new(&task_path)?);
+  let mut state = Some(State::new(&task_path)?);
   let screen = AlternateScreen::from(stdout().into_raw_mode()?);
   let renderer = TermRenderer::new(screen)?;
   let mut events = stdin().events();
   let (mut ui, _) = Ui::new(&mut |id, cap| {
-    let cntrl = controller.take().unwrap();
+    let state = state.take().unwrap();
     // TODO: We should be able to propagate errors properly on the `gui`
     //       side of things.
-    Box::new(TermUi::new(id, cap, cntrl).unwrap())
+    Box::new(TermUi::new(id, cap, state).unwrap())
   });
 
   // Initially we need to trigger a render in order to have the most

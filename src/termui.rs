@@ -27,10 +27,10 @@ use gui::Key;
 use gui::MetaEvent;
 use gui::UiEvent;
 
-use controller::Controller;
 use event::EventUpdated;
 use in_out::InOut;
 use in_out::InOutArea;
+use state::State;
 use tab_bar::TabBar;
 use tasks::Id as TaskId;
 use tasks::Task;
@@ -86,31 +86,31 @@ pub struct TermUi {
   id: Id,
   in_out: Id,
   tab_bar: Id,
-  controller: Controller,
+  state: State,
 }
 
 
 impl TermUi {
-  /// Create a new view associated with the given controller.
-  pub fn new(id: Id, cap: &mut Cap, controller: Controller) -> Result<Self> {
+  /// Create a new view associated with the given `State` object.
+  pub fn new(id: Id, cap: &mut Cap, state: State) -> Result<Self> {
     let in_out = cap.add_widget(id, &mut |id, cap| {
       Box::new(InOutArea::new(id, cap))
     });
     let tab_bar = cap.add_widget(id, &mut |id, cap| {
-      Box::new(TabBar::new(id, cap, &controller))
+      Box::new(TabBar::new(id, cap, &state))
     });
 
     Ok(TermUi {
       id: id,
       in_out: in_out,
       tab_bar: tab_bar,
-      controller: controller,
+      state: state,
     })
   }
 
   /// Save the current state.
   fn save(&mut self) -> MetaEvent {
-    let in_out = match self.controller.save() {
+    let in_out = match self.state.save() {
       Ok(_) => InOut::Saved,
       Err(err) => InOut::Error(format!("{}", err)),
     };
@@ -122,7 +122,7 @@ impl TermUi {
   fn handle_custom_event(&mut self, event: Box<TermUiEvent>) -> Option<MetaEvent> {
     match *event {
       TermUiEvent::AddTask(s) => {
-        let id = self.controller.add_task(s);
+        let id = self.state.add_task(s);
         // We have no knowledge of which `TaskListBox` widget is
         // currently active. So send the response to the `TabBar` to
         // forward it accordingly.
@@ -131,11 +131,11 @@ impl TermUi {
         Some(MetaEvent::UiEvent(event)).update()
       },
       TermUiEvent::RemoveTask(id) => {
-        self.controller.remove_task(id);
+        self.state.remove_task(id);
         (None as Option<Event>).update()
       },
       TermUiEvent::UpdateTask(task) => {
-        self.controller.update_task(task);
+        self.state.update_task(task);
         (None as Option<Event>).update()
       },
       TermUiEvent::SetInOut(_) => {
@@ -143,7 +143,7 @@ impl TermUi {
       },
       #[cfg(test)]
       TermUiEvent::GetTasks => {
-        let tasks = self.controller.tasks().collect::<Vec<Task>>();
+        let tasks = self.state.tasks().collect::<Vec<Task>>();
         let resp = TermUiEvent::GetTasksResp(tasks);
         Some(Event::Custom(Box::new(resp)).into())
       },
@@ -199,8 +199,8 @@ mod tests {
     let file = NamedTempFile::new();
     let (mut ui, _) = Ui::new(&mut |id, cap| {
       let tasks = tasks.take().unwrap();
-      let controller = Controller::with_tasks_and_path(tasks, file.path());
-      Box::new(TermUi::new(id, cap, controller).unwrap())
+      let state = State::with_tasks_and_path(tasks, file.path());
+      Box::new(TermUi::new(id, cap, state).unwrap())
     });
 
     for event in events.drain(..) {

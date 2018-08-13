@@ -29,8 +29,8 @@ use gui::Key;
 use gui::MetaEvent;
 use gui::UiEvent;
 
-use controller::Controller;
 use event::EventUpdated;
+use state::State;
 use task_list_box::TaskListBox;
 use termui::TermUiEvent;
 
@@ -52,12 +52,12 @@ pub struct TabBar {
 
 impl TabBar {
   /// Create a new `TabBar` widget.
-  pub fn new(id: Id, cap: &mut Cap, controller: &Controller) -> Self {
+  pub fn new(id: Id, cap: &mut Cap, state: &State) -> Self {
     let selection = 0;
     // TODO: We need a dynamic mechanism to retrieve all Query objects
     //       we are interested in.
     let mut queries = vec![
-      ("all".to_string(), controller.tasks()),
+      ("all".to_string(), state.tasks()),
     ];
     let tabs = queries
       .drain(..)

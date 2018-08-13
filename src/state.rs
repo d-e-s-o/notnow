@@ -1,4 +1,4 @@
-// controller.rs
+// state.rs
 
 // *************************************************************************
 // * Copyright (C) 2017-2018 Daniel Mueller (deso@posteo.net)              *
@@ -30,15 +30,15 @@ use tasks::Task;
 use tasks::Tasks;
 
 
-/// An object providing higher-level functionality relating to tasks.
+/// An object encapsulating the program's relevant state.
 #[derive(Debug)]
-pub struct Controller {
+pub struct State {
   path: PathBuf,
   tasks: Rc<RefCell<Tasks>>,
 }
 
-impl Controller {
-  /// Create a new controller object using the task data at the given path.
+impl State {
+  /// Create a new `State` object using the task data at the given path.
   pub fn new<P>(task_path: P) -> Result<Self>
   where
     P: Into<PathBuf> + AsRef<Path>,
@@ -47,13 +47,13 @@ impl Controller {
     Ok(Self::with_tasks_and_path(tasks, task_path))
   }
 
-  /// Create a new controller object with the given `Tasks` object, with
+  /// Create a new `State` object with the given `Tasks` object, with
   /// all future `save` operations happening into the provided path.
   pub fn with_tasks_and_path<P>(tasks: Tasks, path: P) -> Self
   where
     P: Into<PathBuf> + AsRef<Path>,
   {
-    Controller {
+    State {
       path: path.into(),
       tasks: Rc::new(RefCell::new(tasks)),
     }
@@ -64,7 +64,7 @@ impl Controller {
     self.tasks.borrow().save(&self.path)
   }
 
-  /// Retrieve the tasks associated with this controller.
+  /// Retrieve the tasks associated with this `State` object.
   pub fn tasks(&self) -> Query {
     QueryBuilder::new(self.tasks.clone()).build()
   }
