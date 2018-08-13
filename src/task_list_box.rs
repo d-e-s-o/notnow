@@ -88,8 +88,10 @@ impl TaskListBox {
           let event = TermUiEvent::UpdateTask(task);
           let event = Event::Custom(Box::new(event));
           Some(event).update()
-        } else {
+        } else if !text.is_empty() {
           Some(Event::Custom(Box::new(TermUiEvent::AddTask(text)))).update()
+        } else {
+          None
         }
       },
       _ => Some(Event::Custom(event).into()),

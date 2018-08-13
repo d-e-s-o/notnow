@@ -421,7 +421,19 @@ mod tests {
     ];
     let mut expected = make_tasks_vec(1);
     expected.push(Task::new("test42"));
+    assert_eq!(test(tasks, events), expected)
+  }
 
+  #[test]
+  fn add_empty_task() {
+    let tasks = make_tasks_vec(1);
+    let events = vec![
+      Event::KeyDown(Key::Char('a')).into(),
+      Event::KeyDown(Key::Return).into(),
+      Event::KeyDown(Key::Char('q')).into(),
+    ];
+
+    let expected = make_tasks_vec(1);
     assert_eq!(test(tasks, events), expected)
   }
 
