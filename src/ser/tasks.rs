@@ -17,12 +17,7 @@
 // * along with this program.  If not, see <http://www.gnu.org/licenses/>. *
 // *************************************************************************
 
-use std::io::Error;
-use std::io::ErrorKind;
-use std::io::Result;
-
 use ser::tags::Tag;
-use ser::tags::Templates;
 
 
 /// A task that can be serialized and deserialized.
@@ -36,26 +31,7 @@ pub struct Task {
 
 /// A struct comprising a list of tasks.
 #[derive(Debug, Deserialize, PartialEq, Serialize)]
-pub struct Tasks {
-  #[serde(default)]
-  pub templates: Templates,
-  pub tasks: Vec<Task>,
-}
-
-impl Tasks {
-  /// Check that all contained task objects reference valid tags.
-  pub fn validate_tags(&self) -> Result<()> {
-    for task in self.tasks.iter() {
-      for tag in task.tags.iter() {
-        if !self.templates.is_valid(tag.id) {
-          let error = format!("Encountered invalid tag Id {}", tag.id);
-          return Err(Error::new(ErrorKind::InvalidInput, error))
-        }
-      }
-    }
-    Ok(())
-  }
-}
+pub struct Tasks(pub Vec<Task>);
 
 
 #[cfg(test)]
@@ -126,11 +102,7 @@ mod tests {
         summary: "task 2".to_string(),
       },
     ];
-    let tasks = Tasks {
-      templates: Templates(Vec::new()),
-      tasks: task_vec,
-    };
-
+    let tasks = Tasks(task_vec);
     let serialized = to_json(&tasks).unwrap();
     let deserialized = from_json::<Tasks>(&serialized).unwrap();
 

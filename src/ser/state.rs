@@ -1,4 +1,4 @@
-// mod.rs
+// state.rs
 
 // *************************************************************************
 // * Copyright (C) 2018 Daniel Mueller (deso@posteo.net)                   *
@@ -17,7 +17,14 @@
 // * along with this program.  If not, see <http://www.gnu.org/licenses/>. *
 // *************************************************************************
 
-pub mod id;
-pub mod state;
-pub mod tags;
-pub mod tasks;
+use ser::tags::Templates;
+use ser::tasks::Tasks;
+
+
+/// A struct comprising the task state of the program.
+#[derive(Debug, Deserialize, PartialEq, Serialize)]
+pub struct State {
+  #[serde(default)]
+  pub templates: Templates,
+  pub tasks: Tasks,
+}

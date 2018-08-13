@@ -48,13 +48,6 @@ pub struct Tag {
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 pub struct Templates(pub Vec<Template>);
 
-impl Templates {
-  /// Check that the given `Id` represents a known `Template`.
-  pub fn is_valid(&self, id: Id) -> bool {
-    self.0.iter().find(|x| x.id == id).is_some()
-  }
-}
-
 
 #[cfg(test)]
 mod tests {
