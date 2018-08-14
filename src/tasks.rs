@@ -225,7 +225,6 @@ pub mod tests {
 
   use super::*;
 
-  use std::cell::RefCell;
   use std::ffi::CString;
   use std::fs::remove_file;
   use std::iter::FromIterator;
@@ -306,10 +305,6 @@ pub mod tests {
     )
   }
 
-  pub fn make_tasks(count: usize) -> Tasks {
-    Tasks::from(make_tasks_vec(count))
-  }
-
   /// Create a set of tasks that have associated tags.
   ///
   /// Tags are assigned in the following fashion:
@@ -339,7 +334,7 @@ pub mod tests {
   /// task20 -> [tag4 + tag3 + tag2 + tag1 + complete]
   ///
   /// ...
-  pub fn make_tasks_with_tags(count: usize) -> (Rc<Templates>, Rc<RefCell<Tasks>>) {
+  pub fn make_tasks_with_tags(count: usize) -> (Vec<SerId>, Vec<SerTemplate>, Vec<SerTask>) {
     let tag_ids = (0..count / 4 + 1)
       .map(|x| SerId::new(x))
       .collect::<Vec<_>>();
@@ -386,13 +381,7 @@ pub mod tests {
       })
       .collect();
 
-    let (templates, map) = Templates::with_serde(SerTemplates(templates));
-    let templates = Rc::new(templates);
-    let tasks = SerTasks(tasks);
-    let tasks = Tasks::with_serde(tasks, templates.clone(), &map).unwrap();
-    let tasks = Rc::new(RefCell::new(tasks));
-
-    (templates, tasks)
+    (tag_ids, templates, tasks)
   }
 
   #[link(name = "c")]
@@ -439,7 +428,7 @@ pub mod tests {
 
   #[test]
   fn add_task() {
-    let mut tasks = make_tasks(3);
+    let mut tasks = Tasks::from(make_tasks_vec(3));
     tasks.add("4");
 
     assert_eq!(TaskVec::from(tasks), make_tasks_vec(4));
@@ -447,7 +436,7 @@ pub mod tests {
 
   #[test]
   fn remove_task() {
-    let mut tasks = make_tasks(3);
+    let mut tasks = Tasks::from(make_tasks_vec(3));
     let id = tasks.iter().nth(1).unwrap().id();
     tasks.remove(id);
 
@@ -459,7 +448,7 @@ pub mod tests {
 
   #[test]
   fn update_task() {
-    let mut tasks = make_tasks(3);
+    let mut tasks = Tasks::from(make_tasks_vec(3));
     let mut task = tasks.iter().nth(1).unwrap().clone();
     task.summary = "amended".to_string();
     tasks.update(task);

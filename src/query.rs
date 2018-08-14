@@ -234,42 +234,58 @@ impl Query {
 mod tests {
   use super::*;
 
-  use tasks::tests::make_tasks;
+  use ser::tags::Templates as SerTemplates;
+  use ser::tasks::Tasks as SerTasks;
+  use tags::Templates;
+  use tasks::tests::make_tasks_vec;
   use tasks::tests::make_tasks_with_tags;
   use tasks::tests::TaskVec;
 
 
+  /// Create a query with the given number of tasks in it.
+  fn make_query(count: usize) -> Query {
+    let tasks = Tasks::from(make_tasks_vec(count));
+    let tasks = Rc::new(RefCell::new(tasks));
+    let query = QueryBuilder::new(tasks).build("test");
+    query
+  }
+
+  fn make_tagged_tasks(count: usize) -> (Rc<Templates>, Rc<RefCell<Tasks>>) {
+    let (_, templates, tasks) = make_tasks_with_tags(count);
+    let (templates, map) = Templates::with_serde(SerTemplates(templates));
+    let templates = Rc::new(templates);
+    let tasks = SerTasks(tasks);
+    let tasks = Tasks::with_serde(tasks, templates.clone(), &map).unwrap();
+    let tasks = Rc::new(RefCell::new(tasks));
+
+    (templates, tasks)
+  }
+
+
   #[test]
   fn count() {
-    let tasks = Rc::new(RefCell::new(make_tasks(5)));
-    let query = QueryBuilder::new(tasks).build("test");
-    assert_eq!(query.count(), 5);
+    assert_eq!(make_query(5).count(), 5);
   }
 
   #[test]
   fn nth() {
-    let tasks = Rc::new(RefCell::new(make_tasks(7)));
-    let query = QueryBuilder::new(tasks).build("test");
-    let expected = make_tasks(7).iter().cloned().nth(3);
+    let query = make_query(7);
+    let expected = make_tasks_vec(7).iter().cloned().nth(3);
     assert_eq!(query.nth(3).as_ref().unwrap().summary, expected.unwrap().summary);
   }
 
   #[test]
   fn for_each() {
     let mut counter = 0;
-    let tasks = Rc::new(RefCell::new(make_tasks(16)));
-    let query = QueryBuilder::new(tasks).build("test");
-    query.for_each(|_| counter += 1);
+    make_query(16).for_each(|_| counter += 1);
 
     assert_eq!(counter, 16);
   }
 
   #[test]
   fn enumerate() {
-    let tasks = Rc::new(RefCell::new(make_tasks(20)));
-    let query = QueryBuilder::new(tasks).build("test");
     let mut counter = 0;
-    query
+    make_query(20)
       .enumerate::<(), _>(|i, task| {
         assert_eq!(counter, i);
         assert_eq!(task.summary, format!("{}", i + 1));
@@ -282,10 +298,8 @@ mod tests {
 
   #[test]
   fn enumerate_early_break() {
-    let tasks = Rc::new(RefCell::new(make_tasks(20)));
-    let query = QueryBuilder::new(tasks).build("test");
     let mut counter = 0;
-    query
+    make_query(20)
       .enumerate::<(), _>(|i, _| {
         if i >= 10 {
           Ok(false)
@@ -300,8 +314,7 @@ mod tests {
 
   #[test]
   fn position() {
-    let tasks = Rc::new(RefCell::new(make_tasks(3)));
-    let query = QueryBuilder::new(tasks).build("test");
+    let query = make_query(3);
     let idx = query.position(|task| task.summary == format!("{}", 2));
 
     assert_eq!(idx.unwrap(), 1)
@@ -309,25 +322,19 @@ mod tests {
 
   #[test]
   fn collect() {
-    let tasks = Rc::new(RefCell::new(make_tasks(3)));
-    let query = QueryBuilder::new(tasks).build("test");
-    let result = query.collect::<TaskVec>();
-    let expected = make_tasks(3).iter().cloned().collect::<TaskVec>();
-    assert_eq!(result, expected);
+    let result = make_query(3).collect::<TaskVec>();
+    assert_eq!(result, make_tasks_vec(3));
   }
 
   #[test]
   fn is_empty() {
-    let tasks = Rc::new(RefCell::new(make_tasks(0)));
-    assert!(QueryBuilder::new(tasks).build("test").is_empty());
-
-    let tasks = Rc::new(RefCell::new(make_tasks(1)));
-    assert!(!QueryBuilder::new(tasks).build("test").is_empty());
+    assert!(make_query(0).is_empty());
+    assert!(!make_query(1).is_empty());
   }
 
   #[test]
   fn filter_completions() {
-    let (templates, tasks) = make_tasks_with_tags(16);
+    let (templates, tasks) = make_tagged_tasks(16);
     let complete_tag = templates.instantiate(templates.complete_tag().id());
     let query = QueryBuilder::new(tasks.clone())
       .and(complete_tag)
@@ -350,7 +357,7 @@ mod tests {
 
   #[test]
   fn filter_tag1_and_tag2() {
-    let (templates, tasks) = make_tasks_with_tags(20);
+    let (templates, tasks) = make_tagged_tasks(20);
     let tag1 = templates.instantiate(templates.iter().nth(1).unwrap().id());
     let tag2 = templates.instantiate(templates.iter().nth(2).unwrap().id());
     let query = QueryBuilder::new(tasks.clone())
@@ -371,7 +378,7 @@ mod tests {
 
   #[test]
   fn filter_tag3_or_tag1() {
-    let (templates, tasks) = make_tasks_with_tags(20);
+    let (templates, tasks) = make_tagged_tasks(20);
     let tag1 = templates.instantiate(templates.iter().nth(1).unwrap().id());
     let tag3 = templates.instantiate(templates.iter().nth(3).unwrap().id());
     let query = QueryBuilder::new(tasks.clone())
@@ -398,7 +405,7 @@ mod tests {
 
   #[test]
   fn filter_tag1_and_complete_or_tag4() {
-    let (templates, tasks) = make_tasks_with_tags(20);
+    let (templates, tasks) = make_tagged_tasks(20);
     let complete_tag = templates.instantiate(templates.complete_tag().id());
     let tag1 = templates.instantiate(templates.iter().nth(1).unwrap().id());
     let tag4 = templates.instantiate(templates.iter().nth(4).unwrap().id());
