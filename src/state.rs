@@ -131,7 +131,7 @@ impl State {
 
   /// Retrieve the tasks associated with this `State` object.
   pub fn tasks(&self) -> Query {
-    QueryBuilder::new(self.tasks.clone()).build()
+    QueryBuilder::new(self.tasks.clone()).build("all")
   }
 
   /// Add a new task to the list of tasks.

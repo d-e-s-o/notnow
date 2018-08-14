@@ -84,8 +84,9 @@ impl QueryBuilder {
   }
 
   /// Build the final `Query` instance.
-  pub fn build(self) -> Query {
+  pub fn build(self, name: impl Into<String>) -> Query {
     Query {
+      name: name.into(),
       tasks: self.tasks,
       tags: self.tags,
     }
@@ -104,6 +105,11 @@ impl QueryBuilder {
 ///    likelihood of borrowing conflicts.
 #[derive(Clone, Debug)]
 pub struct Query {
+  /// The name of the query.
+  // TODO: This attribute does not really belong in here. Once we have
+  //       the necessary infrastructure for storing it elsewhere it
+  //       should be removed from this struct.
+  name: String,
   /// A reference to the `Tasks` object we use for retrieving the set of
   /// available tasks.
   tasks: Rc<RefCell<Tasks>>,
@@ -231,14 +237,14 @@ mod tests {
   #[test]
   fn count() {
     let tasks = Rc::new(RefCell::new(make_tasks(5)));
-    let query = QueryBuilder::new(tasks).build();
+    let query = QueryBuilder::new(tasks).build("test");
     assert_eq!(query.count(), 5);
   }
 
   #[test]
   fn nth() {
     let tasks = Rc::new(RefCell::new(make_tasks(7)));
-    let query = QueryBuilder::new(tasks).build();
+    let query = QueryBuilder::new(tasks).build("test");
     let expected = make_tasks(7).iter().cloned().nth(3);
     assert_eq!(query.nth(3).as_ref().unwrap().summary, expected.unwrap().summary);
   }
@@ -247,7 +253,7 @@ mod tests {
   fn for_each() {
     let mut counter = 0;
     let tasks = Rc::new(RefCell::new(make_tasks(16)));
-    let query = QueryBuilder::new(tasks).build();
+    let query = QueryBuilder::new(tasks).build("test");
     query.for_each(|_| counter += 1);
 
     assert_eq!(counter, 16);
@@ -256,7 +262,7 @@ mod tests {
   #[test]
   fn enumerate() {
     let tasks = Rc::new(RefCell::new(make_tasks(20)));
-    let query = QueryBuilder::new(tasks).build();
+    let query = QueryBuilder::new(tasks).build("test");
     let mut counter = 0;
     query
       .enumerate::<(), _>(|i, task| {
@@ -272,7 +278,7 @@ mod tests {
   #[test]
   fn enumerate_early_break() {
     let tasks = Rc::new(RefCell::new(make_tasks(20)));
-    let query = QueryBuilder::new(tasks).build();
+    let query = QueryBuilder::new(tasks).build("test");
     let mut counter = 0;
     query
       .enumerate::<(), _>(|i, _| {
@@ -290,7 +296,7 @@ mod tests {
   #[test]
   fn position() {
     let tasks = Rc::new(RefCell::new(make_tasks(3)));
-    let query = QueryBuilder::new(tasks).build();
+    let query = QueryBuilder::new(tasks).build("test");
     let idx = query.position(|task| task.summary == format!("{}", 2));
 
     assert_eq!(idx.unwrap(), 1)
@@ -299,7 +305,7 @@ mod tests {
   #[test]
   fn collect() {
     let tasks = Rc::new(RefCell::new(make_tasks(3)));
-    let query = QueryBuilder::new(tasks).build();
+    let query = QueryBuilder::new(tasks).build("test");
     let result = query.collect::<TaskVec>();
     let expected = make_tasks(3).iter().cloned().collect::<TaskVec>();
     assert_eq!(result, expected);
@@ -308,10 +314,10 @@ mod tests {
   #[test]
   fn is_empty() {
     let tasks = Rc::new(RefCell::new(make_tasks(0)));
-    assert!(QueryBuilder::new(tasks).build().is_empty());
+    assert!(QueryBuilder::new(tasks).build("test").is_empty());
 
     let tasks = Rc::new(RefCell::new(make_tasks(1)));
-    assert!(!QueryBuilder::new(tasks).build().is_empty());
+    assert!(!QueryBuilder::new(tasks).build("test").is_empty());
   }
 
   #[test]
@@ -322,7 +328,7 @@ mod tests {
     let complete_tag = templates.instantiate(templates.complete_tag().id());
     let query = QueryBuilder::new(tasks.clone())
       .and(complete_tag)
-      .build();
+      .build("test");
 
     query.for_each(|x| assert!(x.is_complete()));
 
@@ -348,7 +354,7 @@ mod tests {
     let query = QueryBuilder::new(tasks.clone())
       .and(tag1)
       .and(tag2)
-      .build();
+      .build("test");
 
     let mut iter = query.iter(&tasks_);
     assert_eq!(iter.next().unwrap().summary, "11");
@@ -370,7 +376,7 @@ mod tests {
     let query = QueryBuilder::new(tasks.clone())
       .or(tag3)
       .or(tag1)
-      .build();
+      .build("test");
 
     let mut iter = query.iter(&tasks_);
     assert_eq!(iter.next().unwrap().summary, "5");
@@ -400,7 +406,7 @@ mod tests {
       .and(tag1)
       .and(complete_tag)
       .or(tag4)
-      .build();
+      .build("test");
 
     let mut iter = query.iter(&tasks_);
     assert_eq!(iter.next().unwrap().summary, "6");
