@@ -11,6 +11,13 @@ description = """
 A terminal based task and TODO management software.
 """
 
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+incremental = false
+panic = "abort"
+
 [dependencies.gui]
 version = "0.1"
 
