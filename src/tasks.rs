@@ -199,12 +199,6 @@ impl Tasks {
       .map(|x| self.tasks[x] = task)
       .unwrap();
   }
-
-  /// Retrieve the internally used `Templates` object.
-  #[cfg(test)]
-  pub fn templates(&self) -> &Templates {
-    &self.templates
-  }
 }
 
 #[cfg(test)]
@@ -230,12 +224,15 @@ pub mod tests {
   extern crate libc;
 
   use super::*;
+
+  use std::cell::RefCell;
   use std::ffi::CString;
   use std::fs::remove_file;
   use std::iter::FromIterator;
   use std::ops::Deref;
   use std::ops::DerefMut;
   use std::path::PathBuf;
+  use std::rc::Rc;
 
   use serde_json::from_str as from_json;
   use serde_json::to_string_pretty as to_json;
@@ -342,7 +339,7 @@ pub mod tests {
   /// task20 -> [tag4 + tag3 + tag2 + tag1 + complete]
   ///
   /// ...
-  pub fn make_tasks_with_tags(count: usize) -> Tasks {
+  pub fn make_tasks_with_tags(count: usize) -> (Rc<Templates>, Rc<RefCell<Tasks>>) {
     let tag_ids = (0..count / 4 + 1)
       .map(|x| SerId::new(x))
       .collect::<Vec<_>>();
@@ -392,8 +389,10 @@ pub mod tests {
     let (templates, map) = Templates::with_serde(SerTemplates(templates));
     let templates = Rc::new(templates);
     let tasks = SerTasks(tasks);
+    let tasks = Tasks::with_serde(tasks, templates.clone(), &map).unwrap();
+    let tasks = Rc::new(RefCell::new(tasks));
 
-    Tasks::with_serde(tasks, templates, &map).unwrap()
+    (templates, tasks)
   }
 
   #[link(name = "c")]

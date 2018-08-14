@@ -327,9 +327,7 @@ mod tests {
 
   #[test]
   fn filter_completions() {
-    let tasks = Rc::new(RefCell::new(make_tasks_with_tags(16)));
-    let tasks_ = tasks.borrow();
-    let templates = tasks_.templates();
+    let (templates, tasks) = make_tasks_with_tags(16);
     let complete_tag = templates.instantiate(templates.complete_tag().id());
     let query = QueryBuilder::new(tasks.clone())
       .and(complete_tag)
@@ -337,7 +335,8 @@ mod tests {
 
     query.for_each(|x| assert!(x.is_complete()));
 
-    let mut iter = query.iter(&tasks_);
+    let tasks = tasks.borrow();
+    let mut iter = query.iter(&tasks);
     assert_eq!(iter.next().unwrap().summary, "2");
     assert_eq!(iter.next().unwrap().summary, "4");
     assert_eq!(iter.next().unwrap().summary, "6");
@@ -351,9 +350,7 @@ mod tests {
 
   #[test]
   fn filter_tag1_and_tag2() {
-    let tasks = Rc::new(RefCell::new(make_tasks_with_tags(20)));
-    let tasks_ = tasks.borrow();
-    let templates = tasks_.templates();
+    let (templates, tasks) = make_tasks_with_tags(20);
     let tag1 = templates.instantiate(templates.iter().nth(1).unwrap().id());
     let tag2 = templates.instantiate(templates.iter().nth(2).unwrap().id());
     let query = QueryBuilder::new(tasks.clone())
@@ -361,7 +358,8 @@ mod tests {
       .and(tag2)
       .build("test");
 
-    let mut iter = query.iter(&tasks_);
+    let tasks = tasks.borrow();
+    let mut iter = query.iter(&tasks);
     assert_eq!(iter.next().unwrap().summary, "11");
     assert_eq!(iter.next().unwrap().summary, "12");
     assert_eq!(iter.next().unwrap().summary, "15");
@@ -373,9 +371,7 @@ mod tests {
 
   #[test]
   fn filter_tag3_or_tag1() {
-    let tasks = Rc::new(RefCell::new(make_tasks_with_tags(20)));
-    let tasks_ = tasks.borrow();
-    let templates = tasks_.templates();
+    let (templates, tasks) = make_tasks_with_tags(20);
     let tag1 = templates.instantiate(templates.iter().nth(1).unwrap().id());
     let tag3 = templates.instantiate(templates.iter().nth(3).unwrap().id());
     let query = QueryBuilder::new(tasks.clone())
@@ -383,7 +379,8 @@ mod tests {
       .or(tag1)
       .build("test");
 
-    let mut iter = query.iter(&tasks_);
+    let tasks = tasks.borrow();
+    let mut iter = query.iter(&tasks);
     assert_eq!(iter.next().unwrap().summary, "5");
     assert_eq!(iter.next().unwrap().summary, "6");
     assert_eq!(iter.next().unwrap().summary, "7");
@@ -401,9 +398,7 @@ mod tests {
 
   #[test]
   fn filter_tag1_and_complete_or_tag4() {
-    let tasks = Rc::new(RefCell::new(make_tasks_with_tags(20)));
-    let tasks_ = tasks.borrow();
-    let templates = tasks_.templates();
+    let (templates, tasks) = make_tasks_with_tags(20);
     let complete_tag = templates.instantiate(templates.complete_tag().id());
     let tag1 = templates.instantiate(templates.iter().nth(1).unwrap().id());
     let tag4 = templates.instantiate(templates.iter().nth(4).unwrap().id());
@@ -413,7 +408,8 @@ mod tests {
       .or(tag4)
       .build("test");
 
-    let mut iter = query.iter(&tasks_);
+    let tasks = tasks.borrow();
+    let mut iter = query.iter(&tasks);
     assert_eq!(iter.next().unwrap().summary, "6");
     assert_eq!(iter.next().unwrap().summary, "8");
     assert_eq!(iter.next().unwrap().summary, "12");
