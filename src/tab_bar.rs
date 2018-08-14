@@ -54,15 +54,13 @@ impl TabBar {
   /// Create a new `TabBar` widget.
   pub fn new(id: Id, cap: &mut Cap, state: &State) -> Self {
     let selection = 0;
-    // TODO: We need a dynamic mechanism to retrieve all Query objects
-    //       we are interested in.
-    let mut queries = vec![
-      ("all".to_string(), state.tasks()),
-    ];
-    let tabs = queries
-      .drain(..)
+    // TODO: We really should not be cloning the queries to use here.
+    let tabs = state
+      .queries()
+      .cloned()
       .enumerate()
-      .map(|(i, (name, query))| {
+      .map(|(i, query)| {
+        let name = query.name().to_string();
         let mut query = Some(query);
         let task_list = cap.add_widget(id, &mut |id, _cap| {
           Box::new(TaskListBox::new(id, query.take().unwrap()))

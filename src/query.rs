@@ -222,6 +222,11 @@ impl Query {
     let result = self.iter(&tasks).next().is_none();
     result
   }
+
+  /// Retrieve the query's name.
+  pub fn name(&self) -> &str {
+    &self.name
+  }
 }
 
 

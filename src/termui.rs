@@ -143,7 +143,7 @@ impl TermUi {
       },
       #[cfg(test)]
       TermUiEvent::GetTasks => {
-        let tasks = self.state.tasks().collect::<Vec<Task>>();
+        let tasks = self.state.tasks();
         let resp = TermUiEvent::GetTasksResp(tasks);
         Some(Event::Custom(Box::new(resp)).into())
       },

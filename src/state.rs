@@ -44,6 +44,7 @@ use tasks::Tasks;
 pub struct State {
   path: PathBuf,
   templates: Rc<Templates>,
+  queries: Vec<Query>,
   tasks: Rc<RefCell<Tasks>>,
 }
 
@@ -63,17 +64,28 @@ impl State {
         // with that.
         if e.kind() == ErrorKind::NotFound {
           let templates = Rc::new(Templates::new());
-          let tasks = Rc::new(RefCell::new(Tasks::new(templates.clone())));
+          let tasks = Tasks::new(templates.clone());
 
-          Ok(State {
-            path: path.into(),
-            templates: templates,
-            tasks: tasks,
-          })
+          Ok(Self::with_default_query(path.into(), templates, tasks))
         } else {
           Err(e)
         }
       },
+    }
+  }
+
+  /// Create a new `State` object that contains a single "all" `Query`.
+  fn with_default_query(path: PathBuf, templates: Rc<Templates>, tasks: Tasks) -> Self {
+    let tasks = Rc::new(RefCell::new(tasks));
+    let queries = vec![
+      QueryBuilder::new(tasks.clone()).build("all"),
+    ];
+
+    State {
+      path: path,
+      templates: templates,
+      queries: queries,
+      tasks: tasks,
     }
   }
 
@@ -83,11 +95,7 @@ impl State {
     let templates = Rc::new(templates);
     let tasks = Tasks::with_serde(state.tasks, templates.clone(), &map)?;
 
-    Ok(State {
-      path: path,
-      templates: templates,
-      tasks: Rc::new(RefCell::new(tasks)),
-    })
+    Ok(Self::with_default_query(path, templates, tasks))
   }
 
   /// Create a new `State` object with the given `Tasks` object, with
@@ -101,11 +109,7 @@ impl State {
     // that have no tags.
     tasks.iter().for_each(|x| assert!(x.tags().next().is_none()));
 
-    State {
-      path: path.into(),
-      templates: Rc::new(Templates::new()),
-      tasks: Rc::new(RefCell::new(tasks)),
-    }
+    Self::with_default_query(path.into(), Rc::new(Templates::new()), tasks)
   }
 
   /// Convert this object into a serializable one.
@@ -130,8 +134,14 @@ impl State {
   }
 
   /// Retrieve the tasks associated with this `State` object.
-  pub fn tasks(&self) -> Query {
-    QueryBuilder::new(self.tasks.clone()).build("all")
+  #[cfg(test)]
+  pub fn tasks(&self) -> Vec<Task> {
+    self.tasks.borrow().iter().cloned().collect()
+  }
+
+  /// Retrieve the queries to use.
+  pub fn queries(&self) -> impl Iterator<Item=&Query> {
+    self.queries.iter()
   }
 
   /// Add a new task to the list of tasks.
