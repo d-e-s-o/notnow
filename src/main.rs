@@ -192,7 +192,6 @@ fn run_prog() -> Result<()> {
   let mut state = Some(State::new(&prog_path, &task_path)?);
   let screen = AlternateScreen::from(stdout().into_raw_mode()?);
   let renderer = TermRenderer::new(screen)?;
-  let mut events = stdin().events();
   let (mut ui, _) = Ui::new(&mut |id, cap| {
     let state = state.take().unwrap();
     // TODO: We should be able to propagate errors properly on the `gui`
@@ -204,17 +203,15 @@ fn run_prog() -> Result<()> {
   // recent data presented.
   ui.render(&renderer);
 
-  loop {
-    if let Some(term_event) = events.next() {
-      // Attempt to convert the event. If we fail the reason could be
-      // that it's not a key event (but a mouse event, for example) or
-      // that the key is not supported. Either way we just ignore the
-      // failure. The UI could not possibly react to it anyway.
-      if let Ok(event) = convert(term_event?) {
-        if let Some(event) = ui.handle(event) {
-          if handle_meta_event(event, &ui, &renderer).is_none() {
-            break
-          }
+  let keys = stdin().keys();
+  for key in keys {
+    // Attempt to convert the key. If we fail the reason could be that
+    // the key is not supported. We just ignore the failure. The UI
+    // could not possibly react to it anyway.
+    if let Ok(key) = convert(key?) {
+      if let Some(event) = ui.handle(Event::KeyDown(key)) {
+        if handle_meta_event(event, &ui, &renderer).is_none() {
+          break
         }
       }
     }
