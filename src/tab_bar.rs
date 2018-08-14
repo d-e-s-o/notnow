@@ -125,25 +125,31 @@ impl TabBar {
   }
 
   /// Change the currently selected tab.
-  fn select(&mut self, change: isize) -> bool {
+  fn select(&mut self, change: isize, cap: &mut Cap) -> bool {
     let count = self.iter().count();
     let old_selection = self.selection;
-    let new_selection = self.selection as isize + change;
-    self.selection = sanitize_selection(new_selection, count);
+    let new_selection = sanitize_selection(self.selection as isize + change, count);
 
-    self.selection != old_selection
+    if new_selection != old_selection {
+      cap.hide(self.selected_tab());
+      self.selection = new_selection;
+      cap.focus(self.selected_tab());
+      true
+    } else {
+      false
+    }
   }
 }
 
 impl Handleable for TabBar {
   /// Check for new input and react to it.
-  fn handle(&mut self, event: Event, _cap: &mut Cap) -> Option<MetaEvent> {
+  fn handle(&mut self, event: Event, cap: &mut Cap) -> Option<MetaEvent> {
     match event {
       Event::KeyDown(key) |
       Event::KeyUp(key) => {
         match key {
-          Key::Char('h') => (None as Option<Event>).maybe_update(self.select(-1)),
-          Key::Char('l') => (None as Option<Event>).maybe_update(self.select(1)),
+          Key::Char('h') => (None as Option<Event>).maybe_update(self.select(-1, cap)),
+          Key::Char('l') => (None as Option<Event>).maybe_update(self.select(1, cap)),
           _ => Some(event.into()),
         }
       },
