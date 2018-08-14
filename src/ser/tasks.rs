@@ -30,7 +30,7 @@ pub struct Task {
 
 
 /// A struct comprising a list of tasks.
-#[derive(Debug, Deserialize, PartialEq, Serialize)]
+#[derive(Debug, Default, Deserialize, PartialEq, Serialize)]
 pub struct Tasks(pub Vec<Task>);
 
 

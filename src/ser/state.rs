@@ -22,9 +22,15 @@ use ser::tasks::Tasks;
 
 
 /// A struct comprising the task state of the program.
-#[derive(Debug, Deserialize, PartialEq, Serialize)]
-pub struct State {
+#[derive(Debug, Default, Deserialize, PartialEq, Serialize)]
+pub struct TaskState {
   #[serde(default)]
   pub templates: Templates,
   pub tasks: Tasks,
+}
+
+
+/// A struct comprising the program state itself.
+#[derive(Debug, Default, Deserialize, PartialEq, Serialize)]
+pub struct ProgState {
 }

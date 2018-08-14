@@ -196,10 +196,11 @@ mod tests {
 
   fn test_ui(task_vec: TaskVec, mut events: Vec<UiEvent>) -> Ui {
     let mut tasks = Some(Tasks::from(task_vec));
-    let file = NamedTempFile::new();
+    let prog_file = NamedTempFile::new();
+    let task_file = NamedTempFile::new();
     let (mut ui, _) = Ui::new(&mut |id, cap| {
       let tasks = tasks.take().unwrap();
-      let state = State::with_tasks_and_path(tasks, file.path());
+      let state = State::with_tasks_and_paths(tasks, prog_file.path(), task_file.path());
       Box::new(TermUi::new(id, cap, state).unwrap())
     });
 

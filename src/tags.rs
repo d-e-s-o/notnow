@@ -180,6 +180,7 @@ pub struct Templates {
 
 impl Templates {
   /// Create an empty `Templates` object.
+  #[cfg(test)]
   pub fn new() -> Self {
     Self::with_serde(Default::default()).0
   }

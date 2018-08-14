@@ -148,14 +148,6 @@ pub struct Tasks {
 }
 
 impl Tasks {
-  /// Create an empty `Tasks` object.
-  pub fn new(templates: Rc<Templates>) -> Self {
-    Tasks {
-      templates: templates,
-      tasks: Default::default(),
-    }
-  }
-
   /// Create a new `Tasks` object from a serializable one.
   pub fn with_serde(mut tasks: SerTasks, templates: Rc<Templates>, map: &TagMap) -> Result<Self> {
     let mut new_tasks = Vec::with_capacity(tasks.0.len());

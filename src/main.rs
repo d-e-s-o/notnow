@@ -127,7 +127,20 @@ type Continue = Option<()>;
 
 
 /// Retrieve the path to the program's configuration file.
-fn config() -> Result<PathBuf> {
+fn prog_config() -> Result<PathBuf> {
+  Ok(
+    env::home_dir()
+      .ok_or_else(|| Error::new(
+        ErrorKind::NotFound, "Unable to determine home directory"
+      ))?
+      .join(".config")
+      .join("notnow")
+      .join("notnow.json"),
+  )
+}
+
+/// Retrieve the path to the program's task configuration file.
+fn task_config() -> Result<PathBuf> {
   Ok(
     env::home_dir()
       .ok_or_else(|| Error::new(
@@ -174,8 +187,9 @@ fn handle_meta_event(event: MetaEvent, ui: &Ui, renderer: &Renderer) -> Continue
 
 /// Run the program.
 fn run_prog() -> Result<()> {
-  let task_path = config()?;
-  let mut state = Some(State::new(&task_path)?);
+  let prog_path = prog_config()?;
+  let task_path = task_config()?;
+  let mut state = Some(State::new(&prog_path, &task_path)?);
   let screen = AlternateScreen::from(stdout().into_raw_mode()?);
   let renderer = TermRenderer::new(screen)?;
   let mut events = stdin().events();
