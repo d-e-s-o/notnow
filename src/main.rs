@@ -102,14 +102,17 @@ use std::io::stdin;
 use std::io::stdout;
 use std::path::PathBuf;
 use std::process::exit;
+use std::sync::mpsc::channel;
+use std::sync::mpsc::Receiver;
+use std::thread;
 
+use termion::event::Key;
 use termion::input::TermRead;
 use termion::raw::IntoRawMode;
 use termion::screen::AlternateScreen;
 
 use gui::Event;
 use gui::MetaEvent;
-use gui::Renderer;
 use gui::Ui;
 use gui::UiEvent;
 
@@ -122,8 +125,10 @@ use termui::TermUiEvent;
 
 /// A type indicating the desire to continue execution.
 ///
-/// If set to `Some` we continue, in case of `None` we stop.
-type Continue = Option<()>;
+/// If set to `Some` we continue, in case of `None` we stop. The boolean
+/// indicates whether or not an `Updated` event was found, indicating
+/// that the UI should be rerendered.
+type Continue = Option<bool>;
 
 
 /// Retrieve the path to the program's configuration file.
@@ -153,36 +158,47 @@ fn task_config() -> Result<PathBuf> {
 }
 
 /// Handle the given `UiEvent`.
-fn handle_ui_event(event: UiEvent, ui: &Ui, renderer: &Renderer) -> Continue {
+fn handle_ui_event(event: UiEvent) -> Continue {
   match event {
     UiEvent::Quit => None,
     UiEvent::Event(Event::Custom(data)) => {
       match data.downcast::<TermUiEvent>() {
         Ok(event) => {
           match *event {
-            TermUiEvent::Updated => {
-              ui.render(renderer);
-              Some(())
-            },
+            TermUiEvent::Updated => Some(true),
             _ => panic!("Unexpected TermUiEvent variant escaped: {:?}", event),
           }
         },
         Err(event) => panic!("Received unexpected custom event: {:?}", event),
       }
     },
-    _ => Some(()),
+    _ => Some(false),
   }
 }
 
 /// Handle the given `MetaEvent`.
-fn handle_meta_event(event: MetaEvent, ui: &Ui, renderer: &Renderer) -> Continue {
+fn handle_meta_event(event: MetaEvent) -> Continue {
   match event {
-    MetaEvent::UiEvent(ui_event) => handle_ui_event(ui_event, ui, renderer),
+    MetaEvent::UiEvent(ui_event) => handle_ui_event(ui_event),
     MetaEvent::Chain(ui_event, meta_event) => {
-      handle_ui_event(ui_event, ui, renderer)?;
-      handle_meta_event(*meta_event, ui, renderer)
+      handle_ui_event(ui_event)?;
+      handle_meta_event(*meta_event)
     },
   }
+}
+
+/// Instantiate a key receiver thread and return a channel to its buffer.
+fn receive_keys() -> Receiver<Result<Key>> {
+  let (send_key, recv_key) = channel();
+
+  thread::spawn(move || {
+    let keys = stdin().keys();
+    for key in keys {
+      send_key.send(key).unwrap();
+    }
+  });
+
+  recv_key
 }
 
 /// Run the program.
@@ -203,17 +219,34 @@ fn run_prog() -> Result<()> {
   // recent data presented.
   ui.render(&renderer);
 
-  let keys = stdin().keys();
-  for key in keys {
-    // Attempt to convert the key. If we fail the reason could be that
-    // the key is not supported. We just ignore the failure. The UI
-    // could not possibly react to it anyway.
-    if let Ok(key) = convert(key?) {
-      if let Some(event) = ui.handle(Event::KeyDown(key)) {
-        if handle_meta_event(event, &ui, &renderer).is_none() {
-          break
+  let recv_key = receive_keys();
+
+  'handler: loop {
+    let mut render = false;
+    // We want to read keys in batches in order to avoid unnecessary
+    // render invocations, for example when a user pastes text (where
+    // each key would result in a UI update). To make that happen we
+    // queue them up in a background thread and then drain them here. We
+    // use a single recv call to block once for an event and then use an
+    // iterator to read and handle every key event queued up to this
+    // point.
+    let key = recv_key.recv().unwrap();
+    for key in Some(key).into_iter().chain(recv_key.try_iter()) {
+      // Attempt to convert the key. If we fail the reason could be that
+      // the key is not supported. We just ignore the failure. The UI
+      // could not possibly react to it anyway.
+      if let Ok(key) = convert(key?) {
+        if let Some(event) = ui.handle(Event::KeyDown(key)) {
+          match handle_meta_event(event) {
+            Some(update) => render = update || render,
+            None => break 'handler,
+          }
         }
       }
+    }
+
+    if render {
+      ui.render(&renderer);
     }
   }
   Ok(())
