@@ -237,8 +237,8 @@ mod tests {
   use ser::tags::Templates as SerTemplates;
   use ser::tasks::Tasks as SerTasks;
   use tags::Templates;
-  use tasks::tests::make_tasks;
-  use tasks::tests::make_tasks_with_tags;
+  use test::make_tasks;
+  use test::make_tasks_with_tags;
 
 
   /// Create a query with the given number of tasks in it.

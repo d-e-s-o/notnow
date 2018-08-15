@@ -182,8 +182,8 @@ pub mod tests {
   use ser::tags::Templates as SerTemplates;
   use ser::tasks::Task as SerTask;
   use ser::tasks::Tasks as SerTasks;
-  use tasks::tests::make_tasks;
-  use tasks::tests::NamedTempFile;
+  use test::make_tasks;
+  use test::NamedTempFile;
 
 
   /// Create a state object based off of two temporary configuration files.

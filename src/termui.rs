@@ -192,8 +192,8 @@ mod tests {
   use ser::state::TaskState as SerTaskState;
   use ser::tasks::Task as SerTask;
   use ser::tasks::Tasks as SerTasks;
-  use tasks::tests::make_tasks;
-  use tasks::tests::NamedTempFile;
+  use test::make_tasks;
+  use test::NamedTempFile;
 
 
   /// Instantiate a `TermUi` object and issue events to it.

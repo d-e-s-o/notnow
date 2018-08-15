@@ -75,6 +75,8 @@
 extern crate gui;
 #[macro_use]
 extern crate gui_derive;
+#[cfg(test)]
+extern crate libc;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
@@ -93,6 +95,9 @@ mod task_list_box;
 mod tasks;
 mod term_renderer;
 mod termui;
+#[cfg(test)]
+#[allow(unsafe_code)]
+mod test;
 
 use std::env;
 use std::io::Error;
