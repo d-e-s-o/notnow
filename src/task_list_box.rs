@@ -89,7 +89,19 @@ impl TaskListBox {
           let event = Event::Custom(Box::new(event));
           Some(event).update()
         } else if !text.is_empty() {
-          Some(Event::Custom(Box::new(TermUiEvent::AddTask(text)))).update()
+          let tags = if !self.query.is_empty() {
+            let mut task = self.selected_task();
+            if task.is_complete() {
+              task.toggle_complete()
+            }
+            let tags = task.tags().cloned().collect();
+            tags
+          } else {
+            Default::default()
+          };
+
+          let event = TermUiEvent::AddTask(text, tags);
+          Some(Event::Custom(Box::new(event))).update()
         } else {
           None
         }
@@ -138,6 +150,16 @@ impl TaskListBox {
     let new_selection = self.selection as isize + change;
     self.set_select(new_selection)
   }
+
+  /// Retrieve a copy of the selected task.
+  ///
+  /// This method must only be called if tasks are available.
+  fn selected_task(&self) -> Task {
+    debug_assert!(!self.query().is_empty());
+    // We maintain the invariant that the selection is always valid,
+    // which means that we should always expect a task to be found.
+    self.query().nth(self.selection).unwrap()
+  }
 }
 
 impl Handleable for TaskListBox {
@@ -148,7 +170,7 @@ impl Handleable for TaskListBox {
       Event::KeyUp(key) => {
         match key {
           Key::Char(' ') => {
-            let mut task = self.query().nth(self.selection).unwrap();
+            let mut task = self.selected_task();
             task.toggle_complete();
             let event = TermUiEvent::UpdateTask(task);
             let event = Event::Custom(Box::new(event));
@@ -161,7 +183,7 @@ impl Handleable for TaskListBox {
           },
           Key::Char('d') => {
             if !self.query().is_empty() {
-              let id = self.query().nth(self.selection).unwrap().id();
+              let id = self.selected_task().id();
               let remove = UiEvent::Custom(self.id, Box::new(TermUiEvent::RemoveTask(id)));
               // The task will get removed so move the selection up by
               // one.
@@ -174,7 +196,7 @@ impl Handleable for TaskListBox {
             }
           },
           Key::Char('e') => {
-            let task = self.query().nth(self.selection).unwrap();
+            let task = self.selected_task();
             let string = task.summary.clone();
             let idx = string.len();
             let event = TermUiEvent::SetInOut(InOut::Input(string, idx));

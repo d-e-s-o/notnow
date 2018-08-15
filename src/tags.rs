@@ -135,6 +135,11 @@ impl Tag {
     }
   }
 
+  /// Retrieve the tag's ID.
+  pub fn id(&self) -> Id {
+    self.template.id()
+  }
+
   /// Retrieve the tag's name.
   #[cfg(test)]
   pub fn name(&self) -> &str {

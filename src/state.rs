@@ -36,6 +36,7 @@ use query::Query;
 use query::QueryBuilder;
 use ser::state::ProgState as SerProgState;
 use ser::state::TaskState as SerTaskState;
+use tags::Tag;
 use tags::Templates;
 use tasks::Id as TaskId;
 use tasks::Task;
@@ -156,8 +157,8 @@ impl State {
   }
 
   /// Add a new task to the list of tasks.
-  pub fn add_task(&self, summary: impl Into<String>) -> TaskId {
-    self.tasks.borrow_mut().add(summary)
+  pub fn add_task(&self, summary: String, tags: Vec<Tag>) -> TaskId {
+    self.tasks.borrow_mut().add(summary, tags)
   }
 
   /// Remove the task with the given `TaskId`.

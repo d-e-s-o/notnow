@@ -61,11 +61,11 @@ impl Task {
   }
 
   /// Create a task using the given summary.
-  fn with_summary(summary: impl Into<String>, templates: Rc<Templates>) -> Self {
+  fn with_summary_and_tags(summary: String, mut tags: Vec<Tag>, templates: Rc<Templates>) -> Self {
     Task {
       id: Id::new(),
-      summary: summary.into(),
-      tags: Default::default(),
+      summary: summary,
+      tags: tags.drain(..).map(|x| (x.id(), x)).collect(),
       templates: templates,
     }
   }
@@ -186,8 +186,8 @@ impl Tasks {
   }
 
   /// Add a new task.
-  pub fn add(&mut self, summary: impl Into<String>) -> Id {
-    let task = Task::with_summary(summary, self.templates.clone());
+  pub fn add(&mut self, summary: String, tags: Vec<Tag>) -> Id {
+    let task = Task::with_summary_and_tags(summary, tags, self.templates.clone());
     let id = task.id;
     self.tasks.push(task);
     id
@@ -229,7 +229,8 @@ pub mod tests {
   #[test]
   fn add_task() {
     let mut tasks = Tasks::with_serde_tasks(make_tasks(3)).unwrap();
-    tasks.add("4");
+    let tags = Default::default();
+    tasks.add("4".to_string(), tags);
 
     assert_eq!(tasks.to_serde().0, make_tasks(4));
   }

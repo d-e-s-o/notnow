@@ -32,6 +32,7 @@ use in_out::InOut;
 use in_out::InOutArea;
 use state::State;
 use tab_bar::TabBar;
+use tags::Tag;
 use tasks::Id as TaskId;
 use tasks::Task;
 
@@ -40,7 +41,7 @@ use tasks::Task;
 #[derive(Debug)]
 pub enum TermUiEvent {
   /// Add a task with the given summary.
-  AddTask(String),
+  AddTask(String, Vec<Tag>),
   /// The response to the `AddTask` event.
   AddTaskResp(TaskId),
   /// Remove the task with the given ID.
@@ -121,8 +122,8 @@ impl TermUi {
   /// Handle a custom event.
   fn handle_custom_event(&mut self, event: Box<TermUiEvent>) -> Option<MetaEvent> {
     match *event {
-      TermUiEvent::AddTask(s) => {
-        let id = self.state.add_task(s);
+      TermUiEvent::AddTask(ref s, ref tags) => {
+        let id = self.state.add_task(s.clone(), tags.clone());
         // We have no knowledge of which `TaskListBox` widget is
         // currently active. So send the response to the `TabBar` to
         // forward it accordingly.
