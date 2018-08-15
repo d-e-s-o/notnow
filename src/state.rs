@@ -61,13 +61,16 @@ impl State {
     let prog_state = Self::load_state::<SerProgState>(prog_path.as_ref())?;
     let task_state = Self::load_state::<SerTaskState>(task_path.as_ref())?;
 
-    Self::with_serde(prog_state, prog_path.into(), task_state, task_path.into())
+    Self::with_serde(prog_state, prog_path, task_state, task_path)
   }
 
   /// Create a new `State` object from a serializable one.
   #[allow(unused)]
-  fn with_serde(mut prog_state: SerProgState, prog_path: PathBuf,
-                    task_state: SerTaskState, task_path: PathBuf) -> Result<Self> {
+  pub fn with_serde<P>(mut prog_state: SerProgState, prog_path: P,
+                           task_state: SerTaskState, task_path: P) -> Result<Self>
+  where
+    P: Into<PathBuf>,
+  {
     let (templates, map) = Templates::with_serde(task_state.templates);
     let templates = Rc::new(templates);
     let tasks = Tasks::with_serde(task_state.tasks, templates.clone(), &map)?;
@@ -77,8 +80,8 @@ impl State {
     ];
 
     Ok(State {
-      prog_path: prog_path,
-      task_path: task_path,
+      prog_path: prog_path.into(),
+      task_path: task_path.into(),
       templates: templates,
       queries: queries,
       tasks: tasks,
@@ -88,7 +91,7 @@ impl State {
   /// Create a new `State` object with the given `Tasks` object, with
   /// all future `save` operations happening into the provided path.
   #[cfg(test)]
-  pub fn with_tasks_and_paths<P>(tasks: Tasks, prog_path: P, task_path: P) -> Self
+  fn with_tasks_and_paths<P>(tasks: Tasks, prog_path: P, task_path: P) -> Self
   where
     P: Into<PathBuf> + AsRef<Path>,
   {
@@ -205,28 +208,28 @@ pub mod tests {
   use ser::tags::Templates as SerTemplates;
   use ser::tasks::Task as SerTask;
   use ser::tasks::Tasks as SerTasks;
+  use tasks::tests::make_tasks;
   use tasks::tests::NamedTempFile;
-  use tasks::tests::TaskVec;
 
 
   #[test]
   fn save_and_load_state() {
     let prog_file = NamedTempFile::new();
     let task_file = NamedTempFile::new();
-    let task_vec = TaskVec(vec![
-      Task::new("this is the first TODO"),
-      Task::new("here goes the second one"),
-      Task::new("and now for the final task"),
-    ]);
     let task_path = task_file.path();
     let prog_path = prog_file.path();
-    let tasks = Tasks::from(task_vec.clone());
+    let tasks = Tasks::with_serde_tasks(make_tasks(3)).unwrap();
     let state = State::with_tasks_and_paths(tasks, prog_path, task_path);
     state.save().unwrap();
 
     let new_state = State::new(prog_file.path(), task_file.path()).unwrap();
-    let new_task_vec = new_state.tasks.borrow().iter().cloned().collect::<Vec<_>>();
-    assert_eq!(TaskVec(new_task_vec), task_vec);
+    let new_task_vec = new_state
+      .tasks
+      .borrow()
+      .iter()
+      .map(|x| x.to_serde())
+      .collect::<Vec<_>>();
+    assert_eq!(new_task_vec, make_tasks(3));
   }
 
   #[test]
@@ -234,10 +237,10 @@ pub mod tests {
     let (prog_path, task_path) = {
       let prog_file = NamedTempFile::new();
       let task_file = NamedTempFile::new();
-      let tasks = vec![Task::new("make this not empty")];
       let prog_path = prog_file.path();
       let task_path = task_file.path();
-      let state = State::with_tasks_and_paths(Tasks::from(tasks), prog_path, task_path);
+      let tasks = Tasks::with_serde_tasks(make_tasks(1)).unwrap();
+      let state = State::with_tasks_and_paths(tasks, prog_path, task_path);
 
       state.save().unwrap();
       (prog_file.path().clone(), task_file.path().clone())
@@ -246,14 +249,19 @@ pub mod tests {
     // The files are removed by now, so we can test that `State` handles
     // such missing files gracefully.
     let new_state = State::new(prog_path, task_path).unwrap();
-    let new_task_vec = new_state.tasks.borrow().iter().cloned().collect::<Vec<_>>();
-    assert_eq!(TaskVec(new_task_vec), TaskVec(Vec::new()));
+    let new_task_vec = new_state
+      .tasks
+      .borrow()
+      .iter()
+      .map(|x| x.to_serde())
+      .collect::<Vec<_>>();
+    assert_eq!(new_task_vec, make_tasks(0));
   }
 
   #[test]
   fn load_state_with_invalid_tag() {
     let prog_state = Default::default();
-    let prog_path = Default::default();
+    let prog_path = PathBuf::default();
     let templates = SerTemplates(Default::default());
     let tasks = SerTasks(vec![
       SerTask {
@@ -269,7 +277,7 @@ pub mod tests {
       templates: templates,
       tasks: tasks,
     };
-    let task_path = Default::default();
+    let task_path = PathBuf::default();
 
     let err = State::with_serde(prog_state, prog_path, task_state, task_path).unwrap_err();
     assert_eq!(err.to_string(), "Encountered invalid tag Id 42")
@@ -278,7 +286,7 @@ pub mod tests {
   #[test]
   fn load_state() {
     let prog_state = Default::default();
-    let prog_path = Default::default();
+    let prog_path = PathBuf::default();
 
     let id_tag1 = SerId::new(29);
     let id_tag2 = SerId::new(1337 + 42 - 1);
@@ -331,7 +339,7 @@ pub mod tests {
       templates: templates,
       tasks: tasks,
     };
-    let task_path = Default::default();
+    let task_path = PathBuf::default();
 
     let state = State::with_serde(prog_state, prog_path, task_state, task_path).unwrap();
     let tasks = state.tasks.borrow();

@@ -237,15 +237,14 @@ mod tests {
   use ser::tags::Templates as SerTemplates;
   use ser::tasks::Tasks as SerTasks;
   use tags::Templates;
-  use tasks::tests::make_tasks_vec;
+  use tasks::tests::make_tasks;
   use tasks::tests::make_tasks_with_tags;
-  use tasks::tests::TaskVec;
 
 
   /// Create a query with the given number of tasks in it.
   fn make_query(count: usize) -> Query {
-    let tasks = Tasks::from(make_tasks_vec(count));
-    let tasks = Rc::new(RefCell::new(tasks));
+    let tasks = Tasks::with_serde_tasks(make_tasks(count));
+    let tasks = Rc::new(RefCell::new(tasks.unwrap()));
     let query = QueryBuilder::new(tasks).build("test");
     query
   }
@@ -270,7 +269,7 @@ mod tests {
   #[test]
   fn nth() {
     let query = make_query(7);
-    let expected = make_tasks_vec(7).iter().cloned().nth(3);
+    let expected = make_tasks(7).iter().cloned().nth(3);
     assert_eq!(query.nth(3).as_ref().unwrap().summary, expected.unwrap().summary);
   }
 
@@ -322,8 +321,9 @@ mod tests {
 
   #[test]
   fn collect() {
-    let result = make_query(3).collect::<TaskVec>();
-    assert_eq!(result, make_tasks_vec(3));
+    let tasks = make_query(3).collect::<Vec<_>>();
+    let tasks = tasks.iter().map(|x| x.to_serde()).collect::<Vec<_>>();
+    assert_eq!(tasks, make_tasks(3));
   }
 
   #[test]

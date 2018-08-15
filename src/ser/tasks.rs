@@ -21,7 +21,7 @@ use ser::tags::Tag;
 
 
 /// A task that can be serialized and deserialized.
-#[derive(Debug, Deserialize, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Task {
   pub summary: String,
   #[serde(default, skip_serializing_if = "Vec::is_empty")]

@@ -162,6 +162,19 @@ impl Tasks {
     })
   }
 
+  /// Create a new `Tasks` object from a serializable one without any tags.
+  #[cfg(test)]
+  pub fn with_serde_tasks(tasks: Vec<SerTask>) -> Result<Self> {
+    // Test code using this constructor is assumed to only have tasks
+    // that have no tags.
+    tasks.iter().for_each(|x| assert!(x.tags.is_empty()));
+
+    let templates = Rc::new(Templates::new());
+    let map = Default::default();
+
+    Self::with_serde(SerTasks(tasks), templates, &map)
+  }
+
   /// Convert this object into a serializable one.
   pub fn to_serde(&self) -> SerTasks {
     SerTasks(self.tasks.iter().map(|x| x.to_serde()).collect())
@@ -201,21 +214,6 @@ impl Tasks {
   }
 }
 
-#[cfg(test)]
-impl From<Vec<Task>> for Tasks {
-  /// Create a 'Tasks' object from a vector of tasks.
-  fn from(tasks: Vec<Task>) -> Self {
-    // Test code using this constructor is assumed to only have tasks
-    // that have no tags.
-    tasks.iter().for_each(|x| assert!(x.tags.is_empty()));
-
-    Tasks {
-      templates: Rc::new(Templates::new()),
-      tasks: tasks,
-    }
-  }
-}
-
 
 // Our tests can live with having unsafe code in them.
 #[allow(unsafe_code)]
@@ -227,9 +225,6 @@ pub mod tests {
 
   use std::ffi::CString;
   use std::fs::remove_file;
-  use std::iter::FromIterator;
-  use std::ops::Deref;
-  use std::ops::DerefMut;
   use std::path::PathBuf;
   use std::rc::Rc;
 
@@ -240,69 +235,19 @@ pub mod tests {
   use ser::tags::Tag as SerTag;
   use ser::tags::Template as SerTemplate;
   use ser::tags::Templates as SerTemplates;
+  use ser::tasks::Task as SerTask;
   use tags::COMPLETE_TAG;
 
 
-  #[derive(Debug)]
-  pub struct TaskVec(pub Vec<Task>);
-
-  impl Deref for TaskVec {
-    type Target = Vec<Task>;
-
-    fn deref(&self) -> &Self::Target {
-      &self.0
-    }
-  }
-
-  impl DerefMut for TaskVec {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-      &mut self.0
-    }
-  }
-
-  impl From<Tasks> for TaskVec {
-    fn from(tasks: Tasks) -> Self {
-      TaskVec::from_iter(tasks.iter().cloned())
-    }
-  }
-
-  impl FromIterator<Task> for TaskVec {
-    fn from_iter<I>(iter: I) -> Self
-    where
-      I: IntoIterator<Item = Task>,
-    {
-      TaskVec(Vec::<Task>::from_iter(iter))
-    }
-  }
-
-  impl PartialEq for TaskVec {
-    fn eq(&self, other: &TaskVec) -> bool {
-      if self.len() != other.len() {
-        false
-      } else {
-        for (x, y) in self.iter().zip(other.iter()) {
-          if x.summary != y.summary {
-            return false
-          }
+  pub fn make_tasks(count: usize) -> Vec<SerTask> {
+    (0..count)
+      .map(|i| {
+        SerTask {
+          summary: format!("{}", i + 1),
+          tags: Default::default(),
         }
-        true
-      }
-    }
-  }
-
-  impl From<TaskVec> for Tasks {
-    fn from(tasks: TaskVec) -> Self {
-      Self::from(tasks.0)
-    }
-  }
-
-
-  pub fn make_tasks_vec(count: usize) -> TaskVec {
-    TaskVec(
-      (0..count)
-        .map(|i| Task::new(format!("{}", i + 1)))
-        .collect(),
-    )
+      })
+      .collect()
   }
 
   /// Create a set of tasks that have associated tags.
@@ -428,38 +373,35 @@ pub mod tests {
 
   #[test]
   fn add_task() {
-    let mut tasks = Tasks::from(make_tasks_vec(3));
+    let mut tasks = Tasks::with_serde_tasks(make_tasks(3)).unwrap();
     tasks.add("4");
 
-    assert_eq!(TaskVec::from(tasks), make_tasks_vec(4));
+    assert_eq!(tasks.to_serde().0, make_tasks(4));
   }
 
   #[test]
   fn remove_task() {
-    let mut tasks = Tasks::from(make_tasks_vec(3));
+    let mut tasks = Tasks::with_serde_tasks(make_tasks(3)).unwrap();
     let id = tasks.iter().nth(1).unwrap().id();
     tasks.remove(id);
 
-    let mut expected = make_tasks_vec(3);
+    let mut expected = make_tasks(3);
     expected.remove(1);
 
-    assert_eq!(TaskVec::from(tasks), expected);
+    assert_eq!(tasks.to_serde().0, expected);
   }
 
   #[test]
   fn update_task() {
-    let mut tasks = Tasks::from(make_tasks_vec(3));
+    let mut tasks = Tasks::with_serde_tasks(make_tasks(3)).unwrap();
     let mut task = tasks.iter().nth(1).unwrap().clone();
     task.summary = "amended".to_string();
     tasks.update(task);
 
-    let expected = TaskVec(vec![
-      Task::new("1".to_string()),
-      Task::new("amended".to_string()),
-      Task::new("3".to_string()),
-    ]);
+    let mut expected = make_tasks(3);
+    expected[1].summary = "amended".to_string();
 
-    assert_eq!(TaskVec::from(tasks), expected);
+    assert_eq!(tasks.to_serde().0, expected);
   }
 
   #[test]
@@ -481,18 +423,13 @@ pub mod tests {
 
   #[test]
   fn serialize_deserialize_tasks() {
-    let task_vec = TaskVec(vec![
-      Task::new("this is the first TODO"),
-      Task::new("here goes the second one"),
-      Task::new("and now for the final task"),
-    ]);
     let (templates, map) = Templates::with_serde(SerTemplates(Default::default()));
     let templates = Rc::new(templates);
-    let tasks = Tasks::from(task_vec.clone());
+    let tasks = Tasks::with_serde_tasks(make_tasks(3)).unwrap();
     let serialized = to_json(&tasks.to_serde()).unwrap();
     let deserialized = from_json::<SerTasks>(&serialized).unwrap();
     let tasks = Tasks::with_serde(deserialized, templates, &map).unwrap();
 
-    assert_eq!(TaskVec::from(tasks), task_vec);
+    assert_eq!(tasks.to_serde().0, make_tasks(3));
   }
 }

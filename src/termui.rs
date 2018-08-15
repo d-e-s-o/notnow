@@ -188,20 +188,25 @@ mod tests {
   use gui::Ui;
 
   use event::tests::CustomEvent;
-  use tasks::Tasks;
-  use tasks::tests::make_tasks_vec;
+  use ser::state::ProgState as SerProgState;
+  use ser::state::TaskState as SerTaskState;
+  use ser::tasks::Task as SerTask;
+  use ser::tasks::Tasks as SerTasks;
+  use tasks::tests::make_tasks;
   use tasks::tests::NamedTempFile;
-  use tasks::tests::TaskVec;
 
 
-  fn test_ui(task_vec: TaskVec, mut events: Vec<UiEvent>) -> Ui {
-    let mut tasks = Some(Tasks::from(task_vec));
+  /// Instantiate a `TermUi` object and issue events to it.
+  fn test_ui(prog_state: SerProgState, task_state: SerTaskState, mut events: Vec<UiEvent>) -> Ui {
+    let mut prog_state = Some(prog_state);
+    let mut task_state = Some(task_state);
     let prog_file = NamedTempFile::new();
     let task_file = NamedTempFile::new();
     let (mut ui, _) = Ui::new(&mut |id, cap| {
-      let tasks = tasks.take().unwrap();
-      let state = State::with_tasks_and_paths(tasks, prog_file.path(), task_file.path());
-      Box::new(TermUi::new(id, cap, state).unwrap())
+      let prog_state = prog_state.take().unwrap();
+      let task_state = task_state.take().unwrap();
+      let state = State::with_serde(prog_state, prog_file.path(), task_state, task_file.path());
+      Box::new(TermUi::new(id, cap, state.unwrap()).unwrap())
     });
 
     for event in events.drain(..) {
@@ -214,58 +219,79 @@ mod tests {
     ui
   }
 
-  /// Test function for the TermUi.
+  /// Instantiate a `TermUi` object with the given tasks and issue events to it.
+  fn test_ui_with_tasks(tasks: Vec<SerTask>, events: Vec<UiEvent>) -> Ui {
+    tasks.iter().for_each(|x| assert!(x.tags.is_empty()));
+
+    let prog_state = Default::default();
+    let task_state = SerTaskState {
+      templates: Default::default(),
+      tasks: SerTasks(tasks),
+    };
+    test_ui(prog_state, task_state, events)
+  }
+
+  /// Instantiate a `TermUi` object with the given tasks and issue events to it.
   ///
-  /// Instantiate the TermUi in a mock environment associating it with
-  /// the given task list, supply the given input, and retrieve the
-  /// resulting set of tasks.
-  fn test(task_vec: TaskVec, events: Vec<UiEvent>) -> TaskVec {
-    let mut ui = test_ui(task_vec, events);
+  /// This function retrieves and returns the `Task` objects as they
+  /// were in the `TermUi`.
+  fn test_for_tasks(tasks: Vec<SerTask>, events: Vec<UiEvent>) -> Vec<Task> {
+    let mut ui = test_ui_with_tasks(tasks, events);
     let event = Event::Custom(Box::new(TermUiEvent::GetTasks));
     let resp = ui.handle(event).unwrap().unwrap_custom::<TermUiEvent>();
-    let tasks = if let TermUiEvent::GetTasksResp(tasks) = resp {
+
+    if let TermUiEvent::GetTasksResp(tasks) = resp {
       tasks
     } else {
       panic!("Unexpected response: {:?}", resp)
-    };
-    TaskVec(tasks)
+    }
+  }
+
+  /// Instantiate a `TermUi` object with the given tasks and issue events to it.
+  ///
+  /// This function retrieves and returns the serializable version of
+  /// the tasks in the `TermUi`, simplifying comparisons and similar
+  /// tasks.
+  fn test_for_ser_tasks(tasks: Vec<SerTask>, events: Vec<UiEvent>) -> Vec<SerTask> {
+    let tasks = test_for_tasks(tasks, events);
+    tasks.iter().map(|x| x.to_serde()).collect()
   }
 
   #[test]
   fn exit_on_quit() {
-    let tasks = make_tasks_vec(0);
+    let tasks = make_tasks(0);
     let events = vec![
       Event::KeyDown(Key::Char('q')).into(),
     ];
 
-    assert_eq!(test(tasks, events), make_tasks_vec(0))
+    assert_eq!(test_for_ser_tasks(tasks, events), make_tasks(0))
   }
 
   #[test]
   fn remove_no_task() {
-    let tasks = make_tasks_vec(0);
+    let tasks = make_tasks(0);
     let events = vec![
       Event::KeyDown(Key::Char('d')).into(),
       Event::KeyDown(Key::Char('q')).into(),
     ];
 
-    assert_eq!(test(tasks, events), make_tasks_vec(0))
+    assert_eq!(test_for_ser_tasks(tasks, events), make_tasks(0))
   }
 
   #[test]
   fn remove_only_task() {
-    let tasks = make_tasks_vec(1);
+    let tasks = make_tasks(1);
     let events = vec![
       Event::KeyDown(Key::Char('d')).into(),
       Event::KeyDown(Key::Char('q')).into(),
     ];
 
-    assert_eq!(test(tasks, events), make_tasks_vec(0))
+    assert_eq!(test_for_ser_tasks(tasks, events), make_tasks(0))
   }
 
   #[test]
   fn remove_task_after_down_select() {
-    let tasks = make_tasks_vec(2);
+    let tasks = make_tasks(2);
     let events = vec![
       Event::KeyDown(Key::Char('j')).into(),
       Event::KeyDown(Key::Char('j')).into(),
@@ -276,13 +302,12 @@ mod tests {
       Event::KeyDown(Key::Char('q')).into(),
     ];
 
-    assert_eq!(test(tasks, events), make_tasks_vec(1))
+    assert_eq!(test_for_ser_tasks(tasks, events), make_tasks(1))
   }
 
   #[test]
   fn remove_task_after_up_select() {
-    let tasks = make_tasks_vec(3);
-    let mut expected = make_tasks_vec(3);
+    let tasks = make_tasks(3);
     let events = vec![
       Event::KeyDown(Key::Char('j')).into(),
       Event::KeyDown(Key::Char('j')).into(),
@@ -291,14 +316,15 @@ mod tests {
       Event::KeyDown(Key::Char('q')).into(),
     ];
 
+    let mut expected = make_tasks(3);
     expected.remove(1);
-    assert_eq!(test(tasks, events), expected)
+
+    assert_eq!(test_for_ser_tasks(tasks, events), expected)
   }
 
   #[test]
   fn remove_last_task() {
-    let tasks = make_tasks_vec(3);
-    let mut expected = make_tasks_vec(3);
+    let tasks = make_tasks(3);
     let events = vec![
       Event::KeyDown(Key::Char('j')).into(),
       Event::KeyDown(Key::Char('j')).into(),
@@ -307,15 +333,16 @@ mod tests {
       Event::KeyDown(Key::Char('d')).into(),
     ];
 
+    let mut expected = make_tasks(3);
     expected.remove(0);
     expected.remove(1);
 
-    assert_eq!(test(tasks, events), expected)
+    assert_eq!(test_for_ser_tasks(tasks, events), expected)
   }
 
   #[test]
   fn add_task() {
-    let tasks = make_tasks_vec(0);
+    let tasks = make_tasks(0);
     let events = vec![
       Event::KeyDown(Key::Char('a')).into(),
       Event::KeyDown(Key::Char('f')).into(),
@@ -327,16 +354,16 @@ mod tests {
       Event::KeyDown(Key::Return).into(),
       Event::KeyDown(Key::Char('q')).into(),
     ];
-    let expected = TaskVec(vec![
-      Task::new("foobar")
-    ]);
 
-    assert_eq!(test(tasks, events), expected)
+    let mut expected = make_tasks(1);
+    expected[0].summary = "foobar".to_string();
+
+    assert_eq!(test_for_ser_tasks(tasks, events), expected)
   }
 
   #[test]
   fn add_and_remove_tasks() {
-    let tasks = make_tasks_vec(0);
+    let tasks = make_tasks(0);
     let events = vec![
       Event::KeyDown(Key::Char('a')).into(),
       Event::KeyDown(Key::Char('f')).into(),
@@ -352,14 +379,14 @@ mod tests {
       Event::KeyDown(Key::Char('d')).into(),
       Event::KeyDown(Key::Char('q')).into(),
     ];
-    let expected = TaskVec(Vec::new());
+    let expected = make_tasks(0);
 
-    assert_eq!(test(tasks, events), expected)
+    assert_eq!(test_for_ser_tasks(tasks, events), expected)
   }
 
   #[test]
   fn add_task_cancel() {
-    let tasks = make_tasks_vec(0);
+    let tasks = make_tasks(0);
     let events = vec![
       Event::KeyDown(Key::Char('a')).into(),
       Event::KeyDown(Key::Char('f')).into(),
@@ -371,14 +398,14 @@ mod tests {
       Event::KeyDown(Key::Esc).into(),
       Event::KeyDown(Key::Char('q')).into(),
     ];
-    let expected = make_tasks_vec(0);
+    let expected = make_tasks(0);
 
-    assert_eq!(test(tasks, events), expected)
+    assert_eq!(test_for_ser_tasks(tasks, events), expected)
   }
 
   #[test]
   fn add_task_with_character_removal() {
-    let tasks = make_tasks_vec(1);
+    let tasks = make_tasks(1);
     let events = vec![
       Event::KeyDown(Key::Char('a')).into(),
       Event::KeyDown(Key::Char('f')).into(),
@@ -393,15 +420,15 @@ mod tests {
       Event::KeyDown(Key::Return).into(),
       Event::KeyDown(Key::Char('q')).into(),
     ];
-    let mut expected = make_tasks_vec(1);
-    expected.push(Task::new("baz"));
+    let mut expected = make_tasks(2);
+    expected[1].summary = "baz".to_string();
 
-    assert_eq!(test(tasks, events), expected)
+    assert_eq!(test_for_ser_tasks(tasks, events), expected)
   }
 
   #[test]
   fn add_task_with_cursor_movement() {
-    let tasks = make_tasks_vec(1);
+    let tasks = make_tasks(1);
     let events = vec![
       Event::KeyDown(Key::Char('a')).into(),
       Event::KeyDown(Key::Delete).into(),
@@ -420,27 +447,28 @@ mod tests {
       Event::KeyDown(Key::Return).into(),
       Event::KeyDown(Key::Char('q')).into(),
     ];
-    let mut expected = make_tasks_vec(1);
-    expected.push(Task::new("test42"));
-    assert_eq!(test(tasks, events), expected)
+    let mut expected = make_tasks(2);
+    expected[1].summary = "test42".to_string();
+
+    assert_eq!(test_for_ser_tasks(tasks, events), expected)
   }
 
   #[test]
   fn add_empty_task() {
-    let tasks = make_tasks_vec(1);
+    let tasks = make_tasks(1);
     let events = vec![
       Event::KeyDown(Key::Char('a')).into(),
       Event::KeyDown(Key::Return).into(),
       Event::KeyDown(Key::Char('q')).into(),
     ];
 
-    let expected = make_tasks_vec(1);
-    assert_eq!(test(tasks, events), expected)
+    let expected = make_tasks(1);
+    assert_eq!(test_for_ser_tasks(tasks, events), expected)
   }
 
   #[test]
   fn complete_task() {
-    let tasks = make_tasks_vec(3);
+    let tasks = make_tasks(3);
     let events = vec![
       Event::KeyDown(Key::Char('j')).into(),
       Event::KeyDown(Key::Char(' ')).into(),
@@ -450,7 +478,7 @@ mod tests {
       Event::KeyDown(Key::Char('q')).into(),
     ];
 
-    let tasks = test(tasks, events);
+    let tasks = test_for_tasks(tasks, events);
     assert!(!tasks[0].is_complete());
     assert!(tasks[1].is_complete());
     assert!(!tasks[2].is_complete());
@@ -458,7 +486,7 @@ mod tests {
 
   #[test]
   fn edit_task() {
-    let tasks = make_tasks_vec(3);
+    let tasks = make_tasks(3);
     let events = vec![
       Event::KeyDown(Key::Char('j')).into(),
       Event::KeyDown(Key::Char('e')).into(),
@@ -472,13 +500,15 @@ mod tests {
       Event::KeyDown(Key::Char('q')).into(),
     ];
 
-    let tasks = test(tasks, events);
-    assert_eq!(tasks[1].summary, "amend".to_string());
+    let mut expected = make_tasks(3);
+    expected[1].summary = "amend".to_string();
+
+    assert_eq!(test_for_ser_tasks(tasks, events), expected);
   }
 
   #[test]
   fn edit_task_with_cursor_movement() {
-    let tasks = make_tasks_vec(3);
+    let tasks = make_tasks(3);
     let events = vec![
       Event::KeyDown(Key::Char('j')).into(),
       Event::KeyDown(Key::Char('j')).into(),
@@ -501,13 +531,15 @@ mod tests {
       Event::KeyDown(Key::Char('q')).into(),
     ];
 
-    let tasks = test(tasks, events);
-    assert_eq!(tasks[2].summary, "test".to_string());
+    let mut expected = make_tasks(3);
+    expected[2].summary = "test".to_string();
+
+    assert_eq!(test_for_ser_tasks(tasks, events), expected);
   }
 
   /// Test function for the `TermUi` that returns the state of the `InOutArea` widget.
-  fn test_state(task_vec: TaskVec, events: Vec<UiEvent>) -> InOut {
-    let mut ui = test_ui(task_vec, events);
+  fn test_state(tasks: Vec<SerTask>, events: Vec<UiEvent>) -> InOut {
+    let mut ui = test_ui_with_tasks(tasks, events);
     let event = Event::Custom(Box::new(TermUiEvent::GetInOut));
     let resp = ui.handle(event).unwrap().unwrap_custom::<TermUiEvent>();
 
@@ -520,7 +552,7 @@ mod tests {
 
   #[test]
   fn in_out_state_after_write() {
-    let tasks = make_tasks_vec(2);
+    let tasks = make_tasks(2);
     let events = vec![
       Event::KeyDown(Key::Char('w')).into(),
     ];
@@ -531,7 +563,7 @@ mod tests {
   #[test]
   fn in_out_state_after_write_and_key_press() {
     fn with_key(key: Key) -> InOut {
-      let tasks = make_tasks_vec(2);
+      let tasks = make_tasks(2);
       let events = vec![
         Event::KeyDown(Key::Char('w')).into(),
         Event::KeyDown(key).into(),
@@ -556,7 +588,7 @@ mod tests {
   #[test]
   fn in_out_state_on_edit() {
     fn with_key(key: Key) -> InOut {
-      let tasks = make_tasks_vec(4);
+      let tasks = make_tasks(4);
       let events = vec![
         Event::KeyDown(Key::Char('a')).into(),
         Event::KeyDown(key).into(),
