@@ -88,32 +88,6 @@ impl State {
     })
   }
 
-  /// Create a new `State` object with the given `Tasks` object, with
-  /// all future `save` operations happening into the provided path.
-  #[cfg(test)]
-  fn with_tasks_and_paths<P>(tasks: Tasks, prog_path: P, task_path: P) -> Self
-  where
-    P: Into<PathBuf> + AsRef<Path>,
-  {
-    // Test code using this constructor is assumed to only have tasks
-    // that have no tags.
-    tasks.iter().for_each(|x| assert!(x.tags().next().is_none()));
-
-    let templates = Rc::new(Templates::new());
-    let tasks = Rc::new(RefCell::new(tasks));
-    let queries = vec![
-      QueryBuilder::new(tasks.clone()).build("all"),
-    ];
-
-    State {
-      prog_path: prog_path.into(),
-      task_path: task_path.into(),
-      templates: templates,
-      queries: queries,
-      tasks: tasks,
-    }
-  }
-
   /// Load some serialized state from a file.
   fn load_state<T>(path: &Path) -> Result<T>
   where
@@ -212,14 +186,22 @@ pub mod tests {
   use tasks::tests::NamedTempFile;
 
 
-  #[test]
-  fn save_and_load_state() {
+  /// Create a state object based off of two temporary configuration files.
+  fn make_state(count: usize) -> (State, NamedTempFile, NamedTempFile) {
+    let prog_state = Default::default();
+    let task_state = SerTaskState {
+      templates: Default::default(),
+      tasks: SerTasks(make_tasks(count)),
+    };
     let prog_file = NamedTempFile::new();
     let task_file = NamedTempFile::new();
-    let task_path = task_file.path();
-    let prog_path = prog_file.path();
-    let tasks = Tasks::with_serde_tasks(make_tasks(3)).unwrap();
-    let state = State::with_tasks_and_paths(tasks, prog_path, task_path);
+    let state = State::with_serde(prog_state, prog_file.path(), task_state, task_file.path());
+    (state.unwrap(), prog_file, task_file)
+  }
+
+  #[test]
+  fn save_and_load_state() {
+    let (state, prog_file, task_file) = make_state(3);
     state.save().unwrap();
 
     let new_state = State::new(prog_file.path(), task_file.path()).unwrap();
@@ -235,14 +217,9 @@ pub mod tests {
   #[test]
   fn load_state_file_not_found() {
     let (prog_path, task_path) = {
-      let prog_file = NamedTempFile::new();
-      let task_file = NamedTempFile::new();
-      let prog_path = prog_file.path();
-      let task_path = task_file.path();
-      let tasks = Tasks::with_serde_tasks(make_tasks(1)).unwrap();
-      let state = State::with_tasks_and_paths(tasks, prog_path, task_path);
-
+      let (state, prog_file, task_file) = make_state(1);
       state.save().unwrap();
+
       (prog_file.path().clone(), task_file.path().clone())
     };
 
