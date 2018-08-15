@@ -44,6 +44,12 @@ pub enum TermUiEvent {
   AddTask(String, Vec<Tag>),
   /// The response to the `AddTask` event.
   AddTaskResp(TaskId),
+  /// An event to ask a widget to select the task with the given
+  /// `TaskId`.
+  SelectTask(TaskId, Option<Id>),
+  /// The tab with the given `Id` has selected the task as indicated by
+  /// `SelectTask`.
+  SelectedTask(Id),
   /// Remove the task with the given ID.
   RemoveTask(TaskId),
   /// Update the given task.

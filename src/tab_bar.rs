@@ -83,13 +83,41 @@ impl TabBar {
   }
 
   /// Handle a custom event.
-  fn handle_custom_event(&mut self, event: Box<TermUiEvent>) -> Option<MetaEvent> {
+  fn handle_custom_event(&mut self, event: Box<TermUiEvent>, cap: &mut Cap) -> Option<MetaEvent> {
     match *event {
-      TermUiEvent::AddTaskResp(_) => {
-        // Forward the response to the currently active `TaskListBox`.
+      TermUiEvent::AddTaskResp(task_id) => {
+        // A task got added. Now we need to select it. We do not know
+        // which of the tabs may display this task, but we start
+        // checking with the currently selected one.
         let tab = self.selected_tab();
+        let event = Box::new(TermUiEvent::SelectTask(task_id, None));
         let event = UiEvent::Custom(tab, event);
         Some(MetaEvent::UiEvent(event))
+      },
+      TermUiEvent::SelectTask(task_id, widget_id) => {
+        let next_idx = if let Some(widget_id) = widget_id {
+          // The widget we tried was not able to select the given task.
+          // Forward it to the next tab in line.
+          self.tabs.iter().position(|x| x.1 == widget_id).unwrap() + 1
+        } else {
+          // If `widget_id` was None we started off with the selected
+          // tab and now want to continue with the first one in line.
+          0
+        };
+
+        let next_tab = self.tabs.get(next_idx).map(|x| x.1);
+        if let Some(next_tab) = next_tab {
+          let event = Box::new(TermUiEvent::SelectTask(task_id, Some(next_tab)));
+          let event = UiEvent::Custom(next_tab, event);
+          Some(MetaEvent::UiEvent(event))
+        } else {
+          None
+        }
+      },
+      TermUiEvent::SelectedTask(widget_id) => {
+        let select = self.tabs.iter().position(|x| x.1 == widget_id).unwrap();
+        let update = self.set_select(select as isize, cap);
+        (None as Option<Event>).maybe_update(update)
       },
       _ => Some(Event::Custom(event).into()),
     }
@@ -125,10 +153,10 @@ impl TabBar {
   }
 
   /// Change the currently selected tab.
-  fn select(&mut self, change: isize, cap: &mut Cap) -> bool {
+  fn set_select(&mut self, new_selection: isize, cap: &mut Cap) -> bool {
     let count = self.iter().count();
     let old_selection = self.selection;
-    let new_selection = sanitize_selection(self.selection as isize + change, count);
+    let new_selection = sanitize_selection(new_selection, count);
 
     if new_selection != old_selection {
       cap.hide(self.selected_tab());
@@ -138,6 +166,12 @@ impl TabBar {
     } else {
       false
     }
+  }
+
+  /// Change the currently selected tab.
+  fn select(&mut self, change: isize, cap: &mut Cap) -> bool {
+    let new_selection = self.selection as isize + change;
+    self.set_select(new_selection, cap)
   }
 }
 
@@ -155,7 +189,7 @@ impl Handleable for TabBar {
       },
       Event::Custom(data) => {
         match data.downcast::<TermUiEvent>() {
-          Ok(e) => self.handle_custom_event(e),
+          Ok(e) => self.handle_custom_event(e, cap),
           Err(e) => panic!("Received unexpected custom event: {:?}", e),
         }
       },

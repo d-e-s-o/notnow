@@ -68,17 +68,19 @@ impl TaskListBox {
   /// Handle a custom event.
   fn handle_custom_event(&mut self, event: Box<TermUiEvent>) -> Option<MetaEvent> {
     match *event {
-      TermUiEvent::AddTaskResp(id) => {
+      TermUiEvent::SelectTask(id, _) => {
         let idx = self.query.position(|x| x.id() == id);
         if let Some(idx) = idx {
           let update = self.set_select(idx as isize);
-          (None as Option<Event>).maybe_update(update)
+          let event = TermUiEvent::SelectedTask(self.id);
+          // Indicate to the parent that we selected the task in
+          // question successfully. The widget should make sure to focus
+          // us subsequently.
+          Some(Event::Custom(Box::new(event))).maybe_update(update)
         } else {
-          // We anticipate being able to hit this case once we have
-          // multiple task list box widgets each potentially displaying
-          // a different set of tasks. A more sophisticated solution
-          // will have to be found once that time comes.
-          panic!("No task with Id {} found", id)
+          // We don't have a task with that Id. Bounce the event back to
+          // the parent to let it check with another widget.
+          Some(Event::Custom(event).into())
         }
       },
       TermUiEvent::EnteredText(text) => {
