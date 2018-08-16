@@ -59,6 +59,10 @@ const INPUT_TEXT: &str = " > ";
 
 // TODO: Make the colors run time configurable at some point.
 /// Color 15.
+const MORE_TASKS_FG: Rgb = Rgb(0x00, 0x00, 0x00);
+/// Bright green.
+const MORE_TASKS_BG: Rgb = Rgb(0x00, 0xd7, 0x00);
+/// Color 15.
 const SELECTED_QUERY_FG: Rgb = Rgb(0xff, 0xff, 0xff);
 /// Color 240.
 const SELECTED_QUERY_BG: Rgb = Rgb(0x58, 0x58, 0x58);
@@ -260,8 +264,8 @@ where
   }
 
   /// Retrieve the number of tabs that fit in the given `BBox`.
-  fn displayable_tabs(&self, bbox: BBox) -> usize {
-    (bbox.w / TAB_TITLE_WIDTH) as usize
+  fn displayable_tabs(&self, width: u16) -> usize {
+    (width / TAB_TITLE_WIDTH) as usize
   }
 
   /// Render a `TermUi`.
@@ -271,7 +275,8 @@ where
 
   /// Render a `TabBar`.
   fn render_tab_bar(&self, tab_bar: &TabBar, mut bbox: BBox) -> Result<BBox> {
-    let mut x = 0;
+    let mut x = 1;
+    let w = bbox.w - 1;
 
     // TODO: We have some amount of duplication with the logic used to
     //       render a TaskListBox. Deduplicate?
@@ -280,9 +285,30 @@ where
     //       terminal resizes. If the width of the terminal is increased
     //       the offset would need to be adjusted. Should/can this be
     //       fixed?
-    let limit = self.displayable_tabs(bbox);
+    let count = tab_bar.iter().count();
+    let limit = self.displayable_tabs(w - 1);
     let selection = tab_bar.selection();
     let offset = sanitize_offset(tab_bar.offset(), selection, limit);
+
+    if offset > 0 {
+      let fg = MORE_TASKS_FG;
+      let bg = MORE_TASKS_BG;
+      self.writer.write(0, 0, fg, bg, "<")?;
+    } else {
+      let fg = UNSELECTED_QUERY_FG;
+      let bg = UNSELECTED_QUERY_BG;
+      self.writer.write(0, 0, fg, bg, " ")?;
+    }
+
+    if count > offset + limit {
+      let fg = MORE_TASKS_FG;
+      let bg = MORE_TASKS_BG;
+      self.writer.write(bbox.w - 1, 0, fg, bg, ">")?;
+    } else {
+      let fg = UNSELECTED_QUERY_FG;
+      let bg = UNSELECTED_QUERY_BG;
+      self.writer.write(bbox.w - 1, 0, fg, bg, " ")?;
+    }
 
     for (i, tab) in tab_bar.iter().enumerate().skip(offset).take(limit) {
       let (fg, bg) = if i == selection {
@@ -298,8 +324,8 @@ where
       x += TAB_TITLE_WIDTH;
     }
 
-    if x < bbox.w {
-      let pad = repeat(" ").take((bbox.w - x) as usize).collect::<String>();
+    if x < w {
+      let pad = repeat(" ").take((w - x) as usize).collect::<String>();
       let fg = UNSELECTED_QUERY_FG;
       let bg = UNSELECTED_QUERY_BG;
       self.writer.write(x, 0, fg, bg, pad)?
