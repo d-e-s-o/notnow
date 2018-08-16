@@ -19,6 +19,7 @@
 
 use std::cell::Cell;
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::io::BufWriter;
 use std::io::Error;
 use std::io::Result;
@@ -38,6 +39,7 @@ use termion::terminal_size;
 
 use gui::BBox;
 use gui::Cap;
+use gui::Id;
 use gui::Object;
 use gui::Renderer;
 use gui::Widget;
@@ -231,11 +233,20 @@ where
   }
 }
 
+
+/// A struct containing rendering related widget data with an offset.
+#[derive(Default)]
+struct OffsetData {
+  pub offset: usize,
+}
+
+
 pub struct TermRenderer<W>
 where
   W: Write,
 {
   writer: ClippingWriter<BufWriter<W>>,
+  data: RefCell<HashMap<Id, OffsetData>>,
 }
 
 impl<W> TermRenderer<W>
@@ -255,6 +266,7 @@ where
 
     Ok(TermRenderer {
       writer: writer,
+      data: Default::default(),
     })
   }
 
@@ -275,6 +287,9 @@ where
 
   /// Render a `TabBar`.
   fn render_tab_bar(&self, tab_bar: &TabBar, mut bbox: BBox) -> Result<BBox> {
+    let mut map = self.data.borrow_mut();
+    let data = map.entry(tab_bar.id()).or_default();
+
     let mut x = 1;
     let w = bbox.w - 1;
 
@@ -288,7 +303,7 @@ where
     let count = tab_bar.iter().count();
     let limit = self.displayable_tabs(w - 1);
     let selection = tab_bar.selection();
-    let offset = sanitize_offset(tab_bar.offset(), selection, limit);
+    let offset = sanitize_offset(data.offset, selection, limit);
 
     if offset > 0 {
       let fg = MORE_TASKS_FG;
@@ -331,7 +346,7 @@ where
       self.writer.write(x, 0, fg, bg, pad)?
     }
 
-    tab_bar.reoffset(offset);
+    data.offset = offset;
 
     // Account for the one line the tab bar occupies at the top and
     // another one to have some space at the bottom to the input/output
@@ -343,6 +358,9 @@ where
 
   /// Render a `TaskListBox`.
   fn render_task_list_box(&self, task_list: &TaskListBox, bbox: BBox) -> Result<BBox> {
+    let mut map = self.data.borrow_mut();
+    let data = map.entry(task_list.id()).or_default();
+
     let x = MAIN_MARGIN_X;
     let mut y = MAIN_MARGIN_Y;
     let mut cursor = None;
@@ -350,7 +368,7 @@ where
     let query = task_list.query();
     let limit = self.displayable_tasks(bbox);
     let selection = task_list.selection();
-    let offset = sanitize_offset(task_list.offset(), selection, limit);
+    let offset = sanitize_offset(data.offset, selection, limit);
 
     query.enumerate::<Error, _>(|i, task| {
       if i >= offset + limit {
@@ -393,7 +411,7 @@ where
 
     // We need to adjust the offset we use in order to be able to give
     // the correct impression of a sliding selection window.
-    task_list.reoffset(offset);
+    data.offset = offset;
     Ok(bbox)
   }
 

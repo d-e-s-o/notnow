@@ -17,7 +17,6 @@
 // * along with this program.  If not, see <http://www.gnu.org/licenses/>. *
 // *************************************************************************
 
-use std::cell::Cell;
 use std::cmp::max;
 use std::cmp::min;
 use std::isize;
@@ -48,7 +47,6 @@ fn sanitize_selection(selection: isize, count: usize) -> usize {
 pub struct TaskListBox {
   id: Id,
   query: Query,
-  offset: Cell<usize>,
   selection: usize,
   editing: Option<Task>,
 }
@@ -59,7 +57,6 @@ impl TaskListBox {
     TaskListBox {
       id: id,
       query: query,
-      offset: Cell::new(0),
       selection: 0,
       editing: None,
     }
@@ -115,20 +112,6 @@ impl TaskListBox {
   /// Retrieve the query associated with this widget.
   pub fn query(&self) -> Query {
     self.query.clone()
-  }
-
-  /// Retrieve the current view offset.
-  ///
-  /// The offset indicates the task at which to start displaying. Note
-  /// that for various reasons such as resizing events the returned
-  /// index should be sanitized via `sanitize_offset` before usage.
-  pub fn offset(&self) -> usize {
-    self.offset.get()
-  }
-
-  /// Adjust the view offset to use.
-  pub fn reoffset(&self, offset: usize) {
-    self.offset.set(offset)
   }
 
   /// Retrieve the current selection index.

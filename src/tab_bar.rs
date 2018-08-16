@@ -17,7 +17,6 @@
 // * along with this program.  If not, see <http://www.gnu.org/licenses/>. *
 // *************************************************************************
 
-use std::cell::Cell;
 use std::cmp::max;
 use std::cmp::min;
 
@@ -46,7 +45,6 @@ fn sanitize_selection(selection: isize, count: usize) -> usize {
 pub struct TabBar {
   id: Id,
   tabs: Vec<(String, Id)>,
-  offset: Cell<usize>,
   selection: usize,
 }
 
@@ -77,7 +75,6 @@ impl TabBar {
     TabBar {
       id: id,
       tabs: tabs,
-      offset: Cell::new(0),
       selection: selection,
     }
   }
@@ -126,20 +123,6 @@ impl TabBar {
   /// Retrieve an iterator over the names of all the tabs.
   pub fn iter(&self) -> impl Iterator<Item=&String> {
     self.tabs.iter().map(|(x, _)| x)
-  }
-
-  /// Retrieve the current tab offset.
-  ///
-  /// The offset indicates the tab at which to start displaying. Note
-  /// that for various reasons such as resizing events the returned
-  /// index should be sanitized via `sanitize_offset` before usage.
-  pub fn offset(&self) -> usize {
-    self.offset.get()
-  }
-
-  /// Adjust the tab offset to use.
-  pub fn reoffset(&self, offset: usize) {
-    self.offset.set(offset)
   }
 
   /// Retrieve the index of the currently selected tab.
