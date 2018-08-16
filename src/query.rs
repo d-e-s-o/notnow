@@ -18,11 +18,17 @@
 // *************************************************************************
 
 use std::cell::RefCell;
+use std::io::Error;
+use std::io::ErrorKind;
+use std::io::Result as IoResult;
 #[cfg(test)]
 use std::iter::FromIterator;
 use std::rc::Rc;
 
+use ser::query::Query as SerQuery;
 use tags::Tag;
+use tags::TagMap;
+use tags::Templates;
 use tasks::Task;
 use tasks::Tasks;
 
@@ -120,6 +126,46 @@ pub struct Query {
 }
 
 impl Query {
+  /// Create a new `Query` object from a serializable one.
+  pub fn with_serde(mut query: SerQuery,
+                    templates: &Rc<Templates>,
+                    map: &TagMap,
+                    tasks: Rc<RefCell<Tasks>>) -> IoResult<Self> {
+    let mut and_tags = Vec::with_capacity(query.tags.len());
+    for mut tags in query.tags.drain(..) {
+      let mut or_tags = Vec::with_capacity(tags.len());
+      for tag in tags.drain(..) {
+        let id = map.get(&tag.id).ok_or_else(|| {
+          let error = format!("Encountered invalid tag Id {}", tag.id);
+          Error::new(ErrorKind::InvalidInput, error)
+        })?;
+        or_tags.push(templates.instantiate(*id));
+      }
+
+      and_tags.push(or_tags);
+    }
+
+    Ok(Query {
+      name: query.name,
+      tasks: tasks,
+      tags: and_tags,
+    })
+  }
+
+  /// Convert this query into a serializable one.
+  pub fn to_serde(&self) -> SerQuery {
+    let tags = self
+      .tags
+      .iter()
+      .map(|tags| tags.iter().map(|x| x.to_serde()).collect())
+      .collect();
+
+    SerQuery {
+      name: self.name.clone(),
+      tags: tags,
+    }
+  }
+
   /// Check if one of the given tags matches the available ones.
   fn matches<'tag, I>(&self, tags: &[Tag], avail_tags: &I) -> bool
   where

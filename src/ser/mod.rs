@@ -18,6 +18,7 @@
 // *************************************************************************
 
 pub mod id;
+pub mod query;
 pub mod state;
 pub mod tags;
 pub mod tasks;

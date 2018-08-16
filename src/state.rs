@@ -66,7 +66,6 @@ impl State {
   }
 
   /// Create a new `State` object from a serializable one.
-  #[allow(unused)]
   pub fn with_serde<P>(mut prog_state: SerProgState, prog_path: P,
                            task_state: SerTaskState, task_path: P) -> Result<Self>
   where
@@ -76,9 +75,12 @@ impl State {
     let templates = Rc::new(templates);
     let tasks = Tasks::with_serde(task_state.tasks, templates.clone(), &map)?;
     let tasks = Rc::new(RefCell::new(tasks));
-    let queries = vec![
+    let mut queries = vec![
       QueryBuilder::new(tasks.clone()).build("all"),
     ];
+    for query in prog_state.queries.drain(..) {
+      queries.push(Query::with_serde(query, &templates, &map, tasks.clone())?)
+    }
 
     Ok(State {
       prog_path: prog_path.into(),
@@ -111,11 +113,22 @@ impl State {
 
   /// Convert this object into a serializable one.
   fn to_serde(&self) -> (SerProgState, SerTaskState) {
+    // The first query is the "all" query which we always create
+    // implicitly and never persist.
+    let queries = self
+      .queries
+      .iter()
+      .skip(1)
+      .map(|x| x.to_serde())
+      .collect();
+
     let task_state = SerTaskState {
       templates: self.templates.to_serde(),
       tasks: self.tasks.borrow().to_serde(),
     };
-    let program_state = SerProgState {};
+    let program_state = SerProgState {
+      queries: queries,
+    };
 
     (program_state, task_state)
   }

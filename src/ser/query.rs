@@ -1,4 +1,4 @@
-// state.rs
+// query.rs
 
 // *************************************************************************
 // * Copyright (C) 2018 Daniel Mueller (deso@posteo.net)                   *
@@ -17,23 +17,54 @@
 // * along with this program.  If not, see <http://www.gnu.org/licenses/>. *
 // *************************************************************************
 
-use ser::query::Query;
-use ser::tags::Templates;
-use ser::tasks::Tasks;
+use ser::tags::Tag;
 
 
-/// A struct comprising the task state of the program.
-#[derive(Debug, Default, Deserialize, PartialEq, Serialize)]
-pub struct TaskState {
-  #[serde(default)]
-  pub templates: Templates,
-  pub tasks: Tasks,
+/// A query that can be serialized and deserialized.
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+pub struct Query {
+  pub name: String,
+  pub tags: Vec<Vec<Tag>>,
 }
 
 
-/// A struct comprising the program state itself.
-#[derive(Debug, Default, Deserialize, PartialEq, Serialize)]
-pub struct ProgState {
-  #[serde(default, skip_serializing_if = "Vec::is_empty")]
-  pub queries: Vec<Query>,
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  use serde_json::from_str as from_json;
+  use serde_json::to_string as to_json;
+
+  use ser::id::Id;
+
+
+  #[test]
+  fn serialize_deserialize_query() {
+    let tag1 = Tag {
+      id: Id::new(1),
+    };
+    let tag2 = Tag {
+      id: Id::new(2),
+    };
+    let tag3 = Tag {
+      id: Id::new(3),
+    };
+    let tag4 = Tag {
+      id: Id::new(4),
+    };
+
+    let query = Query {
+      name: "test-query".to_string(),
+      tags: vec![
+        vec![tag1],
+        vec![tag2, tag3],
+        vec![tag4, tag2],
+      ],
+    };
+
+    let serialized = to_json(&query).unwrap();
+    let deserialized = from_json::<Query>(&serialized).unwrap();
+
+    assert_eq!(deserialized, query);
+  }
 }

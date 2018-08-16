@@ -195,11 +195,14 @@ mod tests {
   use gui::Ui;
 
   use event::tests::CustomEvent;
+  use ser::query::Query as SerQuery;
   use ser::state::ProgState as SerProgState;
   use ser::state::TaskState as SerTaskState;
+  use ser::tags::Templates as SerTemplates;
   use ser::tasks::Task as SerTask;
   use ser::tasks::Tasks as SerTasks;
   use test::make_tasks;
+  use test::make_tasks_with_tags;
   use test::NamedTempFile;
 
 
@@ -236,6 +239,50 @@ mod tests {
       tasks: SerTasks(tasks),
     };
     test_ui(prog_state, task_state, events)
+  }
+
+  /// Instantiate a `TermUi` object with three queries, 15 tasks with
+  /// tags and issue events to it. Tag assignment follows the pattern
+  /// that `make_tasks_with_tags` creates.
+  fn test_with_tasks_and_tags(events: Vec<UiEvent>) -> Vec<Task> {
+    let (tags, templates, tasks) = make_tasks_with_tags(15);
+    let prog_state = SerProgState {
+      queries: vec![
+        // Note that we will automatically have an "all" query created
+        // for us, without having to specify it here.
+        SerQuery {
+          name: "tag complete".to_string(),
+          tags: vec![vec![tags[0]]],
+        },
+        SerQuery {
+          name: "tag2 || tag3".to_string(),
+          tags: vec![
+            vec![
+              tags[2],
+              tags[3],
+            ],
+          ],
+        },
+        SerQuery {
+          name: "tag1 && tag3".to_string(),
+          tags: vec![vec![tags[1]], vec![tags[3]]],
+        },
+      ],
+    };
+    let task_state = SerTaskState {
+      templates: SerTemplates(templates),
+      tasks: SerTasks(tasks),
+    };
+
+    let mut ui = test_ui(prog_state, task_state, events);
+    let event = Event::Custom(Box::new(TermUiEvent::GetTasks));
+    let resp = ui.handle(event).unwrap().unwrap_custom::<TermUiEvent>();
+
+    if let TermUiEvent::GetTasksResp(tasks) = resp {
+      tasks
+    } else {
+      panic!("Unexpected response: {:?}", resp)
+    }
   }
 
   /// Instantiate a `TermUi` object with the given tasks and issue events to it.
@@ -471,6 +518,75 @@ mod tests {
 
     let expected = make_tasks(1);
     assert_eq!(test_for_ser_tasks(tasks, events), expected)
+  }
+
+  #[test]
+  fn add_task_from_completed_one() {
+    let events = vec![
+      Event::KeyDown(Key::Char('l')).into(),
+      Event::KeyDown(Key::Char('a')).into(),
+      Event::KeyDown(Key::Char('t')).into(),
+      Event::KeyDown(Key::Char('e')).into(),
+      Event::KeyDown(Key::Char('s')).into(),
+      Event::KeyDown(Key::Char('t')).into(),
+      Event::KeyDown(Key::Return).into(),
+      Event::KeyDown(Key::Char('l')).into(),
+      Event::KeyDown(Key::Char('l')).into(),
+      Event::KeyDown(Key::Char('g')).into(),
+      Event::KeyDown(Key::Char('a')).into(),
+      Event::KeyDown(Key::Char('h')).into(),
+      Event::KeyDown(Key::Char('i')).into(),
+      Event::KeyDown(Key::Return).into(),
+      Event::KeyDown(Key::Char('q')).into(),
+    ];
+
+    let tasks = test_with_tasks_and_tags(events);
+    assert_eq!(tasks[15].summary, "test");
+
+    let tags = tasks[15]
+      .tags()
+      .map(|x| x.name())
+      .collect::<Vec<_>>();
+    let expected = Vec::<String>::new();
+    assert_eq!(tags, expected);
+
+    assert_eq!(tasks[16].summary, "hi");
+
+    let tags = tasks[16]
+      .tags()
+      .map(|x| x.name())
+      .collect::<Vec<_>>();
+    let expected = vec!["tag2"];
+    assert_eq!(tags, expected);
+  }
+
+  #[test]
+  fn add_task_with_tags() {
+    let events = vec![
+      Event::KeyDown(Key::Char('l')).into(),
+      Event::KeyDown(Key::Char('l')).into(),
+      Event::KeyDown(Key::Char('l')).into(),
+      Event::KeyDown(Key::Char('a')).into(),
+      Event::KeyDown(Key::Char('f')).into(),
+      Event::KeyDown(Key::Char('o')).into(),
+      Event::KeyDown(Key::Char('o')).into(),
+      Event::KeyDown(Key::Return).into(),
+      Event::KeyDown(Key::Char('q')).into(),
+    ];
+
+    let tasks = test_with_tasks_and_tags(events);
+    assert_eq!(tasks[15].summary, "foo");
+
+    let tags = tasks[15]
+      .tags()
+      .map(|x| x.name())
+      .collect::<Vec<_>>();
+    let expected = vec![
+      "tag1".to_string(),
+      "tag2".to_string(),
+      "tag3".to_string(),
+    ];
+    assert_eq!(tags, expected);
   }
 
   #[test]
