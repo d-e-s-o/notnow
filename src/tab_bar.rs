@@ -61,7 +61,7 @@ impl TabBar {
         let name = query.name().to_string();
         let mut query = Some(query);
         let task_list = cap.add_widget(id, &mut |id, _cap| {
-          Box::new(TaskListBox::new(id, query.take().unwrap()))
+          Box::new(TaskListBox::new(id, state.tasks(), query.take().unwrap()))
         });
 
         if i == selection {
@@ -82,15 +82,6 @@ impl TabBar {
   /// Handle a custom event.
   fn handle_custom_event(&mut self, event: Box<TermUiEvent>, cap: &mut Cap) -> Option<MetaEvent> {
     match *event {
-      TermUiEvent::AddTaskResp(task_id) => {
-        // A task got added. Now we need to select it. We do not know
-        // which of the tabs may display this task, but we start
-        // checking with the currently selected one.
-        let tab = self.selected_tab();
-        let event = Box::new(TermUiEvent::SelectTask(task_id, None));
-        let event = UiEvent::Custom(tab, event);
-        Some(MetaEvent::UiEvent(event))
-      },
       TermUiEvent::SelectTask(task_id, widget_id) => {
         let next_idx = if let Some(widget_id) = widget_id {
           // The widget we tried was not able to select the given task.

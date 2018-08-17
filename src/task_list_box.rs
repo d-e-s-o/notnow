@@ -17,9 +17,11 @@
 // * along with this program.  If not, see <http://www.gnu.org/licenses/>. *
 // *************************************************************************
 
+use std::cell::RefCell;
 use std::cmp::max;
 use std::cmp::min;
 use std::isize;
+use std::rc::Rc;
 
 use gui::Cap;
 use gui::Event;
@@ -27,12 +29,13 @@ use gui::Handleable;
 use gui::Id;
 use gui::Key;
 use gui::MetaEvent;
-use gui::UiEvent;
 
 use event::EventUpdated;
 use in_out::InOut;
 use query::Query;
+use tasks::Id as TaskId;
 use tasks::Task;
+use tasks::Tasks;
 use termui::TermUiEvent;
 
 
@@ -46,6 +49,7 @@ fn sanitize_selection(selection: isize, count: usize) -> usize {
 #[derive(Debug, GuiWidget)]
 pub struct TaskListBox {
   id: Id,
+  tasks: Rc<RefCell<Tasks>>,
   query: Query,
   selection: usize,
   editing: Option<Task>,
@@ -53,40 +57,58 @@ pub struct TaskListBox {
 
 impl TaskListBox {
   /// Create a new `TaskListBox` widget.
-  pub fn new(id: Id, query: Query) -> Self {
+  pub fn new(id: Id, tasks: Rc<RefCell<Tasks>>, query: Query) -> Self {
     TaskListBox {
       id: id,
+      tasks: tasks,
       query: query,
       selection: 0,
       editing: None,
     }
   }
 
+  /// Select a task and emit an event indicating success/failure.
+  ///
+  /// This method takes care of correctly selecting a task after it was
+  /// added or modified. After a such an operation task may or may not
+  /// be covered by our query anymore, meaning we either need to select
+  /// it or find somebody else who displays it and ask him to select it.
+  ///
+  /// Note that the emitted event chain will only contain an `Updated`
+  /// event if the selection changed. However, there may be other
+  /// conditions under which an update must happen, e.g., when the
+  /// summary or the tags of the task changed. Handling of updates in
+  /// those cases is left to clients.
+  fn handle_select_task(&mut self, task_id: TaskId, widget_id: Option<Id>) -> Option<MetaEvent> {
+    let idx = self.query.position(|x| x.id() == task_id);
+    if let Some(idx) = idx {
+      let update = self.set_select(idx as isize);
+      let event = TermUiEvent::SelectedTask(self.id);
+      // Indicate to the parent that we selected the task in
+      // question successfully. The widget should make sure to focus
+      // us subsequently.
+      Some(Event::Custom(Box::new(event))).maybe_update(update)
+    } else {
+      // We don't have a task with that Id. Bounce the event back to
+      // the parent to let it check with another widget.
+      let data = Box::new(TermUiEvent::SelectTask(task_id, widget_id));
+      let event = Event::Custom(data);
+      Some(event.into())
+    }
+  }
+
   /// Handle a custom event.
   fn handle_custom_event(&mut self, event: Box<TermUiEvent>) -> Option<MetaEvent> {
     match *event {
-      TermUiEvent::SelectTask(id, _) => {
-        let idx = self.query.position(|x| x.id() == id);
-        if let Some(idx) = idx {
-          let update = self.set_select(idx as isize);
-          let event = TermUiEvent::SelectedTask(self.id);
-          // Indicate to the parent that we selected the task in
-          // question successfully. The widget should make sure to focus
-          // us subsequently.
-          Some(Event::Custom(Box::new(event))).maybe_update(update)
-        } else {
-          // We don't have a task with that Id. Bounce the event back to
-          // the parent to let it check with another widget.
-          Some(Event::Custom(event).into())
-        }
+      TermUiEvent::SelectTask(task_id, widget_id) => {
+        self.handle_select_task(task_id, widget_id)
       },
       TermUiEvent::EnteredText(text) => {
         if let Some(mut task) = self.editing.take() {
+          let id = task.id();
           task.summary = text;
-
-          let event = TermUiEvent::UpdateTask(task);
-          let event = Event::Custom(Box::new(event));
-          Some(event).update()
+          self.tasks.borrow_mut().update(task);
+          self.handle_select_task(id, None).update()
         } else if !text.is_empty() {
           let tags = if !self.query.is_empty() {
             let mut task = self.selected_task();
@@ -99,8 +121,8 @@ impl TaskListBox {
             Default::default()
           };
 
-          let event = TermUiEvent::AddTask(text, tags);
-          Some(Event::Custom(Box::new(event))).update()
+          let id = self.tasks.borrow_mut().add(text, tags);
+          self.handle_select_task(id, None)
         } else {
           None
         }
@@ -156,10 +178,10 @@ impl Handleable for TaskListBox {
         match key {
           Key::Char(' ') => {
             let mut task = self.selected_task();
+            let id = task.id();
             task.toggle_complete();
-            let event = TermUiEvent::UpdateTask(task);
-            let event = Event::Custom(Box::new(event));
-            Some(event).update()
+            self.tasks.borrow_mut().update(task);
+            self.handle_select_task(id, None).update()
           },
           Key::Char('a') => {
             let event = TermUiEvent::SetInOut(InOut::Input("".to_string(), 0));
@@ -169,13 +191,9 @@ impl Handleable for TaskListBox {
           Key::Char('d') => {
             if !self.query().is_empty() {
               let id = self.selected_task().id();
-              let remove = UiEvent::Custom(self.id, Box::new(TermUiEvent::RemoveTask(id)));
-              // The task will get removed so move the selection up by
-              // one.
+              self.tasks.borrow_mut().remove(id);
               self.select(-1);
-              // We are about to remove a task. Always indicate that an
-              // update is necessary here.
-              Some(remove).update()
+              (None as Option<Event>).update()
             } else {
               None
             }

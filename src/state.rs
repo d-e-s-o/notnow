@@ -36,10 +36,7 @@ use query::Query;
 use query::QueryBuilder;
 use ser::state::ProgState as SerProgState;
 use ser::state::TaskState as SerTaskState;
-use tags::Tag;
 use tags::Templates;
-use tasks::Id as TaskId;
-use tasks::Task;
 use tasks::Tasks;
 
 
@@ -158,30 +155,14 @@ impl State {
     Ok(())
   }
 
-  /// Retrieve the tasks associated with this `State` object.
-  #[cfg(test)]
-  pub fn tasks(&self) -> Vec<Task> {
-    self.tasks.borrow().iter().cloned().collect()
+  /// Retrieve the `Tasks` object associated with this `State` object.
+  pub fn tasks(&self) -> Rc<RefCell<Tasks>> {
+    self.tasks.clone()
   }
 
   /// Retrieve the queries to use.
   pub fn queries(&self) -> impl Iterator<Item=&Query> {
     self.queries.iter()
-  }
-
-  /// Add a new task to the list of tasks.
-  pub fn add_task(&self, summary: String, tags: Vec<Tag>) -> TaskId {
-    self.tasks.borrow_mut().add(summary, tags)
-  }
-
-  /// Remove the task with the given `TaskId`.
-  pub fn remove_task(&self, id: TaskId) {
-    self.tasks.borrow_mut().remove(id)
-  }
-
-  /// Update a task.
-  pub fn update_task(&self, task: Task) {
-    self.tasks.borrow_mut().update(task)
   }
 }
 
