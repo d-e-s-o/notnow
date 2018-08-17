@@ -635,6 +635,84 @@ mod tests {
     assert_eq!(test_for_ser_tasks(tasks, events), expected);
   }
 
+  #[test]
+  fn move_no_or_one_task_up_or_down() {
+    fn test_tasks(count: usize, key: char) {
+      let tasks = make_tasks(count);
+      let events = vec![
+        Event::KeyDown(Key::Char(key)).into(),
+        Event::KeyDown(Key::Char('q')).into(),
+      ];
+
+      let expected = make_tasks(count);
+      assert_eq!(test_for_ser_tasks(tasks, events), expected);
+    }
+
+    test_tasks(0, 'J');
+    test_tasks(1, 'J');
+    test_tasks(0, 'K');
+    test_tasks(1, 'K');
+  }
+
+  #[test]
+  fn move_task_down() {
+    let tasks = make_tasks(3);
+    let events = vec![
+      Event::KeyDown(Key::Char('J')).into(),
+      Event::KeyDown(Key::Char('q')).into(),
+    ];
+
+    let mut expected = make_tasks(3);
+    expected.swap(0, 1);
+
+    assert_eq!(test_for_ser_tasks(tasks, events), expected);
+  }
+
+  #[test]
+  fn move_task_up() {
+    let tasks = make_tasks(3);
+    let events = vec![
+      Event::KeyDown(Key::Char('G')).into(),
+      Event::KeyDown(Key::Char('K')).into(),
+      Event::KeyDown(Key::Char('q')).into(),
+    ];
+
+    let mut expected = make_tasks(3);
+    expected.swap(2, 1);
+
+    assert_eq!(test_for_ser_tasks(tasks, events), expected);
+  }
+
+  #[test]
+  fn move_second_task_down() {
+    let tasks = make_tasks(4);
+    let events = vec![
+      Event::KeyDown(Key::Char('j')).into(),
+      Event::KeyDown(Key::Char('J')).into(),
+      Event::KeyDown(Key::Char('q')).into(),
+    ];
+
+    let mut expected = make_tasks(4);
+    expected.swap(1, 2);
+
+    assert_eq!(test_for_ser_tasks(tasks, events), expected);
+  }
+
+  #[test]
+  fn move_second_task_up() {
+    let tasks = make_tasks(4);
+    let events = vec![
+      Event::KeyDown(Key::Char('j')).into(),
+      Event::KeyDown(Key::Char('K')).into(),
+      Event::KeyDown(Key::Char('q')).into(),
+    ];
+
+    let mut expected = make_tasks(4);
+    expected.swap(1, 0);
+
+    assert_eq!(test_for_ser_tasks(tasks, events), expected);
+  }
+
   /// Test function for the `TermUi` that returns the state of the `InOutArea` widget.
   fn test_state(tasks: Vec<SerTask>, events: Vec<UiEvent>) -> InOut {
     let mut ui = test_ui_with_tasks(tasks, events);

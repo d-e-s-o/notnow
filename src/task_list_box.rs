@@ -208,6 +208,36 @@ impl Handleable for TaskListBox {
             self.editing = Some(task);
             Some(event.into())
           },
+          Key::Char('J') => {
+            if !self.query().is_empty() {
+              let to_move = self.selected_task();
+              let other = self.query().nth(self.selection + 1);
+              if let Some(other) = other {
+                self.tasks.borrow_mut().move_after(to_move.id(), other.id());
+                self.select(1);
+                (None as Option<Event>).update()
+              } else {
+                None
+              }
+            } else {
+              None
+            }
+          },
+          Key::Char('K') => {
+            if !self.query().is_empty() && self.selection > 0 {
+              let to_move = self.selected_task();
+              let other = self.query().nth(self.selection - 1);
+              if let Some(other) = other {
+                self.tasks.borrow_mut().move_before(to_move.id(), other.id());
+                self.select(-1);
+                (None as Option<Event>).update()
+              } else {
+                None
+              }
+            } else {
+              None
+            }
+          },
           Key::Char('g') => (None as Option<Event>).maybe_update(self.set_select(0)),
           Key::Char('G') => (None as Option<Event>).maybe_update(self.set_select(isize::MAX)),
           Key::Char('j') => (None as Option<Event>).maybe_update(self.select(1)),

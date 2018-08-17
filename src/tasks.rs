@@ -212,6 +212,37 @@ impl Tasks {
       .map(|x| self.tasks[x] = task)
       .unwrap();
   }
+
+  /// Move a task relative to another.
+  fn move_relative_to(&mut self, to_move: Id, other: Id, add: usize) {
+    if to_move != other {
+      self
+        .tasks
+        .iter_mut()
+        .position(|x| x.id() == to_move)
+        .map(|x| {
+          let task = self.tasks.remove(x);
+          let idx = self
+            .tasks
+            .iter_mut()
+            .position(|x| x.id() == other)
+            .unwrap() + add;
+
+          self.tasks.insert(idx, task);
+        })
+        .unwrap();
+    }
+  }
+
+  /// Reorder the tasks referenced by `to_move` before `other`.
+  pub fn move_before(&mut self, to_move: Id, other: Id) {
+    self.move_relative_to(to_move, other, 0)
+  }
+
+  /// Reorder the tasks referenced by `to_move` after `other`.
+  pub fn move_after(&mut self, to_move: Id, other: Id) {
+    self.move_relative_to(to_move, other, 1)
+  }
 }
 
 
@@ -257,6 +288,53 @@ pub mod tests {
     let mut expected = make_tasks(3);
     expected[1].summary = "amended".to_string();
 
+    assert_eq!(tasks.to_serde().0, expected);
+  }
+
+  #[test]
+  fn move_before_for_first() {
+    let mut tasks = Tasks::with_serde_tasks(make_tasks(3)).unwrap();
+    let id1 = tasks.iter().nth(0).unwrap().id();
+    let id2 = tasks.iter().nth(1).unwrap().id();
+    tasks.move_before(id1, id2);
+
+    let expected = make_tasks(3);
+    assert_eq!(tasks.to_serde().0, expected);
+  }
+
+  #[test]
+  fn move_after_for_last() {
+    let mut tasks = Tasks::with_serde_tasks(make_tasks(3)).unwrap();
+    let id1 = tasks.iter().nth(2).unwrap().id();
+    let id2 = tasks.iter().nth(1).unwrap().id();
+    tasks.move_after(id1, id2);
+
+    let expected = make_tasks(3);
+    assert_eq!(tasks.to_serde().0, expected);
+  }
+
+  #[test]
+  fn move_before() {
+    let mut tasks = Tasks::with_serde_tasks(make_tasks(4)).unwrap();
+    let id1 = tasks.iter().nth(2).unwrap().id();
+    let id2 = tasks.iter().nth(1).unwrap().id();
+    tasks.move_before(id1, id2);
+
+    let mut expected = make_tasks(4);
+    expected.swap(2, 1);
+
+    assert_eq!(tasks.to_serde().0, expected);
+  }
+
+  #[test]
+  fn move_after() {
+    let mut tasks = Tasks::with_serde_tasks(make_tasks(4)).unwrap();
+    let id1 = tasks.iter().nth(1).unwrap().id();
+    let id2 = tasks.iter().nth(2).unwrap().id();
+    tasks.move_after(id1, id2);
+
+    let mut expected = make_tasks(4);
+    expected.swap(1, 2);
     assert_eq!(tasks.to_serde().0, expected);
   }
 
