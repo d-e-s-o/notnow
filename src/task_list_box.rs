@@ -41,7 +41,11 @@ use termui::TermUiEvent;
 
 /// Sanitize a selection index.
 fn sanitize_selection(selection: isize, count: usize) -> usize {
-  max(0, min(count as isize - 1, selection)) as usize
+  if count == 0 {
+    0
+  } else {
+    max(0, min(count as isize - 1, selection)) as usize
+  }
 }
 
 
@@ -51,7 +55,7 @@ pub struct TaskListBox {
   id: Id,
   tasks: Rc<RefCell<Tasks>>,
   query: Query,
-  selection: usize,
+  selection: isize,
   editing: Option<Task>,
 }
 
@@ -136,25 +140,38 @@ impl TaskListBox {
     self.query.clone()
   }
 
+  /// Retrieve the selection index with some relative change.
+  fn some_selection(&self, add: isize) -> usize {
+    let count = self.query().count();
+    let selection = sanitize_selection(self.selection, count);
+    debug_assert!(add >= 0 || selection as isize >= add);
+    (selection as isize + add) as usize
+  }
+
   /// Retrieve the current selection index.
   ///
   /// The selection index indicates the currently selected task.
   pub fn selection(&self) -> usize {
-    self.selection
+    self.some_selection(0)
   }
 
   /// Change the currently selected task.
-  fn set_select(&mut self, new_selection: isize) -> bool {
+  fn set_select(&mut self, selection: isize) -> bool {
     let count = self.query().count();
-    let old_selection = self.selection;
-    self.selection = sanitize_selection(new_selection, count);
+    let old_selection = sanitize_selection(self.selection, count);
+    let new_selection = sanitize_selection(selection, count);
 
-    self.selection != old_selection
+    self.selection = selection;
+    new_selection != old_selection
   }
 
   /// Change the currently selected task.
   fn select(&mut self, change: isize) -> bool {
-    let new_selection = self.selection as isize + change;
+    // We always make sure to base the given `change` value off of a
+    // sanitized selection. Otherwise the result is not as expected.
+    let count = self.query().count();
+    let selection = sanitize_selection(self.selection, count);
+    let new_selection = selection as isize + change;
     self.set_select(new_selection)
   }
 
@@ -163,9 +180,11 @@ impl TaskListBox {
   /// This method must only be called if tasks are available.
   fn selected_task(&self) -> Task {
     debug_assert!(!self.query().is_empty());
+
+    let selection = self.selection();
     // We maintain the invariant that the selection is always valid,
     // which means that we should always expect a task to be found.
-    self.query().nth(self.selection).unwrap()
+    self.query().nth(selection).unwrap()
   }
 }
 
@@ -192,26 +211,29 @@ impl Handleable for TaskListBox {
             if !self.query().is_empty() {
               let id = self.selected_task().id();
               self.tasks.borrow_mut().remove(id);
-              self.select(-1);
               (None as Option<Event>).update()
             } else {
               None
             }
           },
           Key::Char('e') => {
-            let task = self.selected_task();
-            let string = task.summary.clone();
-            let idx = string.len();
-            let event = TermUiEvent::SetInOut(InOut::Input(string, idx));
-            let event = Event::Custom(Box::new(event));
+            if !self.query().is_empty() {
+              let task = self.selected_task();
+              let string = task.summary.clone();
+              let idx = string.len();
+              let event = TermUiEvent::SetInOut(InOut::Input(string, idx));
+              let event = Event::Custom(Box::new(event));
 
-            self.editing = Some(task);
-            Some(event.into())
+              self.editing = Some(task);
+              Some(event.into())
+            } else {
+              None
+            }
           },
           Key::Char('J') => {
             if !self.query().is_empty() {
               let to_move = self.selected_task();
-              let other = self.query().nth(self.selection + 1);
+              let other = self.query().nth(self.some_selection(1));
               if let Some(other) = other {
                 self.tasks.borrow_mut().move_after(to_move.id(), other.id());
                 self.select(1);
@@ -224,9 +246,9 @@ impl Handleable for TaskListBox {
             }
           },
           Key::Char('K') => {
-            if !self.query().is_empty() && self.selection > 0 {
+            if !self.query().is_empty() && self.selection() > 0 {
               let to_move = self.selected_task();
-              let other = self.query().nth(self.selection - 1);
+              let other = self.query().nth(self.some_selection(-1));
               if let Some(other) = other {
                 self.tasks.borrow_mut().move_before(to_move.id(), other.id());
                 self.select(-1);

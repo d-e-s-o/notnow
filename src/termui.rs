@@ -370,6 +370,56 @@ mod tests {
   }
 
   #[test]
+  fn remove_second_to_last_task() {
+    let tasks = make_tasks(5);
+    let events = vec![
+      Event::KeyDown(Key::Char('G')).into(),
+      Event::KeyDown(Key::Char('k')).into(),
+      Event::KeyDown(Key::Char('d')).into(),
+    ];
+
+    let mut expected = make_tasks(5);
+    expected.remove(3);
+    assert_eq!(test_for_ser_tasks(tasks, events), expected)
+  }
+
+  #[test]
+  fn remove_second_task_after_up_select() {
+    let tasks = make_tasks(3);
+    let events = vec![
+      Event::KeyDown(Key::Char('k')).into(),
+      Event::KeyDown(Key::Char('k')).into(),
+      Event::KeyDown(Key::Char('k')).into(),
+      Event::KeyDown(Key::Char('k')).into(),
+      Event::KeyDown(Key::Char('k')).into(),
+      Event::KeyDown(Key::Char('k')).into(),
+      Event::KeyDown(Key::Char('j')).into(),
+      Event::KeyDown(Key::Char('d')).into(),
+    ];
+
+    let mut expected = make_tasks(3);
+    expected.remove(1);
+    assert_eq!(test_for_ser_tasks(tasks, events), expected)
+  }
+
+  #[test]
+  fn selection_after_removal() {
+    let tasks = make_tasks(5);
+    let events = vec![
+      Event::KeyDown(Key::Char('G')).into(),
+      Event::KeyDown(Key::Char('d')).into(),
+      Event::KeyDown(Key::Char('e')).into(),
+      Event::KeyDown(Key::Backspace).into(),
+      Event::KeyDown(Key::Char('o')).into(),
+      Event::KeyDown(Key::Return).into(),
+    ];
+
+    let mut expected = make_tasks(4);
+    expected[3].summary = "o".to_string();
+    assert_eq!(test_for_ser_tasks(tasks, events), expected)
+  }
+
+  #[test]
   fn add_task() {
     let tasks = make_tasks(0);
     let events = vec![
@@ -711,6 +761,31 @@ mod tests {
     expected.swap(1, 0);
 
     assert_eq!(test_for_ser_tasks(tasks, events), expected);
+  }
+
+  #[test]
+  fn transparent_task_removal_down_to_empty_query() {
+    let events = vec![
+      Event::KeyDown(Key::Char('l')).into(),
+      Event::KeyDown(Key::Char('l')).into(),
+      Event::KeyDown(Key::Char('l')).into(),
+      Event::KeyDown(Key::Char('G')).into(),
+      Event::KeyDown(Key::Char('h')).into(),
+      Event::KeyDown(Key::Char('h')).into(),
+      Event::KeyDown(Key::Char('h')).into(),
+      Event::KeyDown(Key::Char('G')).into(),
+      Event::KeyDown(Key::Char('d')).into(),
+      Event::KeyDown(Key::Char('l')).into(),
+      Event::KeyDown(Key::Char('l')).into(),
+      Event::KeyDown(Key::Char('l')).into(),
+      // The edit should be a no-op.
+      Event::KeyDown(Key::Char('e')).into(),
+      Event::KeyDown(Key::Return).into(),
+      Event::KeyDown(Key::Char('q')).into(),
+    ];
+
+    let tasks = test_with_tasks_and_tags(events);
+    assert_eq!(tasks.len(), 14);
   }
 
   /// Test function for the `TermUi` that returns the state of the `InOutArea` widget.
