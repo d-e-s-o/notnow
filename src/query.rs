@@ -26,11 +26,46 @@ use std::iter::FromIterator;
 use std::rc::Rc;
 
 use ser::query::Query as SerQuery;
+use ser::query::TagLit as SerTagLit;
 use tags::Tag;
 use tags::TagMap;
 use tags::Templates;
 use tasks::Task;
 use tasks::Tasks;
+
+
+/// A literal describing whether a tag is negated or not.
+#[derive(Clone, Debug)]
+enum TagLit {
+  Pos(Tag),
+  Neg(Tag),
+}
+
+impl TagLit {
+  /// Convert this object into a serializable one.
+  fn to_serde(&self) -> SerTagLit {
+    match self {
+      TagLit::Pos(tag) => SerTagLit::Pos(tag.to_serde()),
+      TagLit::Neg(tag) => SerTagLit::Neg(tag.to_serde()),
+    }
+  }
+
+  /// Retrieve the contained `Tag`.
+  fn tag(&self) -> &Tag {
+    match self {
+      TagLit::Pos(tag) |
+      TagLit::Neg(tag) => tag,
+    }
+  }
+
+  /// Check whether the literal is a positive one.
+  fn is_pos(&self) -> bool {
+    match self {
+      TagLit::Pos(_) => true,
+      TagLit::Neg(_) => false,
+    }
+  }
+}
 
 
 /// A builder object to create a `Query`.
@@ -40,7 +75,7 @@ use tasks::Tasks;
 // supposed to be something that does not change over its lifetime.
 pub struct QueryBuilder {
   tasks: Rc<RefCell<Tasks>>,
-  tags: Vec<Vec<Tag>>,
+  lits: Vec<Vec<TagLit>>,
 }
 
 impl QueryBuilder {
@@ -48,8 +83,16 @@ impl QueryBuilder {
   pub fn new(tasks: Rc<RefCell<Tasks>>) -> QueryBuilder {
     QueryBuilder {
       tasks: tasks,
-      tags: Default::default(),
+      lits: Default::default(),
     }
+  }
+
+  /// Add a new conjunction containing the given literal to the query.
+  #[cfg(test)]
+  fn and_lit(mut self, lit: TagLit) -> QueryBuilder {
+    // An AND always starts a new vector of ORs.
+    self.lits.push(vec![lit]);
+    self
   }
 
   /// Add a new conjunction containing the given tag to the query.
@@ -66,9 +109,30 @@ impl QueryBuilder {
   ///
   /// Is equivalent to tag1 && (tag2 || tag3) && tag4.
   #[cfg(test)]
-  pub fn and(mut self, tag: impl Into<Tag>) -> QueryBuilder {
-    // An AND always starts a new vector of ORs.
-    self.tags.push(vec![tag.into()]);
+  pub fn and(self, tag: impl Into<Tag>) -> QueryBuilder {
+    self.and_lit(TagLit::Pos(tag.into()))
+  }
+
+  /// Add a new conjunction containing the given tag in negated form to the query.
+  ///
+  /// Please see `Query::and` for more details on how ANDed tags
+  /// associate with one another and with ORed ones.
+  #[cfg(test)]
+  pub fn and_not(self, tag: impl Into<Tag>) -> QueryBuilder {
+    self.and_lit(TagLit::Neg(tag.into()))
+  }
+
+  /// Add a new literal to the last disjunction.
+  #[cfg(test)]
+  fn or_lit(mut self, lit: TagLit) -> QueryBuilder {
+    let last = self.lits.pop();
+    match last {
+      Some(mut last) => {
+        last.push(lit);
+        self.lits.push(last);
+      },
+      None => self.lits.push(vec![lit]),
+    };
     self
   }
 
@@ -77,16 +141,17 @@ impl QueryBuilder {
   /// Please see `Query::and` for more details on how ORed tags
   /// associate with one another and with ANDed ones.
   #[cfg(test)]
-  pub fn or(mut self, tag: impl Into<Tag>) -> QueryBuilder {
-    let last = self.tags.pop();
-    match last {
-      Some(mut last) => {
-        last.push(tag.into());
-        self.tags.push(last);
-      },
-      None => self.tags.push(vec![tag.into()]),
-    };
-    self
+  pub fn or(self, tag: impl Into<Tag>) -> QueryBuilder {
+    self.or_lit(TagLit::Pos(tag.into()))
+  }
+
+  /// Add a new tag in negated form to the last disjunction.
+  ///
+  /// Please see `Query::and` for more details on how ORed tags
+  /// associate with one another and with ANDed ones.
+  #[cfg(test)]
+  pub fn or_not(self, tag: impl Into<Tag>) -> QueryBuilder {
+    self.or_lit(TagLit::Neg(tag.into()))
   }
 
   /// Build the final `Query` instance.
@@ -94,7 +159,7 @@ impl QueryBuilder {
     Query {
       name: name.into(),
       tasks: self.tasks,
-      tags: self.tags,
+      lits: self.lits,
     }
   }
 }
@@ -122,7 +187,7 @@ pub struct Query {
   /// Tags are stored in Conjunctive Normal Form, meaning we have a
   /// large AND (all elements in the outer vector) of ORs (all the
   /// elements in the inner vector).
-  tags: Vec<Vec<Tag>>,
+  lits: Vec<Vec<TagLit>>,
 }
 
 impl Query {
@@ -131,49 +196,57 @@ impl Query {
                     templates: &Rc<Templates>,
                     map: &TagMap,
                     tasks: Rc<RefCell<Tasks>>) -> IoResult<Self> {
-    let mut and_tags = Vec::with_capacity(query.tags.len());
-    for mut tags in query.tags.drain(..) {
-      let mut or_tags = Vec::with_capacity(tags.len());
-      for tag in tags.drain(..) {
-        let id = map.get(&tag.id).ok_or_else(|| {
-          let error = format!("Encountered invalid tag Id {}", tag.id);
+    let mut and_lits = Vec::with_capacity(query.lits.len());
+    for mut lits in query.lits.drain(..) {
+      let mut or_lits = Vec::with_capacity(lits.len());
+      for lit in lits.drain(..) {
+        let id = map.get(&lit.id()).ok_or_else(|| {
+          let error = format!("Encountered invalid tag Id {}", lit.id());
           Error::new(ErrorKind::InvalidInput, error)
         })?;
-        or_tags.push(templates.instantiate(*id));
+        let tag = templates.instantiate(*id);
+        let lit = match lit {
+          SerTagLit::Pos(_) => TagLit::Pos(tag),
+          SerTagLit::Neg(_) => TagLit::Neg(tag),
+        };
+        or_lits.push(lit);
       }
 
-      and_tags.push(or_tags);
+      and_lits.push(or_lits);
     }
 
     Ok(Query {
       name: query.name,
       tasks: tasks,
-      tags: and_tags,
+      lits: and_lits,
     })
   }
 
   /// Convert this query into a serializable one.
   pub fn to_serde(&self) -> SerQuery {
-    let tags = self
-      .tags
+    let lits = self
+      .lits
       .iter()
-      .map(|tags| tags.iter().map(|x| x.to_serde()).collect())
+      .map(|lits| lits.iter().map(|x| x.to_serde()).collect())
       .collect();
 
     SerQuery {
       name: self.name.clone(),
-      tags: tags,
+      lits: lits,
     }
   }
 
   /// Check if one of the given tags matches the available ones.
-  fn matches<'tag, I>(&self, tags: &[Tag], avail_tags: &I) -> bool
+  fn matches<'tag, I>(&self, lits: &[TagLit], avail_tags: &I) -> bool
   where
     I: Iterator<Item = &'tag Tag> + Clone,
   {
     // Iterate over disjunctions and check if any of them matches.
-    for tag in tags {
-      if avail_tags.clone().any(|x| x == tag) {
+    for lit in lits {
+      let tag = lit.tag();
+      let must_exist = lit.is_pos();
+
+      if avail_tags.clone().any(|x| x == tag) == must_exist {
         return true
       }
     }
@@ -186,12 +259,12 @@ impl Query {
     I: Iterator<Item = &'tag Tag> + Clone,
   {
     // Iterate over conjunctions; all of them need to match.
-    for req_tags in &self.tags {
+    for req_lits in &self.lits {
       // We could create a set for faster inclusion checks instead of
       // passing in an iterator. However, typically tasks only use a
       // small set of tags and so the allocation overhead is assumed to
       // be higher than the iteration cost we incur right now.
-      if !self.matches(req_tags, avail_tags) {
+      if !self.matches(req_lits, avail_tags) {
         return false
       }
     }
@@ -402,6 +475,29 @@ mod tests {
   }
 
   #[test]
+  fn filter_no_completions() {
+    let (templates, tasks) = make_tagged_tasks(16);
+    let complete_tag = templates.instantiate(templates.complete_tag().id());
+    let query = QueryBuilder::new(tasks.clone())
+      .and_not(complete_tag)
+      .build("test");
+
+    query.for_each(|x| assert!(!x.is_complete()));
+
+    let tasks = tasks.borrow();
+    let mut iter = query.iter(&tasks);
+    assert_eq!(iter.next().unwrap().summary, "1");
+    assert_eq!(iter.next().unwrap().summary, "3");
+    assert_eq!(iter.next().unwrap().summary, "5");
+    assert_eq!(iter.next().unwrap().summary, "7");
+    assert_eq!(iter.next().unwrap().summary, "9");
+    assert_eq!(iter.next().unwrap().summary, "11");
+    assert_eq!(iter.next().unwrap().summary, "13");
+    assert_eq!(iter.next().unwrap().summary, "15");
+    assert!(iter.next().is_none());
+  }
+
+  #[test]
   fn filter_tag1_and_tag2() {
     let (templates, tasks) = make_tagged_tasks(20);
     let tag1 = templates.instantiate(templates.iter().nth(1).unwrap().id());
@@ -469,6 +565,48 @@ mod tests {
     assert_eq!(iter.next().unwrap().summary, "16");
     assert_eq!(iter.next().unwrap().summary, "19");
     assert_eq!(iter.next().unwrap().summary, "20");
+    assert!(iter.next().is_none());
+  }
+
+  #[test]
+  fn filter_tag2_and_not_complete() {
+    let (templates, tasks) = make_tagged_tasks(20);
+    let complete_tag = templates.instantiate(templates.complete_tag().id());
+    let tag2 = templates.instantiate(templates.iter().nth(2).unwrap().id());
+    let query = QueryBuilder::new(tasks.clone())
+      .and_not(tag2)
+      .and_not(complete_tag)
+      .build("test");
+
+    let tasks = tasks.borrow();
+    let mut iter = query.iter(&tasks);
+    assert_eq!(iter.next().unwrap().summary, "1");
+    assert_eq!(iter.next().unwrap().summary, "3");
+    assert_eq!(iter.next().unwrap().summary, "5");
+    assert_eq!(iter.next().unwrap().summary, "7");
+    assert_eq!(iter.next().unwrap().summary, "13");
+    assert_eq!(iter.next().unwrap().summary, "17");
+    assert!(iter.next().is_none());
+  }
+
+  #[test]
+  fn filter_tag2_or_not_complete_and_tag3() {
+    let (templates, tasks) = make_tagged_tasks(20);
+    let complete_tag = templates.instantiate(templates.complete_tag().id());
+    let tag2 = templates.instantiate(templates.iter().nth(2).unwrap().id());
+    let tag3 = templates.instantiate(templates.iter().nth(3).unwrap().id());
+    let query = QueryBuilder::new(tasks.clone())
+      .or_not(tag2)
+      .or_not(complete_tag)
+      .and(tag3)
+      .build("test");
+
+    let tasks = tasks.borrow();
+    let mut iter = query.iter(&tasks);
+    assert_eq!(iter.next().unwrap().summary, "13");
+    assert_eq!(iter.next().unwrap().summary, "14");
+    assert_eq!(iter.next().unwrap().summary, "15");
+    assert_eq!(iter.next().unwrap().summary, "19");
     assert!(iter.next().is_none());
   }
 }

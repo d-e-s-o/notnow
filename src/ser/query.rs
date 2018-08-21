@@ -17,14 +17,33 @@
 // * along with this program.  If not, see <http://www.gnu.org/licenses/>. *
 // *************************************************************************
 
+use ser::tags::Id;
 use ser::tags::Tag;
+
+
+/// A literal that can be serialized and deserialized.
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+pub enum TagLit {
+  Pos(Tag),
+  Neg(Tag),
+}
+
+impl TagLit {
+  /// Retrieve the ID of the wrapped tag.
+  pub fn id(&self) -> Id {
+    match self {
+      TagLit::Pos(tag) |
+      TagLit::Neg(tag) => tag.id,
+    }
+  }
+}
 
 
 /// A query that can be serialized and deserialized.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Query {
   pub name: String,
-  pub tags: Vec<Vec<Tag>>,
+  pub lits: Vec<Vec<TagLit>>,
 }
 
 
@@ -55,10 +74,10 @@ mod tests {
 
     let query = Query {
       name: "test-query".to_string(),
-      tags: vec![
-        vec![tag1],
-        vec![tag2, tag3],
-        vec![tag4, tag2],
+      lits: vec![
+        vec![TagLit::Pos(tag1)],
+        vec![TagLit::Pos(tag2), TagLit::Neg(tag3)],
+        vec![TagLit::Neg(tag4), TagLit::Pos(tag2)],
       ],
     };
 

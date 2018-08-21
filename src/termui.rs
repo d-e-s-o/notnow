@@ -171,6 +171,7 @@ mod tests {
 
   use event::tests::CustomEvent;
   use ser::query::Query as SerQuery;
+  use ser::query::TagLit as SerTagLit;
   use ser::state::ProgState as SerProgState;
   use ser::state::TaskState as SerTaskState;
   use ser::tags::Templates as SerTemplates;
@@ -227,20 +228,23 @@ mod tests {
         // for us, without having to specify it here.
         SerQuery {
           name: "tag complete".to_string(),
-          tags: vec![vec![tags[0]]],
+          lits: vec![vec![SerTagLit::Pos(tags[0])]],
         },
         SerQuery {
           name: "tag2 || tag3".to_string(),
-          tags: vec![
+          lits: vec![
             vec![
-              tags[2],
-              tags[3],
+              SerTagLit::Pos(tags[2]),
+              SerTagLit::Pos(tags[3]),
             ],
           ],
         },
         SerQuery {
           name: "tag1 && tag3".to_string(),
-          tags: vec![vec![tags[1]], vec![tags[3]]],
+          lits: vec![
+            vec![SerTagLit::Pos(tags[1])],
+            vec![SerTagLit::Pos(tags[3])],
+          ],
         },
       ],
     };
