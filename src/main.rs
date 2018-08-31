@@ -109,6 +109,7 @@ use std::path::PathBuf;
 use std::process::exit;
 use std::sync::mpsc::channel;
 use std::sync::mpsc::Receiver;
+use std::sync::mpsc::Sender;
 use std::thread;
 
 use termion::event::Key;
@@ -116,8 +117,9 @@ use termion::input::TermRead;
 use termion::raw::IntoRawMode;
 use termion::screen::AlternateScreen;
 
-use gui::Event;
-use gui::MetaEvent;
+use gui::Event as GuiEvent;
+use gui::MetaEvent as GuiMetaEvent;
+use gui::Renderer;
 use gui::Ui;
 use gui::UiEvent;
 
@@ -134,6 +136,13 @@ use termui::TermUiEvent;
 /// indicates whether or not an `Updated` event was found, indicating
 /// that the UI should be rerendered.
 type Continue = Option<bool>;
+
+
+/// An event to be handled by the program.
+enum Event {
+  /// A key that has been received.
+  Key(Key),
+}
 
 
 /// Retrieve the path to the program's configuration file.
@@ -166,7 +175,7 @@ fn task_config() -> Result<PathBuf> {
 fn handle_ui_event(event: UiEvent) -> Continue {
   match event {
     UiEvent::Quit => None,
-    UiEvent::Event(Event::Custom(data)) => {
+    UiEvent::Event(GuiEvent::Custom(data)) => {
       match data.downcast::<TermUiEvent>() {
         Ok(event) => {
           match *event {
@@ -181,51 +190,33 @@ fn handle_ui_event(event: UiEvent) -> Continue {
   }
 }
 
-/// Handle the given `MetaEvent`.
-fn handle_meta_event(event: MetaEvent) -> Continue {
+/// Handle the given `GuiMetaEvent`.
+fn handle_meta_event(event: GuiMetaEvent) -> Continue {
   match event {
-    MetaEvent::UiEvent(ui_event) => handle_ui_event(ui_event),
-    MetaEvent::Chain(ui_event, meta_event) => {
+    GuiMetaEvent::UiEvent(ui_event) => handle_ui_event(ui_event),
+    GuiMetaEvent::Chain(ui_event, meta_event) => {
       handle_ui_event(ui_event)?;
       handle_meta_event(*meta_event)
     },
   }
 }
 
-/// Instantiate a key receiver thread and return a channel to its buffer.
-fn receive_keys() -> Receiver<Result<Key>> {
-  let (send_key, recv_key) = channel();
-
+/// Instantiate a key receiver thread and have it send key events through the given channel.
+fn receive_keys(send_event: Sender<Result<Event>>) {
   thread::spawn(move || {
     let keys = stdin().keys();
     for key in keys {
-      send_key.send(key).unwrap();
+      let event = key.map(|x| Event::Key(x));
+      send_event.send(event).unwrap();
     }
   });
-
-  recv_key
 }
 
-/// Run the program.
-fn run_prog() -> Result<()> {
-  let prog_path = prog_config()?;
-  let task_path = task_config()?;
-  let mut state = Some(State::new(&prog_path, &task_path)?);
-  let screen = AlternateScreen::from(stdout().into_raw_mode()?);
-  let renderer = TermRenderer::new(screen)?;
-  let (mut ui, _) = Ui::new(&mut |id, cap| {
-    let state = state.take().unwrap();
-    // TODO: We should be able to propagate errors properly on the `gui`
-    //       side of things.
-    Box::new(TermUi::new(id, cap, state).unwrap())
-  });
-
-  // Initially we need to trigger a render in order to have the most
-  // recent data presented.
-  ui.render(&renderer);
-
-  let recv_key = receive_keys();
-
+/// Handle events in a loop.
+fn run_loop<R>(mut ui: Ui, renderer: R, recv_event: Receiver<Result<Event>>) -> Result<()>
+where
+  R: Renderer,
+{
   'handler: loop {
     let mut render = false;
     // We want to read keys in batches in order to avoid unnecessary
@@ -235,18 +226,22 @@ fn run_prog() -> Result<()> {
     // use a single recv call to block once for an event and then use an
     // iterator to read and handle every key event queued up to this
     // point.
-    let key = recv_key.recv().unwrap();
-    for key in Some(key).into_iter().chain(recv_key.try_iter()) {
-      // Attempt to convert the key. If we fail the reason could be that
-      // the key is not supported. We just ignore the failure. The UI
-      // could not possibly react to it anyway.
-      if let Ok(key) = convert(key?) {
-        if let Some(event) = ui.handle(Event::KeyDown(key)) {
-          match handle_meta_event(event) {
-            Some(update) => render = update || render,
-            None => break 'handler,
+    let event = recv_event.recv().unwrap();
+    for event in Some(event).into_iter().chain(recv_event.try_iter()) {
+      match event? {
+        Event::Key(key) => {
+          // Attempt to convert the key. If we fail the reason could be that
+          // the key is not supported. We just ignore the failure. The UI
+          // could not possibly react to it anyway.
+          if let Ok(key) = convert(key) {
+            if let Some(event) = ui.handle(GuiEvent::KeyDown(key)) {
+              match handle_meta_event(event) {
+                Some(update) => render = update || render,
+                None => break 'handler,
+              }
+            }
           }
-        }
+        },
       }
     }
 
@@ -255,6 +250,30 @@ fn run_prog() -> Result<()> {
     }
   }
   Ok(())
+}
+
+/// Run the program.
+fn run_prog() -> Result<()> {
+  let prog_path = prog_config()?;
+  let task_path = task_config()?;
+  let mut state = Some(State::new(&prog_path, &task_path)?);
+  let screen = AlternateScreen::from(stdout().into_raw_mode()?);
+  let renderer = TermRenderer::new(screen)?;
+  let (ui, _) = Ui::new(&mut |id, cap| {
+    let state = state.take().unwrap();
+    // TODO: We should be able to propagate errors properly on the `gui`
+    //       side of things.
+    Box::new(TermUi::new(id, cap, state).unwrap())
+  });
+
+  let (send_event, recv_event) = channel();
+  receive_keys(send_event);
+
+  // Initially we need to trigger a render in order to have the most
+  // recent data presented.
+  ui.render(&renderer);
+
+  run_loop(ui, renderer, recv_event)
 }
 
 /// Run the program and handle errors.
