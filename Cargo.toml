@@ -24,6 +24,9 @@ version = "0.1"
 [dependencies.gui-derive]
 version = "0.1"
 
+[dependencies.libc]
+version = "0.2"
+
 [dependencies.serde]
 version = "1.0"
 
@@ -35,6 +38,3 @@ version = "1.0"
 
 [dependencies.termion]
 version = "1.5"
-
-[dev-dependencies.libc]
-version = "0.2"

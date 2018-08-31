@@ -58,7 +58,6 @@
   unnameable_test_functions,
   unreachable_code,
   unreachable_patterns,
-  unsafe_code,
   unstable_features,
   unstable_name_collisions,
   unused,
@@ -75,7 +74,6 @@
 extern crate gui;
 #[macro_use]
 extern crate gui_derive;
-#[cfg(test)]
 extern crate libc;
 extern crate serde;
 #[macro_use]
@@ -87,6 +85,7 @@ mod event;
 mod id;
 mod in_out;
 mod query;
+mod resize;
 mod ser;
 mod state;
 mod tab_bar;
@@ -124,6 +123,7 @@ use gui::Ui;
 use gui::UiEvent;
 
 use event::convert;
+use resize::receive_window_resizes;
 use state::State;
 use term_renderer::TermRenderer;
 use termui::TermUi;
@@ -139,9 +139,12 @@ type Continue = Option<bool>;
 
 
 /// An event to be handled by the program.
-enum Event {
+#[derive(Debug)]
+pub enum Event {
   /// A key that has been received.
   Key(Key),
+  /// The window has been resized.
+  Resize,
 }
 
 
@@ -242,6 +245,7 @@ where
             }
           }
         },
+        Event::Resize => render = true,
       }
     }
 
@@ -267,6 +271,7 @@ fn run_prog() -> Result<()> {
   });
 
   let (send_event, recv_event) = channel();
+  receive_window_resizes(send_event.clone())?;
   receive_keys(send_event);
 
   // Initially we need to trigger a render in order to have the most
