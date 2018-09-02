@@ -1,6 +1,8 @@
 notnow
 ======
 
+- [Changelog](CHANGELOG.md)
+
 **notnow** is a terminal based TODO management program (that's right,
 yet another). It uses JSON for plain-text storage of a TODO database and
 is conceived in the [Rust programming language][rust-lang].
