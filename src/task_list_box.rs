@@ -139,9 +139,17 @@ impl TaskListBox {
             },
             State::Edit(mut task) => {
               let id = task.id();
-              task.summary = text;
-              self.tasks.borrow_mut().update(task);
-              self.handle_select_task(id, None).update()
+
+              // Editing a task to empty just removes the task
+              // altogether.
+              if !text.is_empty() {
+                task.summary = text;
+                self.tasks.borrow_mut().update(task);
+                self.handle_select_task(id, None).update()
+              } else {
+                self.tasks.borrow_mut().remove(id);
+                (None as Option<Event>).update()
+              }
             },
           }
         } else {

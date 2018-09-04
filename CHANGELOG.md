@@ -1,3 +1,8 @@
+Unreleased
+----------
+- Editing a task summary to empty deletes the task
+
+
 0.1.1
 -----
 - Added support for automatically redrawing the UI after terminal

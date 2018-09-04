@@ -681,6 +681,21 @@ mod tests {
   }
 
   #[test]
+  fn edit_task_to_empty() {
+    let tasks = make_tasks(3);
+    let events = vec![
+      Event::KeyDown(Key::Char('j')).into(),
+      Event::KeyDown(Key::Char('e')).into(),
+      Event::KeyDown(Key::Backspace).into(),
+      Event::KeyDown(Key::Return).into(),
+    ];
+
+    let mut expected = make_tasks(3);
+    expected.remove(1);
+    assert_eq!(test_for_ser_tasks(tasks, events), expected)
+  }
+
+  #[test]
   fn edit_task_with_cursor_movement() {
     let tasks = make_tasks(3);
     let events = vec![
