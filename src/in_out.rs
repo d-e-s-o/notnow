@@ -116,13 +116,16 @@ impl InOutArea {
   }
 
   /// Focus the previously focused widget or the parent.
-  fn restore_focus(&mut self, cap: &mut Cap) {
+  fn restore_focus(&mut self, cap: &mut Cap) -> Id {
     let to_focus = self.prev_focused.or_else(|| cap.parent_id(self.id));
     match to_focus {
-      Some(to_focus) => cap.focus(to_focus),
+      Some(to_focus) => {
+        cap.focus(to_focus);
+        to_focus
+      },
       // Really should never happen. We are not the root widget so at
       // the very least there must be a parent to focus.
-      None => assert!(false, "No previous widget to focus"),
+      None => panic!("No previous widget to focus"),
     }
   }
 
@@ -214,8 +217,9 @@ impl Handleable for InOutArea {
           },
           Key::Esc => {
             self.in_out = InOut::Clear;
-            self.restore_focus(cap);
-            (None as Option<Event>).update()
+            let widget = self.restore_focus(cap);
+            let event = Box::new(TermUiEvent::InputCanceled);
+            Some(UiEvent::Custom(widget, event)).update()
           },
           _ => None,
         }

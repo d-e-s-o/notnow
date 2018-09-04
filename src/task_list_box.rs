@@ -49,6 +49,14 @@ fn sanitize_selection(selection: isize, count: usize) -> usize {
 }
 
 
+/// An enum representing the state a `TaskListBox` can be in.
+#[derive(Debug)]
+enum State {
+  Add,
+  Edit(Task),
+}
+
+
 /// A widget representing a list of `Task` objects.
 #[derive(Debug, GuiWidget)]
 pub struct TaskListBox {
@@ -56,7 +64,7 @@ pub struct TaskListBox {
   tasks: Rc<RefCell<Tasks>>,
   query: Query,
   selection: isize,
-  editing: Option<Task>,
+  state: Option<State>,
 }
 
 impl TaskListBox {
@@ -67,7 +75,7 @@ impl TaskListBox {
       tasks: tasks,
       query: query,
       selection: 0,
-      editing: None,
+      state: None,
     }
   }
 
@@ -108,27 +116,46 @@ impl TaskListBox {
         self.handle_select_task(task_id, widget_id)
       },
       TermUiEvent::EnteredText(text) => {
-        if let Some(mut task) = self.editing.take() {
-          let id = task.id();
-          task.summary = text;
-          self.tasks.borrow_mut().update(task);
-          self.handle_select_task(id, None).update()
-        } else if !text.is_empty() {
-          let tags = if !self.query.is_empty() {
-            let mut task = self.selected_task();
-            if task.is_complete() {
-              task.toggle_complete()
-            }
-            let tags = task.tags().cloned().collect();
-            tags
-          } else {
-            Default::default()
-          };
+        if let Some(state) = self.state.take() {
+          match state {
+            State::Add => {
+              if !text.is_empty() {
+                let tags = if !self.query.is_empty() {
+                  let mut task = self.selected_task();
+                  if task.is_complete() {
+                    task.toggle_complete()
+                  }
+                  let tags = task.tags().cloned().collect();
+                  tags
+                } else {
+                  Default::default()
+                };
 
-          let id = self.tasks.borrow_mut().add(text, tags);
-          self.handle_select_task(id, None)
+                let id = self.tasks.borrow_mut().add(text, tags);
+                self.handle_select_task(id, None)
+              } else {
+                None
+              }
+            },
+            State::Edit(mut task) => {
+              let id = task.id();
+              task.summary = text;
+              self.tasks.borrow_mut().update(task);
+              self.handle_select_task(id, None).update()
+            },
+          }
         } else {
-          None
+          // We did not handle the event. Let the parent deal with it.
+          // TODO: With non-lexical lifetimes we should be able to just
+          //       reuse `event` instead of creating a new box.
+          Some(Event::Custom(Box::new(TermUiEvent::EnteredText(text))).into())
+        }
+      },
+      TermUiEvent::InputCanceled => {
+        if self.state.take().is_some() {
+          (None as Option<Event>).update()
+        } else {
+          Some(Event::Custom(event).into())
         }
       },
       _ => Some(Event::Custom(event).into()),
@@ -205,6 +232,8 @@ impl Handleable for TaskListBox {
           Key::Char('a') => {
             let event = TermUiEvent::SetInOut(InOut::Input("".to_string(), 0));
             let event = Event::Custom(Box::new(event));
+
+            self.state = Some(State::Add);
             Some(event.into())
           },
           Key::Char('d') => {
@@ -224,7 +253,7 @@ impl Handleable for TaskListBox {
               let event = TermUiEvent::SetInOut(InOut::Input(string, idx));
               let event = Event::Custom(Box::new(event));
 
-              self.editing = Some(task);
+              self.state = Some(State::Edit(task));
               Some(event.into())
             } else {
               None

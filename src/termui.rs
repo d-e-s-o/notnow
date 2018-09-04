@@ -49,6 +49,8 @@ pub enum TermUiEvent {
   SetInOut(InOut),
   /// Text has been entered.
   EnteredText(String),
+  /// Text input has been canceled.
+  InputCanceled,
   /// A indication that some component changed and that we should
   /// re-render everything.
   Updated,
@@ -654,6 +656,26 @@ mod tests {
 
     let mut expected = make_tasks(3);
     expected[1].summary = "amend".to_string();
+
+    assert_eq!(test_for_ser_tasks(tasks, events), expected);
+  }
+
+  #[test]
+  fn edit_task_cancel() {
+    let tasks = make_tasks(3);
+    let events = vec![
+      Event::KeyDown(Key::Char('j')).into(),
+      Event::KeyDown(Key::Char('e')).into(),
+      Event::KeyDown(Key::Esc).into(),
+      Event::KeyDown(Key::Char('a')).into(),
+      Event::KeyDown(Key::Char('f')).into(),
+      Event::KeyDown(Key::Char('o')).into(),
+      Event::KeyDown(Key::Char('o')).into(),
+      Event::KeyDown(Key::Return).into(),
+    ];
+
+    let mut expected = make_tasks(4);
+    expected[3].summary = "foo".to_string();
 
     assert_eq!(test_for_ser_tasks(tasks, events), expected);
   }
