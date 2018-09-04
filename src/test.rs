@@ -21,8 +21,9 @@ use std::ffi::CString;
 use std::fs::remove_file;
 use std::path::PathBuf;
 
-use libc::c_char;
 use libc::c_int;
+use libc::close;
+use libc::mkstemp;
 
 use ser::tags::Id as SerId;
 use ser::tags::Tag as SerTag;
@@ -30,12 +31,6 @@ use ser::tags::Template as SerTemplate;
 use ser::tasks::Task as SerTask;
 use tags::COMPLETE_TAG;
 
-
-#[link(name = "c")]
-extern "C" {
-  fn mkstemp(template: *mut c_char) -> c_int;
-  fn close(file: c_int) -> c_int;
-}
 
 /// A temporary file with a visible file system path.
 ///
