@@ -18,6 +18,9 @@ codegen-units = 1
 incremental = false
 panic = "abort"
 
+[dependencies.dirs]
+version = "1.0"
+
 [dependencies.gui]
 version = "0.2"
 

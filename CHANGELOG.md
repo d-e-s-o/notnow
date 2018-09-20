@@ -1,6 +1,9 @@
 Unreleased
 ----------
 - Editing a task summary to empty deletes the task
+- Replaced deprecated `std::env::home_dir` with functionality from
+  `dirs` crate
+  - Added new dependency to `dirs`
 - Bumped `gui` dependency to `0.2`
 
 

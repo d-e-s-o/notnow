@@ -71,6 +71,7 @@
 
 //! A terminal based task management application.
 
+extern crate dirs;
 extern crate gui;
 #[macro_use]
 extern crate gui_derive;
@@ -98,7 +99,6 @@ mod termui;
 #[allow(unsafe_code)]
 mod test;
 
-use std::env;
 use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Result;
@@ -110,6 +110,8 @@ use std::sync::mpsc::channel;
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc::Sender;
 use std::thread;
+
+use dirs::config_dir;
 
 use termion::event::Key;
 use termion::input::TermRead;
@@ -152,11 +154,10 @@ pub enum Event {
 /// Retrieve the path to the program's configuration file.
 fn prog_config() -> Result<PathBuf> {
   Ok(
-    env::home_dir()
+    config_dir()
       .ok_or_else(|| Error::new(
-        ErrorKind::NotFound, "Unable to determine home directory"
+        ErrorKind::NotFound, "Unable to determine config directory"
       ))?
-      .join(".config")
       .join("notnow")
       .join("notnow.json"),
   )
@@ -165,11 +166,10 @@ fn prog_config() -> Result<PathBuf> {
 /// Retrieve the path to the program's task configuration file.
 fn task_config() -> Result<PathBuf> {
   Ok(
-    env::home_dir()
+    config_dir()
       .ok_or_else(|| Error::new(
-        ErrorKind::NotFound, "Unable to determine home directory"
+        ErrorKind::NotFound, "Unable to determine config directory"
       ))?
-      .join(".config")
       .join("notnow")
       .join("tasks.json"),
   )
