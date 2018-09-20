@@ -384,9 +384,9 @@ where
         };
 
         let (task_fg, task_bg) = if i == selection {
-          (SELECTED_TASK_FG, &SELECTED_TASK_BG as &Color)
+          (SELECTED_TASK_FG, &SELECTED_TASK_BG as &dyn Color)
         } else {
-          (UNSELECTED_TASK_FG, &UNSELECTED_TASK_BG as &Color)
+          (UNSELECTED_TASK_FG, &UNSELECTED_TASK_BG as &dyn Color)
         };
 
         self.writer.write(x, y, state_fg, state_bg, state)?;
@@ -416,7 +416,7 @@ where
   }
 
   /// Render an `InOutArea`.
-  fn render_input_output(&self, in_out: &InOutArea, bbox: BBox, cap: &Cap) -> Result<BBox> {
+  fn render_input_output(&self, in_out: &InOutArea, bbox: BBox, cap: &dyn Cap) -> Result<BBox> {
     let (prefix, fg, bg, string) = match in_out.state() {
       InOut::Saved => (SAVED_TEXT, IN_OUT_SUCCESS_FG, IN_OUT_SUCCESS_BG, None),
       InOut::Error(ref e) => (ERROR_TEXT, IN_OUT_ERROR_FG, IN_OUT_ERROR_BG, Some(e)),
@@ -471,7 +471,7 @@ where
     }
   }
 
-  fn render(&self, widget: &Widget, bbox: BBox, cap: &Cap) -> BBox {
+  fn render(&self, widget: &dyn Widget, bbox: BBox, cap: &dyn Cap) -> BBox {
     let result;
 
     self.writer.restrict(bbox);

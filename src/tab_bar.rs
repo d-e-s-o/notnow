@@ -52,7 +52,7 @@ pub struct TabBar {
 
 impl TabBar {
   /// Create a new `TabBar` widget.
-  pub fn new(id: Id, cap: &mut Cap, state: &State) -> Self {
+  pub fn new(id: Id, cap: &mut dyn Cap, state: &State) -> Self {
     let selection = 0;
     // TODO: We really should not be cloning the queries to use here.
     let tabs = state
@@ -82,7 +82,9 @@ impl TabBar {
   }
 
   /// Handle a custom event.
-  fn handle_custom_event(&mut self, event: Box<TermUiEvent>, cap: &mut Cap) -> Option<UiEvents> {
+  fn handle_custom_event(&mut self,
+                         event: Box<TermUiEvent>,
+                         cap: &mut dyn Cap) -> Option<UiEvents> {
     match *event {
       TermUiEvent::SelectTask(task_id, widget_id) => {
         let next_idx = if let Some(widget_id) = widget_id {
@@ -129,7 +131,7 @@ impl TabBar {
   }
 
   /// Change the currently selected tab.
-  fn set_select(&mut self, new_selection: isize, cap: &mut Cap) -> bool {
+  fn set_select(&mut self, new_selection: isize, cap: &mut dyn Cap) -> bool {
     let count = self.iter().count();
     let old_selection = self.selection;
     let new_selection = sanitize_selection(new_selection, count);
@@ -145,7 +147,7 @@ impl TabBar {
   }
 
   /// Change the currently selected tab.
-  fn select(&mut self, change: isize, cap: &mut Cap) -> bool {
+  fn select(&mut self, change: isize, cap: &mut dyn Cap) -> bool {
     let new_selection = self.selection as isize + change;
     self.set_select(new_selection, cap)
   }
@@ -153,7 +155,7 @@ impl TabBar {
 
 impl Handleable for TabBar {
   /// Check for new input and react to it.
-  fn handle(&mut self, event: Event, cap: &mut Cap) -> Option<UiEvents> {
+  fn handle(&mut self, event: Event, cap: &mut dyn Cap) -> Option<UiEvents> {
     match event {
       Event::KeyDown(key) |
       Event::KeyUp(key) => {
@@ -167,7 +169,7 @@ impl Handleable for TabBar {
   }
 
   /// Handle a custom event.
-  fn handle_custom(&mut self, event: Box<Any>, cap: &mut Cap) -> Option<UiEvents> {
+  fn handle_custom(&mut self, event: Box<dyn Any>, cap: &mut dyn Cap) -> Option<UiEvents> {
     match event.downcast::<TermUiEvent>() {
       Ok(e) => self.handle_custom_event(e, cap),
       Err(e) => panic!("Received unexpected custom event: {:?}", e),

@@ -93,7 +93,7 @@ pub struct TermUi {
 
 impl TermUi {
   /// Create a new view associated with the given `State` object.
-  pub fn new(id: Id, cap: &mut Cap, state: State) -> Result<Self> {
+  pub fn new(id: Id, cap: &mut dyn Cap, state: State) -> Result<Self> {
     let in_out = cap.add_widget(id, &mut |id, cap| {
       Box::new(InOutArea::new(id, cap))
     });
@@ -145,7 +145,7 @@ impl TermUi {
 
 impl Handleable for TermUi {
   /// Check for new input and react to it.
-  fn handle(&mut self, event: Event, _cap: &mut Cap) -> Option<UiEvents> {
+  fn handle(&mut self, event: Event, _cap: &mut dyn Cap) -> Option<UiEvents> {
     match event {
       Event::KeyDown(key) |
       Event::KeyUp(key) => {
@@ -159,7 +159,7 @@ impl Handleable for TermUi {
   }
 
   /// Handle a custom event.
-  fn handle_custom(&mut self, event: Box<Any>, _cap: &mut Cap) -> Option<UiEvents> {
+  fn handle_custom(&mut self, event: Box<dyn Any>, _cap: &mut dyn Cap) -> Option<UiEvents> {
     match event.downcast::<TermUiEvent>() {
       Ok(e) => self.handle_custom_event(e),
       Err(e) => panic!("Received unexpected custom event: {:?}", e),

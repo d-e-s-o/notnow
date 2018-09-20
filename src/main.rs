@@ -28,6 +28,7 @@
 // default) is enough.
 #![deny(
   bad_style,
+  bare_trait_objects,
   dead_code,
   duplicate_associated_type_bindings,
   illegal_floating_point_literal_pattern,

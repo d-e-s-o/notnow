@@ -52,7 +52,7 @@ pub struct InOutArea {
 
 impl InOutArea {
   /// Create a new input/output area object.
-  pub fn new(id: Id, cap: &mut Cap) -> Self {
+  pub fn new(id: Id, cap: &mut dyn Cap) -> Self {
     // Install a hook to be able to reset the input/output area into
     // "clear" state on every key press.
     cap.hook_events(id, Some(&InOutArea::handle_hooked_event));
@@ -75,7 +75,7 @@ impl InOutArea {
   }
 
   /// Handle a hooked event.
-  fn handle_hooked_event(widget: &mut Widget, event: Event, cap: &Cap) -> Option<UiEvents> {
+  fn handle_hooked_event(widget: &mut dyn Widget, event: Event, cap: &dyn Cap) -> Option<UiEvents> {
     let in_out = widget.downcast_mut::<InOutArea>();
     if let Some(in_out) = in_out {
       // If we are focused then text is being entered and we should not
@@ -94,7 +94,9 @@ impl InOutArea {
   }
 
   /// Handle a custom event.
-  fn handle_custom_event(&mut self, event: Box<TermUiEvent>, cap: &mut Cap) -> Option<UiEvents> {
+  fn handle_custom_event(&mut self,
+                         event: Box<TermUiEvent>,
+                         cap: &mut dyn Cap) -> Option<UiEvents> {
     match *event {
       TermUiEvent::SetInOut(in_out) => {
         if let InOut::Input(ref s, idx) = in_out {
@@ -117,7 +119,7 @@ impl InOutArea {
   }
 
   /// Focus the previously focused widget or the parent.
-  fn restore_focus(&mut self, cap: &mut Cap) -> Id {
+  fn restore_focus(&mut self, cap: &mut dyn Cap) -> Id {
     let to_focus = self.prev_focused.or_else(|| cap.parent_id(self.id));
     match to_focus {
       Some(to_focus) => {
@@ -138,7 +140,7 @@ impl InOutArea {
 
 impl Handleable for InOutArea {
   /// Handle an event.
-  fn handle(&mut self, event: Event, cap: &mut Cap) -> Option<UiEvents> {
+  fn handle(&mut self, event: Event, cap: &mut dyn Cap) -> Option<UiEvents> {
     match event {
       Event::KeyDown(key) |
       Event::KeyUp(key) => {
@@ -229,7 +231,7 @@ impl Handleable for InOutArea {
   }
 
   /// Handle a custom event.
-  fn handle_custom(&mut self, event: Box<Any>, cap: &mut Cap) -> Option<UiEvents> {
+  fn handle_custom(&mut self, event: Box<dyn Any>, cap: &mut dyn Cap) -> Option<UiEvents> {
     match event.downcast::<TermUiEvent>() {
       Ok(e) => self.handle_custom_event(e, cap),
       Err(e) => panic!("Received unexpected custom event: {:?}", e),

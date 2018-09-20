@@ -227,7 +227,7 @@ impl TaskListBox {
 
 impl Handleable for TaskListBox {
   /// Check for new input and react to it.
-  fn handle(&mut self, event: Event, _cap: &mut Cap) -> Option<UiEvents> {
+  fn handle(&mut self, event: Event, _cap: &mut dyn Cap) -> Option<UiEvents> {
     match event {
       Event::KeyDown(key) |
       Event::KeyUp(key) => {
@@ -310,7 +310,7 @@ impl Handleable for TaskListBox {
   }
 
   /// Handle a custom event.
-  fn handle_custom(&mut self, event: Box<Any>, _cap: &mut Cap) -> Option<UiEvents> {
+  fn handle_custom(&mut self, event: Box<dyn Any>, _cap: &mut dyn Cap) -> Option<UiEvents> {
     match event.downcast::<TermUiEvent>() {
       Ok(e) => self.handle_custom_event(e),
       Err(e) => panic!("Received unexpected custom event: {:?}", e),
