@@ -32,9 +32,14 @@ use gui::UiEvent;
 use gui::UiEvents;
 
 use event::EventUpdated;
+use selection::SelectionState as SelectionStateT;
 use state::State;
 use task_list_box::TaskListBox;
 use termui::TermUiEvent;
+
+
+/// The selection state as used by a `TabBar`.
+pub type SelectionState = SelectionStateT<Id>;
 
 
 /// Sanitize a selection index.
@@ -89,21 +94,14 @@ impl TabBar {
                          event: Box<TermUiEvent>,
                          cap: &mut dyn Cap) -> Option<UiEvents> {
     match *event {
-      TermUiEvent::SelectTask(task_id, widget_id) => {
-        let next_idx = if let Some(widget_id) = widget_id {
-          // The widget we tried was not able to select the given task.
-          // Forward it to the next tab in line.
-          self.tabs.iter().position(|x| x.1 == widget_id).unwrap() + 1
-        } else {
-          // If `widget_id` was None we started off with the selected
-          // tab and now want to continue with the first one in line.
-          0
-        };
+      TermUiEvent::SelectTask(task_id, mut state) => {
+        let iter = self.tabs.iter().map(|x| x.1);
+        let new_idx = state.normalize(iter);
 
-        let next_tab = self.tabs.get(next_idx).map(|x| x.1);
-        if let Some(next_tab) = next_tab {
-          let event = Box::new(TermUiEvent::SelectTask(task_id, Some(next_tab)));
-          let event = UiEvent::Directed(next_tab, event);
+        if !state.has_cycled() {
+          let tab = self.tabs.get(new_idx).unwrap().1;
+          let event = Box::new(TermUiEvent::SelectTask(task_id, state));
+          let event = UiEvent::Directed(tab, event);
           Some(ChainEvent::Event(event))
         } else {
           None

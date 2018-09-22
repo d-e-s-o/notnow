@@ -31,6 +31,7 @@ use gui::UiEvents;
 use in_out::InOut;
 use in_out::InOutArea;
 use state::State;
+use tab_bar::SelectionState;
 use tab_bar::TabBar;
 use tasks::Id as TaskId;
 #[cfg(test)]
@@ -42,7 +43,7 @@ use tasks::Task;
 pub enum TermUiEvent {
   /// An event to ask a widget to select the task with the given
   /// `TaskId`.
-  SelectTask(TaskId, Option<Id>),
+  SelectTask(TaskId, SelectionState),
   /// The tab with the given `Id` has selected the task as indicated by
   /// `SelectTask`.
   SelectedTask(Id),

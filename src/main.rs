@@ -91,6 +91,7 @@ mod id;
 mod in_out;
 mod query;
 mod resize;
+mod selection;
 mod ser;
 mod state;
 mod tab_bar;

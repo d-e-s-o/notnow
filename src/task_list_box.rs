@@ -35,6 +35,7 @@ use gui::UiEvents;
 use event::EventUpdated;
 use in_out::InOut;
 use query::Query;
+use tab_bar::SelectionState;
 use tasks::Id as TaskId;
 use tasks::Task;
 use tasks::Tasks;
@@ -93,7 +94,7 @@ impl TaskListBox {
   /// conditions under which an update must happen, e.g., when the
   /// summary or the tags of the task changed. Handling of updates in
   /// those cases is left to clients.
-  fn handle_select_task(&mut self, task_id: TaskId, widget_id: Option<Id>) -> Option<UiEvents> {
+  fn handle_select_task(&mut self, task_id: TaskId, mut state: SelectionState) -> Option<UiEvents> {
     let idx = self.query.position(|x| x.id() == task_id);
     if let Some(idx) = idx {
       let update = self.set_select(idx as isize);
@@ -103,19 +104,27 @@ impl TaskListBox {
       // us subsequently.
       Some(UiEvent::Custom(Box::new(event))).maybe_update(update)
     } else {
-      // We don't have a task with that Id. Bounce the event back to
-      // the parent to let it check with another widget.
-      let data = Box::new(TermUiEvent::SelectTask(task_id, widget_id));
+      // We don't have a task that should get selected. Bounce the event
+      // back to the parent to let it check with the next widget.
+      state.advance();
+
+      let data = Box::new(TermUiEvent::SelectTask(task_id, state));
       let event = UiEvent::Custom(data);
       Some(event.into())
     }
   }
 
+  /// Start the selection of a task.
+  fn handle_select_task_start(&mut self, task_id: TaskId) -> Option<UiEvents> {
+    let state = SelectionState::new(self.id);
+    self.handle_select_task(task_id, state)
+  }
+
   /// Handle a custom event.
   fn handle_custom_event(&mut self, event: Box<TermUiEvent>) -> Option<UiEvents> {
     match *event {
-      TermUiEvent::SelectTask(task_id, widget_id) => {
-        self.handle_select_task(task_id, widget_id)
+      TermUiEvent::SelectTask(task_id, state) => {
+        self.handle_select_task(task_id, state)
       },
       TermUiEvent::EnteredText(text) => {
         if let Some(state) = self.state.take() {
@@ -134,7 +143,7 @@ impl TaskListBox {
                 };
 
                 let id = self.tasks.borrow_mut().add(text, tags);
-                self.handle_select_task(id, None)
+                self.handle_select_task_start(id)
               } else {
                 None
               }
@@ -147,7 +156,7 @@ impl TaskListBox {
               if !text.is_empty() {
                 task.summary = text;
                 self.tasks.borrow_mut().update(task);
-                self.handle_select_task(id, None).update()
+                self.handle_select_task_start(id).update()
               } else {
                 self.tasks.borrow_mut().remove(id);
                 (None as Option<Event>).update()
@@ -237,7 +246,7 @@ impl Handleable for TaskListBox {
             let id = task.id();
             task.toggle_complete();
             self.tasks.borrow_mut().update(task);
-            self.handle_select_task(id, None).update()
+            self.handle_select_task_start(id).update()
           },
           Key::Char('a') => {
             let event = TermUiEvent::SetInOut(InOut::Input("".to_string(), 0));
