@@ -181,7 +181,7 @@ impl Tasks {
   }
 
   /// Retrieve an iterator over the tasks.
-  pub fn iter(&self) -> TaskIter {
+  pub fn iter(&self) -> TaskIter<'_> {
     self.tasks.iter()
   }
 

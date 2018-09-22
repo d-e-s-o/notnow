@@ -27,6 +27,7 @@
 // build breakages due to deprecated items. For those a warning (the
 // default) is enough.
 #![deny(
+  elided_lifetimes_in_paths,
   bad_style,
   bare_trait_objects,
   dead_code,

@@ -55,7 +55,7 @@ impl<T> Debug for Id<T>
 where
   T: Copy,
 {
-  fn fmt(&self, f: &mut Formatter) -> FmtResult {
+  fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
     write!(f, "Id {{ id: {} }}", self.id)
   }
 }
@@ -65,7 +65,7 @@ where
   T: Copy,
 {
   /// Format the `Id` into the given formatter.
-  fn fmt(&self, f: &mut Formatter) -> FmtResult {
+  fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
     write!(f, "{}", self.id)
   }
 }
