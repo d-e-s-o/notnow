@@ -17,21 +17,15 @@
 // * along with this program.  If not, see <http://www.gnu.org/licenses/>. *
 // *************************************************************************
 
-#![allow(
-  unknown_lints,
-  let_and_return,
-  redundant_field_names,
-)]
 // We basically deny most lints that "warn" by default, except for
 // "deprecated" (which would be enabled by "warnings"). We want to avoid
 // build breakages due to deprecated items. For those a warning (the
 // default) is enough.
 #![deny(
-  elided_lifetimes_in_paths,
   bad_style,
-  bare_trait_objects,
   dead_code,
   duplicate_associated_type_bindings,
+  future_incompatible,
   illegal_floating_point_literal_pattern,
   improper_ctypes,
   intra_doc_link_resolution_failure,
@@ -50,6 +44,7 @@
   private_no_mangle_statics,
   proc_macro_derive_resolution_fallback,
   renamed_and_removed_lints,
+  rust_2018_idioms,
   safe_packed_borrows,
   stable_features,
   trivial_bounds,
@@ -69,6 +64,13 @@
   unused_qualifications,
   where_clauses_object_safety,
   while_true,
+)]
+#![warn(rust_2018_compatibility)]
+#![allow(
+  unknown_lints,
+  let_and_return,
+  redundant_field_names,
+  unreachable_pub,
 )]
 
 //! A terminal based task management application.

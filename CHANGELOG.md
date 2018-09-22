@@ -4,6 +4,7 @@ Unreleased
 - Replaced deprecated `std::env::home_dir` with functionality from
   `dirs` crate
   - Added new dependency to `dirs`
+- Enabled Rust 2018 edition lints
 - Bumped `gui` dependency to `0.2`
 
 
