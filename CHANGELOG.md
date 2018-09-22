@@ -1,5 +1,7 @@
 Unreleased
 ----------
+- Added support for selecting tabs by numbers
+- Added support for directly selecting the previously active tab
 - Editing a task summary to empty deletes the task
 - Replaced deprecated `std::env::home_dir` with functionality from
   `dirs` crate

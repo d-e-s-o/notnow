@@ -20,6 +20,7 @@
 use std::any::Any;
 use std::cmp::max;
 use std::cmp::min;
+use std::isize;
 
 use gui::Cap;
 use gui::ChainEvent;
@@ -48,6 +49,7 @@ pub struct TabBar {
   id: Id,
   tabs: Vec<(String, Id)>,
   selection: usize,
+  prev_selection: usize,
 }
 
 impl TabBar {
@@ -78,6 +80,7 @@ impl TabBar {
       id: id,
       tabs: tabs,
       selection: selection,
+      prev_selection: selection,
     }
   }
 
@@ -138,6 +141,7 @@ impl TabBar {
 
     if new_selection != old_selection {
       cap.hide(self.selected_tab());
+      self.prev_selection = old_selection;
       self.selection = new_selection;
       cap.focus(self.selected_tab());
       true
@@ -151,6 +155,12 @@ impl TabBar {
     let new_selection = self.selection as isize + change;
     self.set_select(new_selection, cap)
   }
+
+  /// Select the previously selected tab.
+  fn select_previous(&mut self, cap: &mut dyn Cap) -> bool {
+    let selection = self.prev_selection as isize;
+    self.set_select(selection, cap)
+  }
 }
 
 impl Handleable for TabBar {
@@ -160,6 +170,17 @@ impl Handleable for TabBar {
       Event::KeyDown(key) |
       Event::KeyUp(key) => {
         match key {
+          Key::Char('1') => (None as Option<Event>).maybe_update(self.set_select(0, cap)),
+          Key::Char('2') => (None as Option<Event>).maybe_update(self.set_select(1, cap)),
+          Key::Char('3') => (None as Option<Event>).maybe_update(self.set_select(2, cap)),
+          Key::Char('4') => (None as Option<Event>).maybe_update(self.set_select(3, cap)),
+          Key::Char('5') => (None as Option<Event>).maybe_update(self.set_select(4, cap)),
+          Key::Char('6') => (None as Option<Event>).maybe_update(self.set_select(5, cap)),
+          Key::Char('7') => (None as Option<Event>).maybe_update(self.set_select(6, cap)),
+          Key::Char('8') => (None as Option<Event>).maybe_update(self.set_select(7, cap)),
+          Key::Char('9') => (None as Option<Event>).maybe_update(self.set_select(8, cap)),
+          Key::Char('0') => (None as Option<Event>).maybe_update(self.set_select(isize::MAX, cap)),
+          Key::Char('`') => (None as Option<Event>).maybe_update(self.select_previous(cap)),
           Key::Char('h') => (None as Option<Event>).maybe_update(self.select(-1, cap)),
           Key::Char('l') => (None as Option<Event>).maybe_update(self.select(1, cap)),
           _ => Some(event.into()),

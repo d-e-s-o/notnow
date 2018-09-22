@@ -833,6 +833,65 @@ mod tests {
     assert_eq!(tasks.len(), 14);
   }
 
+  #[test]
+  fn tab_selection_by_number() {
+    let events = vec![
+      Event::KeyDown(Key::Char('4')).into(),
+      Event::KeyDown(Key::Char('e')).into(),
+      Event::KeyDown(Key::Char('a')).into(),
+      Event::KeyDown(Key::Return).into(),
+    ];
+
+    let tasks = test_with_tasks_and_tags(events)
+      .into_iter()
+      .map(|x| x.summary)
+      .collect::<Vec<_>>();
+
+    let (.., mut expected) = make_tasks_with_tags(15);
+    expected[14].summary = "15a".to_string();
+    let expected = expected
+      .drain(..)
+      .map(|x| x.summary)
+      .collect::<Vec<_>>();
+
+    assert_eq!(tasks, expected);
+  }
+
+  #[test]
+  fn select_previous_tab() {
+    let events = vec![
+      Event::KeyDown(Key::Char('2')).into(),
+      Event::KeyDown(Key::Char('e')).into(),
+      Event::KeyDown(Key::Char('a')).into(),
+      Event::KeyDown(Key::Return).into(),
+      Event::KeyDown(Key::Char('4')).into(),
+      Event::KeyDown(Key::Char('e')).into(),
+      Event::KeyDown(Key::Char('a')).into(),
+      Event::KeyDown(Key::Return).into(),
+      Event::KeyDown(Key::Char('`')).into(),
+      Event::KeyDown(Key::Char('j')).into(),
+      Event::KeyDown(Key::Char('e')).into(),
+      Event::KeyDown(Key::Char('a')).into(),
+      Event::KeyDown(Key::Return).into(),
+    ];
+
+    let tasks = test_with_tasks_and_tags(events)
+      .into_iter()
+      .map(|x| x.summary)
+      .collect::<Vec<_>>();
+
+    let (.., mut expected) = make_tasks_with_tags(15);
+    expected[1].summary = "2a".to_string();
+    expected[3].summary = "4a".to_string();
+    expected[14].summary = "15a".to_string();
+    let expected = expected
+      .drain(..)
+      .map(|x| x.summary)
+      .collect::<Vec<_>>();
+
+    assert_eq!(tasks, expected);
+  }
+
   /// Test function for the `TermUi` that returns the state of the `InOutArea` widget.
   fn test_state(tasks: Vec<SerTask>, events: Vec<UiEvent>) -> InOut {
     let mut ui = test_ui_with_tasks(tasks, events);
