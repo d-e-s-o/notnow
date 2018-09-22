@@ -36,6 +36,7 @@ use termui::TermUiEvent;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum InOut {
   Saved,
+  Search(String),
   Error(String),
   Input(String, usize),
   Clear,

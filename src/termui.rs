@@ -31,6 +31,7 @@ use gui::UiEvents;
 use in_out::InOut;
 use in_out::InOutArea;
 use state::State;
+use tab_bar::SearchState;
 use tab_bar::SelectionState;
 use tab_bar::TabBar;
 use tasks::Id as TaskId;
@@ -44,8 +45,11 @@ pub enum TermUiEvent {
   /// An event to ask a widget to select the task with the given
   /// `TaskId`.
   SelectTask(TaskId, SelectionState),
+  /// Search for a task containing the given string in its summary and
+  /// select it.
+  SearchTask(String, SearchState, SelectionState),
   /// The tab with the given `Id` has selected the task as indicated by
-  /// `SelectTask`.
+  /// `SelectTask` or `SearchTask`.
   SelectedTask(Id),
   /// Set the state of the input/output area.
   SetInOut(InOut),
@@ -931,7 +935,7 @@ mod tests {
     // We test all ASCII chars.
     for c in 0u8..127u8 {
       let c = c as char;
-      if c != 'a' && c != 'e' && c != 'w' {
+      if c != 'a' && c != 'e' && c != 'n' && c != 'w' && c != '/' {
         assert_eq!(with_key(Key::Char(c as char)), InOut::Clear, "char: {} ({})", c, c as u8);
       }
     }
@@ -963,5 +967,190 @@ mod tests {
 
     assert_eq!(with_key(Key::Esc), InOut::Clear);
     assert_eq!(with_key(Key::Return), InOut::Clear);
+  }
+
+  #[test]
+  fn search_abort() {
+    let tasks = make_tasks(4);
+    let events = vec![
+      Event::KeyDown(Key::Char('/')).into(),
+      Event::KeyDown(Key::Char('f')).into(),
+      Event::KeyDown(Key::Esc).into(),
+    ];
+
+    assert_eq!(test_state(tasks, events), InOut::Clear);
+  }
+
+  #[test]
+  fn search_tasks_not_found() {
+    let tasks = make_tasks(8);
+    let events = vec![
+      Event::KeyDown(Key::Char('/')).into(),
+      Event::KeyDown(Key::Char('f')).into(),
+      Event::KeyDown(Key::Char('o')).into(),
+      Event::KeyDown(Key::Char('o')).into(),
+      Event::KeyDown(Key::Return).into(),
+    ];
+
+    let expected = InOut::Error("Text 'foo' not found".to_string());
+    assert_eq!(test_state(tasks, events), expected);
+  }
+
+  #[test]
+  fn search_continue_without_start() {
+    let tasks = make_tasks(4);
+    let events = vec![
+      Event::KeyDown(Key::Char('n')).into(),
+      Event::KeyDown(Key::Char('n')).into(),
+      Event::KeyDown(Key::Char('n')).into(),
+    ];
+
+    let expected = InOut::Error("Nothing to search for".to_string());
+    assert_eq!(test_state(tasks, events), expected);
+  }
+
+  #[test]
+  fn search_tasks_repeatedly_not_found() {
+    let tasks = make_tasks(8);
+    let events = vec![
+      Event::KeyDown(Key::Char('/')).into(),
+      Event::KeyDown(Key::Char('z')).into(),
+      Event::KeyDown(Key::Return).into(),
+      Event::KeyDown(Key::Char('n')).into(),
+    ];
+
+    let expected = InOut::Error("Text 'z' not found".to_string());
+    assert_eq!(test_state(tasks, events), expected);
+  }
+
+  #[test]
+  fn search_tasks() {
+    let tasks = make_tasks(12);
+    let events = vec![
+      Event::KeyDown(Key::Char('/')).into(),
+      Event::KeyDown(Key::Char('2')).into(),
+      Event::KeyDown(Key::Return).into(),
+      Event::KeyDown(Key::Char('d')).into(),
+      Event::KeyDown(Key::Char('n')).into(),
+      Event::KeyDown(Key::Char('d')).into(),
+    ];
+
+    let mut expected = make_tasks(12);
+    expected.remove(11);
+    expected.remove(1);
+
+    assert_eq!(test_for_ser_tasks(tasks, events), expected);
+  }
+
+  #[test]
+  fn search_case_insensitive() {
+    let tasks = vec![
+      SerTask {
+        summary: "First".to_string(),
+        tags: Default::default(),
+      },
+      SerTask {
+        summary: "SeCOnd".to_string(),
+        tags: Default::default(),
+      },
+    ];
+    let events = vec![
+      Event::KeyDown(Key::Char('/')).into(),
+      Event::KeyDown(Key::Char('c')).into(),
+      Event::KeyDown(Key::Char('o')).into(),
+      Event::KeyDown(Key::Char('N')).into(),
+      Event::KeyDown(Key::Char('d')).into(),
+      Event::KeyDown(Key::Return).into(),
+      Event::KeyDown(Key::Char('d')).into(),
+    ];
+
+    let expected = vec![
+      SerTask {
+        summary: "First".to_string(),
+        tags: Default::default(),
+      },
+    ];
+    assert_eq!(test_for_ser_tasks(tasks, events), expected);
+  }
+
+  #[test]
+  fn search_starting_at_selection() {
+    let tasks = make_tasks(15);
+    let events = vec![
+      Event::KeyDown(Key::Char('j')).into(),
+      Event::KeyDown(Key::Char('j')).into(),
+      Event::KeyDown(Key::Char('j')).into(),
+      Event::KeyDown(Key::Char('j')).into(),
+      Event::KeyDown(Key::Char('j')).into(),
+      Event::KeyDown(Key::Char('/')).into(),
+      Event::KeyDown(Key::Char('1')).into(),
+      Event::KeyDown(Key::Return).into(),
+      Event::KeyDown(Key::Char('d')).into(),
+    ];
+
+    let mut expected = make_tasks(15);
+    expected.remove(9);
+
+    assert_eq!(test_for_ser_tasks(tasks, events), expected);
+  }
+
+  #[test]
+  fn search_tasks_on_multiple_tabs() {
+    let events = vec![
+      // Switch to tag2 || tag3 tab.
+      Event::KeyDown(Key::Char('l')).into(),
+      // Search for a task with '4' in it.
+      Event::KeyDown(Key::Char('/')).into(),
+      Event::KeyDown(Key::Char('4')).into(),
+      Event::KeyDown(Key::Return).into(),
+      // Delete it. That should be task 14.
+      Event::KeyDown(Key::Char('d')).into(),
+      // Move to next task.
+      Event::KeyDown(Key::Char('n')).into(),
+      // Delete it. That should be task 4.
+      Event::KeyDown(Key::Char('d')).into(),
+    ];
+
+    let (.., mut expected) = make_tasks_with_tags(15);
+    expected.remove(13);
+    expected.remove(3);
+    let expected = expected.drain(..).map(|x| x.summary).collect::<Vec<_>>();
+
+    let mut tasks = test_with_tasks_and_tags(events);
+    let tasks = tasks.drain(..).map(|x| x.summary).collect::<Vec<_>>();
+    assert_eq!(tasks, expected);
+  }
+
+  #[test]
+  fn search_wrap_around() {
+    let events = vec![
+      Event::KeyDown(Key::Char('/')).into(),
+      Event::KeyDown(Key::Char('2')).into(),
+      // After this event we should have selected task '2'.
+      Event::KeyDown(Key::Return).into(),
+      // After this event task '12'.
+      Event::KeyDown(Key::Char('n')).into(),
+      // Rename.
+      Event::KeyDown(Key::Char('e')).into(),
+      Event::KeyDown(Key::Backspace).into(),
+      Event::KeyDown(Key::Backspace).into(),
+      Event::KeyDown(Key::Char('a')).into(),
+      Event::KeyDown(Key::Char('a')).into(),
+      Event::KeyDown(Key::Return).into(),
+      // '2'
+      Event::KeyDown(Key::Char('n')).into(),
+      // '2'
+      Event::KeyDown(Key::Char('n')).into(),
+      Event::KeyDown(Key::Char('d')).into(),
+    ];
+
+    let (.., mut expected) = make_tasks_with_tags(15);
+    expected[11].summary = "aa".to_string();
+    expected.remove(1);
+    let expected = expected.drain(..).map(|x| x.summary).collect::<Vec<_>>();
+
+    let mut tasks = test_with_tasks_and_tags(events);
+    let tasks = tasks.drain(..).map(|x| x.summary).collect::<Vec<_>>();
+    assert_eq!(tasks, expected);
   }
 }

@@ -19,7 +19,7 @@
 
 
 /// A helper object describing the states a selection can be in.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 enum Selection<T>
 where
   T: Copy + Clone + PartialEq,
@@ -99,13 +99,22 @@ where
       Selection::Cycled(_, _) => true,
     }
   }
+
+  /// Reset the cycle state of the selection.
+  fn reset_cycled(&mut self) {
+    *self = match *self {
+      Selection::Start(id) => Selection::Start(id),
+      Selection::Normalized(_, current) |
+      Selection::Cycled(_, current) => Selection::Normalized(current, current),
+    }
+  }
 }
 
 
 /// A struct representing the state necessary to implement selection advancement in a `TabBar`.
 // Note that the type parameter is useful only for testing. The program
 // effectively only works with `T` being `Id`.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct SelectionState<T>
 where
   T: Copy + Clone + PartialEq,
@@ -129,6 +138,16 @@ where
   /// Advance the selection by one.
   pub fn advance(&mut self) {
     self.advanced += 1
+  }
+
+  /// Check if the selection got advanced.
+  pub fn has_advanced(&self) -> bool {
+    self.advanced > 0
+  }
+
+  /// Reset the cycle state of the selection.
+  pub fn reset_cycled(&mut self) {
+    self.selection.reset_cycled()
   }
 
   /// Check whether the selection has cycled through all widgets once.
@@ -197,5 +216,37 @@ mod tests {
       let _ = state.normalize(iter.clone());
       assert!(state.has_cycled());
     }
+  }
+
+  #[test]
+  fn selection_state_reset_cycled() {
+    let mut state = TestSelectionState::new(4);
+    let iter = [3, 9, 4].iter().cloned();
+
+    state.advance();
+    state.advance();
+    state.advance();
+    assert_eq!(state.normalize(iter.clone()), 2);
+    assert!(state.has_cycled());
+
+    state.advance();
+    assert_eq!(state.normalize(iter.clone()), 0);
+    state.reset_cycled();
+
+    state.advance();
+    assert_eq!(state.normalize(iter.clone()), 1);
+    assert!(!state.has_cycled());
+
+    state.advance();
+    assert_eq!(state.normalize(iter.clone()), 2);
+    assert!(!state.has_cycled());
+
+    state.advance();
+    assert_eq!(state.normalize(iter.clone()), 0);
+    assert!(state.has_cycled());
+
+    state.advance();
+    assert_eq!(state.normalize(iter.clone()), 1);
+    assert!(state.has_cycled());
   }
 }

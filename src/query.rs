@@ -319,8 +319,22 @@ impl Query {
   where
     P: FnMut(&Task) -> bool,
   {
+    self.position_from(0, predicate)
+  }
+
+  /// Find the position of a `Task` satisfying the given predicate from a certain index.
+  // TODO: This API is not really nice. Can we come up with a
+  //       better/more flexible design somehow?
+  pub fn position_from<P>(&self, idx: usize, predicate: P) -> Option<usize>
+  where
+    P: FnMut(&Task) -> bool,
+  {
     let tasks = self.tasks.borrow();
-    let result = self.iter(&tasks).position(predicate);
+    let result = self
+      .iter(&tasks)
+      .skip(idx)
+      .position(predicate)
+      .and_then(|x| Some(x + idx));
     result
   }
 
@@ -436,6 +450,19 @@ mod tests {
     let idx = query.position(|task| task.summary == format!("{}", 2));
 
     assert_eq!(idx.unwrap(), 1)
+  }
+
+  #[test]
+  fn position_from() {
+    let query = make_query(10);
+    let idx = query.position_from(1, |task| task.summary == format!("{}", 2));
+    assert_eq!(idx.unwrap(), 1);
+
+    let idx = query.position_from(3, |task| task.summary == format!("{}", 2));
+    assert!(idx.is_none());
+
+    let idx = query.position_from(3, |task| task.summary == format!("{}", 5));
+    assert_eq!(idx.unwrap(), 4)
   }
 
   #[test]

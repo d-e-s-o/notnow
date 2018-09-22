@@ -56,6 +56,7 @@ const TASK_SPACE: u16 = 2;
 const TAB_TITLE_WIDTH: u16 = 30;
 
 const SAVED_TEXT: &str = " Saved ";
+const SEARCH_TEXT: &str = " Search ";
 const ERROR_TEXT: &str = " Error ";
 const INPUT_TEXT: &str = " > ";
 
@@ -92,6 +93,10 @@ const TASK_DONE_BG: Reset = Reset;
 const IN_OUT_SUCCESS_FG: Rgb = Rgb(0x00, 0x00, 0x00);
 /// Color 40.
 const IN_OUT_SUCCESS_BG: Rgb = Rgb(0x00, 0xd7, 0x00);
+/// Color 0.
+const IN_OUT_STATUS_FG: Rgb = Rgb(0xff, 0xff, 0xff);
+/// Color 40.
+const IN_OUT_STATUS_BG: Rgb = Rgb(0x00, 0x00, 0x00);
 /// Color 0.
 const IN_OUT_ERROR_FG: Rgb = Rgb(0x00, 0x00, 0x00);
 /// Color 197.
@@ -419,6 +424,7 @@ where
   fn render_input_output(&self, in_out: &InOutArea, bbox: BBox, cap: &dyn Cap) -> Result<BBox> {
     let (prefix, fg, bg, string) = match in_out.state() {
       InOut::Saved => (SAVED_TEXT, IN_OUT_SUCCESS_FG, IN_OUT_SUCCESS_BG, None),
+      InOut::Search(ref s) => (SEARCH_TEXT, IN_OUT_STATUS_FG, IN_OUT_STATUS_BG, Some(s)),
       InOut::Error(ref e) => (ERROR_TEXT, IN_OUT_ERROR_FG, IN_OUT_ERROR_BG, Some(e)),
       InOut::Input(ref s, _) => (INPUT_TEXT, IN_OUT_SUCCESS_FG, IN_OUT_SUCCESS_BG, Some(s)),
       InOut::Clear => return Ok(Default::default()),

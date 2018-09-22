@@ -1,5 +1,7 @@
 Unreleased
 ----------
+- Added support for searching (and selecting) tasks via a sub-string of
+  their summary
 - Added support for selecting tabs by numbers
 - Added support for directly selecting the previously active tab
 - Editing a task summary to empty deletes the task

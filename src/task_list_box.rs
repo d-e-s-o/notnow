@@ -35,6 +35,7 @@ use gui::UiEvents;
 use event::EventUpdated;
 use in_out::InOut;
 use query::Query;
+use tab_bar::SearchState;
 use tab_bar::SelectionState;
 use tasks::Id as TaskId;
 use tasks::Task;
@@ -120,9 +121,43 @@ impl TaskListBox {
     self.handle_select_task(task_id, state)
   }
 
+  /// Handle a `TermUiEvent::SearchTask` event.
+  fn handle_search_task(&mut self,
+                        string: &str,
+                        search_state: &mut SearchState,
+                        selection_state: &mut SelectionState) -> Option<UiEvents> {
+    debug_assert_eq!(string, &string.to_ascii_lowercase());
+
+    // First figure out from where we start the search. If we have
+    // visited this `TaskListBox` beforehand we may have already visited
+    // the first couple of tasks matching the given string and we should
+    // skip those.
+    let start_idx = match search_state {
+      SearchState::Current => self.selection(),
+      SearchState::First => 0,
+      SearchState::Task(idx) => *idx + 1,
+    };
+
+    let idx = self.query.position_from(start_idx, |x| {
+      x.summary.to_ascii_lowercase().contains(string)
+    });
+
+    if let Some(idx) = idx {
+      *search_state = SearchState::Task(idx);
+
+      let update = self.set_select(idx as isize);
+      let event = TermUiEvent::SelectedTask(self.id);
+      Some(UiEvent::Custom(Box::new(event))).maybe_update(update)
+    } else {
+      selection_state.advance();
+      *search_state = SearchState::First;
+      None
+    }
+  }
+
   /// Handle a custom event.
   fn handle_custom_event(&mut self, event: Box<TermUiEvent>) -> Option<UiEvents> {
-    match *event {
+    match { *event } {
       TermUiEvent::SelectTask(task_id, state) => {
         self.handle_select_task(task_id, state)
       },
@@ -174,10 +209,20 @@ impl TaskListBox {
         if self.state.take().is_some() {
           (None as Option<Event>).update()
         } else {
-          Some(UiEvent::Custom(event).into())
+          Some(UiEvent::Custom(Box::new(TermUiEvent::InputCanceled)).into())
         }
       },
-      _ => Some(UiEvent::Custom(event).into()),
+      event => Some(UiEvent::Custom(Box::new(event)).into()),
+    }
+  }
+
+  /// Handle a "returnable" custom event.
+  fn handle_custom_event_ref(&mut self, event: &mut TermUiEvent) -> Option<UiEvents> {
+    match event {
+      TermUiEvent::SearchTask(string, search_state, selection_state) => {
+        self.handle_search_task(string, search_state, selection_state)
+      },
+      _ => None,
     }
   }
 
@@ -323,6 +368,14 @@ impl Handleable for TaskListBox {
     match event.downcast::<TermUiEvent>() {
       Ok(e) => self.handle_custom_event(e),
       Err(e) => panic!("Received unexpected custom event: {:?}", e),
+    }
+  }
+
+  /// Handle a custom event.
+  fn handle_custom_ref(&mut self, event: &mut dyn Any, _cap: &mut dyn Cap) -> Option<UiEvents> {
+    match event.downcast_mut::<TermUiEvent>() {
+      Some(e) => self.handle_custom_event_ref(e),
+      None => panic!("Received unexpected custom event"),
     }
   }
 }
