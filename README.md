@@ -23,5 +23,9 @@ The program is in a well progressed development phase. A lot of the
 desired functionality exists, but not all is hooked up with the UI. More
 improvements are being worked on.
 
+**notnow** typically compiles with the most recent version of stable
+Rust. On compile errors please try upgrading to a more recent version
+first.
+
 [rust-lang]: https://www.rust-lang.org
 [gui]: https://crates.io/crates/gui

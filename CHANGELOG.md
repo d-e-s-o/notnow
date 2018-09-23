@@ -1,5 +1,5 @@
-Unreleased
-----------
+0.1.2
+-----
 - Added support for searching (and selecting) tasks via a sub-string of
   their summary
 - Added support for selecting tabs by numbers
