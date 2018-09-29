@@ -193,6 +193,103 @@ mod tests {
   use test::NamedTempFile;
 
 
+  /// A builder object used for instantiating a UI with a certain
+  /// composition of tasks.
+  struct TestUiBuilder {
+    prog_state: SerProgState,
+    task_state: SerTaskState,
+  }
+
+  impl TestUiBuilder {
+    /// Create a builder that will create a UI without any tasks.
+    fn new() -> TestUiBuilder {
+      TestUiBuilder {
+        prog_state: Default::default(),
+        task_state: Default::default(),
+      }
+    }
+
+    /// Create a builder that will create a UI with the given tasks.
+    fn with_ser_tasks<T>(tasks: T) -> TestUiBuilder
+    where
+      T: AsRef<[SerTask]> + Into<Vec<SerTask>>,
+    {
+      tasks.as_ref().iter().for_each(|x| assert!(x.tags.is_empty()));
+
+      TestUiBuilder {
+        prog_state: Default::default(),
+        task_state: SerTaskState {
+          templates: Default::default(),
+          tasks: SerTasks(tasks.into()),
+        },
+      }
+    }
+
+    /// Build the actual UI object that we can test with.
+    fn build(self) -> TestUi {
+      let mut prog_state = Some(self.prog_state);
+      let mut task_state = Some(self.task_state);
+      let prog_file = NamedTempFile::new();
+      let task_file = NamedTempFile::new();
+      let (ui, _) = Ui::new(&mut |id, cap| {
+        let prog_state = prog_state.take().unwrap();
+        let task_state = task_state.take().unwrap();
+        let state = State::with_serde(prog_state, prog_file.path(), task_state, task_file.path());
+        Box::new(TermUi::new(id, cap, state.unwrap()).unwrap())
+      });
+
+      TestUi {
+        prog_file: prog_file,
+        task_file: task_file,
+        ui: ui,
+      }
+    }
+  }
+
+  /// An UI object used for testing. It is just a handy wrapper around a
+  /// `Ui`.
+  #[allow(unused)]
+  struct TestUi {
+    prog_file: NamedTempFile,
+    task_file: NamedTempFile,
+    ui: Ui,
+  }
+
+  impl TestUi {
+    /// Send the given list of events to the UI.
+    fn handle(&mut self, mut events: Vec<UiEvent>) -> &mut Self {
+      for event in events.drain(..) {
+        if let Some(event) = self.ui.handle(event) {
+          if let UnhandledEvent::Quit = event.into_last() {
+            break
+          }
+        }
+      }
+      self
+    }
+
+    /// Retrieve the current set of tasks from the UI.
+    fn tasks(&mut self) -> Vec<Task> {
+      let event = UiEvent::Custom(Box::new(TermUiEvent::GetTasks));
+      let resp = self
+        .ui
+        .handle(event)
+        .unwrap()
+        .unwrap_custom::<TermUiEvent>();
+
+      if let TermUiEvent::GetTasksResp(tasks) = resp {
+        tasks
+      } else {
+        panic!("Unexpected response: {:?}", resp)
+      }
+    }
+
+    /// Retrieve the current set of tasks in the form of `SerTask` objects from the UI.
+    fn ser_tasks(&mut self) -> Vec<SerTask> {
+      self.tasks().iter().map(|x| x.to_serde()).collect()
+    }
+  }
+
   /// Instantiate a `TermUi` object and issue events to it.
   fn test_ui(prog_state: SerProgState, task_state: SerTaskState, mut events: Vec<UiEvent>) -> Ui {
     let mut prog_state = Some(prog_state);
@@ -275,35 +372,8 @@ mod tests {
     }
   }
 
-  /// Instantiate a `TermUi` object with the given tasks and issue events to it.
-  ///
-  /// This function retrieves and returns the `Task` objects as they
-  /// were in the `TermUi`.
-  fn test_for_tasks(tasks: Vec<SerTask>, events: Vec<UiEvent>) -> Vec<Task> {
-    let mut ui = test_ui_with_tasks(tasks, events);
-    let event = UiEvent::Custom(Box::new(TermUiEvent::GetTasks));
-    let resp = ui.handle(event).unwrap().unwrap_custom::<TermUiEvent>();
-
-    if let TermUiEvent::GetTasksResp(tasks) = resp {
-      tasks
-    } else {
-      panic!("Unexpected response: {:?}", resp)
-    }
-  }
-
-  /// Instantiate a `TermUi` object with the given tasks and issue events to it.
-  ///
-  /// This function retrieves and returns the serializable version of
-  /// the tasks in the `TermUi`, simplifying comparisons and similar
-  /// tasks.
-  fn test_for_ser_tasks(tasks: Vec<SerTask>, events: Vec<UiEvent>) -> Vec<SerTask> {
-    let tasks = test_for_tasks(tasks, events);
-    tasks.iter().map(|x| x.to_serde()).collect()
-  }
-
   #[test]
   fn exit_on_quit() {
-    let tasks = make_tasks(0);
     let events = vec![
       Event::KeyDown(Key::Char('q')).into(),
       Event::KeyDown(Key::Char('a')).into(),
@@ -311,17 +381,26 @@ mod tests {
       Event::KeyDown(Key::Return).into(),
     ];
 
-    assert_eq!(test_for_ser_tasks(tasks, events), make_tasks(0))
+    let tasks = TestUiBuilder::new()
+      .build()
+      .handle(events)
+      .ser_tasks();
+
+    assert_eq!(tasks, make_tasks(0))
   }
 
   #[test]
   fn remove_no_task() {
-    let tasks = make_tasks(0);
     let events = vec![
       Event::KeyDown(Key::Char('d')).into(),
     ];
 
-    assert_eq!(test_for_ser_tasks(tasks, events), make_tasks(0))
+    let tasks = TestUiBuilder::new()
+      .build()
+      .handle(events)
+      .ser_tasks();
+
+    assert_eq!(tasks, make_tasks(0))
   }
 
   #[test]
@@ -331,7 +410,12 @@ mod tests {
       Event::KeyDown(Key::Char('d')).into(),
     ];
 
-    assert_eq!(test_for_ser_tasks(tasks, events), make_tasks(0))
+    let tasks = TestUiBuilder::with_ser_tasks(tasks)
+      .build()
+      .handle(events)
+      .ser_tasks();
+
+    assert_eq!(tasks, make_tasks(0))
   }
 
   #[test]
@@ -346,7 +430,12 @@ mod tests {
       Event::KeyDown(Key::Char('d')).into(),
     ];
 
-    assert_eq!(test_for_ser_tasks(tasks, events), make_tasks(1))
+    let tasks = TestUiBuilder::with_ser_tasks(tasks)
+      .build()
+      .handle(events)
+      .ser_tasks();
+
+    assert_eq!(tasks, make_tasks(1))
   }
 
   #[test]
@@ -359,10 +448,14 @@ mod tests {
       Event::KeyDown(Key::Char('d')).into(),
     ];
 
+    let tasks = TestUiBuilder::with_ser_tasks(tasks)
+      .build()
+      .handle(events)
+      .ser_tasks();
+
     let mut expected = make_tasks(3);
     expected.remove(1);
-
-    assert_eq!(test_for_ser_tasks(tasks, events), expected)
+    assert_eq!(tasks, expected)
   }
 
   #[test]
@@ -376,11 +469,15 @@ mod tests {
       Event::KeyDown(Key::Char('d')).into(),
     ];
 
+    let tasks = TestUiBuilder::with_ser_tasks(tasks)
+      .build()
+      .handle(events)
+      .ser_tasks();
+
     let mut expected = make_tasks(3);
     expected.remove(0);
     expected.remove(1);
-
-    assert_eq!(test_for_ser_tasks(tasks, events), expected)
+    assert_eq!(tasks, expected)
   }
 
   #[test]
@@ -392,9 +489,14 @@ mod tests {
       Event::KeyDown(Key::Char('d')).into(),
     ];
 
+    let tasks = TestUiBuilder::with_ser_tasks(tasks)
+      .build()
+      .handle(events)
+      .ser_tasks();
+
     let mut expected = make_tasks(5);
     expected.remove(3);
-    assert_eq!(test_for_ser_tasks(tasks, events), expected)
+    assert_eq!(tasks, expected)
   }
 
   #[test]
@@ -411,9 +513,14 @@ mod tests {
       Event::KeyDown(Key::Char('d')).into(),
     ];
 
+    let tasks = TestUiBuilder::with_ser_tasks(tasks)
+      .build()
+      .handle(events)
+      .ser_tasks();
+
     let mut expected = make_tasks(3);
     expected.remove(1);
-    assert_eq!(test_for_ser_tasks(tasks, events), expected)
+    assert_eq!(tasks, expected)
   }
 
   #[test]
@@ -428,14 +535,18 @@ mod tests {
       Event::KeyDown(Key::Return).into(),
     ];
 
+    let tasks = TestUiBuilder::with_ser_tasks(tasks)
+      .build()
+      .handle(events)
+      .ser_tasks();
+
     let mut expected = make_tasks(4);
     expected[3].summary = "o".to_string();
-    assert_eq!(test_for_ser_tasks(tasks, events), expected)
+    assert_eq!(tasks, expected)
   }
 
   #[test]
   fn add_task() {
-    let tasks = make_tasks(0);
     let events = vec![
       Event::KeyDown(Key::Char('a')).into(),
       Event::KeyDown(Key::Char('f')).into(),
@@ -446,16 +557,20 @@ mod tests {
       Event::KeyDown(Key::Char('r')).into(),
       Event::KeyDown(Key::Return).into(),
     ];
+
+    let tasks = TestUiBuilder::new()
+      .build()
+      .handle(events)
+      .ser_tasks();
 
     let mut expected = make_tasks(1);
     expected[0].summary = "foobar".to_string();
 
-    assert_eq!(test_for_ser_tasks(tasks, events), expected)
+    assert_eq!(tasks, expected)
   }
 
   #[test]
   fn add_and_remove_tasks() {
-    let tasks = make_tasks(0);
     let events = vec![
       Event::KeyDown(Key::Char('a')).into(),
       Event::KeyDown(Key::Char('f')).into(),
@@ -470,14 +585,17 @@ mod tests {
       Event::KeyDown(Key::Char('d')).into(),
       Event::KeyDown(Key::Char('d')).into(),
     ];
-    let expected = make_tasks(0);
 
-    assert_eq!(test_for_ser_tasks(tasks, events), expected)
+    let tasks = TestUiBuilder::new()
+      .build()
+      .handle(events)
+      .ser_tasks();
+
+    assert_eq!(tasks, make_tasks(0))
   }
 
   #[test]
   fn add_task_cancel() {
-    let tasks = make_tasks(0);
     let events = vec![
       Event::KeyDown(Key::Char('a')).into(),
       Event::KeyDown(Key::Char('f')).into(),
@@ -488,9 +606,13 @@ mod tests {
       Event::KeyDown(Key::Char('z')).into(),
       Event::KeyDown(Key::Esc).into(),
     ];
-    let expected = make_tasks(0);
 
-    assert_eq!(test_for_ser_tasks(tasks, events), expected)
+    let tasks = TestUiBuilder::new()
+      .build()
+      .handle(events)
+      .ser_tasks();
+
+    assert_eq!(tasks, make_tasks(0))
   }
 
   #[test]
@@ -509,10 +631,16 @@ mod tests {
       Event::KeyDown(Key::Char('z')).into(),
       Event::KeyDown(Key::Return).into(),
     ];
+
+    let tasks = TestUiBuilder::with_ser_tasks(tasks)
+      .build()
+      .handle(events)
+      .ser_tasks();
+
     let mut expected = make_tasks(2);
     expected[1].summary = "baz".to_string();
 
-    assert_eq!(test_for_ser_tasks(tasks, events), expected)
+    assert_eq!(tasks, expected)
   }
 
   #[test]
@@ -535,10 +663,16 @@ mod tests {
       Event::KeyDown(Key::Char('2')).into(),
       Event::KeyDown(Key::Return).into(),
     ];
+
+    let tasks = TestUiBuilder::with_ser_tasks(tasks)
+      .build()
+      .handle(events)
+      .ser_tasks();
+
     let mut expected = make_tasks(2);
     expected[1].summary = "test42".to_string();
 
-    assert_eq!(test_for_ser_tasks(tasks, events), expected)
+    assert_eq!(tasks, expected)
   }
 
   #[test]
@@ -549,8 +683,12 @@ mod tests {
       Event::KeyDown(Key::Return).into(),
     ];
 
-    let expected = make_tasks(1);
-    assert_eq!(test_for_ser_tasks(tasks, events), expected)
+    let tasks = TestUiBuilder::with_ser_tasks(tasks)
+      .build()
+      .handle(events)
+      .ser_tasks();
+
+    assert_eq!(tasks, make_tasks(1))
   }
 
   #[test]
@@ -631,7 +769,11 @@ mod tests {
       Event::KeyDown(Key::Char(' ')).into(),
     ];
 
-    let tasks = test_for_tasks(tasks, events);
+    let tasks = TestUiBuilder::with_ser_tasks(tasks)
+      .build()
+      .handle(events)
+      .tasks();
+
     assert!(!tasks[0].is_complete());
     assert!(tasks[1].is_complete());
     assert!(!tasks[2].is_complete());
@@ -652,10 +794,15 @@ mod tests {
       Event::KeyDown(Key::Return).into(),
     ];
 
+    let tasks = TestUiBuilder::with_ser_tasks(tasks)
+      .build()
+      .handle(events)
+      .ser_tasks();
+
     let mut expected = make_tasks(3);
     expected[1].summary = "amend".to_string();
 
-    assert_eq!(test_for_ser_tasks(tasks, events), expected);
+    assert_eq!(tasks, expected);
   }
 
   #[test]
@@ -672,10 +819,15 @@ mod tests {
       Event::KeyDown(Key::Return).into(),
     ];
 
+    let tasks = TestUiBuilder::with_ser_tasks(tasks)
+      .build()
+      .handle(events)
+      .ser_tasks();
+
     let mut expected = make_tasks(4);
     expected[3].summary = "foo".to_string();
 
-    assert_eq!(test_for_ser_tasks(tasks, events), expected);
+    assert_eq!(tasks, expected);
   }
 
   #[test]
@@ -688,9 +840,15 @@ mod tests {
       Event::KeyDown(Key::Return).into(),
     ];
 
+    let tasks = TestUiBuilder::with_ser_tasks(tasks)
+      .build()
+      .handle(events)
+      .ser_tasks();
+
     let mut expected = make_tasks(3);
     expected.remove(1);
-    assert_eq!(test_for_ser_tasks(tasks, events), expected)
+
+    assert_eq!(tasks, expected)
   }
 
   #[test]
@@ -717,10 +875,15 @@ mod tests {
       Event::KeyDown(Key::Return).into(),
     ];
 
+    let tasks = TestUiBuilder::with_ser_tasks(tasks)
+      .build()
+      .handle(events)
+      .ser_tasks();
+
     let mut expected = make_tasks(3);
     expected[2].summary = "test".to_string();
 
-    assert_eq!(test_for_ser_tasks(tasks, events), expected);
+    assert_eq!(tasks, expected);
   }
 
   #[test]
@@ -731,8 +894,12 @@ mod tests {
         Event::KeyDown(Key::Char(key)).into(),
       ];
 
-      let expected = make_tasks(count);
-      assert_eq!(test_for_ser_tasks(tasks, events), expected);
+      let tasks = TestUiBuilder::with_ser_tasks(tasks)
+        .build()
+        .handle(events)
+        .ser_tasks();
+
+      assert_eq!(tasks, make_tasks(count));
     }
 
     test_tasks(0, 'J');
@@ -748,10 +915,15 @@ mod tests {
       Event::KeyDown(Key::Char('J')).into(),
     ];
 
+    let tasks = TestUiBuilder::with_ser_tasks(tasks)
+      .build()
+      .handle(events)
+      .ser_tasks();
+
     let mut expected = make_tasks(3);
     expected.swap(0, 1);
 
-    assert_eq!(test_for_ser_tasks(tasks, events), expected);
+    assert_eq!(tasks, expected);
   }
 
   #[test]
@@ -762,10 +934,15 @@ mod tests {
       Event::KeyDown(Key::Char('K')).into(),
     ];
 
+    let tasks = TestUiBuilder::with_ser_tasks(tasks)
+      .build()
+      .handle(events)
+      .ser_tasks();
+
     let mut expected = make_tasks(3);
     expected.swap(2, 1);
 
-    assert_eq!(test_for_ser_tasks(tasks, events), expected);
+    assert_eq!(tasks, expected);
   }
 
   #[test]
@@ -776,10 +953,15 @@ mod tests {
       Event::KeyDown(Key::Char('J')).into(),
     ];
 
+    let tasks = TestUiBuilder::with_ser_tasks(tasks)
+      .build()
+      .handle(events)
+      .ser_tasks();
+
     let mut expected = make_tasks(4);
     expected.swap(1, 2);
 
-    assert_eq!(test_for_ser_tasks(tasks, events), expected);
+    assert_eq!(tasks, expected);
   }
 
   #[test]
@@ -790,10 +972,15 @@ mod tests {
       Event::KeyDown(Key::Char('K')).into(),
     ];
 
+    let tasks = TestUiBuilder::with_ser_tasks(tasks)
+      .build()
+      .handle(events)
+      .ser_tasks();
+
     let mut expected = make_tasks(4);
     expected.swap(1, 0);
 
-    assert_eq!(test_for_ser_tasks(tasks, events), expected);
+    assert_eq!(tasks, expected);
   }
 
   #[test]
@@ -1017,11 +1204,16 @@ mod tests {
       Event::KeyDown(Key::Char('d')).into(),
     ];
 
+    let tasks = TestUiBuilder::with_ser_tasks(tasks)
+      .build()
+      .handle(events)
+      .ser_tasks();
+
     let mut expected = make_tasks(12);
     expected.remove(11);
     expected.remove(1);
 
-    assert_eq!(test_for_ser_tasks(tasks, events), expected);
+    assert_eq!(tasks, expected);
   }
 
   #[test]
@@ -1046,13 +1238,18 @@ mod tests {
       Event::KeyDown(Key::Char('d')).into(),
     ];
 
+    let tasks = TestUiBuilder::with_ser_tasks(tasks)
+      .build()
+      .handle(events)
+      .ser_tasks();
+
     let expected = vec![
       SerTask {
         summary: "First".to_string(),
         tags: Default::default(),
       },
     ];
-    assert_eq!(test_for_ser_tasks(tasks, events), expected);
+    assert_eq!(tasks, expected);
   }
 
   #[test]
@@ -1070,10 +1267,15 @@ mod tests {
       Event::KeyDown(Key::Char('d')).into(),
     ];
 
+    let tasks = TestUiBuilder::with_ser_tasks(tasks)
+      .build()
+      .handle(events)
+      .ser_tasks();
+
     let mut expected = make_tasks(15);
     expected.remove(9);
 
-    assert_eq!(test_for_ser_tasks(tasks, events), expected);
+    assert_eq!(tasks, expected);
   }
 
   #[test]
