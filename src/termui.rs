@@ -225,6 +225,48 @@ mod tests {
       }
     }
 
+    /// Create a builder that will instantiate a UI with four queries
+    /// and 15 tasks with tags. Tag assignment follows the pattern that
+    /// `make_tasks_with_tags` creates.
+    fn with_default_tasks_and_tags() -> TestUiBuilder {
+      let (tags, templates, tasks) = make_tasks_with_tags(15);
+      let prog_state = SerProgState {
+        queries: vec![
+          // Note that we will automatically have an "all" query created
+          // for us, without having to specify it here.
+          SerQuery {
+            name: "tag complete".to_string(),
+            lits: vec![vec![SerTagLit::Pos(tags[0])]],
+          },
+          SerQuery {
+            name: "tag2 || tag3".to_string(),
+            lits: vec![
+              vec![
+                SerTagLit::Pos(tags[2]),
+                SerTagLit::Pos(tags[3]),
+              ],
+            ],
+          },
+          SerQuery {
+            name: "tag1 && tag3".to_string(),
+            lits: vec![
+              vec![SerTagLit::Pos(tags[1])],
+              vec![SerTagLit::Pos(tags[3])],
+            ],
+          },
+        ],
+      };
+      let task_state = SerTaskState {
+        templates: SerTemplates(templates),
+        tasks: SerTasks(tasks),
+      };
+
+      TestUiBuilder {
+        prog_state: prog_state,
+        task_state: task_state,
+      }
+    }
+
     /// Build the actual UI object that we can test with.
     fn build(self) -> TestUi {
       let mut prog_state = Some(self.prog_state);
@@ -323,53 +365,6 @@ mod tests {
       tasks: SerTasks(tasks),
     };
     test_ui(prog_state, task_state, events)
-  }
-
-  /// Instantiate a `TermUi` object with three queries, 15 tasks with
-  /// tags and issue events to it. Tag assignment follows the pattern
-  /// that `make_tasks_with_tags` creates.
-  fn test_with_tasks_and_tags(events: Vec<UiEvent>) -> Vec<Task> {
-    let (tags, templates, tasks) = make_tasks_with_tags(15);
-    let prog_state = SerProgState {
-      queries: vec![
-        // Note that we will automatically have an "all" query created
-        // for us, without having to specify it here.
-        SerQuery {
-          name: "tag complete".to_string(),
-          lits: vec![vec![SerTagLit::Pos(tags[0])]],
-        },
-        SerQuery {
-          name: "tag2 || tag3".to_string(),
-          lits: vec![
-            vec![
-              SerTagLit::Pos(tags[2]),
-              SerTagLit::Pos(tags[3]),
-            ],
-          ],
-        },
-        SerQuery {
-          name: "tag1 && tag3".to_string(),
-          lits: vec![
-            vec![SerTagLit::Pos(tags[1])],
-            vec![SerTagLit::Pos(tags[3])],
-          ],
-        },
-      ],
-    };
-    let task_state = SerTaskState {
-      templates: SerTemplates(templates),
-      tasks: SerTasks(tasks),
-    };
-
-    let mut ui = test_ui(prog_state, task_state, events);
-    let event = UiEvent::Custom(Box::new(TermUiEvent::GetTasks));
-    let resp = ui.handle(event).unwrap().unwrap_custom::<TermUiEvent>();
-
-    if let TermUiEvent::GetTasksResp(tasks) = resp {
-      tasks
-    } else {
-      panic!("Unexpected response: {:?}", resp)
-    }
   }
 
   #[test]
@@ -710,7 +705,11 @@ mod tests {
       Event::KeyDown(Key::Return).into(),
     ];
 
-    let tasks = test_with_tasks_and_tags(events);
+    let tasks = TestUiBuilder::with_default_tasks_and_tags()
+      .build()
+      .handle(events)
+      .tasks();
+
     assert_eq!(tasks[15].summary, "test");
 
     let tags = tasks[15]
@@ -743,7 +742,11 @@ mod tests {
       Event::KeyDown(Key::Return).into(),
     ];
 
-    let tasks = test_with_tasks_and_tags(events);
+    let tasks = TestUiBuilder::with_default_tasks_and_tags()
+      .build()
+      .handle(events)
+      .tasks();
+
     assert_eq!(tasks[15].summary, "foo");
 
     let tags = tasks[15]
@@ -1003,7 +1006,11 @@ mod tests {
       Event::KeyDown(Key::Return).into(),
     ];
 
-    let tasks = test_with_tasks_and_tags(events);
+    let tasks = TestUiBuilder::with_default_tasks_and_tags()
+      .build()
+      .handle(events)
+      .tasks();
+
     assert_eq!(tasks.len(), 14);
   }
 
@@ -1016,7 +1023,10 @@ mod tests {
       Event::KeyDown(Key::Return).into(),
     ];
 
-    let tasks = test_with_tasks_and_tags(events)
+    let tasks = TestUiBuilder::with_default_tasks_and_tags()
+      .build()
+      .handle(events)
+      .tasks()
       .into_iter()
       .map(|x| x.summary)
       .collect::<Vec<_>>();
@@ -1049,7 +1059,10 @@ mod tests {
       Event::KeyDown(Key::Return).into(),
     ];
 
-    let tasks = test_with_tasks_and_tags(events)
+    let tasks = TestUiBuilder::with_default_tasks_and_tags()
+      .build()
+      .handle(events)
+      .tasks()
       .into_iter()
       .map(|x| x.summary)
       .collect::<Vec<_>>();
@@ -1295,13 +1308,19 @@ mod tests {
       Event::KeyDown(Key::Char('d')).into(),
     ];
 
+    let tasks = TestUiBuilder::with_default_tasks_and_tags()
+      .build()
+      .handle(events)
+      .tasks()
+      .into_iter()
+      .map(|x| x.summary)
+      .collect::<Vec<_>>();
+
     let (.., mut expected) = make_tasks_with_tags(15);
     expected.remove(13);
     expected.remove(3);
     let expected = expected.drain(..).map(|x| x.summary).collect::<Vec<_>>();
 
-    let mut tasks = test_with_tasks_and_tags(events);
-    let tasks = tasks.drain(..).map(|x| x.summary).collect::<Vec<_>>();
     assert_eq!(tasks, expected);
   }
 
@@ -1328,13 +1347,19 @@ mod tests {
       Event::KeyDown(Key::Char('d')).into(),
     ];
 
+    let tasks = TestUiBuilder::with_default_tasks_and_tags()
+      .build()
+      .handle(events)
+      .tasks()
+      .into_iter()
+      .map(|x| x.summary)
+      .collect::<Vec<_>>();
+
     let (.., mut expected) = make_tasks_with_tags(15);
     expected[11].summary = "aa".to_string();
     expected.remove(1);
     let expected = expected.drain(..).map(|x| x.summary).collect::<Vec<_>>();
 
-    let mut tasks = test_with_tasks_and_tags(events);
-    let tasks = tasks.drain(..).map(|x| x.summary).collect::<Vec<_>>();
     assert_eq!(tasks, expected);
   }
 }
