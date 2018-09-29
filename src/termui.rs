@@ -310,6 +310,22 @@ mod tests {
       self
     }
 
+    /// Retrieve the current `InOutArea` state.
+    fn in_out(&mut self) -> InOut {
+      let event = UiEvent::Custom(Box::new(TermUiEvent::GetInOut));
+      let resp = self
+        .ui
+        .handle(event)
+        .unwrap()
+        .unwrap_custom::<TermUiEvent>();
+
+      if let TermUiEvent::GetInOutResp(in_out) = resp {
+        in_out
+      } else {
+        panic!("Unexpected response: {:?}", resp)
+      }
+    }
+
     /// Retrieve the current set of tasks from the UI.
     fn tasks(&mut self) -> Vec<Task> {
       let event = UiEvent::Custom(Box::new(TermUiEvent::GetTasks));
@@ -330,41 +346,6 @@ mod tests {
     fn ser_tasks(&mut self) -> Vec<SerTask> {
       self.tasks().iter().map(|x| x.to_serde()).collect()
     }
-  }
-
-  /// Instantiate a `TermUi` object and issue events to it.
-  fn test_ui(prog_state: SerProgState, task_state: SerTaskState, mut events: Vec<UiEvent>) -> Ui {
-    let mut prog_state = Some(prog_state);
-    let mut task_state = Some(task_state);
-    let prog_file = NamedTempFile::new();
-    let task_file = NamedTempFile::new();
-    let (mut ui, _) = Ui::new(&mut |id, cap| {
-      let prog_state = prog_state.take().unwrap();
-      let task_state = task_state.take().unwrap();
-      let state = State::with_serde(prog_state, prog_file.path(), task_state, task_file.path());
-      Box::new(TermUi::new(id, cap, state.unwrap()).unwrap())
-    });
-
-    for event in events.drain(..) {
-      if let Some(event) = ui.handle(event) {
-        if let UnhandledEvent::Quit = event.into_last() {
-          break
-        }
-      }
-    }
-    ui
-  }
-
-  /// Instantiate a `TermUi` object with the given tasks and issue events to it.
-  fn test_ui_with_tasks(tasks: Vec<SerTask>, events: Vec<UiEvent>) -> Ui {
-    tasks.iter().for_each(|x| assert!(x.tags.is_empty()));
-
-    let prog_state = Default::default();
-    let task_state = SerTaskState {
-      templates: Default::default(),
-      tasks: SerTasks(tasks),
-    };
-    test_ui(prog_state, task_state, events)
   }
 
   #[test]
@@ -1079,19 +1060,6 @@ mod tests {
     assert_eq!(tasks, expected);
   }
 
-  /// Test function for the `TermUi` that returns the state of the `InOutArea` widget.
-  fn test_state(tasks: Vec<SerTask>, events: Vec<UiEvent>) -> InOut {
-    let mut ui = test_ui_with_tasks(tasks, events);
-    let event = UiEvent::Custom(Box::new(TermUiEvent::GetInOut));
-    let resp = ui.handle(event).unwrap().unwrap_custom::<TermUiEvent>();
-
-    if let TermUiEvent::GetInOutResp(in_out) = resp {
-      in_out
-    } else {
-      panic!("Unexpected response: {:?}", resp)
-    }
-  }
-
   #[test]
   fn in_out_state_after_write() {
     let tasks = make_tasks(2);
@@ -1099,7 +1067,12 @@ mod tests {
       Event::KeyDown(Key::Char('w')).into(),
     ];
 
-    assert_eq!(test_state(tasks, events), InOut::Saved);
+    let state = TestUiBuilder::with_ser_tasks(tasks)
+      .build()
+      .handle(events)
+      .in_out();
+
+    assert_eq!(state, InOut::Saved);
   }
 
   #[test]
@@ -1111,7 +1084,10 @@ mod tests {
         Event::KeyDown(key).into(),
       ];
 
-      test_state(tasks, events)
+      TestUiBuilder::with_ser_tasks(tasks)
+        .build()
+        .handle(events)
+        .in_out()
     }
 
     // We test all ASCII chars.
@@ -1136,7 +1112,10 @@ mod tests {
         Event::KeyDown(key).into(),
       ];
 
-      test_state(tasks, events)
+      TestUiBuilder::with_ser_tasks(tasks)
+        .build()
+        .handle(events)
+        .in_out()
     }
 
     for c in 0u8..127u8 {
@@ -1160,7 +1139,12 @@ mod tests {
       Event::KeyDown(Key::Esc).into(),
     ];
 
-    assert_eq!(test_state(tasks, events), InOut::Clear);
+    let state = TestUiBuilder::with_ser_tasks(tasks)
+      .build()
+      .handle(events)
+      .in_out();
+
+    assert_eq!(state, InOut::Clear);
   }
 
   #[test]
@@ -1174,8 +1158,13 @@ mod tests {
       Event::KeyDown(Key::Return).into(),
     ];
 
+    let state = TestUiBuilder::with_ser_tasks(tasks)
+      .build()
+      .handle(events)
+      .in_out();
+
     let expected = InOut::Error("Text 'foo' not found".to_string());
-    assert_eq!(test_state(tasks, events), expected);
+    assert_eq!(state, expected);
   }
 
   #[test]
@@ -1187,8 +1176,13 @@ mod tests {
       Event::KeyDown(Key::Char('n')).into(),
     ];
 
+    let state = TestUiBuilder::with_ser_tasks(tasks)
+      .build()
+      .handle(events)
+      .in_out();
+
     let expected = InOut::Error("Nothing to search for".to_string());
-    assert_eq!(test_state(tasks, events), expected);
+    assert_eq!(state, expected);
   }
 
   #[test]
@@ -1201,8 +1195,13 @@ mod tests {
       Event::KeyDown(Key::Char('n')).into(),
     ];
 
+    let state = TestUiBuilder::with_ser_tasks(tasks)
+      .build()
+      .handle(events)
+      .in_out();
+
     let expected = InOut::Error("Text 'z' not found".to_string());
-    assert_eq!(test_state(tasks, events), expected);
+    assert_eq!(state, expected);
   }
 
   #[test]
