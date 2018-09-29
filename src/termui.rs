@@ -306,6 +306,9 @@ mod tests {
     let tasks = make_tasks(0);
     let events = vec![
       Event::KeyDown(Key::Char('q')).into(),
+      Event::KeyDown(Key::Char('a')).into(),
+      Event::KeyDown(Key::Char('f')).into(),
+      Event::KeyDown(Key::Return).into(),
     ];
 
     assert_eq!(test_for_ser_tasks(tasks, events), make_tasks(0))
@@ -316,7 +319,6 @@ mod tests {
     let tasks = make_tasks(0);
     let events = vec![
       Event::KeyDown(Key::Char('d')).into(),
-      Event::KeyDown(Key::Char('q')).into(),
     ];
 
     assert_eq!(test_for_ser_tasks(tasks, events), make_tasks(0))
@@ -327,7 +329,6 @@ mod tests {
     let tasks = make_tasks(1);
     let events = vec![
       Event::KeyDown(Key::Char('d')).into(),
-      Event::KeyDown(Key::Char('q')).into(),
     ];
 
     assert_eq!(test_for_ser_tasks(tasks, events), make_tasks(0))
@@ -343,7 +344,6 @@ mod tests {
       Event::KeyDown(Key::Char('j')).into(),
       Event::KeyDown(Key::Char('j')).into(),
       Event::KeyDown(Key::Char('d')).into(),
-      Event::KeyDown(Key::Char('q')).into(),
     ];
 
     assert_eq!(test_for_ser_tasks(tasks, events), make_tasks(1))
@@ -357,7 +357,6 @@ mod tests {
       Event::KeyDown(Key::Char('j')).into(),
       Event::KeyDown(Key::Char('k')).into(),
       Event::KeyDown(Key::Char('d')).into(),
-      Event::KeyDown(Key::Char('q')).into(),
     ];
 
     let mut expected = make_tasks(3);
@@ -446,7 +445,6 @@ mod tests {
       Event::KeyDown(Key::Char('a')).into(),
       Event::KeyDown(Key::Char('r')).into(),
       Event::KeyDown(Key::Return).into(),
-      Event::KeyDown(Key::Char('q')).into(),
     ];
 
     let mut expected = make_tasks(1);
@@ -471,7 +469,6 @@ mod tests {
       Event::KeyDown(Key::Return).into(),
       Event::KeyDown(Key::Char('d')).into(),
       Event::KeyDown(Key::Char('d')).into(),
-      Event::KeyDown(Key::Char('q')).into(),
     ];
     let expected = make_tasks(0);
 
@@ -490,7 +487,6 @@ mod tests {
       Event::KeyDown(Key::Char('a')).into(),
       Event::KeyDown(Key::Char('z')).into(),
       Event::KeyDown(Key::Esc).into(),
-      Event::KeyDown(Key::Char('q')).into(),
     ];
     let expected = make_tasks(0);
 
@@ -512,7 +508,6 @@ mod tests {
       Event::KeyDown(Key::Char('a')).into(),
       Event::KeyDown(Key::Char('z')).into(),
       Event::KeyDown(Key::Return).into(),
-      Event::KeyDown(Key::Char('q')).into(),
     ];
     let mut expected = make_tasks(2);
     expected[1].summary = "baz".to_string();
@@ -539,7 +534,6 @@ mod tests {
       Event::KeyDown(Key::Char('4')).into(),
       Event::KeyDown(Key::Char('2')).into(),
       Event::KeyDown(Key::Return).into(),
-      Event::KeyDown(Key::Char('q')).into(),
     ];
     let mut expected = make_tasks(2);
     expected[1].summary = "test42".to_string();
@@ -553,7 +547,6 @@ mod tests {
     let events = vec![
       Event::KeyDown(Key::Char('a')).into(),
       Event::KeyDown(Key::Return).into(),
-      Event::KeyDown(Key::Char('q')).into(),
     ];
 
     let expected = make_tasks(1);
@@ -577,7 +570,6 @@ mod tests {
       Event::KeyDown(Key::Char('h')).into(),
       Event::KeyDown(Key::Char('i')).into(),
       Event::KeyDown(Key::Return).into(),
-      Event::KeyDown(Key::Char('q')).into(),
     ];
 
     let tasks = test_with_tasks_and_tags(events);
@@ -611,7 +603,6 @@ mod tests {
       Event::KeyDown(Key::Char('o')).into(),
       Event::KeyDown(Key::Char('o')).into(),
       Event::KeyDown(Key::Return).into(),
-      Event::KeyDown(Key::Char('q')).into(),
     ];
 
     let tasks = test_with_tasks_and_tags(events);
@@ -638,7 +629,6 @@ mod tests {
       Event::KeyDown(Key::Char('j')).into(),
       Event::KeyDown(Key::Char(' ')).into(),
       Event::KeyDown(Key::Char(' ')).into(),
-      Event::KeyDown(Key::Char('q')).into(),
     ];
 
     let tasks = test_for_tasks(tasks, events);
@@ -660,7 +650,6 @@ mod tests {
       Event::KeyDown(Key::Char('n')).into(),
       Event::KeyDown(Key::Char('d')).into(),
       Event::KeyDown(Key::Return).into(),
-      Event::KeyDown(Key::Char('q')).into(),
     ];
 
     let mut expected = make_tasks(3);
@@ -726,7 +715,6 @@ mod tests {
       Event::KeyDown(Key::Right).into(),
       Event::KeyDown(Key::Right).into(),
       Event::KeyDown(Key::Return).into(),
-      Event::KeyDown(Key::Char('q')).into(),
     ];
 
     let mut expected = make_tasks(3);
@@ -741,7 +729,6 @@ mod tests {
       let tasks = make_tasks(count);
       let events = vec![
         Event::KeyDown(Key::Char(key)).into(),
-        Event::KeyDown(Key::Char('q')).into(),
       ];
 
       let expected = make_tasks(count);
@@ -759,7 +746,6 @@ mod tests {
     let tasks = make_tasks(3);
     let events = vec![
       Event::KeyDown(Key::Char('J')).into(),
-      Event::KeyDown(Key::Char('q')).into(),
     ];
 
     let mut expected = make_tasks(3);
@@ -774,7 +760,6 @@ mod tests {
     let events = vec![
       Event::KeyDown(Key::Char('G')).into(),
       Event::KeyDown(Key::Char('K')).into(),
-      Event::KeyDown(Key::Char('q')).into(),
     ];
 
     let mut expected = make_tasks(3);
@@ -789,7 +774,6 @@ mod tests {
     let events = vec![
       Event::KeyDown(Key::Char('j')).into(),
       Event::KeyDown(Key::Char('J')).into(),
-      Event::KeyDown(Key::Char('q')).into(),
     ];
 
     let mut expected = make_tasks(4);
@@ -804,7 +788,6 @@ mod tests {
     let events = vec![
       Event::KeyDown(Key::Char('j')).into(),
       Event::KeyDown(Key::Char('K')).into(),
-      Event::KeyDown(Key::Char('q')).into(),
     ];
 
     let mut expected = make_tasks(4);
@@ -831,7 +814,6 @@ mod tests {
       // The edit should be a no-op.
       Event::KeyDown(Key::Char('e')).into(),
       Event::KeyDown(Key::Return).into(),
-      Event::KeyDown(Key::Char('q')).into(),
     ];
 
     let tasks = test_with_tasks_and_tags(events);
