@@ -17,13 +17,14 @@
 // * along with this program.  If not, see <http://www.gnu.org/licenses/>. *
 // *************************************************************************
 
-use std::cell::RefCell;
 use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Result as IoResult;
 #[cfg(test)]
 use std::iter::FromIterator;
 use std::rc::Rc;
+
+use cell::RefCell;
 
 use ser::query::Query as SerQuery;
 use ser::query::TagLit as SerTagLit;

@@ -75,6 +75,7 @@
 
 //! A terminal based task management application.
 
+extern crate cell;
 extern crate dirs;
 extern crate gui;
 #[macro_use]

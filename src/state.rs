@@ -17,7 +17,6 @@
 // * along with this program.  If not, see <http://www.gnu.org/licenses/>. *
 // *************************************************************************
 
-use std::cell::RefCell;
 use std::fs::File;
 use std::fs::OpenOptions;
 use std::io::ErrorKind;
@@ -26,6 +25,8 @@ use std::io::Write;
 use std::path::Path;
 use std::path::PathBuf;
 use std::rc::Rc;
+
+use cell::RefCell;
 
 use serde::Deserialize;
 use serde::Serialize;

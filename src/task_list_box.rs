@@ -18,11 +18,12 @@
 // *************************************************************************
 
 use std::any::Any;
-use std::cell::RefCell;
 use std::cmp::max;
 use std::cmp::min;
 use std::isize;
 use std::rc::Rc;
+
+use cell::RefCell;
 
 use gui::Cap;
 use gui::Event;
