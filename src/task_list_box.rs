@@ -97,7 +97,7 @@ impl TaskListBox {
   /// summary or the tags of the task changed. Handling of updates in
   /// those cases is left to clients.
   fn handle_select_task(&mut self, task_id: TaskId, mut state: SelectionState) -> Option<UiEvents> {
-    let idx = self.query.position(|x| x.id() == task_id);
+    let idx = self.query.iter().position(|x| x.id() == task_id);
     if let Some(idx) = idx {
       let update = self.set_select(idx as isize);
       let event = TermUiEvent::SelectedTask(self.id);
@@ -139,9 +139,13 @@ impl TaskListBox {
       SearchState::Task(idx) => *idx + 1,
     };
 
-    let idx = self.query.position_from(start_idx, |x| {
-      x.summary.to_ascii_lowercase().contains(string)
-    });
+    let idx = self
+      .query
+      .iter()
+      .clone()
+      .skip(start_idx)
+      .position(|x| x.summary.to_ascii_lowercase().contains(string))
+      .and_then(|idx| Some(idx + start_idx));
 
     if let Some(idx) = idx {
       *search_state = SearchState::Task(idx);
@@ -234,7 +238,8 @@ impl TaskListBox {
 
   /// Retrieve the selection index with some relative change.
   fn some_selection(&self, add: isize) -> usize {
-    let count = self.query().count();
+    let query = self.query();
+    let count = query.iter().clone().count();
     let selection = sanitize_selection(self.selection, count);
     debug_assert!(add >= 0 || selection as isize >= add);
     (selection as isize + add) as usize
@@ -249,7 +254,8 @@ impl TaskListBox {
 
   /// Change the currently selected task.
   fn set_select(&mut self, selection: isize) -> bool {
-    let count = self.query().count();
+    let query = self.query();
+    let count = query.iter().clone().count();
     let old_selection = sanitize_selection(self.selection, count);
     let new_selection = sanitize_selection(selection, count);
 
@@ -261,7 +267,8 @@ impl TaskListBox {
   fn select(&mut self, change: isize) -> bool {
     // We always make sure to base the given `change` value off of a
     // sanitized selection. Otherwise the result is not as expected.
-    let count = self.query().count();
+    let query = self.query();
+    let count = query.iter().clone().count();
     let selection = sanitize_selection(self.selection, count);
     let new_selection = selection as isize + change;
     self.set_select(new_selection)
@@ -276,7 +283,9 @@ impl TaskListBox {
     let selection = self.selection();
     // We maintain the invariant that the selection is always valid,
     // which means that we should always expect a task to be found.
-    self.query().nth(selection).unwrap()
+    let query = self.query();
+    let task = query.iter().clone().cloned().nth(selection).unwrap();
+    task
   }
 }
 
@@ -327,7 +336,8 @@ impl Handleable for TaskListBox {
           Key::Char('J') => {
             if !self.query().is_empty() {
               let to_move = self.selected_task();
-              let other = self.query().nth(self.some_selection(1));
+              let query = self.query();
+              let other = query.iter().nth(self.some_selection(1));
               if let Some(other) = other {
                 self.tasks.borrow_mut().move_after(to_move.id(), other.id());
                 self.select(1);
@@ -342,7 +352,8 @@ impl Handleable for TaskListBox {
           Key::Char('K') => {
             if !self.query().is_empty() && self.selection() > 0 {
               let to_move = self.selected_task();
-              let other = self.query().nth(self.some_selection(-1));
+              let query = self.query();
+              let other = query.iter().nth(self.some_selection(-1));
               if let Some(other) = other {
                 self.tasks.borrow_mut().move_before(to_move.id(), other.id());
                 self.select(-1);

@@ -21,7 +21,6 @@ use std::cell::Cell;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::io::BufWriter;
-use std::io::Error;
 use std::io::Result;
 use std::io::Write;
 use std::iter::repeat;
@@ -375,37 +374,30 @@ where
     let selection = task_list.selection();
     let offset = sanitize_offset(data.offset, selection, limit);
 
-    query.enumerate::<Error, _>(|i, task| {
-      if i >= offset + limit {
-        Ok(false)
-      } else if i < offset {
-        Ok(true)
+    for (i, task) in query.iter().clone().enumerate().skip(offset).take(limit) {
+      let complete = task.is_complete();
+      let (state, state_fg, state_bg) = if !complete {
+        ("[ ]", TASK_NOT_STARTED_FG, TASK_NOT_STARTED_BG)
       } else {
-        let complete = task.is_complete();
-        let (state, state_fg, state_bg) = if !complete {
-          ("[ ]", TASK_NOT_STARTED_FG, TASK_NOT_STARTED_BG)
-        } else {
-          ("[X]", TASK_DONE_FG, TASK_DONE_BG)
-        };
+        ("[X]", TASK_DONE_FG, TASK_DONE_BG)
+      };
 
-        let (task_fg, task_bg) = if i == selection {
-          (SELECTED_TASK_FG, &SELECTED_TASK_BG as &dyn Color)
-        } else {
-          (UNSELECTED_TASK_FG, &UNSELECTED_TASK_BG as &dyn Color)
-        };
+      let (task_fg, task_bg) = if i == selection {
+        (SELECTED_TASK_FG, &SELECTED_TASK_BG as &dyn Color)
+      } else {
+        (UNSELECTED_TASK_FG, &UNSELECTED_TASK_BG as &dyn Color)
+      };
 
-        self.writer.write(x, y, state_fg, state_bg, state)?;
-        let x = x + state.len() as u16 + 1;
-        self.writer.write(x, y, task_fg, task_bg, &task.summary)?;
+      self.writer.write(x, y, state_fg, state_bg, state)?;
+      let x = x + state.len() as u16 + 1;
+      self.writer.write(x, y, task_fg, task_bg, &task.summary)?;
 
-        if i == selection {
-          cursor = Some((x, y));
-        }
-
-        y += TASK_SPACE;
-        Ok(true)
+      if i == selection {
+        cursor = Some((x, y));
       }
-    })?;
+
+      y += TASK_SPACE;
+    }
 
     // Set the cursor to the first character of the selected item. This
     // allows for more convenient copying of the currently selected task

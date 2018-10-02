@@ -20,11 +20,11 @@
 use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Result as IoResult;
-#[cfg(test)]
-use std::iter::FromIterator;
 use std::rc::Rc;
 
+use cell::Ref;
 use cell::RefCell;
+use cell::RefVal;
 
 use ser::query::Query as SerQuery;
 use ser::query::TagLit as SerTagLit;
@@ -32,6 +32,7 @@ use tags::Tag;
 use tags::TagMap;
 use tags::Templates;
 use tasks::Task;
+use tasks::TaskIter;
 use tasks::Tasks;
 
 
@@ -64,6 +65,80 @@ impl TagLit {
     match self {
       TagLit::Pos(_) => true,
       TagLit::Neg(_) => false,
+    }
+  }
+}
+
+
+/// An object providing filtered iteration over an iterator of tasks.
+#[derive(Clone, Debug)]
+pub struct Filter<'t> {
+  iter: TaskIter<'t>,
+  lits: &'t [Vec<TagLit>],
+}
+
+impl<'t> Filter<'t> {
+  /// Create a new `Filter` wrapping an iterator and filtering using the given set of literals.
+  fn new(iter: TaskIter<'t>, lits: &'t [Vec<TagLit>]) -> Self {
+    Self {
+      iter: iter,
+      lits: lits,
+    }
+  }
+
+  /// Check if one of the given tags matches the available ones.
+  fn matches<'tag, I>(lits: &[TagLit], avail_tags: &I) -> bool
+  where
+    I: Iterator<Item=&'tag Tag> + Clone,
+  {
+    // Iterate over disjunctions and check if any of them matches.
+    for lit in lits {
+      let tag = lit.tag();
+      let must_exist = lit.is_pos();
+
+      if avail_tags.clone().any(|x| x == tag) == must_exist {
+        return true
+      }
+    }
+    false
+  }
+
+  /// Check if the given `tags` match this query's requirements.
+  fn matched_by<'tag, I>(&self, avail_tags: &I) -> bool
+  where
+    I: Iterator<Item=&'tag Tag> + Clone,
+  {
+    // Iterate over conjunctions; all of them need to match.
+    for req_lits in self.lits {
+      // We could create a set for faster inclusion checks instead of
+      // passing in an iterator. However, typically tasks only use a
+      // small set of tags and so the allocation overhead is assumed to
+      // be higher than the iteration cost we incur right now.
+      if !Self::matches(req_lits, avail_tags) {
+        return false
+      }
+    }
+    true
+  }
+}
+
+impl<'t> Iterator for Filter<'t> {
+  type Item = &'t Task;
+
+  /// Advance the iterator yielding the next matching task or None.
+  fn next(&mut self) -> Option<Self::Item> {
+    // TODO: Should really be a for loop or even just a .find()
+    //       invocation, however, both versions do not compile due to
+    //       borrowing/ownership conflicts.
+    loop {
+      match self.iter.next() {
+        Some(task) => {
+          if self.matched_by(&task.tags()) {
+            return Some(task)
+          }
+        },
+        None => return None,
+      }
     }
   }
 }
@@ -237,124 +312,14 @@ impl Query {
     }
   }
 
-  /// Check if one of the given tags matches the available ones.
-  fn matches<'tag, I>(&self, lits: &[TagLit], avail_tags: &I) -> bool
-  where
-    I: Iterator<Item = &'tag Tag> + Clone,
-  {
-    // Iterate over disjunctions and check if any of them matches.
-    for lit in lits {
-      let tag = lit.tag();
-      let must_exist = lit.is_pos();
-
-      if avail_tags.clone().any(|x| x == tag) == must_exist {
-        return true
-      }
-    }
-    false
-  }
-
-  /// Check if the given `tags` match this query's requirements.
-  fn matched_by<'tag, I>(&self, avail_tags: &I) -> bool
-  where
-    I: Iterator<Item = &'tag Tag> + Clone,
-  {
-    // Iterate over conjunctions; all of them need to match.
-    for req_lits in &self.lits {
-      // We could create a set for faster inclusion checks instead of
-      // passing in an iterator. However, typically tasks only use a
-      // small set of tags and so the allocation overhead is assumed to
-      // be higher than the iteration cost we incur right now.
-      if !self.matches(req_lits, avail_tags) {
-        return false
-      }
-    }
-    true
-  }
-
-  /// Retrieve an iterator over the tasks with all tag filters applied.
-  fn iter<'t, 's: 't>(&'s self, tasks: &'t Tasks) -> impl Iterator<Item = &'t Task> {
-    tasks.iter().filter(move |x| self.matched_by(&x.tags()))
-  }
-
-  /// Count the number of tasks matched by the query.
-  pub fn count(&self) -> usize {
-    let tasks = self.tasks.borrow();
-    let count = self.iter(&tasks).count();
-    count
-  }
-
-  /// Returns the nth task for the query.
-  pub fn nth(&self, n: usize) -> Option<Task> {
-    let tasks = self.tasks.borrow();
-    let result = self.iter(&tasks).cloned().nth(n);
-    result
-  }
-
-  /// Perform an action on each task.
-  #[cfg(test)]
-  pub fn for_each<F>(&self, action: F)
-  where
-    F: FnMut(&Task),
-  {
-    let tasks = self.tasks.borrow();
-    self.iter(&tasks).for_each(action);
-  }
-
-  /// Iterate over tasks along with indication for current iteration count.
-  pub fn enumerate<E, F>(&self, mut action: F) -> Result<(), E>
-  where
-    F: FnMut(usize, &Task) -> Result<bool, E>,
-  {
-    let tasks = self.tasks.borrow();
-    for (i, task) in self.iter(&tasks).enumerate() {
-      if !action(i, task)? {
-        break
-      }
-    }
-    Ok(())
-  }
-
-  /// Find the position of a `Task` satisfying the given predicate.
-  pub fn position<P>(&self, predicate: P) -> Option<usize>
-  where
-    P: FnMut(&Task) -> bool,
-  {
-    self.position_from(0, predicate)
-  }
-
-  /// Find the position of a `Task` satisfying the given predicate from a certain index.
-  // TODO: This API is not really nice. Can we come up with a
-  //       better/more flexible design somehow?
-  pub fn position_from<P>(&self, idx: usize, predicate: P) -> Option<usize>
-  where
-    P: FnMut(&Task) -> bool,
-  {
-    let tasks = self.tasks.borrow();
-    let result = self
-      .iter(&tasks)
-      .skip(idx)
-      .position(predicate)
-      .and_then(|x| Some(x + idx));
-    result
-  }
-
-  /// Create a collection from the query.
-  #[cfg(test)]
-  pub fn collect<C>(&self) -> C
-  where
-    C: FromIterator<Task>,
-  {
-    let tasks = self.tasks.borrow();
-    let result = self.iter(&tasks).cloned().collect();
-    result
+  /// Retrieve an iterator over the tasks represented by this query.
+  pub fn iter<'t, 's: 't>(&'s self) -> RefVal<'t, Filter<'t>> {
+    Ref::map_val(self.tasks.borrow(), |x| Filter::new(x.iter(), &self.lits))
   }
 
   /// Check whether the query is empty or not.
   pub fn is_empty(&self) -> bool {
-    let tasks = self.tasks.borrow();
-    let result = self.iter(&tasks).next().is_none();
-    result
+    self.iter().next().is_none()
   }
 
   /// Retrieve the query's name.
@@ -396,84 +361,6 @@ mod tests {
 
 
   #[test]
-  fn count() {
-    assert_eq!(make_query(5).count(), 5);
-  }
-
-  #[test]
-  fn nth() {
-    let query = make_query(7);
-    let expected = make_tasks(7).iter().cloned().nth(3);
-    assert_eq!(query.nth(3).as_ref().unwrap().summary, expected.unwrap().summary);
-  }
-
-  #[test]
-  fn for_each() {
-    let mut counter = 0;
-    make_query(16).for_each(|_| counter += 1);
-
-    assert_eq!(counter, 16);
-  }
-
-  #[test]
-  fn enumerate() {
-    let mut counter = 0;
-    make_query(20)
-      .enumerate::<(), _>(|i, task| {
-        assert_eq!(counter, i);
-        assert_eq!(task.summary, format!("{}", i + 1));
-        counter += 1;
-        Ok(true)
-      }).unwrap();
-
-    assert_eq!(counter, 20)
-  }
-
-  #[test]
-  fn enumerate_early_break() {
-    let mut counter = 0;
-    make_query(20)
-      .enumerate::<(), _>(|i, _| {
-        if i >= 10 {
-          Ok(false)
-        } else {
-          counter += 1;
-          Ok(true)
-        }
-      }).unwrap();
-
-    assert_eq!(counter, 10)
-  }
-
-  #[test]
-  fn position() {
-    let query = make_query(3);
-    let idx = query.position(|task| task.summary == format!("{}", 2));
-
-    assert_eq!(idx.unwrap(), 1)
-  }
-
-  #[test]
-  fn position_from() {
-    let query = make_query(10);
-    let idx = query.position_from(1, |task| task.summary == format!("{}", 2));
-    assert_eq!(idx.unwrap(), 1);
-
-    let idx = query.position_from(3, |task| task.summary == format!("{}", 2));
-    assert!(idx.is_none());
-
-    let idx = query.position_from(3, |task| task.summary == format!("{}", 5));
-    assert_eq!(idx.unwrap(), 4)
-  }
-
-  #[test]
-  fn collect() {
-    let tasks = make_query(3).collect::<Vec<_>>();
-    let tasks = tasks.iter().map(|x| x.to_serde()).collect::<Vec<_>>();
-    assert_eq!(tasks, make_tasks(3));
-  }
-
-  #[test]
   fn is_empty() {
     assert!(make_query(0).is_empty());
     assert!(!make_query(1).is_empty());
@@ -487,10 +374,9 @@ mod tests {
       .and(complete_tag)
       .build("test");
 
-    query.for_each(|x| assert!(x.is_complete()));
+    query.iter().clone().for_each(|x| assert!(x.is_complete()));
 
-    let tasks = tasks.borrow();
-    let mut iter = query.iter(&tasks);
+    let mut iter = query.iter();
     assert_eq!(iter.next().unwrap().summary, "2");
     assert_eq!(iter.next().unwrap().summary, "4");
     assert_eq!(iter.next().unwrap().summary, "6");
@@ -510,10 +396,9 @@ mod tests {
       .and_not(complete_tag)
       .build("test");
 
-    query.for_each(|x| assert!(!x.is_complete()));
+    query.iter().clone().for_each(|x| assert!(!x.is_complete()));
 
-    let tasks = tasks.borrow();
-    let mut iter = query.iter(&tasks);
+    let mut iter = query.iter();
     assert_eq!(iter.next().unwrap().summary, "1");
     assert_eq!(iter.next().unwrap().summary, "3");
     assert_eq!(iter.next().unwrap().summary, "5");
@@ -535,8 +420,7 @@ mod tests {
       .and(tag2)
       .build("test");
 
-    let tasks = tasks.borrow();
-    let mut iter = query.iter(&tasks);
+    let mut iter = query.iter();
     assert_eq!(iter.next().unwrap().summary, "11");
     assert_eq!(iter.next().unwrap().summary, "12");
     assert_eq!(iter.next().unwrap().summary, "15");
@@ -556,8 +440,7 @@ mod tests {
       .or(tag1)
       .build("test");
 
-    let tasks = tasks.borrow();
-    let mut iter = query.iter(&tasks);
+    let mut iter = query.iter();
     assert_eq!(iter.next().unwrap().summary, "5");
     assert_eq!(iter.next().unwrap().summary, "6");
     assert_eq!(iter.next().unwrap().summary, "7");
@@ -585,8 +468,7 @@ mod tests {
       .or(tag4)
       .build("test");
 
-    let tasks = tasks.borrow();
-    let mut iter = query.iter(&tasks);
+    let mut iter = query.iter();
     assert_eq!(iter.next().unwrap().summary, "6");
     assert_eq!(iter.next().unwrap().summary, "8");
     assert_eq!(iter.next().unwrap().summary, "12");
@@ -606,8 +488,7 @@ mod tests {
       .and_not(complete_tag)
       .build("test");
 
-    let tasks = tasks.borrow();
-    let mut iter = query.iter(&tasks);
+    let mut iter = query.iter();
     assert_eq!(iter.next().unwrap().summary, "1");
     assert_eq!(iter.next().unwrap().summary, "3");
     assert_eq!(iter.next().unwrap().summary, "5");
@@ -629,8 +510,7 @@ mod tests {
       .and(tag3)
       .build("test");
 
-    let tasks = tasks.borrow();
-    let mut iter = query.iter(&tasks);
+    let mut iter = query.iter();
     assert_eq!(iter.next().unwrap().summary, "13");
     assert_eq!(iter.next().unwrap().summary, "14");
     assert_eq!(iter.next().unwrap().summary, "15");
