@@ -1,3 +1,9 @@
+Unreleased
+----------
+- Removed default "all" query (very first query; capturing all tasks)
+  - If still desired, can be configured manually
+
+
 0.1.2
 -----
 - Added support for searching (and selecting) tasks via a sub-string of

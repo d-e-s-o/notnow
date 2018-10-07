@@ -232,8 +232,10 @@ mod tests {
       let (tags, templates, tasks) = make_tasks_with_tags(15);
       let prog_state = SerProgState {
         queries: vec![
-          // Note that we will automatically have an "all" query created
-          // for us, without having to specify it here.
+          SerQuery {
+            name: "all".to_string(),
+            lits: vec![],
+          },
           SerQuery {
             name: "tag complete".to_string(),
             lits: vec![vec![SerTagLit::Pos(tags[0])]],

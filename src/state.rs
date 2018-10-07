@@ -73,11 +73,14 @@ impl State {
     let templates = Rc::new(templates);
     let tasks = Tasks::with_serde(task_state.tasks, templates.clone(), &map)?;
     let tasks = Rc::new(RefCell::new(tasks));
-    let mut queries = vec![
-      QueryBuilder::new(tasks.clone()).build("all"),
-    ];
+    let mut queries = Vec::new();
     for query in prog_state.queries.drain(..) {
       queries.push(Query::with_serde(query, &templates, &map, tasks.clone())?)
+    }
+    // For convenience for the user, we add a default query capturing
+    // all tasks if no other queries have been configured.
+    if queries.is_empty() {
+      queries.push(QueryBuilder::new(tasks.clone()).build("all"))
     }
 
     Ok(State {
@@ -111,12 +114,9 @@ impl State {
 
   /// Convert this object into a serializable one.
   fn to_serde(&self) -> (SerProgState, SerTaskState) {
-    // The first query is the "all" query which we always create
-    // implicitly and never persist.
     let queries = self
       .queries
       .iter()
-      .skip(1)
       .map(|x| x.to_serde())
       .collect();
 
