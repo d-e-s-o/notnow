@@ -304,7 +304,7 @@ where
     //       terminal resizes. If the width of the terminal is increased
     //       the offset would need to be adjusted. Should/can this be
     //       fixed?
-    let count = tab_bar.iter().count();
+    let count = tab_bar.iter().len();
     let limit = self.displayable_tabs(w - 1);
     let selection = tab_bar.selection();
     let offset = sanitize_offset(data.offset, selection, limit);

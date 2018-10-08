@@ -69,9 +69,9 @@ where
   /// Normalize the internals and return the current index.
   fn normalize<I>(&mut self, mut iter: I, advancements: usize) -> usize
   where
-    I: Iterator<Item=T> + Clone,
+    I: ExactSizeIterator<Item=T> + Clone,
   {
-    let count = iter.clone().count();
+    let count = iter.len();
 
     let (state, new) = match self {
       Selection::Start(id) => {
@@ -160,7 +160,7 @@ where
   /// Return the current index.
   pub fn normalize<I>(&mut self, iter: I) -> usize
   where
-    I: Iterator<Item=T> + Clone,
+    I: ExactSizeIterator<Item=T> + Clone,
   {
     let current = self.selection.normalize(iter, self.advanced);
     self.advanced = 0;

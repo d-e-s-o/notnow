@@ -254,7 +254,7 @@ impl TabBar {
   }
 
   /// Retrieve an iterator over the names of all the tabs.
-  pub fn iter(&self) -> impl Iterator<Item=&String> {
+  pub fn iter(&self) -> impl ExactSizeIterator<Item=&String> {
     self.tabs.iter().map(|(x, _)| x)
   }
 
@@ -270,7 +270,7 @@ impl TabBar {
 
   /// Change the currently selected tab.
   fn set_select(&mut self, new_selection: isize, cap: &mut dyn Cap) -> bool {
-    let count = self.iter().count();
+    let count = self.tabs.iter().len();
     let old_selection = self.selection;
     let new_selection = sanitize_selection(new_selection, count);
 
