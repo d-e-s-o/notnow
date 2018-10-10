@@ -103,7 +103,11 @@ impl SearchState {
 
 /// Sanitize a selection index.
 fn sanitize_selection(selection: isize, count: usize) -> usize {
-  max(0, min(count as isize - 1, selection)) as usize
+  if count == 0 {
+    0
+  } else {
+    max(0, min(count as isize - 1, selection)) as usize
+  }
 }
 
 
@@ -112,8 +116,8 @@ fn sanitize_selection(selection: isize, count: usize) -> usize {
 pub struct TabBar {
   id: Id,
   tabs: Vec<(String, Id)>,
-  selection: usize,
-  prev_selection: usize,
+  selection: isize,
+  prev_selection: isize,
   search: Search,
 }
 
@@ -144,8 +148,8 @@ impl TabBar {
     TabBar {
       id: id,
       tabs: tabs,
-      selection: selection,
-      prev_selection: selection,
+      selection: selection as isize,
+      prev_selection: selection as isize,
       search: SearchT::Unset,
     }
   }
@@ -260,24 +264,25 @@ impl TabBar {
 
   /// Retrieve the index of the currently selected tab.
   pub fn selection(&self) -> usize {
-    self.selection
+    let count = self.tabs.iter().len();
+    sanitize_selection(self.selection, count)
   }
 
   /// Retrieve the `Id` of the selected tab.
   fn selected_tab(&self) -> Id {
-    self.tabs[self.selection].1
+    self.tabs[self.selection()].1
   }
 
   /// Change the currently selected tab.
-  fn set_select(&mut self, new_selection: isize, cap: &mut dyn Cap) -> bool {
+  fn set_select(&mut self, selection: isize, cap: &mut dyn Cap) -> bool {
     let count = self.tabs.iter().len();
-    let old_selection = self.selection;
-    let new_selection = sanitize_selection(new_selection, count);
+    let old_selection = sanitize_selection(self.selection, count);
+    let new_selection = sanitize_selection(selection, count);
 
     if new_selection != old_selection {
       cap.hide(self.selected_tab());
-      self.prev_selection = old_selection;
-      self.selection = new_selection;
+      self.prev_selection = self.selection;
+      self.selection = selection;
       cap.focus(self.selected_tab());
       true
     } else {
@@ -293,7 +298,7 @@ impl TabBar {
 
   /// Select the previously selected tab.
   fn select_previous(&mut self, cap: &mut dyn Cap) -> bool {
-    let selection = self.prev_selection as isize;
+    let selection = self.prev_selection;
     self.set_select(selection, cap)
   }
 }
