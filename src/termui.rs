@@ -873,6 +873,33 @@ mod tests {
   }
 
   #[test]
+  fn edit_multiple_tasks() {
+    let events = vec![
+      Event::KeyDown(Key::Char('3')).into(),
+      Event::KeyDown(Key::Char('e')).into(),
+      Event::KeyDown(Key::Char('a')).into(),
+      Event::KeyDown(Key::Return).into(),
+      Event::KeyDown(Key::Char('e')).into(),
+      Event::KeyDown(Key::Char('b')).into(),
+      Event::KeyDown(Key::Return).into(),
+    ];
+
+    let tasks = TestUiBuilder::with_default_tasks_and_tags()
+      .build()
+      .handle(events)
+      .tasks()
+      .into_iter()
+      .map(|x| x.summary)
+      .collect::<Vec<_>>();
+
+    let (.., mut expected) = make_tasks_with_tags(15);
+    expected[8].summary = "9ab".to_string();
+    let expected = expected.drain(..).map(|x| x.summary).collect::<Vec<_>>();
+
+    assert_eq!(tasks, expected);
+  }
+
+  #[test]
   fn move_no_or_one_task_up_or_down() {
     fn test_tasks(count: usize, key: char) {
       let tasks = make_tasks(count);
