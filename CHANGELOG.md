@@ -2,6 +2,9 @@ Unreleased
 ----------
 - Removed default "all" query (very first query; capturing all tasks)
   - If still desired, can be configured manually
+- Added support for writing output to a file supplied by path as the
+  first argument
+  - E.g., notnow /dev/pts/3 will display the output on tty 3
 
 
 0.1.2

@@ -105,11 +105,14 @@ mod termui;
 #[allow(unsafe_code)]
 mod test;
 
+use std::env::args_os;
+use std::fs::OpenOptions;
 use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Result;
 use std::io::stdin;
 use std::io::stdout;
+use std::io::Write;
 use std::path::PathBuf;
 use std::process::exit;
 use std::sync::mpsc::channel;
@@ -264,11 +267,14 @@ where
 }
 
 /// Run the program.
-fn run_prog() -> Result<()> {
+fn run_prog<W>(out: W) -> Result<()>
+where
+  W: Write,
+{
   let prog_path = prog_config()?;
   let task_path = task_config()?;
   let mut state = Some(State::new(&prog_path, &task_path)?);
-  let screen = AlternateScreen::from(stdout().into_raw_mode()?);
+  let screen = AlternateScreen::from(out.into_raw_mode()?);
   let renderer = TermRenderer::new(screen)?;
   let (ui, _) = Ui::new(&mut |id, cap| {
     let state = state.take().unwrap();
@@ -288,9 +294,23 @@ fn run_prog() -> Result<()> {
   run_loop(ui, renderer, recv_event)
 }
 
+/// Parse the arguments and run the program.
+fn run_with_args() -> Result<()> {
+  let it = args_os();
+  match it.len() {
+    0 | 1 => run_prog(stdout()),
+    2 => {
+      let path = it.skip(1).next().unwrap();
+      let file = OpenOptions::new().read(false).write(true).open(path)?;
+      run_prog(file)
+    },
+    _ => Err(Error::new(ErrorKind::InvalidInput, "unsupported number of arguments")),
+  }
+}
+
 /// Run the program and handle errors.
 fn run() -> i32 {
-  match run_prog() {
+  match run_with_args() {
     Ok(_) => 0,
     Err(err) => {
       eprintln!("Error: {}", err);
