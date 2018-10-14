@@ -5,6 +5,8 @@ Unreleased
 - Added support for writing output to a file supplied by path as the
   first argument
   - E.g., notnow /dev/pts/3 will display the output on tty 3
+- Fixed stack overflow due to endless loop when searching for a string
+  that is not found on multiple tabs
 
 
 0.1.2

@@ -177,23 +177,20 @@ impl TabBar {
           let error = format!("Text '{}' not found", string).to_string();
           let event = TermUiEvent::SetInOut(InOut::Error(error));
           Some(UiEvent::Custom(Box::new(event)).into())
+        } else if selection_state.has_advanced() {
+          debug_assert!(search_state.is_first());
+
+          let iter = self.tabs.iter().map(|x| x.1);
+          let new_idx = selection_state.normalize(iter);
+          let tab = self.tabs.get(new_idx).unwrap().1;
+
+          let event = TermUiEvent::SearchTask(string, SearchState::First, selection_state);
+          let event = UiEvent::Returnable(self.id, tab, Box::new(event));
+          Some(ChainEvent::Event(event))
         } else {
           selection_state.reset_cycled();
-
-          if selection_state.has_advanced() {
-            debug_assert!(search_state.is_first());
-
-            let iter = self.tabs.iter().map(|x| x.1);
-            let new_idx = selection_state.normalize(iter);
-            let tab = self.tabs.get(new_idx).unwrap().1;
-
-            let event = TermUiEvent::SearchTask(string, SearchState::First, selection_state);
-            let event = UiEvent::Returnable(self.id, tab, Box::new(event));
-            Some(ChainEvent::Event(event))
-          } else {
-            self.search = SearchT::State(string, search_state, selection_state);
-            None
-          }
+          self.search = SearchT::State(string, search_state, selection_state);
+          None
         }
       },
       SearchT::Unset |

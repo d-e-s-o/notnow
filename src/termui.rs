@@ -1197,6 +1197,25 @@ mod tests {
   }
 
   #[test]
+  fn search_multiple_tabs_not_found() {
+    let events = vec![
+      Event::KeyDown(Key::Char('/')).into(),
+      Event::KeyDown(Key::Char('f')).into(),
+      Event::KeyDown(Key::Char('o')).into(),
+      Event::KeyDown(Key::Char('o')).into(),
+      Event::KeyDown(Key::Return).into(),
+    ];
+
+    let state = TestUiBuilder::with_default_tasks_and_tags()
+      .build()
+      .handle(events)
+      .in_out();
+
+    let expected = InOut::Error("Text 'foo' not found".to_string());
+    assert_eq!(state, expected);
+  }
+
+  #[test]
   fn search_continue_without_start() {
     let tasks = make_tasks(4);
     let events = vec![
