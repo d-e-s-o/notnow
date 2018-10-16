@@ -17,12 +17,26 @@
 // * along with this program.  If not, see <http://www.gnu.org/licenses/>. *
 // *************************************************************************
 
+use std::ops::Add;
+use std::ops::Rem;
+
+
+/// Calculate `x` modulo `y`.
+fn modulo<T>(x: T, y: T) -> <<<T as Rem>::Output as Add<T>>::Output as Rem<T>>::Output
+where
+  T: Copy + Rem<T>,
+  <T as Rem>::Output: Add<T>,
+  <<T as Rem>::Output as Add<T>>::Output: Rem<T>,
+{
+  ((x % y) + y) % y
+}
+
 
 /// A helper object describing the states a selection can be in.
 #[derive(Debug, PartialEq)]
 enum Selection<T>
 where
-  T: Copy + Clone + PartialEq,
+  T: Copy + PartialEq,
 {
   /// When a selection is started from a widget other than the `TabBar`
   /// itself, we only have the widget's ID as the potential start state.
@@ -31,81 +45,22 @@ where
   /// Once the `TabBar` has had a word in the selection process, it will
   /// convert the widget ID into an index and we will work with that.
   /// This state contains the index of the widget where the selection
-  /// started as well as the current index, in that order.
-  Normalized(usize, usize),
-  /// This state is similar to `Normalized`, except that it also
-  /// indicates that we have cycled through all possible selections
-  /// (i.e., widgets in the `TabBar`) at least once.
-  Cycled(usize, usize),
+  /// started.
+  Normalized(usize),
 }
 
 impl<T> Selection<T>
 where
-  T: Copy + Clone + PartialEq,
+  T: Copy + PartialEq,
 {
-  /// Advance a selection.
-  fn advance(first: usize,
-             current: usize,
-             count: usize,
-             advancements: usize) -> (Selection<T>, usize) {
-    // We may have advanced already but we have not yet cycled
-    // through the start value. So first calculate how many times we
-    // already advanced.
-    let advanced = if current >= first {
-      current - first
-    } else {
-      count - first + current
-    };
-
-    let cycles = (advanced + advancements) / count;
-    let new = (current + advancements) % count;
-    if cycles >= 1 {
-      (Selection::Cycled(first, new), new)
-    } else {
-      (Selection::Normalized(first, new), new)
-    }
-  }
-
-  /// Normalize the internals and return the current index.
-  fn normalize<I>(&mut self, mut iter: I, advancements: usize) -> usize
+  /// Calculate the selection index the object represents.
+  fn index<I>(&self, mut iter: I) -> usize
   where
-    I: ExactSizeIterator<Item=T> + Clone,
+    I: ExactSizeIterator<Item=T>,
   {
-    let count = iter.len();
-
-    let (state, new) = match self {
-      Selection::Start(id) => {
-        let first = iter.position(|x| x == *id).unwrap();
-        Self::advance(first, first, count, advancements)
-      },
-      Selection::Normalized(first, current) => {
-        Self::advance(*first, *current, count, advancements)
-      },
-      Selection::Cycled(first, current) => {
-        let new = (*current + advancements) % count;
-        (Selection::Cycled(*first, new), new)
-      },
-    };
-
-    *self = state;
-    new
-  }
-
-  /// Check whether the selection has cycled through all widgets once.
-  fn has_cycled(&self) -> bool {
     match *self {
-      Selection::Start(_) |
-      Selection::Normalized(_, _) => false,
-      Selection::Cycled(_, _) => true,
-    }
-  }
-
-  /// Reset the cycle state of the selection.
-  fn reset_cycled(&mut self) {
-    *self = match *self {
-      Selection::Start(id) => Selection::Start(id),
-      Selection::Normalized(_, current) |
-      Selection::Cycled(_, current) => Selection::Normalized(current, current),
+      Selection::Start(start) => iter.position(|x| x == start).unwrap(),
+      Selection::Normalized(idx) => idx,
     }
   }
 }
@@ -117,27 +72,30 @@ where
 #[derive(Debug, PartialEq)]
 pub struct SelectionState<T>
 where
-  T: Copy + Clone + PartialEq,
+  T: Copy + PartialEq,
 {
   selection: Selection<T>,
   advanced: usize,
+  total: usize,
 }
 
 impl<T> SelectionState<T>
 where
-  T: Copy + Clone + PartialEq,
+  T: Copy + PartialEq,
 {
   /// Create a new `SelectionState`.
   pub fn new(current: T) -> Self {
     Self {
       selection: Selection::Start(current),
       advanced: 0,
+      total: 0,
     }
   }
 
   /// Advance the selection by one.
   pub fn advance(&mut self) {
-    self.advanced += 1
+    self.advanced += 1;
+    self.total += 1;
   }
 
   /// Check if the selection got advanced.
@@ -147,12 +105,12 @@ where
 
   /// Reset the cycle state of the selection.
   pub fn reset_cycled(&mut self) {
-    self.selection.reset_cycled()
+    self.total = 0
   }
 
   /// Check whether the selection has cycled through all widgets once.
-  pub fn has_cycled(&self) -> bool {
-    self.selection.has_cycled()
+  pub fn has_cycled(&self, count: usize) -> bool {
+    self.total >= count
   }
 
   /// Normalize the selection based on the given iterator.
@@ -160,11 +118,15 @@ where
   /// Return the current index.
   pub fn normalize<I>(&mut self, iter: I) -> usize
   where
-    I: ExactSizeIterator<Item=T> + Clone,
+    I: ExactSizeIterator<Item=T>,
   {
-    let current = self.selection.normalize(iter, self.advanced);
+    let count = iter.len();
+    let start_idx = self.selection.index(iter);
+    let idx = modulo(start_idx + self.advanced, count);
+
+    self.selection = Selection::Normalized(idx);
     self.advanced = 0;
-    current
+    idx
   }
 }
 
@@ -177,16 +139,17 @@ mod tests {
 
 
   #[test]
-  fn selection_normalization() {
-    for start in 8..14 {
-      for adv in 0..8 {
-        let mut state = Selection::Start(start);
-        let iter = [8, 9, 10, 11, 12, 13, 14].into_iter().cloned();
-
-        assert_eq!(state.normalize(iter, adv), (start - 8 + adv) % 7);
-        assert_eq!(state.has_cycled(), adv >= 7);
-      }
-    }
+  fn modulo_results() {
+    assert_eq!(modulo(-4, 3), 2);
+    assert_eq!(modulo(-3, 3), 0);
+    assert_eq!(modulo(-2, 3), 1);
+    assert_eq!(modulo(-1, 3), 2);
+    assert_eq!(modulo(0, 3), 0);
+    assert_eq!(modulo(1, 3), 1);
+    assert_eq!(modulo(2, 3), 2);
+    assert_eq!(modulo(3, 3), 0);
+    assert_eq!(modulo(4, 3), 1);
+    assert_eq!(modulo(5, 3), 2);
   }
 
   #[test]
@@ -200,7 +163,7 @@ mod tests {
 
     let current = state.normalize(iter.clone());
     assert_eq!(current, 0);
-    assert!(state.has_cycled());
+    assert!(state.has_cycled(iter.len()));
   }
 
   #[test]
@@ -214,7 +177,7 @@ mod tests {
 
     for _ in 1..200 {
       let _ = state.normalize(iter.clone());
-      assert!(state.has_cycled());
+      assert!(state.has_cycled(iter.len()));
     }
   }
 
@@ -227,7 +190,7 @@ mod tests {
     state.advance();
     state.advance();
     assert_eq!(state.normalize(iter.clone()), 2);
-    assert!(state.has_cycled());
+    assert!(state.has_cycled(iter.len()));
 
     state.advance();
     assert_eq!(state.normalize(iter.clone()), 0);
@@ -235,18 +198,18 @@ mod tests {
 
     state.advance();
     assert_eq!(state.normalize(iter.clone()), 1);
-    assert!(!state.has_cycled());
+    assert!(!state.has_cycled(iter.len()));
 
     state.advance();
     assert_eq!(state.normalize(iter.clone()), 2);
-    assert!(!state.has_cycled());
+    assert!(!state.has_cycled(iter.len()));
 
     state.advance();
     assert_eq!(state.normalize(iter.clone()), 0);
-    assert!(state.has_cycled());
+    assert!(state.has_cycled(iter.len()));
 
     state.advance();
     assert_eq!(state.normalize(iter.clone()), 1);
-    assert!(state.has_cycled());
+    assert!(state.has_cycled(iter.len()));
   }
 }

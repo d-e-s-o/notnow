@@ -171,7 +171,7 @@ impl TabBar {
         // 3) The next task in line was found and selected, in which
         //    case we just store the search state and wait for
         //    additional user input to select the next one or similar.
-        if selection_state.has_cycled() {
+        if selection_state.has_cycled(self.tabs.iter().len()) {
           self.search = SearchT::State(string.clone(), search_state, selection_state);
 
           let error = format!("Text '{}' not found", string).to_string();
@@ -209,9 +209,9 @@ impl TabBar {
     match { *event } {
       TermUiEvent::SelectTask(task_id, mut state) => {
         let iter = self.tabs.iter().map(|x| x.1);
-        let new_idx = state.normalize(iter);
+        let new_idx = state.normalize(iter.clone());
 
-        if !state.has_cycled() {
+        if !state.has_cycled(iter.len()) {
           let tab = self.tabs.get(new_idx).unwrap().1;
           let event = Box::new(TermUiEvent::SelectTask(task_id, state));
           let event = UiEvent::Directed(tab, event);
