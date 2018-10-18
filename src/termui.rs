@@ -1339,6 +1339,28 @@ mod tests {
   }
 
   #[test]
+  fn search_overlapping() {
+    let tasks = make_tasks(5);
+    let events = vec![
+      Event::KeyDown(Key::Char('G')).into(),
+      Event::KeyDown(Key::Char('/')).into(),
+      Event::KeyDown(Key::Char('2')).into(),
+      Event::KeyDown(Key::Return).into(),
+      Event::KeyDown(Key::Char('d')).into(),
+    ];
+
+    let tasks = TestUiBuilder::with_ser_tasks(tasks)
+      .build()
+      .handle(events)
+      .ser_tasks();
+
+    let mut expected = make_tasks(5);
+    expected.remove(1);
+
+    assert_eq!(tasks, expected);
+  }
+
+  #[test]
   fn search_tasks_on_multiple_tabs() {
     let events = vec![
       // Switch to tag2 || tag3 tab.

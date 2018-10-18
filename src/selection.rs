@@ -110,7 +110,13 @@ where
 
   /// Check whether the selection has cycled through all widgets once.
   pub fn has_cycled(&self, count: usize) -> bool {
-    self.total >= count
+    // Note that we allow for a single overlap here. That is required
+    // because a search (which uses a selection) may start in the middle
+    // of a widget and so we need to be sure to revisit the widget again
+    // after we cycled to identify items before the one where the search
+    // started. Ultimately we are not so much interested in having an
+    // accurate cycle detection, we just need any.
+    self.total > count
   }
 
   /// Normalize the selection based on the given iterator.
@@ -160,9 +166,10 @@ mod tests {
     state.advance();
     state.advance();
     state.advance();
+    state.advance();
 
     let current = state.normalize(iter.clone());
-    assert_eq!(current, 0);
+    assert_eq!(current, 1);
     assert!(state.has_cycled(iter.len()));
   }
 
@@ -171,6 +178,7 @@ mod tests {
     let mut state = TestSelectionState::new(7);
     let iter = [8, 7, 6].iter().cloned();
 
+    state.advance();
     state.advance();
     state.advance();
     state.advance();
@@ -189,27 +197,28 @@ mod tests {
     state.advance();
     state.advance();
     state.advance();
-    assert_eq!(state.normalize(iter.clone()), 2);
+    state.advance();
+    assert_eq!(state.normalize(iter.clone()), 0);
     assert!(state.has_cycled(iter.len()));
 
     state.advance();
-    assert_eq!(state.normalize(iter.clone()), 0);
+    assert_eq!(state.normalize(iter.clone()), 1);
     state.reset_cycled();
 
     state.advance();
-    assert_eq!(state.normalize(iter.clone()), 1);
-    assert!(!state.has_cycled(iter.len()));
-
-    state.advance();
     assert_eq!(state.normalize(iter.clone()), 2);
     assert!(!state.has_cycled(iter.len()));
 
     state.advance();
     assert_eq!(state.normalize(iter.clone()), 0);
-    assert!(state.has_cycled(iter.len()));
+    assert!(!state.has_cycled(iter.len()));
 
     state.advance();
     assert_eq!(state.normalize(iter.clone()), 1);
+    assert!(!state.has_cycled(iter.len()));
+
+    state.advance();
+    assert_eq!(state.normalize(iter.clone()), 2);
     assert!(state.has_cycled(iter.len()));
   }
 }
