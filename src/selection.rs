@@ -75,8 +75,8 @@ where
   T: Copy + PartialEq,
 {
   selection: Selection<T>,
-  advanced: usize,
-  total: usize,
+  advanced: isize,
+  total: isize,
 }
 
 impl<T> SelectionState<T>
@@ -100,7 +100,7 @@ where
 
   /// Check if the selection got advanced.
   pub fn has_advanced(&self) -> bool {
-    self.advanced > 0
+    self.advanced != 0
   }
 
   /// Reset the cycle state of the selection.
@@ -116,7 +116,7 @@ where
     // after we cycled to identify items before the one where the search
     // started. Ultimately we are not so much interested in having an
     // accurate cycle detection, we just need any.
-    self.total > count
+    self.total.abs() as usize > count
   }
 
   /// Normalize the selection based on the given iterator.
@@ -126,9 +126,9 @@ where
   where
     I: ExactSizeIterator<Item=T>,
   {
-    let count = iter.len();
-    let start_idx = self.selection.index(iter);
-    let idx = modulo(start_idx + self.advanced, count);
+    let count = iter.len() as isize;
+    let start_idx = self.selection.index(iter) as isize;
+    let idx = modulo(start_idx + self.advanced, count) as usize;
 
     self.selection = Selection::Normalized(idx);
     self.advanced = 0;
