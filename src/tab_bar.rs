@@ -53,6 +53,10 @@ where
 {
   /// No search is currently in progress.
   Unset,
+  /// The input/output widget has been asked for the string to search
+  /// for, but at this point we don't have it. We only know whether to
+  /// search clock-wise or counter clock-wise (i.e., reverse).
+  Preparing(bool),
   /// A search was started but the state is currently being transferred
   /// to another widget.
   // Note that in principle we could use the Unset variant to fudge this
@@ -72,6 +76,21 @@ where
   /// Take the value, leave the `Taken` variant in its place.
   fn take(&mut self) -> SearchT<T> {
     replace(self, SearchT::Taken)
+  }
+
+  /// Check whether the search is meant to be a reverse one or not.
+  ///
+  /// # Panics
+  ///
+  /// Panics if the search is in anything but the `SearchT::Preparing`
+  /// state.
+  fn is_reverse(&self) -> bool {
+    match *self {
+      SearchT::Preparing(reverse) => reverse,
+      SearchT::Unset |
+      SearchT::Taken |
+      SearchT::State(..) => panic!("invalid search state"),
+    }
   }
 }
 
@@ -194,6 +213,7 @@ impl TabBar {
         }
       },
       SearchT::Unset |
+      SearchT::Preparing(..) |
       SearchT::State(..) => panic!("invalid search state"),
     }
   }
@@ -229,9 +249,10 @@ impl TabBar {
         if !string.is_empty() && !self.tabs.is_empty() {
           string.make_ascii_lowercase();
 
-          let _ = self.search.take();
+          let reverse = self.search.take().is_reverse();
           let tab = self.selected_tab();
-          let state = SelectionState::new(tab);
+          let mut state = SelectionState::new(tab);
+          state.reverse(reverse);
 
           let event1 = TermUiEvent::SetInOut(InOut::Search(string.clone()));
           let event1 = UiEvent::Custom(Box::new(event1));
@@ -320,7 +341,8 @@ impl Handleable for TabBar {
           Key::Char('`') => (None as Option<Event>).maybe_update(self.select_previous(cap)),
           Key::Char('h') => (None as Option<Event>).maybe_update(self.select(-1, cap)),
           Key::Char('l') => (None as Option<Event>).maybe_update(self.select(1, cap)),
-          Key::Char('n') => {
+          Key::Char('n') |
+          Key::Char('N') => {
             let event = match self.search.take() {
               SearchT::Unset => {
                 self.search = SearchT::Unset;
@@ -329,11 +351,14 @@ impl Handleable for TabBar {
                 let event = TermUiEvent::SetInOut(error);
                 UiEvent::Custom(Box::new(event)).into()
               },
-              SearchT::Taken => panic!("invalid search state"),
+              SearchT::Taken |
+              SearchT::Preparing(..) => panic!("invalid search state"),
               SearchT::State(string, search_state, mut selection_state) => {
                 let iter = self.tabs.iter().map(|x| x.1);
                 let new_idx = selection_state.normalize(iter);
                 let tab = self.tabs.get(new_idx).unwrap().1;
+                let reverse = key == Key::Char('N');
+                selection_state.reverse(reverse);
 
                 let event1 = TermUiEvent::SetInOut(InOut::Search(string.clone()));
                 let event1 = UiEvent::Custom(Box::new(event1));
@@ -346,7 +371,11 @@ impl Handleable for TabBar {
             };
             Some(event)
           },
-          Key::Char('/') => {
+          Key::Char('/') |
+          Key::Char('?') => {
+            let reverse = key == Key::Char('?');
+            self.search = SearchT::Preparing(reverse);
+
             let event = TermUiEvent::SetInOut(InOut::Input("".to_string(), 0));
             let event = UiEvent::Custom(Box::new(event));
             Some(event.into())

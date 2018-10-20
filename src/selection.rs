@@ -75,6 +75,7 @@ where
   T: Copy + PartialEq,
 {
   selection: Selection<T>,
+  reversed: bool,
   advanced: isize,
   total: isize,
 }
@@ -87,15 +88,27 @@ where
   pub fn new(current: T) -> Self {
     Self {
       selection: Selection::Start(current),
+      reversed: false,
       advanced: 0,
       total: 0,
     }
   }
 
+  /// Reverse the selection, i.e., select in a counter clock-wise fashion.
+  pub fn reverse(&mut self, reverse: bool) {
+    self.reversed = reverse
+  }
+
+  /// Check if the selection is happening in counter clock-wise fashion or not.
+  pub fn is_reversed(&self) -> bool {
+    self.reversed
+  }
+
   /// Advance the selection by one.
   pub fn advance(&mut self) {
-    self.advanced += 1;
-    self.total += 1;
+    let change = if self.reversed { -1 } else { 1 };
+    self.advanced += change;
+    self.total += change;
   }
 
   /// Check if the selection got advanced.
@@ -220,5 +233,51 @@ mod tests {
     state.advance();
     assert_eq!(state.normalize(iter.clone()), 2);
     assert!(state.has_cycled(iter.len()));
+  }
+
+  #[test]
+  fn reverse_selection() {
+    let mut state = TestSelectionState::new(1);
+    let iter = [2, 1, 3].iter().cloned();
+
+    state.reverse(true);
+    assert!(!state.has_cycled(iter.len()));
+    assert!(!state.has_advanced());
+
+    state.advance();
+    assert!(state.has_advanced());
+    assert_eq!(state.normalize(iter.clone()), 0);
+    assert!(!state.has_cycled(iter.len()));
+    assert!(!state.has_advanced());
+
+    state.advance();
+    assert!(state.has_advanced());
+    assert_eq!(state.normalize(iter.clone()), 2);
+    assert!(!state.has_cycled(iter.len()));
+    assert!(!state.has_advanced());
+
+    state.advance();
+    assert!(state.has_advanced());
+    assert_eq!(state.normalize(iter.clone()), 1);
+    assert!(!state.has_cycled(iter.len()));
+    assert!(!state.has_advanced());
+
+    state.reverse(false);
+    assert!(!state.has_advanced());
+    assert_eq!(state.normalize(iter.clone()), 1);
+    assert!(!state.has_cycled(iter.len()));
+    assert!(!state.has_advanced());
+
+    state.advance();
+    assert!(state.has_advanced());
+    assert_eq!(state.normalize(iter.clone()), 2);
+    assert!(!state.has_cycled(iter.len()));
+    assert!(!state.has_advanced());
+
+    state.advance();
+    assert!(state.has_advanced());
+    assert_eq!(state.normalize(iter.clone()), 0);
+    assert!(!state.has_cycled(iter.len()));
+    assert!(!state.has_advanced());
   }
 }

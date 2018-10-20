@@ -143,6 +143,21 @@ impl<'t> Iterator for Filter<'t> {
   }
 }
 
+impl<'t> DoubleEndedIterator for Filter<'t> {
+  fn next_back(&mut self) -> Option<Self::Item> {
+    loop {
+      match self.iter.next_back() {
+        Some(task) => {
+          if self.matched_by(&task.tags()) {
+            return Some(task)
+          }
+        },
+        None => return None,
+      }
+    }
+  }
+}
+
 
 /// A builder object to create a `Query`.
 // Strictly speaking the builder contains the same members as the actual

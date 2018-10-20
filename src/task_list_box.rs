@@ -122,6 +122,60 @@ impl TaskListBox {
     self.handle_select_task(task_id, state)
   }
 
+  /// Search for a task containing the given string.
+  fn search_task_index(&self,
+                       string: &str,
+                       search_state: &mut SearchState,
+                       selection_state: &mut SelectionState) -> Option<usize> {
+    // Note that because we use the count for index calculation
+    // purposes, we subtract one below on every use.
+    let count = self.query.iter().clone().count();
+    // First figure out from where we start the search. If we have
+    // visited this `TaskListBox` beforehand we may have already visited
+    // the first couple of tasks matching the given string and we should
+    // skip those.
+    let start_idx = match search_state {
+      SearchState::Current => {
+        if selection_state.is_reversed() {
+          (count - 1) - self.selection()
+        } else {
+          self.selection()
+        }
+      },
+      SearchState::First => 0,
+      SearchState::Task(idx) => {
+        if selection_state.is_reversed() {
+          (count - 1) - *idx + 1
+        } else {
+          *idx + 1
+        }
+      },
+    };
+
+    // Note that a simpler version of this find magic would just use
+    // the `enumerate` functionality. However, for some reason that
+    // would require us to work with an `ExactSizeIterator`, which is
+    // not something that we can provide.
+    if selection_state.is_reversed() {
+      self
+        .query
+        .iter()
+        .clone()
+        .rev()
+        .skip(start_idx)
+        .position(|x| x.summary.to_ascii_lowercase().contains(string))
+        .and_then(|idx| Some((count - 1) - (start_idx + idx)))
+    } else {
+      self
+        .query
+        .iter()
+        .clone()
+        .skip(start_idx)
+        .position(|x| x.summary.to_ascii_lowercase().contains(string))
+        .and_then(|idx| Some(start_idx + idx))
+    }
+  }
+
   /// Handle a `TermUiEvent::SearchTask` event.
   fn handle_search_task(&mut self,
                         string: &str,
@@ -129,24 +183,7 @@ impl TaskListBox {
                         selection_state: &mut SelectionState) -> Option<UiEvents> {
     debug_assert_eq!(string, &string.to_ascii_lowercase());
 
-    // First figure out from where we start the search. If we have
-    // visited this `TaskListBox` beforehand we may have already visited
-    // the first couple of tasks matching the given string and we should
-    // skip those.
-    let start_idx = match search_state {
-      SearchState::Current => self.selection(),
-      SearchState::First => 0,
-      SearchState::Task(idx) => *idx + 1,
-    };
-
-    let idx = self
-      .query
-      .iter()
-      .clone()
-      .skip(start_idx)
-      .position(|x| x.summary.to_ascii_lowercase().contains(string))
-      .and_then(|idx| Some(idx + start_idx));
-
+    let idx = self.search_task_index(string, search_state, selection_state);
     if let Some(idx) = idx {
       *search_state = SearchState::Task(idx);
 
