@@ -310,7 +310,9 @@ impl TabBar {
 
   /// Change the currently selected tab.
   fn select(&mut self, change: isize, cap: &mut dyn Cap) -> bool {
-    let new_selection = self.selection as isize + change;
+    let count = self.tabs.iter().len();
+    let selection = sanitize_selection(self.selection, count);
+    let new_selection = selection as isize + change;
     self.set_select(new_selection, cap)
   }
 

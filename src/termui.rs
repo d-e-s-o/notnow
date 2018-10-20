@@ -1090,6 +1090,32 @@ mod tests {
   }
 
   #[test]
+  fn select_last_tab_plus_one() {
+    let events = vec![
+      Event::KeyDown(Key::Char('0')).into(),
+      Event::KeyDown(Key::Char('l')).into(),
+      Event::KeyDown(Key::Char('d')).into(),
+    ];
+
+    let tasks = TestUiBuilder::with_default_tasks_and_tags()
+      .build()
+      .handle(events)
+      .tasks()
+      .into_iter()
+      .map(|x| x.summary)
+      .collect::<Vec<_>>();
+
+    let (.., mut expected) = make_tasks_with_tags(15);
+    expected.remove(14);
+    let expected = expected
+      .drain(..)
+      .map(|x| x.summary)
+      .collect::<Vec<_>>();
+
+    assert_eq!(tasks, expected);
+  }
+
+  #[test]
   fn in_out_state_after_write() {
     let tasks = make_tasks(2);
     let events = vec![

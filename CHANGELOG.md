@@ -10,6 +10,8 @@ Unreleased
   - E.g., notnow /dev/pts/3 will display the output on tty 3
 - Fixed stack overflow due to endless loop when searching for a string
   that is not found on multiple tabs
+- Fixed integer overflow when selecting the last tab by means of '0' and
+  then advancing further
 
 
 0.1.2
