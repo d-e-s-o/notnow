@@ -28,6 +28,7 @@ use std::slice;
 use id::Id as IdT;
 use ser::tasks::Task as SerTask;
 use ser::tasks::Tasks as SerTasks;
+use ser::ToSerde;
 use tags::Id as TagId;
 use tags::Tag;
 use tags::TagMap;
@@ -89,14 +90,6 @@ impl Task {
     })
   }
 
-  /// Convert this task into a serializable one.
-  pub fn to_serde(&self) -> SerTask {
-    SerTask {
-      summary: self.summary.clone(),
-      tags: self.tags.iter().map(|(_, x)| x.to_serde()).collect(),
-    }
-  }
-
   /// Retrieve this task's `Id`.
   pub fn id(&self) -> Id {
     self.id
@@ -136,6 +129,15 @@ impl PartialEq for Task {
   }
 }
 
+impl ToSerde<SerTask> for Task {
+  /// Convert this task into a serializable one.
+  fn to_serde(&self) -> SerTask {
+    SerTask {
+      summary: self.summary.clone(),
+      tags: self.tags.iter().map(|(_, x)| x.to_serde()).collect(),
+    }
+  }
+}
 
 pub type TaskIter<'a> = slice::Iter<'a, Task>;
 

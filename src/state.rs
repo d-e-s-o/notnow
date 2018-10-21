@@ -37,6 +37,7 @@ use query::Query;
 use query::QueryBuilder;
 use ser::state::ProgState as SerProgState;
 use ser::state::TaskState as SerTaskState;
+use ser::ToSerde;
 use tags::Templates;
 use tasks::Tasks;
 
@@ -112,25 +113,6 @@ impl State {
     }
   }
 
-  /// Convert this object into a serializable one.
-  fn to_serde(&self) -> (SerProgState, SerTaskState) {
-    let queries = self
-      .queries
-      .iter()
-      .map(|x| x.to_serde())
-      .collect();
-
-    let task_state = SerTaskState {
-      templates: self.templates.to_serde(),
-      tasks: self.tasks.borrow().to_serde(),
-    };
-    let program_state = SerProgState {
-      queries: queries,
-    };
-
-    (program_state, task_state)
-  }
-
   /// Persist the state into a file.
   pub fn save(&self) -> Result<()> {
     let (prog_state, task_state) = self.to_serde();
@@ -164,6 +146,27 @@ impl State {
   /// Retrieve the queries to use.
   pub fn queries(&self) -> impl Iterator<Item=&Query> {
     self.queries.iter()
+  }
+}
+
+impl ToSerde<(SerProgState, SerTaskState)> for State {
+  /// Convert this object into a serializable one.
+  fn to_serde(&self) -> (SerProgState, SerTaskState) {
+    let queries = self
+      .queries
+      .iter()
+      .map(|x| x.to_serde())
+      .collect();
+
+    let task_state = SerTaskState {
+      templates: self.templates.to_serde(),
+      tasks: self.tasks.borrow().to_serde(),
+    };
+    let program_state = SerProgState {
+      queries: queries,
+    };
+
+    (program_state, task_state)
   }
 }
 

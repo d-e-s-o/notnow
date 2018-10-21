@@ -28,6 +28,7 @@ use cell::RefVal;
 
 use ser::query::Query as SerQuery;
 use ser::query::TagLit as SerTagLit;
+use ser::ToSerde;
 use tags::Tag;
 use tags::TagMap;
 use tags::Templates;
@@ -44,14 +45,6 @@ enum TagLit {
 }
 
 impl TagLit {
-  /// Convert this object into a serializable one.
-  fn to_serde(&self) -> SerTagLit {
-    match self {
-      TagLit::Pos(tag) => SerTagLit::Pos(tag.to_serde()),
-      TagLit::Neg(tag) => SerTagLit::Neg(tag.to_serde()),
-    }
-  }
-
   /// Retrieve the contained `Tag`.
   fn tag(&self) -> &Tag {
     match self {
@@ -65,6 +58,16 @@ impl TagLit {
     match self {
       TagLit::Pos(_) => true,
       TagLit::Neg(_) => false,
+    }
+  }
+}
+
+impl ToSerde<SerTagLit> for TagLit {
+  /// Convert this object into a serializable one.
+  fn to_serde(&self) -> SerTagLit {
+    match self {
+      TagLit::Pos(tag) => SerTagLit::Pos(tag.to_serde()),
+      TagLit::Neg(tag) => SerTagLit::Neg(tag.to_serde()),
     }
   }
 }
@@ -313,20 +316,6 @@ impl Query {
     })
   }
 
-  /// Convert this query into a serializable one.
-  pub fn to_serde(&self) -> SerQuery {
-    let lits = self
-      .lits
-      .iter()
-      .map(|lits| lits.iter().map(|x| x.to_serde()).collect())
-      .collect();
-
-    SerQuery {
-      name: self.name.clone(),
-      lits: lits,
-    }
-  }
-
   /// Retrieve an iterator over the tasks represented by this query.
   pub fn iter<'t, 's: 't>(&'s self) -> RefVal<'t, Filter<'t>> {
     Ref::map_val(self.tasks.borrow(), |x| Filter::new(x.iter(), &self.lits))
@@ -340,6 +329,22 @@ impl Query {
   /// Retrieve the query's name.
   pub fn name(&self) -> &str {
     &self.name
+  }
+}
+
+impl ToSerde<SerQuery> for Query {
+  /// Convert this query into a serializable one.
+  fn to_serde(&self) -> SerQuery {
+    let lits = self
+      .lits
+      .iter()
+      .map(|lits| lits.iter().map(|x| x.to_serde()).collect())
+      .collect();
+
+    SerQuery {
+      name: self.name.clone(),
+      lits: lits,
+    }
   }
 }
 

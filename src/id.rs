@@ -26,6 +26,7 @@ use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 
 use ser::id::Id as SerId;
+use ser::ToSerde;
 
 
 /// A struct representing IDs usable for various purposes.
@@ -58,19 +59,6 @@ where
       phantom: PhantomData,
     }
   }
-
-  /// Convert this `Id` into a serializable one.
-  ///
-  /// Note that it is generally safe to convert this unique in-memory ID
-  /// into a serializable one. However, the inverse conversion is not
-  /// allowed, for there is no way to guarantee uniqueness of the
-  /// resulting in-memory ID.
-  pub fn to_serde<U>(self) -> SerId<U>
-  where
-    U: Copy,
-  {
-    SerId::new(self.id)
-  }
 }
 
 impl<T> Debug for Id<T>
@@ -89,6 +77,22 @@ where
   /// Format the `Id` into the given formatter.
   fn fmt(&self, f: &mut Formatter<'_>) -> Result {
     write!(f, "{}", self.id)
+  }
+}
+
+impl<T, U> ToSerde<SerId<U>> for Id<T>
+where
+  T: Copy,
+  U: Copy,
+{
+  /// Convert this `Id` into a serializable one.
+  ///
+  /// Note that it is generally safe to convert this unique in-memory ID
+  /// into a serializable one. However, the inverse conversion is not
+  /// allowed, for there is no way to guarantee uniqueness of the
+  /// resulting in-memory ID.
+  fn to_serde(&self) -> SerId<U> {
+    SerId::new(self.id)
   }
 }
 

@@ -29,6 +29,7 @@ use ser::tags::Id as SerTagId;
 use ser::tags::Tag as SerTag;
 use ser::tags::Template as SerTemplate;
 use ser::tags::Templates as SerTemplates;
+use ser::ToSerde;
 
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct T(());
@@ -52,14 +53,6 @@ impl Template {
     Template {
       id: Id::new(),
       name: name.into(),
-    }
-  }
-
-  /// Convert the template into a serializable one.
-  pub fn to_serde(&self) -> SerTemplate {
-    SerTemplate {
-      id: self.id.to_serde(),
-      name: self.name.clone(),
     }
   }
 
@@ -113,6 +106,16 @@ impl From<SerTemplate> for Template {
   }
 }
 
+impl ToSerde<SerTemplate> for Template {
+  /// Convert the template into a serializable one.
+  fn to_serde(&self) -> SerTemplate {
+    SerTemplate {
+      id: self.id.to_serde(),
+      name: self.name.clone(),
+    }
+  }
+}
+
 
 /// An actual tag instance, which may be associated with a task.
 #[derive(Clone, Debug, PartialEq)]
@@ -128,13 +131,6 @@ impl Tag {
     }
   }
 
-  /// Convert the tag into a serializable one.
-  pub fn to_serde(&self) -> SerTag {
-    SerTag {
-      id: self.template.id.to_serde(),
-    }
-  }
-
   /// Retrieve the tag's ID.
   pub fn id(&self) -> Id {
     self.template.id()
@@ -144,6 +140,15 @@ impl Tag {
   #[cfg(test)]
   pub fn name(&self) -> &str {
     self.template.name()
+  }
+}
+
+impl ToSerde<SerTag> for Tag {
+  /// Convert the tag into a serializable one.
+  fn to_serde(&self) -> SerTag {
+    SerTag {
+      id: self.template.id.to_serde(),
+    }
   }
 }
 
@@ -224,11 +229,6 @@ impl Templates {
     }
   }
 
-  /// Convert the tag templates object into a serializable form.
-  pub fn to_serde(&self) -> SerTemplates {
-    SerTemplates(self.templates.iter().map(|x| x.to_serde()).collect())
-  }
-
   /// Retrieve a reference to the 'complete' tag template.
   pub fn complete_tag(&self) -> &Template {
     &self.complete
@@ -238,6 +238,13 @@ impl Templates {
   #[cfg(test)]
   pub fn iter(&self) -> impl Iterator<Item=&Template> {
     self.templates.iter().map(|x| x.as_ref())
+  }
+}
+
+impl ToSerde<SerTemplates> for Templates {
+  /// Convert the tag templates object into a serializable form.
+  fn to_serde(&self) -> SerTemplates {
+    SerTemplates(self.templates.iter().map(|x| x.to_serde()).collect())
   }
 }
 

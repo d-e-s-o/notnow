@@ -188,6 +188,7 @@ mod tests {
   use ser::tags::Templates as SerTemplates;
   use ser::tasks::Task as SerTask;
   use ser::tasks::Tasks as SerTasks;
+  use ser::ToSerde;
   use test::make_tasks;
   use test::make_tasks_with_tags;
   use test::NamedTempFile;
