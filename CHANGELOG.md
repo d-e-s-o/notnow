@@ -1,5 +1,5 @@
-Unreleased
-----------
+0.1.3
+-----
 - Removed default "all" query (very first query; capturing all tasks)
   - If still desired, can be configured manually
 - Added support for searching in reverse order
