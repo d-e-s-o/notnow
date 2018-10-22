@@ -17,68 +17,11 @@
 // * along with this program.  If not, see <http://www.gnu.org/licenses/>. *
 // *************************************************************************
 
-use std::fmt::Debug;
-use std::fmt::Display;
-use std::fmt::Formatter;
-use std::fmt::Result;
-use std::marker::PhantomData;
-use std::sync::atomic::AtomicUsize;
-use std::sync::atomic::Ordering;
+pub use uid::Id;
 
 use ser::id::Id as SerId;
 use ser::ToSerde;
 
-
-/// A struct representing IDs usable for various purposes.
-///
-/// Note that for some reason Rust only truly provides the
-/// implementations of the various traits we derive from when `T` also
-/// provides them. Note furthermore that we want all ID objects to be
-/// lightweight and, hence, require the implementation of `Copy` for `T`
-/// (which we do not for all the other, optional, traits).
-#[derive(Clone, Copy, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct Id<T>
-where
-  T: Copy,
-{
-  id: usize,
-  phantom: PhantomData<T>,
-}
-
-impl<T> Id<T>
-where
-  T: Copy,
-{
-  /// Create a new unique `Id`.
-  pub fn new() -> Self {
-    static NEXT_ID: AtomicUsize = AtomicUsize::new(0);
-
-    let id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
-    Id {
-      id: id,
-      phantom: PhantomData,
-    }
-  }
-}
-
-impl<T> Debug for Id<T>
-where
-  T: Copy,
-{
-  fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-    write!(f, "Id {{ id: {} }}", self.id)
-  }
-}
-
-impl<T> Display for Id<T>
-where
-  T: Copy,
-{
-  /// Format the `Id` into the given formatter.
-  fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-    write!(f, "{}", self.id)
-  }
-}
 
 impl<T, U> ToSerde<SerId<U>> for Id<T>
 where
@@ -92,23 +35,6 @@ where
   /// allowed, for there is no way to guarantee uniqueness of the
   /// resulting in-memory ID.
   fn to_serde(&self) -> SerId<U> {
-    SerId::new(self.id)
-  }
-}
-
-
-#[cfg(test)]
-mod tests {
-  use super::*;
-
-  type TestId = Id<u32>;
-
-
-  #[test]
-  fn unique_id_increases() {
-    let id1 = TestId::new();
-    let id2 = TestId::new();
-
-    assert!(id2.id > id1.id);
+    SerId::new(self.get())
   }
 }

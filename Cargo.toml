@@ -44,3 +44,6 @@ version = "1.0"
 
 [dependencies.termion]
 version = "1.5"
+
+[dependencies.uid]
+version = "0.1"

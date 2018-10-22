@@ -1,3 +1,8 @@
+Unreleased
+----------
+- Factored out `uid` crate which is now an explicit dependency
+
+
 0.1.3
 -----
 - Removed default "all" query (very first query; capturing all tasks)
