@@ -119,6 +119,85 @@ impl InOutArea {
     }
   }
 
+  /// Handle a key press.
+  fn handle_key(&mut self,
+                mut s: String,
+                mut idx: usize,
+                key: Key,
+                cap: &mut dyn Cap) -> Option<UiEvents> {
+    match key {
+      Key::Esc |
+      Key::Return => {
+        self.in_out = InOut::Clear;
+        let widget = self.restore_focus(cap);
+
+        let event = if key == Key::Return {
+          Box::new(TermUiEvent::EnteredText(s))
+        } else {
+          Box::new(TermUiEvent::InputCanceled)
+        };
+        Some(UiEvent::Directed(widget, event)).update()
+      },
+      Key::Char(c) => {
+        s.insert(idx, c);
+        self.in_out = InOut::Input(s, idx + 1);
+        (None as Option<Event>).update()
+      },
+      Key::Backspace => {
+        if idx > 0 {
+          s.remove(idx - 1);
+          idx -= 1;
+        }
+        self.in_out = InOut::Input(s, idx);
+        (None as Option<Event>).update()
+      },
+      Key::Delete => {
+        if idx < s.len() {
+          s.remove(idx);
+          if idx > s.len() {
+            idx -= 1;
+          }
+        }
+        self.in_out = InOut::Input(s, idx);
+        (None as Option<Event>).update()
+      },
+      Key::Left => {
+        if idx > 0 {
+          self.in_out = InOut::Input(s, idx - 1);
+          (None as Option<Event>).update()
+        } else {
+          None
+        }
+      },
+      Key::Right => {
+        if idx < s.len() {
+          self.in_out = InOut::Input(s, idx + 1);
+          (None as Option<Event>).update()
+        } else {
+          None
+        }
+      },
+      Key::Home => {
+        if idx != 0 {
+          self.in_out = InOut::Input(s, 0);
+          (None as Option<Event>).update()
+        } else {
+          None
+        }
+      },
+      Key::End => {
+        let length = s.len();
+        if idx != length {
+          self.in_out = InOut::Input(s, length);
+          (None as Option<Event>).update()
+        } else {
+          None
+        }
+      },
+      _ => None,
+    }
+  }
+
   /// Focus the previously focused widget or the parent.
   fn restore_focus(&mut self, cap: &mut dyn Cap) -> Id {
     match self.prev_focused {
@@ -150,77 +229,7 @@ impl Handleable for InOutArea {
           panic!("In/out area not used for input.");
         };
 
-        match key {
-          Key::Esc |
-          Key::Return => {
-            self.in_out = InOut::Clear;
-            let widget = self.restore_focus(cap);
-
-            let event = if key == Key::Return {
-              Box::new(TermUiEvent::EnteredText(s))
-            } else {
-              Box::new(TermUiEvent::InputCanceled)
-            };
-            Some(UiEvent::Directed(widget, event)).update()
-          },
-          Key::Char(c) => {
-            s.insert(idx, c);
-            self.in_out = InOut::Input(s, idx + 1);
-            (None as Option<Event>).update()
-          },
-          Key::Backspace => {
-            if idx > 0 {
-              s.remove(idx - 1);
-              idx -= 1;
-            }
-            self.in_out = InOut::Input(s, idx);
-            (None as Option<Event>).update()
-          },
-          Key::Delete => {
-            if idx < s.len() {
-              s.remove(idx);
-              if idx > s.len() {
-                idx -= 1;
-              }
-            }
-            self.in_out = InOut::Input(s, idx);
-            (None as Option<Event>).update()
-          },
-          Key::Left => {
-            if idx > 0 {
-              self.in_out = InOut::Input(s, idx - 1);
-              (None as Option<Event>).update()
-            } else {
-              None
-            }
-          },
-          Key::Right => {
-            if idx < s.len() {
-              self.in_out = InOut::Input(s, idx + 1);
-              (None as Option<Event>).update()
-            } else {
-              None
-            }
-          },
-          Key::Home => {
-            if idx != 0 {
-              self.in_out = InOut::Input(s, 0);
-              (None as Option<Event>).update()
-            } else {
-              None
-            }
-          },
-          Key::End => {
-            let length = s.len();
-            if idx != length {
-              self.in_out = InOut::Input(s, length);
-              (None as Option<Event>).update()
-            } else {
-              None
-            }
-          },
-          _ => None,
-        }
+        self.handle_key(s, idx, key, cap)
       },
     }
   }
