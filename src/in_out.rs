@@ -121,8 +121,7 @@ impl InOutArea {
 
   /// Focus the previously focused widget or the parent.
   fn restore_focus(&mut self, cap: &mut dyn Cap) -> Id {
-    let to_focus = self.prev_focused.or_else(|| cap.parent_id(self.id));
-    match to_focus {
+    match self.prev_focused {
       Some(to_focus) => {
         cap.focus(to_focus);
         to_focus
@@ -152,16 +151,17 @@ impl Handleable for InOutArea {
         };
 
         match key {
+          Key::Esc |
           Key::Return => {
             self.in_out = InOut::Clear;
+            let widget = self.restore_focus(cap);
 
-            let event = if let Some(id) = self.prev_focused {
-              Some(UiEvent::Directed(id, Box::new(TermUiEvent::EnteredText(s))))
+            let event = if key == Key::Return {
+              Box::new(TermUiEvent::EnteredText(s))
             } else {
-              None
+              Box::new(TermUiEvent::InputCanceled)
             };
-            self.restore_focus(cap);
-            event.update()
+            Some(UiEvent::Directed(widget, event)).update()
           },
           Key::Char(c) => {
             s.insert(idx, c);
@@ -218,12 +218,6 @@ impl Handleable for InOutArea {
             } else {
               None
             }
-          },
-          Key::Esc => {
-            self.in_out = InOut::Clear;
-            let widget = self.restore_focus(cap);
-            let event = Box::new(TermUiEvent::InputCanceled);
-            Some(UiEvent::Directed(widget, event)).update()
           },
           _ => None,
         }
