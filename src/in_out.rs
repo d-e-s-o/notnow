@@ -24,6 +24,7 @@ use gui::Event;
 use gui::Handleable;
 use gui::Id;
 use gui::Key;
+use gui::OptionChain;
 use gui::UiEvent;
 use gui::UiEvents;
 use gui::Widget;
@@ -128,28 +129,26 @@ impl InOutArea {
     match key {
       Key::Esc |
       Key::Return => {
-        self.in_out = InOut::Clear;
+        let update = self.change_state(InOut::Clear);
         let widget = self.restore_focus(cap);
-
         let event = if key == Key::Return {
           Box::new(TermUiEvent::EnteredText(s))
         } else {
           Box::new(TermUiEvent::InputCanceled)
         };
-        Some(UiEvent::Directed(widget, event)).update()
+        debug_assert!(update.is_some());
+        Some(UiEvent::Directed(widget, event)).chain(update)
       },
       Key::Char(c) => {
         s.insert(idx, c);
-        self.in_out = InOut::Input(s, idx + 1);
-        (None as Option<Event>).update()
+        self.change_state(InOut::Input(s, idx + 1))
       },
       Key::Backspace => {
         if idx > 0 {
           s.remove(idx - 1);
           idx -= 1;
         }
-        self.in_out = InOut::Input(s, idx);
-        (None as Option<Event>).update()
+        self.change_state(InOut::Input(s, idx))
       },
       Key::Delete => {
         if idx < s.len() {
@@ -158,29 +157,25 @@ impl InOutArea {
             idx -= 1;
           }
         }
-        self.in_out = InOut::Input(s, idx);
-        (None as Option<Event>).update()
+        self.change_state(InOut::Input(s, idx))
       },
       Key::Left => {
         if idx > 0 {
-          self.in_out = InOut::Input(s, idx - 1);
-          (None as Option<Event>).update()
+          self.change_state(InOut::Input(s, idx - 1))
         } else {
           None
         }
       },
       Key::Right => {
         if idx < s.len() {
-          self.in_out = InOut::Input(s, idx + 1);
-          (None as Option<Event>).update()
+          self.change_state(InOut::Input(s, idx + 1))
         } else {
           None
         }
       },
       Key::Home => {
         if idx != 0 {
-          self.in_out = InOut::Input(s, 0);
-          (None as Option<Event>).update()
+          self.change_state(InOut::Input(s, 0))
         } else {
           None
         }
@@ -188,8 +183,7 @@ impl InOutArea {
       Key::End => {
         let length = s.len();
         if idx != length {
-          self.in_out = InOut::Input(s, length);
-          (None as Option<Event>).update()
+          self.change_state(InOut::Input(s, length))
         } else {
           None
         }
