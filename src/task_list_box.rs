@@ -33,15 +33,15 @@ use gui::Key;
 use gui::UiEvent;
 use gui::UiEvents;
 
-use event::EventUpdated;
-use in_out::InOut;
-use query::Query;
-use tab_bar::SearchState;
-use tab_bar::SelectionState;
-use tasks::Id as TaskId;
-use tasks::Task;
-use tasks::Tasks;
-use termui::TermUiEvent;
+use crate::event::EventUpdated;
+use crate::in_out::InOut;
+use crate::query::Query;
+use crate::tab_bar::SearchState;
+use crate::tab_bar::SelectionState;
+use crate::tasks::Id as TaskId;
+use crate::tasks::Task;
+use crate::tasks::Tasks;
+use crate::termui::TermUiEvent;
 
 
 /// Sanitize a selection index.

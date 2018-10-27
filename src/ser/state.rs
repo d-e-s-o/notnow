@@ -17,9 +17,9 @@
 // * along with this program.  If not, see <http://www.gnu.org/licenses/>. *
 // *************************************************************************
 
-use ser::query::Query;
-use ser::tags::Templates;
-use ser::tasks::Tasks;
+use crate::ser::query::Query;
+use crate::ser::tags::Templates;
+use crate::ser::tasks::Tasks;
 
 
 /// A struct comprising the task state of the program.

@@ -25,11 +25,11 @@ use libc::c_int;
 use libc::close;
 use libc::mkstemp;
 
-use ser::tags::Id as SerId;
-use ser::tags::Tag as SerTag;
-use ser::tags::Template as SerTemplate;
-use ser::tasks::Task as SerTask;
-use tags::COMPLETE_TAG;
+use crate::ser::tags::Id as SerId;
+use crate::ser::tags::Tag as SerTag;
+use crate::ser::tags::Template as SerTemplate;
+use crate::ser::tasks::Task as SerTask;
+use crate::tags::COMPLETE_TAG;
 
 
 /// A temporary file with a visible file system path.

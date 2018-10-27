@@ -64,7 +64,7 @@ use libc::SIGWINCH;
 use libc::size_t;
 use libc::write;
 
-use Event;
+use crate::Event;
 
 
 /// The file descriptor for a write end of a pipe used for signaling resize events.

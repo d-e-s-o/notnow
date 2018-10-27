@@ -24,12 +24,12 @@ use std::hash::Hash;
 use std::hash::Hasher;
 use std::rc::Rc;
 
-use id::Id as IdT;
-use ser::tags::Id as SerTagId;
-use ser::tags::Tag as SerTag;
-use ser::tags::Template as SerTemplate;
-use ser::tags::Templates as SerTemplates;
-use ser::ToSerde;
+use crate::id::Id as IdT;
+use crate::ser::tags::Id as SerTagId;
+use crate::ser::tags::Tag as SerTag;
+use crate::ser::tags::Template as SerTemplate;
+use crate::ser::tags::Templates as SerTemplates;
+use crate::ser::ToSerde;
 
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct T(());

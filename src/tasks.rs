@@ -25,14 +25,14 @@ use std::io::Result;
 use std::rc::Rc;
 use std::slice;
 
-use id::Id as IdT;
-use ser::tasks::Task as SerTask;
-use ser::tasks::Tasks as SerTasks;
-use ser::ToSerde;
-use tags::Id as TagId;
-use tags::Tag;
-use tags::TagMap;
-use tags::Templates;
+use crate::id::Id as IdT;
+use crate::ser::tasks::Task as SerTask;
+use crate::ser::tasks::Tasks as SerTasks;
+use crate::ser::ToSerde;
+use crate::tags::Id as TagId;
+use crate::tags::Tag;
+use crate::tags::TagMap;
+use crate::tags::Templates;
 
 #[derive(Copy, Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct T(());
@@ -255,8 +255,8 @@ pub mod tests {
   use serde_json::from_str as from_json;
   use serde_json::to_string_pretty as to_json;
 
-  use ser::tags::Templates as SerTemplates;
-  use test::make_tasks;
+  use crate::ser::tags::Templates as SerTemplates;
+  use crate::test::make_tasks;
 
 
   #[test]

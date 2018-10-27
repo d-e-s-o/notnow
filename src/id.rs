@@ -19,8 +19,8 @@
 
 pub use uid::Id;
 
-use ser::id::Id as SerId;
-use ser::ToSerde;
+use crate::ser::id::Id as SerId;
+use crate::ser::ToSerde;
 
 
 impl<T, U> ToSerde<SerId<U>> for Id<T>

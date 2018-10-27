@@ -29,8 +29,8 @@ use gui::UiEvent;
 use gui::UiEvents;
 use gui::Widget;
 
-use event::EventUpdated;
-use termui::TermUiEvent;
+use crate::event::EventUpdated;
+use crate::termui::TermUiEvent;
 
 
 /// An object representing the in/out area within the TermUi.

@@ -135,12 +135,12 @@ use gui::Ui;
 use gui::UnhandledEvent;
 use gui::UnhandledEvents;
 
-use event::convert;
-use resize::receive_window_resizes;
-use state::State;
-use term_renderer::TermRenderer;
-use termui::TermUi;
-use termui::TermUiEvent;
+use crate::event::convert;
+use crate::resize::receive_window_resizes;
+use crate::state::State;
+use crate::term_renderer::TermRenderer;
+use crate::termui::TermUi;
+use crate::termui::TermUiEvent;
 
 
 /// A type indicating the desire to continue execution.

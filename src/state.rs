@@ -33,13 +33,13 @@ use serde::Serialize;
 use serde_json::from_reader;
 use serde_json::to_string_pretty as to_json;
 
-use query::Query;
-use query::QueryBuilder;
-use ser::state::ProgState as SerProgState;
-use ser::state::TaskState as SerTaskState;
-use ser::ToSerde;
-use tags::Templates;
-use tasks::Tasks;
+use crate::query::Query;
+use crate::query::QueryBuilder;
+use crate::ser::state::ProgState as SerProgState;
+use crate::ser::state::TaskState as SerTaskState;
+use crate::ser::ToSerde;
+use crate::tags::Templates;
+use crate::tasks::Tasks;
 
 
 /// An object encapsulating the program's relevant state.
@@ -175,14 +175,14 @@ impl ToSerde<(SerProgState, SerTaskState)> for State {
 pub mod tests {
   use super::*;
 
-  use ser::tags::Id as SerId;
-  use ser::tags::Tag as SerTag;
-  use ser::tags::Template as SerTemplate;
-  use ser::tags::Templates as SerTemplates;
-  use ser::tasks::Task as SerTask;
-  use ser::tasks::Tasks as SerTasks;
-  use test::make_tasks;
-  use test::NamedTempFile;
+  use crate::ser::tags::Id as SerId;
+  use crate::ser::tags::Tag as SerTag;
+  use crate::ser::tags::Template as SerTemplate;
+  use crate::ser::tags::Templates as SerTemplates;
+  use crate::ser::tasks::Task as SerTask;
+  use crate::ser::tasks::Tasks as SerTasks;
+  use crate::test::make_tasks;
+  use crate::test::NamedTempFile;
 
 
   /// Create a state object based off of two temporary configuration files.

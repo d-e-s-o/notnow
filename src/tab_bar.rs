@@ -33,12 +33,12 @@ use gui::Key;
 use gui::UiEvent;
 use gui::UiEvents;
 
-use event::EventUpdated;
-use in_out::InOut;
-use selection::SelectionState as SelectionStateT;
-use state::State;
-use task_list_box::TaskListBox;
-use termui::TermUiEvent;
+use crate::event::EventUpdated;
+use crate::in_out::InOut;
+use crate::selection::SelectionState as SelectionStateT;
+use crate::state::State;
+use crate::task_list_box::TaskListBox;
+use crate::termui::TermUiEvent;
 
 
 /// The selection state as used by a `TabBar`.

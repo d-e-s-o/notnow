@@ -17,7 +17,7 @@
 // * along with this program.  If not, see <http://www.gnu.org/licenses/>. *
 // *************************************************************************
 
-use ser::tags::Tag;
+use crate::ser::tags::Tag;
 
 
 /// A task that can be serialized and deserialized.
@@ -41,7 +41,7 @@ mod tests {
   use serde_json::from_str as from_json;
   use serde_json::to_string as to_json;
 
-  use ser::tags::Id as TagId;
+  use crate::ser::tags::Id as TagId;
 
 
   #[test]

@@ -25,7 +25,7 @@ use gui::Key as GuiKey;
 use gui::UiEvent as GuiUiEvent;
 use gui::UiEvents as GuiUiEvents;
 
-use termui::TermUiEvent;
+use crate::termui::TermUiEvent;
 
 
 fn is_ui_event_updated(event: &GuiUiEvent) -> bool {

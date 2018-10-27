@@ -28,15 +28,15 @@ use gui::Key;
 use gui::UiEvent;
 use gui::UiEvents;
 
-use in_out::InOut;
-use in_out::InOutArea;
-use state::State;
-use tab_bar::SearchState;
-use tab_bar::SelectionState;
-use tab_bar::TabBar;
-use tasks::Id as TaskId;
+use crate::in_out::InOut;
+use crate::in_out::InOutArea;
+use crate::state::State;
+use crate::tab_bar::SearchState;
+use crate::tab_bar::SelectionState;
+use crate::tab_bar::TabBar;
+use crate::tasks::Id as TaskId;
 #[cfg(test)]
-use tasks::Task;
+use crate::tasks::Task;
 
 
 /// An enumeration comprising all custom events we support.
@@ -180,18 +180,18 @@ mod tests {
   use gui::Ui;
   use gui::UnhandledEvent;
 
-  use event::tests::CustomEvent;
-  use ser::query::Query as SerQuery;
-  use ser::query::TagLit as SerTagLit;
-  use ser::state::ProgState as SerProgState;
-  use ser::state::TaskState as SerTaskState;
-  use ser::tags::Templates as SerTemplates;
-  use ser::tasks::Task as SerTask;
-  use ser::tasks::Tasks as SerTasks;
-  use ser::ToSerde;
-  use test::make_tasks;
-  use test::make_tasks_with_tags;
-  use test::NamedTempFile;
+  use crate::event::tests::CustomEvent;
+  use crate::ser::query::Query as SerQuery;
+  use crate::ser::query::TagLit as SerTagLit;
+  use crate::ser::state::ProgState as SerProgState;
+  use crate::ser::state::TaskState as SerTaskState;
+  use crate::ser::tags::Templates as SerTemplates;
+  use crate::ser::tasks::Task as SerTask;
+  use crate::ser::tasks::Tasks as SerTasks;
+  use crate::ser::ToSerde;
+  use crate::test::make_tasks;
+  use crate::test::make_tasks_with_tags;
+  use crate::test::NamedTempFile;
 
 
   /// A builder object used for instantiating a UI with a certain

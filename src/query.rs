@@ -26,15 +26,15 @@ use cell::Ref;
 use cell::RefCell;
 use cell::RefVal;
 
-use ser::query::Query as SerQuery;
-use ser::query::TagLit as SerTagLit;
-use ser::ToSerde;
-use tags::Tag;
-use tags::TagMap;
-use tags::Templates;
-use tasks::Task;
-use tasks::TaskIter;
-use tasks::Tasks;
+use crate::ser::query::Query as SerQuery;
+use crate::ser::query::TagLit as SerTagLit;
+use crate::ser::ToSerde;
+use crate::tags::Tag;
+use crate::tags::TagMap;
+use crate::tags::Templates;
+use crate::tasks::Task;
+use crate::tasks::TaskIter;
+use crate::tasks::Tasks;
 
 
 /// A literal describing whether a tag is negated or not.
@@ -353,11 +353,11 @@ impl ToSerde<SerQuery> for Query {
 mod tests {
   use super::*;
 
-  use ser::tags::Templates as SerTemplates;
-  use ser::tasks::Tasks as SerTasks;
-  use tags::Templates;
-  use test::make_tasks;
-  use test::make_tasks_with_tags;
+  use crate::ser::tags::Templates as SerTemplates;
+  use crate::ser::tasks::Tasks as SerTasks;
+  use crate::tags::Templates;
+  use crate::test::make_tasks;
+  use crate::test::make_tasks_with_tags;
 
 
   /// Create a query with the given number of tasks in it.

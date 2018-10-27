@@ -17,7 +17,7 @@
 // * along with this program.  If not, see <http://www.gnu.org/licenses/>. *
 // *************************************************************************
 
-use ser::id::Id as IdT;
+use crate::ser::id::Id as IdT;
 
 
 #[derive(Copy, Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
