@@ -28,26 +28,34 @@ use gui::UiEvents as GuiUiEvents;
 use crate::termui::TermUiEvent;
 
 
-fn is_ui_event_updated(event: &GuiUiEvent) -> bool {
-  match event {
-    GuiUiEvent::Custom(data) |
-    GuiUiEvent::Directed(_, data) |
-    GuiUiEvent::Returnable(_, _, data) => {
-      if let Some(event) = data.downcast_ref::<TermUiEvent>() {
-        event.is_updated()
-      } else {
-        false
-      }
-    },
-    _ => false,
+pub trait EventUpdated {
+  /// Check whether the event has been updated.
+  fn is_updated(&self) -> bool;
+}
+
+impl EventUpdated for GuiUiEvent {
+  fn is_updated(&self) -> bool {
+    match self {
+      GuiUiEvent::Custom(data) |
+      GuiUiEvent::Directed(_, data) |
+      GuiUiEvent::Returnable(_, _, data) => {
+        if let Some(event) = data.downcast_ref::<TermUiEvent>() {
+          event.is_updated()
+        } else {
+          false
+        }
+      },
+      _ => false,
+    }
   }
 }
 
-/// Check whether `update` has ever been called on the given event.
-pub fn is_updated(event: &GuiUiEvents) -> bool {
-  match event {
-    GuiChainEvent::Event(event) => is_ui_event_updated(event),
-    GuiChainEvent::Chain(event, chain) => is_ui_event_updated(event) || is_updated(chain),
+impl EventUpdated for GuiUiEvents {
+  fn is_updated(&self) -> bool {
+    match self {
+      GuiChainEvent::Event(event) => event.is_updated(),
+      GuiChainEvent::Chain(event, chain) => event.is_updated() || chain.is_updated(),
+    }
   }
 }
 
@@ -74,7 +82,7 @@ where
         // Redrawing everything is expensive (and we do that for every
         // `Updated` event we encounter), so make sure that we only ever
         // have one.
-        if !is_updated(&event) {
+        if !event.is_updated() {
           event.chain(updated)
         } else {
           event
