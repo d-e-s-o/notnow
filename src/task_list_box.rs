@@ -33,7 +33,7 @@ use gui::Key;
 use gui::UiEvent;
 use gui::UiEvents;
 
-use crate::event::EventUpdated;
+use crate::event::EventUpdate;
 use crate::in_out::InOut;
 use crate::query::Query;
 use crate::tab_bar::SearchState;

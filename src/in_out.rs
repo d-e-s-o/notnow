@@ -29,7 +29,7 @@ use gui::UiEvent;
 use gui::UiEvents;
 use gui::Widget;
 
-use crate::event::EventUpdated;
+use crate::event::EventUpdate;
 use crate::termui::TermUiEvent;
 
 

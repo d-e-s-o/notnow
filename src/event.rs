@@ -53,7 +53,7 @@ pub fn is_updated(event: &GuiUiEvents) -> bool {
 
 
 /// A trait to chain a `TermUiEvent::Updated` event to an event.
-pub trait EventUpdated {
+pub trait EventUpdate {
   /// Chain an update event onto yourself.
   fn update(self) -> Option<GuiUiEvents>;
 
@@ -61,7 +61,7 @@ pub trait EventUpdated {
   fn maybe_update(self, update: bool) -> Option<GuiUiEvents>;
 }
 
-impl<E> EventUpdated for Option<E>
+impl<E> EventUpdate for Option<E>
 where
   E: Into<GuiUiEvents>,
 {
