@@ -179,7 +179,9 @@ mod tests {
 
   use gui::Ui;
   use gui::UnhandledEvent;
+  use gui::UnhandledEvents;
 
+  use crate::event::EventUpdated;
   use crate::event::tests::CustomEvent;
   use crate::ser::query::Query as SerQuery;
   use crate::ser::query::TagLit as SerTagLit;
@@ -301,6 +303,14 @@ mod tests {
   }
 
   impl TestUi {
+    /// Handle a single event and directly return the result.
+    fn evaluate<E>(&mut self, event: E) -> Option<UnhandledEvents>
+    where
+      E: Into<UiEvent>,
+    {
+      self.ui.handle(event)
+    }
+
     /// Send the given list of events to the UI.
     fn handle(&mut self, mut events: Vec<UiEvent>) -> &mut Self {
       for event in events.drain(..) {
@@ -1515,5 +1525,19 @@ mod tests {
     let expected = expected.drain(..).map(|x| x.summary).collect::<Vec<_>>();
 
     assert_eq!(tasks, expected);
+  }
+
+  #[test]
+  fn valid_update_events() {
+    for c in 0u8..127u8 {
+      let c = c as char;
+      let mut ui = TestUiBuilder::new().build();
+      let updated = ui
+        .evaluate(Event::KeyDown(Key::Char(c as char)))
+        .map_or(false, |x| x.is_updated());
+
+      let expected = c == '/' || c == '?' || c == 'a' || c == 'n' || c == 'N' || c == 'w';
+      assert_eq!(updated, expected, "char: {} ({})", c, c as u8);
+    }
   }
 }

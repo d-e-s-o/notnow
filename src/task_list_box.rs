@@ -334,11 +334,15 @@ impl Handleable for TaskListBox {
       Event::KeyUp(key) => {
         match key {
           Key::Char(' ') => {
-            let mut task = self.selected_task();
-            let id = task.id();
-            task.toggle_complete();
-            self.tasks.borrow_mut().update(task);
-            self.handle_select_task_start(id).update()
+            if !self.query().is_empty() {
+              let mut task = self.selected_task();
+              let id = task.id();
+              task.toggle_complete();
+              self.tasks.borrow_mut().update(task);
+              self.handle_select_task_start(id).update()
+            } else {
+              None
+            }
           },
           Key::Char('a') => {
             let event = TermUiEvent::SetInOut(InOut::Input("".to_string(), 0));

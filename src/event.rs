@@ -24,6 +24,8 @@ use gui::EventChain;
 use gui::Key as GuiKey;
 use gui::UiEvent as GuiUiEvent;
 use gui::UiEvents as GuiUiEvents;
+use gui::UnhandledEvent as GuiUnhandledEvent;
+use gui::UnhandledEvents as GuiUnhandledEvents;
 
 use crate::termui::TermUiEvent;
 
@@ -51,6 +53,31 @@ impl EventUpdated for GuiUiEvent {
 }
 
 impl EventUpdated for GuiUiEvents {
+  fn is_updated(&self) -> bool {
+    match self {
+      GuiChainEvent::Event(event) => event.is_updated(),
+      GuiChainEvent::Chain(event, chain) => event.is_updated() || chain.is_updated(),
+    }
+  }
+}
+
+impl EventUpdated for GuiUnhandledEvent {
+  fn is_updated(&self) -> bool {
+    match self {
+      GuiUnhandledEvent::Custom(data) => {
+        if let Some(event) = data.downcast_ref::<TermUiEvent>() {
+          event.is_updated()
+        } else {
+          false
+        }
+      },
+      GuiUnhandledEvent::Event(_) |
+      GuiUnhandledEvent::Quit => false,
+    }
+  }
+}
+
+impl EventUpdated for GuiUnhandledEvents {
   fn is_updated(&self) -> bool {
     match self {
       GuiChainEvent::Event(event) => event.is_updated(),

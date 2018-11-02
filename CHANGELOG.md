@@ -1,5 +1,7 @@
 Unreleased
 ----------
+- Fixed assertion failure when pressing space when no tasks are present
+  in the current `TaskListBox`
 - Factored out `uid` crate which is now an explicit dependency
 
 
