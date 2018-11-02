@@ -52,7 +52,6 @@
   tyvar_behind_raw_pointer,
   unconditional_recursion,
   unions_with_drop_fields,
-  unnameable_test_functions,
   unreachable_code,
   unreachable_patterns,
   unstable_features,
@@ -66,12 +65,11 @@
   while_true,
 )]
 #![warn(rust_2018_compatibility)]
-#![allow(
-  unknown_lints,
+#![allow(unreachable_pub)]
+#![cfg_attr(feature = "cargo-clippy", allow(
   let_and_return,
   redundant_field_names,
-  unreachable_pub,
-)]
+))]
 
 //! A terminal based task management application.
 
