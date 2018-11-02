@@ -44,12 +44,49 @@ pub enum InOut {
 }
 
 
+#[derive(Debug)]
+struct InOutState {
+  /// The actual `InOut` state we have.
+  in_out: InOut,
+  /// The generation ID. The ID is incremented on every change being
+  /// made to `in_out`.
+  gen: usize,
+}
+
+impl InOutState {
+  /// Retrieve the current `InOut` state.
+  fn get(&self) -> &InOut {
+    &self.in_out
+  }
+
+  /// Update the current `InOut` state.
+  fn set(&mut self, in_out: InOut) {
+    self.in_out = in_out;
+    self.bump()
+  }
+
+  /// Bump the generation ID.
+  fn bump(&mut self) {
+    self.gen += 1;
+  }
+}
+
+impl Default for InOutState {
+  fn default() -> Self {
+    Self {
+      in_out: InOut::Clear,
+      gen: 0,
+    }
+  }
+}
+
+
 /// A widget representing an input/output and status area.
 #[derive(Debug, GuiWidget)]
 pub struct InOutArea {
   id: Id,
   prev_focused: Option<Id>,
-  in_out: InOut,
+  in_out: InOutState,
 }
 
 impl InOutArea {
@@ -62,14 +99,20 @@ impl InOutArea {
     InOutArea {
       id: id,
       prev_focused: None,
-      in_out: InOut::Clear,
+      in_out: Default::default(),
     }
   }
 
   /// Conditionally change the `InOut` state of the widget.
   fn change_state(&mut self, in_out: InOut) -> Option<UiEvents> {
-    if in_out != self.in_out {
-      self.in_out = in_out;
+    // We received a request to change the state. Unconditionally bump
+    // the generation it has, irrespective of whether we actually change
+    // it (which we don't, if the new state is equal to what we already
+    // have).
+    self.in_out.bump();
+
+    if in_out != *self.in_out.get() {
+      self.in_out.set(in_out);
       (None as Option<Event>).update()
     } else {
       None
@@ -113,7 +156,7 @@ impl InOutArea {
       },
       #[cfg(test)]
       TermUiEvent::GetInOut => {
-        let resp = TermUiEvent::GetInOutResp(self.in_out.clone());
+        let resp = TermUiEvent::GetInOutResp(self.in_out.get().clone());
         Some(UiEvent::Custom(Box::new(resp)).into())
       },
       _ => Some(UiEvent::Custom(event).into()),
@@ -207,7 +250,7 @@ impl InOutArea {
 
   /// Retrieve the input/output area's current state.
   pub fn state(&self) -> &InOut {
-    &self.in_out
+    &self.in_out.get()
   }
 }
 
@@ -217,7 +260,7 @@ impl Handleable for InOutArea {
     match event {
       Event::KeyDown(key) |
       Event::KeyUp(key) => {
-        let (mut s, mut idx) = if let InOut::Input(s, idx) = &self.in_out {
+        let (mut s, mut idx) = if let InOut::Input(s, idx) = self.in_out.get() {
           (s.clone(), *idx)
         } else {
           panic!("In/out area not used for input.");
