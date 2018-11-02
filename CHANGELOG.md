@@ -1,5 +1,8 @@
 Unreleased
 ----------
+- Added support for `libreadline` controlled text input
+  - Controlled through newly introduced `readline` feature
+  - Added new dependency to `rline`
 - Prevented unnecessary redraw operations on certain actions that set
   an `InOutArea` widget state
 - Fixed assertion failure when pressing space when no tasks are present

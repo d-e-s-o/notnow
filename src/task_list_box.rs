@@ -247,6 +247,7 @@ impl TaskListBox {
           Some(UiEvent::Custom(Box::new(TermUiEvent::EnteredText(text))).into())
         }
       },
+      #[cfg(not(feature = "readline"))]
       TermUiEvent::InputCanceled => {
         if self.state.take().is_some() {
           (None as Option<Event>).update()

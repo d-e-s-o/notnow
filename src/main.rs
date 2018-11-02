@@ -81,6 +81,8 @@ extern crate gui;
 #[macro_use]
 extern crate gui_derive;
 extern crate libc;
+#[cfg(feature = "readline")]
+extern crate rline;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;

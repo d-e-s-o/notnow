@@ -18,6 +18,10 @@ codegen-units = 1
 incremental = false
 panic = "abort"
 
+[features]
+default = []
+readline = ["rline"]
+
 [dependencies.cell]
 version = "0.1"
 
@@ -32,6 +36,10 @@ version = "0.2"
 
 [dependencies.libc]
 version = "0.2"
+
+[dependencies.rline]
+version = "0.1"
+optional = true
 
 [dependencies.serde]
 version = "1.0"

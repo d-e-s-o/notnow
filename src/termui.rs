@@ -35,7 +35,7 @@ use crate::tab_bar::SearchState;
 use crate::tab_bar::SelectionState;
 use crate::tab_bar::TabBar;
 use crate::tasks::Id as TaskId;
-#[cfg(test)]
+#[cfg(all(test, not(feature = "readline")))]
 use crate::tasks::Task;
 
 
@@ -66,16 +66,16 @@ pub enum TermUiEvent {
   /// re-render everything.
   Updated,
   /// Retrieve the current set of tasks.
-  #[cfg(test)]
+  #[cfg(all(test, not(feature = "readline")))]
   GetTasks,
   /// The response to the `GetTasks` event.
-  #[cfg(test)]
+  #[cfg(all(test, not(feature = "readline")))]
   GetTasksResp(Vec<Task>),
   /// Retrieve the current state of the input/output area.
-  #[cfg(test)]
+  #[cfg(all(test, not(feature = "readline")))]
   GetInOut,
   /// The response to the `GetInOut` event.
-  #[cfg(test)]
+  #[cfg(all(test, not(feature = "readline")))]
   GetInOutResp(InOut),
 }
 
@@ -135,14 +135,14 @@ impl TermUi {
       TermUiEvent::SetInOut(_) => {
         Some(UiEvent::Directed(self.in_out, event).into())
       },
-      #[cfg(test)]
+      #[cfg(all(test, not(feature = "readline")))]
       TermUiEvent::GetTasks => {
         let tasks = self.state.tasks();
         let tasks = tasks.borrow().iter().cloned().collect();
         let resp = TermUiEvent::GetTasksResp(tasks);
         Some(UiEvent::Custom(Box::new(resp)).into())
       },
-      #[cfg(test)]
+      #[cfg(all(test, not(feature = "readline")))]
       TermUiEvent::GetInOut => {
         // We merely relay this event to the InOutArea widget, which is
         // the only entity able to satisfy the request.
@@ -178,7 +178,10 @@ impl Handleable for TermUi {
 }
 
 
-#[cfg(test)]
+// We can't run the "end-to-end" tests in conjunction with readline
+// support. Readline can be configured outside of this program's control
+// and so key bindings could be arbitrary.
+#[cfg(all(test, not(feature = "readline")))]
 mod tests {
   use super::*;
 
