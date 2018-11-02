@@ -120,18 +120,22 @@ impl InOutArea {
   }
 
   /// Handle a hooked event.
-  fn handle_hooked_event(widget: &mut dyn Widget, event: Event, cap: &dyn Cap) -> Option<UiEvents> {
+  fn handle_hooked_event(widget: &mut dyn Widget,
+                         event: Event,
+                         _cap: &dyn Cap) -> Option<UiEvents> {
     let in_out = widget.downcast_mut::<InOutArea>();
     if let Some(in_out) = in_out {
-      // If we are focused then text is being entered and we should not
-      // clear the state.
-      if !cap.is_focused(in_out.id) {
-        match event {
-          Event::KeyDown(_) |
-          Event::KeyUp(_) => in_out.change_state(InOut::Clear),
-        }
-      } else {
-        None
+      // We basically schedule a "callback" by virtue of sending an
+      // event to ourselves. This event will be received only after we
+      // handled any other key events, meaning we have full information
+      // about what happened and can determine whether we ultimately
+      // want to set our state to "Clear" or not.
+      match event {
+        Event::KeyDown(_) |
+        Event::KeyUp(_) => {
+          let event = Box::new(TermUiEvent::ClearInOut(in_out.in_out.gen));
+          Some(UiEvent::Directed(in_out.id, event).into())
+        },
       }
     } else {
       panic!("Widget {:?} is unexpected", in_out)
@@ -153,6 +157,22 @@ impl InOutArea {
           cap.focus(self.id);
         };
         self.change_state(in_out)
+      },
+      TermUiEvent::ClearInOut(gen) => {
+        // We only change our state to "Clear" if the generation number
+        // is still the same, meaning that we did not change our state
+        // between receiving the event hook and retrieving this event.
+        if self.in_out.gen == gen {
+          match self.in_out.get() {
+            InOut::Saved |
+            InOut::Search(_) |
+            InOut::Error(_) => self.change_state(InOut::Clear),
+            InOut::Input(..) |
+            InOut::Clear => None,
+          }
+        } else {
+          None
+        }
       },
       #[cfg(test)]
       TermUiEvent::GetInOut => {

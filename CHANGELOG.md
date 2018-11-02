@@ -1,5 +1,7 @@
 Unreleased
 ----------
+- Prevented unnecessary redraw operations on certain actions that set
+  an `InOutArea` widget state
 - Fixed assertion failure when pressing space when no tasks are present
   in the current `TaskListBox`
 - Factored out `uid` crate which is now an explicit dependency

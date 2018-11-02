@@ -53,6 +53,11 @@ pub enum TermUiEvent {
   SelectedTask(Id),
   /// Set the state of the input/output area.
   SetInOut(InOut),
+  /// Change the state of the input/output area to Clear, unless the
+  /// generation ID supplied does not match the current generation ID.
+  /// This event is internal to the InOutArea, there is no need for
+  /// other clients to use it.
+  ClearInOut(usize),
   /// Text has been entered.
   EnteredText(String),
   /// Text input has been canceled.
@@ -1539,5 +1544,21 @@ mod tests {
       let expected = c == '/' || c == '?' || c == 'a' || c == 'n' || c == 'N' || c == 'w';
       assert_eq!(updated, expected, "char: {} ({})", c, c as u8);
     }
+  }
+
+  #[test]
+  fn search_no_update_without_change() {
+    let mut ui = TestUiBuilder::new().build();
+    let updated = ui
+      .evaluate(Event::KeyDown(Key::Char('n')))
+      .map_or(false, |x| x.is_updated());
+
+    assert!(updated);
+
+    let updated = ui
+      .evaluate(Event::KeyDown(Key::Char('n')))
+      .map_or(false, |x| x.is_updated());
+
+    assert!(!updated);
   }
 }
