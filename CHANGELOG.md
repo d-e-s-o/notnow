@@ -1,5 +1,5 @@
-Unreleased
-----------
+0.1.4
+-----
 - Added support for `libreadline` controlled text input
   - Controlled through newly introduced `readline` feature
   - Added new dependency to `rline`
