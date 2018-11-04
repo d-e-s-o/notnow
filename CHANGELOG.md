@@ -1,3 +1,8 @@
+Unreleased
+----------
+- Added categories to `Cargo.toml`
+
+
 0.1.4
 -----
 - Added support for `libreadline` controlled text input
