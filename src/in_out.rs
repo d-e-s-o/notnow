@@ -242,7 +242,11 @@ impl InOutArea {
         let string = if key == Key::Return { Some(s) } else { None };
         self.finish_input(string, cap)
       },
-      Key::Char(c) => {
+      // We cannot easily handle multi byte Unicode graphemes with
+      // Rust's standard library, so just ignore everything that is
+      // represented as more than one byte (the `unicode_segmentation`
+      // would allow us to circumvent this restriction).
+      Key::Char(c) if c.len_utf8() == 1 => {
         s.insert(idx, c);
         self.change_state(InOut::Input(s, idx + 1))
       },
@@ -319,7 +323,7 @@ impl InOutArea {
       Key::Backspace => Some(BACKSPACE),
       Key::Delete => Some(DELETE),
       Key::Esc => Some(ESCAPE),
-      Key::Char(c) => Some(c),
+      Key::Char(c) if c.len_utf8() == 1 => Some(c),
       _ => None,
     };
 

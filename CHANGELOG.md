@@ -1,5 +1,7 @@
 Unreleased
 ----------
+- Fixed problem caused by input of multi-byte characters
+  - They will from now on be ignored
 - Added categories to `Cargo.toml`
 
 

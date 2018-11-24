@@ -857,6 +857,24 @@ mod tests {
   }
 
   #[test]
+  fn edit_task_multi_byte_char() {
+    let tasks = make_tasks(1);
+    let events = vec![
+      Event::KeyDown(Key::Char('e')).into(),
+      Event::KeyDown(Key::Char('ä')).into(),
+      Event::KeyDown(Key::Char('ö')).into(),
+      Event::KeyDown(Key::Return).into(),
+    ];
+
+    let tasks = TestUiBuilder::with_ser_tasks(tasks)
+      .build()
+      .handle(events)
+      .ser_tasks();
+
+    assert_eq!(tasks, make_tasks(1))
+  }
+
+  #[test]
   fn edit_task_with_cursor_movement() {
     let tasks = make_tasks(3);
     let events = vec![
