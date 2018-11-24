@@ -2,7 +2,8 @@ Unreleased
 ----------
 - Fixed problem caused by input of multi-byte characters
   - They will from now on be ignored
-- Updated README to reflect goals more accurately
+- Updated README to reflect goals more accurately and to depict key
+  bindings
 - Added categories to `Cargo.toml`
 
 
