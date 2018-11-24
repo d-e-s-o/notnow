@@ -2,6 +2,7 @@ Unreleased
 ----------
 - Fixed problem caused by input of multi-byte characters
   - They will from now on be ignored
+- Updated README to reflect goals more accurately
 - Added categories to `Cargo.toml`
 
 
