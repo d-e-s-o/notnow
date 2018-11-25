@@ -182,6 +182,7 @@ impl Handleable for TermUi {
 // support. Readline can be configured outside of this program's control
 // and so key bindings could be arbitrary.
 #[cfg(all(test, not(feature = "readline")))]
+#[allow(unused_results)]
 mod tests {
   use super::*;
 

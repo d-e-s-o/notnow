@@ -79,7 +79,7 @@ impl Task {
         let error = format!("Encountered invalid tag Id {}", tag.id);
         Error::new(ErrorKind::InvalidInput, error)
       })?;
-      tags.insert(*id, templates.instantiate(*id));
+      let _ = tags.insert(*id, templates.instantiate(*id));
     }
 
     Ok(Task {
@@ -115,7 +115,7 @@ impl Task {
     // was not present).
     if self.tags.remove(&id).is_none() {
       let tag = self.templates.instantiate(id);
-      self.tags.insert(id, tag);
+      let _ = self.tags.insert(id, tag);
     }
   }
 }
@@ -197,7 +197,7 @@ impl Tasks {
 
   /// Remove a task.
   pub fn remove(&mut self, id: Id) {
-    self
+    let _ = self
       .tasks
       .iter()
       .position(|x| x.id() == id)
@@ -207,7 +207,7 @@ impl Tasks {
 
   /// Update a task.
   pub fn update(&mut self, task: Task) {
-    self
+    let _ = self
       .tasks
       .iter_mut()
       .position(|x| x.id() == task.id())
@@ -248,6 +248,7 @@ impl Tasks {
 }
 
 
+#[allow(unused_results)]
 #[cfg(test)]
 pub mod tests {
   use super::*;

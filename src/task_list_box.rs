@@ -382,8 +382,7 @@ impl Handleable for TaskListBox {
               let other = query.iter().nth(self.some_selection(1));
               if let Some(other) = other {
                 self.tasks.borrow_mut().move_after(to_move.id(), other.id());
-                self.select(1);
-                (None as Option<Event>).update()
+                (None as Option<Event>).maybe_update(self.select(1))
               } else {
                 None
               }
@@ -398,8 +397,7 @@ impl Handleable for TaskListBox {
               let other = query.iter().nth(self.some_selection(-1));
               if let Some(other) = other {
                 self.tasks.borrow_mut().move_before(to_move.id(), other.id());
-                self.select(-1);
-                (None as Option<Event>).update()
+                (None as Option<Event>).maybe_update(self.select(-1))
               } else {
                 None
               }

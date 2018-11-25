@@ -153,6 +153,7 @@ pub fn convert(key: TermKey) -> Result<GuiKey, TermKey> {
 }
 
 
+#[allow(unused_results)]
 #[cfg(test)]
 pub mod tests {
   use super::*;

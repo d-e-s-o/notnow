@@ -61,6 +61,7 @@
   unused_import_braces,
   unused_lifetimes,
   unused_qualifications,
+  unused_results,
   where_clauses_object_safety,
   while_true,
 )]
@@ -209,7 +210,7 @@ fn handle_unhandled_events(events: UnhandledEvents) -> Continue {
   match events {
     ChainEvent::Event(event) => handle_unhandled_event(event),
     ChainEvent::Chain(event, chain) => {
-      handle_unhandled_event(event)?;
+      let _ = handle_unhandled_event(event)?;
       handle_unhandled_events(*chain)
     },
   }
@@ -217,7 +218,7 @@ fn handle_unhandled_events(events: UnhandledEvents) -> Continue {
 
 /// Instantiate a key receiver thread and have it send key events through the given channel.
 fn receive_keys(send_event: Sender<Result<Event>>) {
-  thread::spawn(move || {
+  let _ = thread::spawn(move || {
     let keys = stdin().keys();
     for key in keys {
       let event = key.map(|x| Event::Key(x));

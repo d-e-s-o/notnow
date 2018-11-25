@@ -113,7 +113,7 @@ impl InOutArea {
   pub fn new(id: Id, cap: &mut dyn Cap) -> Self {
     // Install a hook to be able to reset the input/output area into
     // "clear" state on every key press.
-    cap.hook_events(id, Some(&InOutArea::handle_hooked_event));
+    let _ = cap.hook_events(id, Some(&InOutArea::handle_hooked_event));
 
     InOutArea {
       id: id,
@@ -252,14 +252,14 @@ impl InOutArea {
       },
       Key::Backspace => {
         if idx > 0 {
-          s.remove(idx - 1);
+          let _ = s.remove(idx - 1);
           idx -= 1;
         }
         self.change_state(InOut::Input(s, idx))
       },
       Key::Delete => {
         if idx < s.len() {
-          s.remove(idx);
+          let _ = s.remove(idx);
           if idx > s.len() {
             idx -= 1;
           }
