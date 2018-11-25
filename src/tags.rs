@@ -199,10 +199,10 @@ impl Templates {
   ///
   /// The conversion also creates a "lookup" table mapping from the IDs
   /// as they were persisted to the in-memory ones.
-  pub fn with_serde(mut templates: SerTemplates) -> (Self, TagMap) {
+  pub fn with_serde(templates: SerTemplates) -> (Self, TagMap) {
     let (mut templates, map) = templates
       .0
-      .drain(..)
+      .into_iter()
       .map(|x| {
         let serde_id = x.id;
         let template = Template::from(x);

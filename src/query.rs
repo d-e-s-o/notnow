@@ -286,14 +286,14 @@ pub struct Query {
 
 impl Query {
   /// Create a new `Query` object from a serializable one.
-  pub fn with_serde(mut query: SerQuery,
+  pub fn with_serde(query: SerQuery,
                     templates: &Rc<Templates>,
                     map: &TagMap,
                     tasks: Rc<RefCell<Tasks>>) -> IoResult<Self> {
     let mut and_lits = Vec::with_capacity(query.lits.len());
-    for mut lits in query.lits.drain(..) {
+    for mut lits in query.lits.into_iter() {
       let mut or_lits = Vec::with_capacity(lits.len());
-      for lit in lits.drain(..) {
+      for lit in lits.into_iter() {
         let id = map.get(&lit.id()).ok_or_else(|| {
           let error = format!("Encountered invalid tag Id {}", lit.id());
           Error::new(ErrorKind::InvalidInput, error)

@@ -65,8 +65,8 @@ impl State {
   }
 
   /// Create a new `State` object from a serializable one.
-  pub fn with_serde<P>(mut prog_state: SerProgState, prog_path: P,
-                           task_state: SerTaskState, task_path: P) -> Result<Self>
+  pub fn with_serde<P>(prog_state: SerProgState, prog_path: P,
+                       task_state: SerTaskState, task_path: P) -> Result<Self>
   where
     P: Into<PathBuf>,
   {
@@ -75,7 +75,7 @@ impl State {
     let tasks = Tasks::with_serde(task_state.tasks, templates.clone(), &map)?;
     let tasks = Rc::new(RefCell::new(tasks));
     let mut queries = Vec::new();
-    for query in prog_state.queries.drain(..) {
+    for query in prog_state.queries.into_iter() {
       queries.push(Query::with_serde(query, &templates, &map, tasks.clone())?)
     }
     // For convenience for the user, we add a default query capturing

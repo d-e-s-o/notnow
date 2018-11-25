@@ -62,19 +62,19 @@ impl Task {
   }
 
   /// Create a task using the given summary.
-  fn with_summary_and_tags(summary: String, mut tags: Vec<Tag>, templates: Rc<Templates>) -> Self {
+  fn with_summary_and_tags(summary: String, tags: Vec<Tag>, templates: Rc<Templates>) -> Self {
     Task {
       id: Id::new(),
       summary: summary,
-      tags: tags.drain(..).map(|x| (x.id(), x)).collect(),
+      tags: tags.into_iter().map(|x| (x.id(), x)).collect(),
       templates: templates,
     }
   }
 
   /// Create a new task from a serializable one.
-  fn with_serde(mut task: SerTask, templates: Rc<Templates>, map: &TagMap) -> Result<Task> {
+  fn with_serde(task: SerTask, templates: Rc<Templates>, map: &TagMap) -> Result<Task> {
     let mut tags = BTreeMap::new();
-    for tag in task.tags.drain(..) {
+    for tag in task.tags.into_iter() {
       let id = map.get(&tag.id).ok_or_else(|| {
         let error = format!("Encountered invalid tag Id {}", tag.id);
         Error::new(ErrorKind::InvalidInput, error)
@@ -151,9 +151,9 @@ pub struct Tasks {
 
 impl Tasks {
   /// Create a new `Tasks` object from a serializable one.
-  pub fn with_serde(mut tasks: SerTasks, templates: Rc<Templates>, map: &TagMap) -> Result<Self> {
+  pub fn with_serde(tasks: SerTasks, templates: Rc<Templates>, map: &TagMap) -> Result<Self> {
     let mut new_tasks = Vec::with_capacity(tasks.0.len());
-    for task in tasks.0.drain(..) {
+    for task in tasks.0.into_iter() {
       let task = Task::with_serde(task, templates.clone(), &map)?;
       new_tasks.push(task);
     }

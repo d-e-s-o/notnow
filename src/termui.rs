@@ -321,8 +321,8 @@ mod tests {
     }
 
     /// Send the given list of events to the UI.
-    fn handle(&mut self, mut events: Vec<UiEvent>) -> &mut Self {
-      for event in events.drain(..) {
+    fn handle(&mut self, events: Vec<UiEvent>) -> &mut Self {
+      for event in events.into_iter() {
         if let Some(event) = self.ui.handle(event) {
           if let UnhandledEvent::Quit = event.into_last() {
             break
@@ -932,7 +932,7 @@ mod tests {
 
     let (.., mut expected) = make_tasks_with_tags(15);
     expected[8].summary = "9ab".to_string();
-    let expected = expected.drain(..).map(|x| x.summary).collect::<Vec<_>>();
+    let expected = expected.into_iter().map(|x| x.summary).collect::<Vec<_>>();
 
     assert_eq!(tasks, expected);
   }
@@ -1082,7 +1082,7 @@ mod tests {
     let (.., mut expected) = make_tasks_with_tags(15);
     expected[14].summary = "15a".to_string();
     let expected = expected
-      .drain(..)
+      .into_iter()
       .map(|x| x.summary)
       .collect::<Vec<_>>();
 
@@ -1120,7 +1120,7 @@ mod tests {
     expected[3].summary = "4a".to_string();
     expected[14].summary = "15a".to_string();
     let expected = expected
-      .drain(..)
+      .into_iter()
       .map(|x| x.summary)
       .collect::<Vec<_>>();
 
@@ -1146,7 +1146,7 @@ mod tests {
     let (.., mut expected) = make_tasks_with_tags(15);
     expected.remove(14);
     let expected = expected
-      .drain(..)
+      .into_iter()
       .map(|x| x.summary)
       .collect::<Vec<_>>();
 
@@ -1504,7 +1504,7 @@ mod tests {
       let (.., mut expected) = make_tasks_with_tags(15);
       expected.remove(13);
       expected.remove(3);
-      let expected = expected.drain(..).map(|x| x.summary).collect::<Vec<_>>();
+      let expected = expected.into_iter().map(|x| x.summary).collect::<Vec<_>>();
 
       assert_eq!(tasks, expected);
     }
@@ -1549,7 +1549,7 @@ mod tests {
     let (.., mut expected) = make_tasks_with_tags(15);
     expected[11].summary = "aa".to_string();
     expected.remove(1);
-    let expected = expected.drain(..).map(|x| x.summary).collect::<Vec<_>>();
+    let expected = expected.into_iter().map(|x| x.summary).collect::<Vec<_>>();
 
     assert_eq!(tasks, expected);
   }
