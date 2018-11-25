@@ -280,9 +280,7 @@ where
   let renderer = TermRenderer::new(screen)?;
   let (ui, _) = Ui::new(&mut |id, cap| {
     let state = state.take().unwrap();
-    // TODO: We should be able to propagate errors properly on the `gui`
-    //       side of things.
-    Box::new(TermUi::new(id, cap, state).unwrap())
+    Box::new(TermUi::new(id, cap, state))
   });
 
   let (send_event, recv_event) = channel();

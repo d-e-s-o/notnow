@@ -18,7 +18,6 @@
 // *************************************************************************
 
 use std::any::Any;
-use std::io::Result;
 
 use gui::Cap;
 use gui::Event;
@@ -103,7 +102,7 @@ pub struct TermUi {
 
 impl TermUi {
   /// Create a new view associated with the given `State` object.
-  pub fn new(id: Id, cap: &mut dyn Cap, state: State) -> Result<Self> {
+  pub fn new(id: Id, cap: &mut dyn Cap, state: State) -> Self {
     let in_out = cap.add_widget(id, &mut |id, cap| {
       Box::new(InOutArea::new(id, cap))
     });
@@ -111,12 +110,12 @@ impl TermUi {
       Box::new(TabBar::new(id, cap, &state))
     });
 
-    Ok(TermUi {
+    TermUi {
       id: id,
       in_out: in_out,
       tab_bar: tab_bar,
       state: state,
-    })
+    }
   }
 
   /// Save the current state.
@@ -291,7 +290,7 @@ mod tests {
         let prog_state = prog_state.take().unwrap();
         let task_state = task_state.take().unwrap();
         let state = State::with_serde(prog_state, prog_file.path(), task_state, task_file.path());
-        Box::new(TermUi::new(id, cap, state.unwrap()).unwrap())
+        Box::new(TermUi::new(id, cap, state.unwrap()))
       });
 
       TestUi {
