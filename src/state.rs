@@ -42,15 +42,116 @@ use crate::tags::Templates;
 use crate::tasks::Tasks;
 
 
-/// An object encapsulating the program's relevant state.
+/// Load some serialized state from a file.
+fn load_state<T>(path: &Path) -> Result<T>
+where
+  T: Default,
+  for<'de> T: Deserialize<'de>,
+{
+  match File::open(&path) {
+    Ok(file) => Ok(from_reader::<File, T>(file)?),
+    Err(e) => {
+      // If the file does not exist we create an empty object and work
+      // with that.
+      if e.kind() == ErrorKind::NotFound {
+        Ok(Default::default())
+      } else {
+        Err(e)
+      }
+    },
+  }
+}
+
+/// Save some state into a file.
+fn save_state<T>(path: &Path, state: T) -> Result<()>
+where
+  T: Serialize,
+{
+  let serialized = to_json(&state)?;
+  OpenOptions::new()
+    .create(true)
+    .truncate(true)
+    .write(true)
+    .open(path)?
+    .write_all(serialized.as_ref())?;
+  Ok(())
+}
+
+
+/// A struct encapsulating the task state of the program.
 #[derive(Debug)]
-pub struct State {
-  prog_path: PathBuf,
-  task_path: PathBuf,
+pub struct TaskState {
+  path: PathBuf,
   templates: Rc<Templates>,
-  queries: Vec<Query>,
   tasks: Rc<RefCell<Tasks>>,
 }
+
+impl TaskState {
+  /// Persist the state into a file.
+  pub fn save(&self) -> Result<()> {
+    save_state(&self.path, self.to_serde())
+  }
+
+  /// Retrieve the `Tasks` object associated with this `State` object.
+  pub fn tasks(&self) -> Rc<RefCell<Tasks>> {
+    self.tasks.clone()
+  }
+}
+
+impl ToSerde<SerTaskState> for TaskState {
+  /// Convert this object into a serializable one.
+  fn to_serde(&self) -> SerTaskState {
+    SerTaskState {
+      templates: self.templates.to_serde(),
+      tasks: self.tasks.borrow().to_serde(),
+    }
+  }
+}
+
+
+/// A struct encapsulating the program's state.
+#[derive(Debug)]
+pub struct ProgState {
+  path: PathBuf,
+  queries: Vec<Query>,
+}
+
+impl ProgState {
+  /// Persist the state into a file.
+  pub fn save(&self) -> Result<()> {
+    save_state(&self.path, self.to_serde())
+  }
+
+  /// Retrieve the queries to use.
+  pub fn queries(&self) -> impl Iterator<Item=&Query> {
+    self.queries.iter()
+  }
+}
+
+impl ToSerde<SerProgState> for ProgState {
+  /// Convert this object into a serializable one.
+  fn to_serde(&self) -> SerProgState {
+    let queries = self
+      .queries
+      .iter()
+      .map(|x| x.to_serde())
+      .collect();
+
+    SerProgState {
+      queries: queries,
+    }
+  }
+}
+
+
+/// A struct combining the program and task state.
+///
+/// The struct exists mainly to express the dependency between the
+/// `ProgState` and `TaskState` structs in terms of their creation. Most
+/// of the time the object will be destructed later on and the
+/// individual state objects be used on their own.
+#[derive(Debug)]
+pub struct State(pub ProgState, pub TaskState);
 
 impl State {
   /// Create a new `State` object, loaded from files.
@@ -58,8 +159,8 @@ impl State {
   where
     P: Into<PathBuf> + AsRef<Path>,
   {
-    let prog_state = Self::load_state::<SerProgState>(prog_path.as_ref())?;
-    let task_state = Self::load_state::<SerTaskState>(task_path.as_ref())?;
+    let prog_state = load_state::<SerProgState>(prog_path.as_ref())?;
+    let task_state = load_state::<SerTaskState>(task_path.as_ref())?;
 
     Self::with_serde(prog_state, prog_path, task_state, task_path)
   }
@@ -84,89 +185,16 @@ impl State {
       queries.push(QueryBuilder::new(tasks.clone()).build("all"))
     }
 
-    Ok(State {
-      prog_path: prog_path.into(),
-      task_path: task_path.into(),
+    let task_state = TaskState {
+      path: task_path.into(),
       templates: templates,
-      queries: queries,
       tasks: tasks,
-    })
-  }
-
-  /// Load some serialized state from a file.
-  fn load_state<T>(path: &Path) -> Result<T>
-  where
-    T: Default,
-    for<'de> T: Deserialize<'de>,
-  {
-    match File::open(&path) {
-      Ok(file) => Ok(from_reader::<File, T>(file)?),
-      Err(e) => {
-        // If the file does not exist we create an empty object and work
-        // with that.
-        if e.kind() == ErrorKind::NotFound {
-          Ok(Default::default())
-        } else {
-          Err(e)
-        }
-      },
-    }
-  }
-
-  /// Persist the state into a file.
-  pub fn save(&self) -> Result<()> {
-    let (prog_state, task_state) = self.to_serde();
-    Self::save_state(&self.prog_path, prog_state)?;
-    // TODO: We risk data inconsistencies if the second save operation
-    //       fails.
-    Self::save_state(&self.task_path, task_state)?;
-    Ok(())
-  }
-
-  /// Save some state into a file.
-  fn save_state<T>(path: &Path, state: T) -> Result<()>
-  where
-    T: Serialize,
-  {
-    let serialized = to_json(&state)?;
-    OpenOptions::new()
-      .create(true)
-      .truncate(true)
-      .write(true)
-      .open(path)?
-      .write_all(serialized.as_ref())?;
-    Ok(())
-  }
-
-  /// Retrieve the `Tasks` object associated with this `State` object.
-  pub fn tasks(&self) -> Rc<RefCell<Tasks>> {
-    self.tasks.clone()
-  }
-
-  /// Retrieve the queries to use.
-  pub fn queries(&self) -> impl Iterator<Item=&Query> {
-    self.queries.iter()
-  }
-}
-
-impl ToSerde<(SerProgState, SerTaskState)> for State {
-  /// Convert this object into a serializable one.
-  fn to_serde(&self) -> (SerProgState, SerTaskState) {
-    let queries = self
-      .queries
-      .iter()
-      .map(|x| x.to_serde())
-      .collect();
-
-    let task_state = SerTaskState {
-      templates: self.templates.to_serde(),
-      tasks: self.tasks.borrow().to_serde(),
     };
-    let program_state = SerProgState {
+    let prog_state = ProgState {
+      path: prog_path.into(),
       queries: queries,
     };
-
-    (program_state, task_state)
+    Ok(State(prog_state, task_state))
   }
 }
 
@@ -201,10 +229,12 @@ pub mod tests {
   #[test]
   fn save_and_load_state() {
     let (state, prog_file, task_file) = make_state(3);
-    state.save().unwrap();
+    state.0.save().unwrap();
+    state.1.save().unwrap();
 
     let new_state = State::new(prog_file.path(), task_file.path()).unwrap();
     let new_task_vec = new_state
+      .1
       .tasks
       .borrow()
       .iter()
@@ -217,7 +247,8 @@ pub mod tests {
   fn load_state_file_not_found() {
     let (prog_path, task_path) = {
       let (state, prog_file, task_file) = make_state(1);
-      state.save().unwrap();
+      state.0.save().unwrap();
+      state.1.save().unwrap();
 
       (prog_file.path().clone(), task_file.path().clone())
     };
@@ -226,6 +257,7 @@ pub mod tests {
     // such missing files gracefully.
     let new_state = State::new(prog_path, task_path).unwrap();
     let new_task_vec = new_state
+      .1
       .tasks
       .borrow()
       .iter()
@@ -318,7 +350,7 @@ pub mod tests {
     let task_path = PathBuf::default();
 
     let state = State::with_serde(prog_state, prog_path, task_state, task_path).unwrap();
-    let tasks = state.tasks.borrow();
+    let tasks = state.1.tasks.borrow();
     let mut it = tasks.iter();
 
     let task1 = it.next().unwrap();

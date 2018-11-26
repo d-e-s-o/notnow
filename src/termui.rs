@@ -18,6 +18,7 @@
 // *************************************************************************
 
 use std::any::Any;
+use std::io::Result;
 
 use gui::Cap;
 use gui::Event;
@@ -29,7 +30,8 @@ use gui::UiEvents;
 
 use crate::in_out::InOut;
 use crate::in_out::InOutArea;
-use crate::state::State;
+use crate::state::ProgState;
+use crate::state::TaskState;
 use crate::tab_bar::SearchState;
 use crate::tab_bar::SelectionState;
 use crate::tab_bar::TabBar;
@@ -96,31 +98,42 @@ pub struct TermUi {
   id: Id,
   in_out: Id,
   tab_bar: Id,
-  state: State,
+  prog_state: ProgState,
+  task_state: TaskState,
 }
 
 
 impl TermUi {
   /// Create a new view associated with the given `State` object.
-  pub fn new(id: Id, cap: &mut dyn Cap, state: State) -> Self {
+  pub fn new(id: Id, cap: &mut dyn Cap, prog_state: ProgState, task_state: TaskState) -> Self {
     let in_out = cap.add_widget(id, &mut |id, cap| {
       Box::new(InOutArea::new(id, cap))
     });
     let tab_bar = cap.add_widget(id, &mut |id, cap| {
-      Box::new(TabBar::new(id, cap, &state))
+      Box::new(TabBar::new(id, cap, &prog_state, &task_state))
     });
 
     TermUi {
       id: id,
       in_out: in_out,
       tab_bar: tab_bar,
-      state: state,
+      prog_state: prog_state,
+      task_state: task_state,
     }
+  }
+
+  /// Persist the state into a file.
+  fn save_all(&self) -> Result<()> {
+    self.prog_state.save()?;
+    // TODO: We risk data inconsistencies if the second save operation
+    //       fails.
+    self.task_state.save()?;
+    Ok(())
   }
 
   /// Save the current state.
   fn save(&mut self) -> UiEvents {
-    let in_out = match self.state.save() {
+    let in_out = match self.save_all() {
       Ok(_) => InOut::Saved,
       Err(err) => InOut::Error(format!("{}", err)),
     };
@@ -136,7 +149,7 @@ impl TermUi {
       },
       #[cfg(all(test, not(feature = "readline")))]
       TermUiEvent::GetTasks => {
-        let tasks = self.state.tasks();
+        let tasks = self.task_state.tasks();
         let tasks = tasks.borrow().iter().cloned().collect();
         let resp = TermUiEvent::GetTasksResp(tasks);
         Some(UiEvent::Custom(Box::new(resp)).into())
@@ -199,6 +212,7 @@ mod tests {
   use crate::ser::tasks::Task as SerTask;
   use crate::ser::tasks::Tasks as SerTasks;
   use crate::ser::ToSerde;
+  use crate::state::State;
   use crate::test::make_tasks;
   use crate::test::make_tasks_with_tags;
   use crate::test::NamedTempFile;
@@ -290,7 +304,8 @@ mod tests {
         let prog_state = prog_state.take().unwrap();
         let task_state = task_state.take().unwrap();
         let state = State::with_serde(prog_state, prog_file.path(), task_state, task_file.path());
-        Box::new(TermUi::new(id, cap, state.unwrap()))
+        let State(prog_state, task_state) = state.unwrap();
+        Box::new(TermUi::new(id, cap, prog_state, task_state))
       });
 
       TestUi {
