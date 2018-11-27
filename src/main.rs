@@ -162,8 +162,8 @@ pub enum Event {
 }
 
 
-/// Retrieve the path to the program's configuration file.
-fn prog_config() -> Result<PathBuf> {
+/// Retrieve the path to the UI's configuration file.
+fn ui_config() -> Result<PathBuf> {
   Ok(
     config_dir()
       .ok_or_else(|| Error::new(
@@ -273,14 +273,14 @@ fn run_prog<W>(out: W) -> Result<()>
 where
   W: Write,
 {
-  let prog_path = prog_config()?;
+  let ui_path = ui_config()?;
   let task_path = task_config()?;
-  let mut state = Some(State::new(&prog_path, &task_path)?);
+  let mut state = Some(State::new(&ui_path, &task_path)?);
   let screen = AlternateScreen::from(out.into_raw_mode()?);
   let renderer = TermRenderer::new(screen)?;
   let (ui, _) = Ui::new(&mut |id, cap| {
-    let State(prog_state, task_state) = state.take().unwrap();
-    Box::new(TermUi::new(id, cap, prog_state, task_state))
+    let State(ui_state, task_state) = state.take().unwrap();
+    Box::new(TermUi::new(id, cap, ui_state, task_state))
   });
 
   let (send_event, recv_event) = channel();

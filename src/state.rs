@@ -35,8 +35,8 @@ use serde_json::to_string_pretty as to_json;
 
 use crate::query::Query;
 use crate::query::QueryBuilder;
-use crate::ser::state::ProgState as SerProgState;
 use crate::ser::state::TaskState as SerTaskState;
+use crate::ser::state::UiState as SerUiState;
 use crate::ser::ToSerde;
 use crate::tags::Templates;
 use crate::tasks::Tasks;
@@ -109,14 +109,14 @@ impl ToSerde<SerTaskState> for TaskState {
 }
 
 
-/// A struct encapsulating the program's state.
+/// A struct encapsulating the UI's state.
 #[derive(Debug)]
-pub struct ProgState {
+pub struct UiState {
   path: PathBuf,
   queries: Vec<Query>,
 }
 
-impl ProgState {
+impl UiState {
   /// Persist the state into a file.
   pub fn save(&self) -> Result<()> {
     save_state(&self.path, self.to_serde())
@@ -128,45 +128,45 @@ impl ProgState {
   }
 }
 
-impl ToSerde<SerProgState> for ProgState {
+impl ToSerde<SerUiState> for UiState {
   /// Convert this object into a serializable one.
-  fn to_serde(&self) -> SerProgState {
+  fn to_serde(&self) -> SerUiState {
     let queries = self
       .queries
       .iter()
       .map(|x| x.to_serde())
       .collect();
 
-    SerProgState {
+    SerUiState {
       queries: queries,
     }
   }
 }
 
 
-/// A struct combining the program and task state.
+/// A struct combining the UI and task state.
 ///
 /// The struct exists mainly to express the dependency between the
-/// `ProgState` and `TaskState` structs in terms of their creation. Most
+/// `UiState` and `TaskState` structs in terms of their creation. Most
 /// of the time the object will be destructed later on and the
 /// individual state objects be used on their own.
 #[derive(Debug)]
-pub struct State(pub ProgState, pub TaskState);
+pub struct State(pub UiState, pub TaskState);
 
 impl State {
   /// Create a new `State` object, loaded from files.
-  pub fn new<P>(prog_path: P, task_path: P) -> Result<Self>
+  pub fn new<P>(ui_path: P, task_path: P) -> Result<Self>
   where
     P: Into<PathBuf> + AsRef<Path>,
   {
-    let prog_state = load_state::<SerProgState>(prog_path.as_ref())?;
+    let ui_state = load_state::<SerUiState>(ui_path.as_ref())?;
     let task_state = load_state::<SerTaskState>(task_path.as_ref())?;
 
-    Self::with_serde(prog_state, prog_path, task_state, task_path)
+    Self::with_serde(ui_state, ui_path, task_state, task_path)
   }
 
   /// Create a new `State` object from a serializable one.
-  pub fn with_serde<P>(prog_state: SerProgState, prog_path: P,
+  pub fn with_serde<P>(ui_state: SerUiState, ui_path: P,
                        task_state: SerTaskState, task_path: P) -> Result<Self>
   where
     P: Into<PathBuf>,
@@ -176,7 +176,7 @@ impl State {
     let tasks = Tasks::with_serde(task_state.tasks, templates.clone(), &map)?;
     let tasks = Rc::new(RefCell::new(tasks));
     let mut queries = Vec::new();
-    for query in prog_state.queries.into_iter() {
+    for query in ui_state.queries.into_iter() {
       queries.push(Query::with_serde(query, &templates, &map, tasks.clone())?)
     }
     // For convenience for the user, we add a default query capturing
@@ -190,11 +190,11 @@ impl State {
       templates: templates,
       tasks: tasks,
     };
-    let prog_state = ProgState {
-      path: prog_path.into(),
+    let ui_state = UiState {
+      path: ui_path.into(),
       queries: queries,
     };
-    Ok(State(prog_state, task_state))
+    Ok(State(ui_state, task_state))
   }
 }
 
@@ -215,24 +215,24 @@ pub mod tests {
 
   /// Create a state object based off of two temporary configuration files.
   fn make_state(count: usize) -> (State, NamedTempFile, NamedTempFile) {
-    let prog_state = Default::default();
+    let ui_state = Default::default();
     let task_state = SerTaskState {
       templates: Default::default(),
       tasks: SerTasks(make_tasks(count)),
     };
-    let prog_file = NamedTempFile::new();
+    let ui_file = NamedTempFile::new();
     let task_file = NamedTempFile::new();
-    let state = State::with_serde(prog_state, prog_file.path(), task_state, task_file.path());
-    (state.unwrap(), prog_file, task_file)
+    let state = State::with_serde(ui_state, ui_file.path(), task_state, task_file.path());
+    (state.unwrap(), ui_file, task_file)
   }
 
   #[test]
   fn save_and_load_state() {
-    let (state, prog_file, task_file) = make_state(3);
+    let (state, ui_file, task_file) = make_state(3);
     state.0.save().unwrap();
     state.1.save().unwrap();
 
-    let new_state = State::new(prog_file.path(), task_file.path()).unwrap();
+    let new_state = State::new(ui_file.path(), task_file.path()).unwrap();
     let new_task_vec = new_state
       .1
       .tasks
@@ -245,17 +245,17 @@ pub mod tests {
 
   #[test]
   fn load_state_file_not_found() {
-    let (prog_path, task_path) = {
-      let (state, prog_file, task_file) = make_state(1);
+    let (ui_path, task_path) = {
+      let (state, ui_file, task_file) = make_state(1);
       state.0.save().unwrap();
       state.1.save().unwrap();
 
-      (prog_file.path().clone(), task_file.path().clone())
+      (ui_file.path().clone(), task_file.path().clone())
     };
 
     // The files are removed by now, so we can test that `State` handles
     // such missing files gracefully.
-    let new_state = State::new(prog_path, task_path).unwrap();
+    let new_state = State::new(ui_path, task_path).unwrap();
     let new_task_vec = new_state
       .1
       .tasks
@@ -268,8 +268,8 @@ pub mod tests {
 
   #[test]
   fn load_state_with_invalid_tag() {
-    let prog_state = Default::default();
-    let prog_path = PathBuf::default();
+    let ui_state = Default::default();
+    let ui_path = PathBuf::default();
     let templates = SerTemplates(Default::default());
     let tasks = SerTasks(vec![
       SerTask {
@@ -287,14 +287,14 @@ pub mod tests {
     };
     let task_path = PathBuf::default();
 
-    let err = State::with_serde(prog_state, prog_path, task_state, task_path).unwrap_err();
+    let err = State::with_serde(ui_state, ui_path, task_state, task_path).unwrap_err();
     assert_eq!(err.to_string(), "Encountered invalid tag Id 42")
   }
 
   #[test]
   fn load_state() {
-    let prog_state = Default::default();
-    let prog_path = PathBuf::default();
+    let ui_state = Default::default();
+    let ui_path = PathBuf::default();
 
     let id_tag1 = SerId::new(29);
     let id_tag2 = SerId::new(1337 + 42 - 1);
@@ -349,7 +349,7 @@ pub mod tests {
     };
     let task_path = PathBuf::default();
 
-    let state = State::with_serde(prog_state, prog_path, task_state, task_path).unwrap();
+    let state = State::with_serde(ui_state, ui_path, task_state, task_path).unwrap();
     let tasks = state.1.tasks.borrow();
     let mut it = tasks.iter();
 

@@ -36,8 +36,8 @@ use gui::UiEvents;
 use crate::event::EventUpdate;
 use crate::in_out::InOut;
 use crate::selection::SelectionState as SelectionStateT;
-use crate::state::ProgState;
 use crate::state::TaskState;
+use crate::state::UiState;
 use crate::task_list_box::TaskListBox;
 use crate::termui::TermUiEvent;
 
@@ -143,10 +143,10 @@ pub struct TabBar {
 
 impl TabBar {
   /// Create a new `TabBar` widget.
-  pub fn new(id: Id, cap: &mut dyn Cap, prog_state: &ProgState, task_state: &TaskState) -> Self {
+  pub fn new(id: Id, cap: &mut dyn Cap, ui_state: &UiState, task_state: &TaskState) -> Self {
     let selection = 0;
     // TODO: We really should not be cloning the queries to use here.
-    let tabs = prog_state
+    let tabs = ui_state
       .queries()
       .cloned()
       .enumerate()

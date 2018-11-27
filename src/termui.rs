@@ -30,8 +30,8 @@ use gui::UiEvents;
 
 use crate::in_out::InOut;
 use crate::in_out::InOutArea;
-use crate::state::ProgState;
 use crate::state::TaskState;
+use crate::state::UiState;
 use crate::tab_bar::SearchState;
 use crate::tab_bar::SelectionState;
 use crate::tab_bar::TabBar;
@@ -98,33 +98,33 @@ pub struct TermUi {
   id: Id,
   in_out: Id,
   tab_bar: Id,
-  prog_state: ProgState,
+  ui_state: UiState,
   task_state: TaskState,
 }
 
 
 impl TermUi {
   /// Create a new view associated with the given `State` object.
-  pub fn new(id: Id, cap: &mut dyn Cap, prog_state: ProgState, task_state: TaskState) -> Self {
+  pub fn new(id: Id, cap: &mut dyn Cap, ui_state: UiState, task_state: TaskState) -> Self {
     let in_out = cap.add_widget(id, &mut |id, cap| {
       Box::new(InOutArea::new(id, cap))
     });
     let tab_bar = cap.add_widget(id, &mut |id, cap| {
-      Box::new(TabBar::new(id, cap, &prog_state, &task_state))
+      Box::new(TabBar::new(id, cap, &ui_state, &task_state))
     });
 
     TermUi {
       id: id,
       in_out: in_out,
       tab_bar: tab_bar,
-      prog_state: prog_state,
+      ui_state: ui_state,
       task_state: task_state,
     }
   }
 
   /// Persist the state into a file.
   fn save_all(&self) -> Result<()> {
-    self.prog_state.save()?;
+    self.ui_state.save()?;
     // TODO: We risk data inconsistencies if the second save operation
     //       fails.
     self.task_state.save()?;
@@ -206,8 +206,8 @@ mod tests {
   use crate::event::tests::CustomEvent;
   use crate::ser::query::Query as SerQuery;
   use crate::ser::query::TagLit as SerTagLit;
-  use crate::ser::state::ProgState as SerProgState;
   use crate::ser::state::TaskState as SerTaskState;
+  use crate::ser::state::UiState as SerUiState;
   use crate::ser::tags::Templates as SerTemplates;
   use crate::ser::tasks::Task as SerTask;
   use crate::ser::tasks::Tasks as SerTasks;
@@ -221,7 +221,7 @@ mod tests {
   /// A builder object used for instantiating a UI with a certain
   /// composition of tasks.
   struct TestUiBuilder {
-    prog_state: SerProgState,
+    ui_state: SerUiState,
     task_state: SerTaskState,
   }
 
@@ -229,7 +229,7 @@ mod tests {
     /// Create a builder that will create a UI without any tasks.
     fn new() -> TestUiBuilder {
       TestUiBuilder {
-        prog_state: Default::default(),
+        ui_state: Default::default(),
         task_state: Default::default(),
       }
     }
@@ -242,7 +242,7 @@ mod tests {
       tasks.as_ref().iter().for_each(|x| assert!(x.tags.is_empty()));
 
       TestUiBuilder {
-        prog_state: Default::default(),
+        ui_state: Default::default(),
         task_state: SerTaskState {
           templates: Default::default(),
           tasks: SerTasks(tasks.into()),
@@ -255,7 +255,7 @@ mod tests {
     /// `make_tasks_with_tags` creates.
     fn with_default_tasks_and_tags() -> TestUiBuilder {
       let (tags, templates, tasks) = make_tasks_with_tags(15);
-      let prog_state = SerProgState {
+      let ui_state = SerUiState {
         queries: vec![
           SerQuery {
             name: "all".to_string(),
@@ -289,27 +289,27 @@ mod tests {
       };
 
       TestUiBuilder {
-        prog_state: prog_state,
+        ui_state: ui_state,
         task_state: task_state,
       }
     }
 
     /// Build the actual UI object that we can test with.
     fn build(self) -> TestUi {
-      let mut prog_state = Some(self.prog_state);
+      let mut ui_state = Some(self.ui_state);
       let mut task_state = Some(self.task_state);
-      let prog_file = NamedTempFile::new();
+      let ui_file = NamedTempFile::new();
       let task_file = NamedTempFile::new();
       let (ui, _) = Ui::new(&mut |id, cap| {
-        let prog_state = prog_state.take().unwrap();
+        let ui_state = ui_state.take().unwrap();
         let task_state = task_state.take().unwrap();
-        let state = State::with_serde(prog_state, prog_file.path(), task_state, task_file.path());
-        let State(prog_state, task_state) = state.unwrap();
-        Box::new(TermUi::new(id, cap, prog_state, task_state))
+        let state = State::with_serde(ui_state, ui_file.path(), task_state, task_file.path());
+        let State(ui_state, task_state) = state.unwrap();
+        Box::new(TermUi::new(id, cap, ui_state, task_state))
       });
 
       TestUi {
-        prog_file: prog_file,
+        ui_file: ui_file,
         task_file: task_file,
         ui: ui,
       }
@@ -320,7 +320,7 @@ mod tests {
   /// `Ui`.
   #[allow(unused)]
   struct TestUi {
-    prog_file: NamedTempFile,
+    ui_file: NamedTempFile,
     task_file: NamedTempFile,
     ui: Ui,
   }

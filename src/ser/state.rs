@@ -33,7 +33,7 @@ pub struct TaskState {
 
 /// A struct comprising the program state itself.
 #[derive(Debug, Default, Deserialize, PartialEq, Serialize)]
-pub struct ProgState {
+pub struct UiState {
   #[serde(default, skip_serializing_if = "Vec::is_empty")]
   pub queries: Vec<Query>,
 }
