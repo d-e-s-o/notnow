@@ -144,30 +144,30 @@ impl ToSerde<SerUiState> for UiState {
 }
 
 
-/// A struct combining the UI and task state.
+/// A struct combining the task and UI state.
 ///
 /// The struct exists mainly to express the dependency between the
-/// `UiState` and `TaskState` structs in terms of their creation. Most
+/// `TaskState` and `UiState` structs in terms of their creation. Most
 /// of the time the object will be destructed later on and the
 /// individual state objects be used on their own.
 #[derive(Debug)]
-pub struct State(pub UiState, pub TaskState);
+pub struct State(pub TaskState, pub UiState);
 
 impl State {
   /// Create a new `State` object, loaded from files.
-  pub fn new<P>(ui_path: P, task_path: P) -> Result<Self>
+  pub fn new<P>(task_path: P, ui_path: P) -> Result<Self>
   where
     P: Into<PathBuf> + AsRef<Path>,
   {
-    let ui_state = load_state::<SerUiState>(ui_path.as_ref())?;
     let task_state = load_state::<SerTaskState>(task_path.as_ref())?;
+    let ui_state = load_state::<SerUiState>(ui_path.as_ref())?;
 
-    Self::with_serde(ui_state, ui_path, task_state, task_path)
+    Self::with_serde(task_state, task_path, ui_state, ui_path)
   }
 
   /// Create a new `State` object from a serializable one.
-  pub fn with_serde<P>(ui_state: SerUiState, ui_path: P,
-                       task_state: SerTaskState, task_path: P) -> Result<Self>
+  pub fn with_serde<P>(task_state: SerTaskState, task_path: P,
+                       ui_state: SerUiState, ui_path: P) -> Result<Self>
   where
     P: Into<PathBuf>,
   {
@@ -194,7 +194,7 @@ impl State {
       path: ui_path.into(),
       queries: queries,
     };
-    Ok(State(ui_state, task_state))
+    Ok(State(task_state, ui_state))
   }
 }
 
@@ -215,26 +215,26 @@ pub mod tests {
 
   /// Create a state object based off of two temporary configuration files.
   fn make_state(count: usize) -> (State, NamedTempFile, NamedTempFile) {
-    let ui_state = Default::default();
     let task_state = SerTaskState {
       templates: Default::default(),
       tasks: SerTasks(make_tasks(count)),
     };
-    let ui_file = NamedTempFile::new();
+    let ui_state = Default::default();
     let task_file = NamedTempFile::new();
-    let state = State::with_serde(ui_state, ui_file.path(), task_state, task_file.path());
-    (state.unwrap(), ui_file, task_file)
+    let ui_file = NamedTempFile::new();
+    let state = State::with_serde(task_state, task_file.path(), ui_state, ui_file.path());
+    (state.unwrap(), task_file, ui_file)
   }
 
   #[test]
   fn save_and_load_state() {
-    let (state, ui_file, task_file) = make_state(3);
+    let (state, task_file, ui_file) = make_state(3);
     state.0.save().unwrap();
     state.1.save().unwrap();
 
-    let new_state = State::new(ui_file.path(), task_file.path()).unwrap();
+    let new_state = State::new(task_file.path(), ui_file.path()).unwrap();
     let new_task_vec = new_state
-      .1
+      .0
       .tasks
       .borrow()
       .iter()
@@ -245,19 +245,19 @@ pub mod tests {
 
   #[test]
   fn load_state_file_not_found() {
-    let (ui_path, task_path) = {
-      let (state, ui_file, task_file) = make_state(1);
+    let (task_path, ui_path) = {
+      let (state, task_file, ui_file) = make_state(1);
       state.0.save().unwrap();
       state.1.save().unwrap();
 
-      (ui_file.path().clone(), task_file.path().clone())
+      (task_file.path().clone(), ui_file.path().clone())
     };
 
     // The files are removed by now, so we can test that `State` handles
     // such missing files gracefully.
-    let new_state = State::new(ui_path, task_path).unwrap();
+    let new_state = State::new(task_path, ui_path).unwrap();
     let new_task_vec = new_state
-      .1
+      .0
       .tasks
       .borrow()
       .iter()
@@ -268,8 +268,6 @@ pub mod tests {
 
   #[test]
   fn load_state_with_invalid_tag() {
-    let ui_state = Default::default();
-    let ui_path = PathBuf::default();
     let templates = SerTemplates(Default::default());
     let tasks = SerTasks(vec![
       SerTask {
@@ -286,16 +284,15 @@ pub mod tests {
       tasks: tasks,
     };
     let task_path = PathBuf::default();
+    let ui_state = Default::default();
+    let ui_path = PathBuf::default();
 
-    let err = State::with_serde(ui_state, ui_path, task_state, task_path).unwrap_err();
+    let err = State::with_serde(task_state, task_path, ui_state, ui_path).unwrap_err();
     assert_eq!(err.to_string(), "Encountered invalid tag Id 42")
   }
 
   #[test]
   fn load_state() {
-    let ui_state = Default::default();
-    let ui_path = PathBuf::default();
-
     let id_tag1 = SerId::new(29);
     let id_tag2 = SerId::new(1337 + 42 - 1);
 
@@ -349,8 +346,11 @@ pub mod tests {
     };
     let task_path = PathBuf::default();
 
-    let state = State::with_serde(ui_state, ui_path, task_state, task_path).unwrap();
-    let tasks = state.1.tasks.borrow();
+    let ui_state = Default::default();
+    let ui_path = PathBuf::default();
+
+    let state = State::with_serde(task_state, task_path, ui_state, ui_path).unwrap();
+    let tasks = state.0.tasks.borrow();
     let mut it = tasks.iter();
 
     let task1 = it.next().unwrap();

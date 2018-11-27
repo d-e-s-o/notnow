@@ -143,7 +143,7 @@ pub struct TabBar {
 
 impl TabBar {
   /// Create a new `TabBar` widget.
-  pub fn new(id: Id, cap: &mut dyn Cap, ui_state: &UiState, task_state: &TaskState) -> Self {
+  pub fn new(id: Id, cap: &mut dyn Cap, task_state: &TaskState, ui_state: &UiState) -> Self {
     let selection = 0;
     // TODO: We really should not be cloning the queries to use here.
     let tabs = ui_state
