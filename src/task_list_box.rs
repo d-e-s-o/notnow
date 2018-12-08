@@ -200,11 +200,11 @@ impl TaskListBox {
 
   /// Handle a custom event.
   fn handle_custom_event(&mut self, event: Box<TermUiEvent>) -> Option<UiEvents> {
-    match { *event } {
+    match *event {
       TermUiEvent::SelectTask(task_id, state) => {
         self.handle_select_task(task_id, state)
       },
-      TermUiEvent::EnteredText(text) => {
+      TermUiEvent::EnteredText(ref text) => {
         if let Some(state) = self.state.take() {
           match state {
             State::Add => {
@@ -220,7 +220,7 @@ impl TaskListBox {
                   Default::default()
                 };
 
-                let id = self.tasks.borrow_mut().add(text, tags);
+                let id = self.tasks.borrow_mut().add(text.clone(), tags);
                 self.handle_select_task_start(id)
               } else {
                 None
@@ -232,7 +232,7 @@ impl TaskListBox {
               // Editing a task to empty just removes the task
               // altogether.
               if !text.is_empty() {
-                task.summary = text;
+                task.summary = text.clone();
                 self.tasks.borrow_mut().update(task);
                 self.handle_select_task_start(id).update()
               } else {
@@ -242,10 +242,7 @@ impl TaskListBox {
             },
           }
         } else {
-          // We did not handle the event. Let the parent deal with it.
-          // TODO: With non-lexical lifetimes we should be able to just
-          //       reuse `event` instead of creating a new box.
-          Some(UiEvent::Custom(Box::new(TermUiEvent::EnteredText(text))).into())
+          Some(UiEvent::Custom(event).into())
         }
       },
       #[cfg(not(feature = "readline"))]
@@ -256,7 +253,7 @@ impl TaskListBox {
           Some(UiEvent::Custom(Box::new(TermUiEvent::InputCanceled)).into())
         }
       },
-      event => Some(UiEvent::Custom(Box::new(event)).into()),
+      _ => Some(UiEvent::Custom(event).into()),
     }
   }
 

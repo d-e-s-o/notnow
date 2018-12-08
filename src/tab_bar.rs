@@ -222,20 +222,15 @@ impl TabBar {
 
   /// Handle a custom event.
   fn handle_custom_event(&mut self,
-                         event: Box<TermUiEvent>,
+                         mut event: Box<TermUiEvent>,
                          cap: &mut dyn Cap) -> Option<UiEvents> {
-    // See Rust issue #16223: We cannot properly move out of an enum
-    // where one part of a tuple inside does not implement Copy. This
-    // screws up the `SearchTask` case. Use identity function trick here
-    // to work around this problem.
-    match { *event } {
-      TermUiEvent::SelectTask(task_id, mut state) => {
+    match *event {
+      TermUiEvent::SelectTask(_, ref mut state) => {
         let iter = self.tabs.iter().map(|x| x.1);
         let new_idx = state.normalize(iter.clone());
 
         if !state.has_cycled(iter.len()) {
           let tab = self.tabs.get(new_idx).unwrap().1;
-          let event = Box::new(TermUiEvent::SelectTask(task_id, state));
           let event = UiEvent::Directed(tab, event);
           Some(ChainEvent::Event(event))
         } else {
@@ -271,9 +266,7 @@ impl TabBar {
       TermUiEvent::SearchTask(string, search_state, selection_state) => {
         self.handle_search_task(string, search_state, selection_state)
       },
-      // Unfortunately, due to Rust issue #16223 and the work around we
-      // have in place we need an additional allocation here.
-      event => Some(UiEvent::Custom(Box::new(event)).into()),
+      _ => Some(UiEvent::Custom(event).into()),
     }
   }
 
