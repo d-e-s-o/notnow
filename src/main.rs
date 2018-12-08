@@ -30,6 +30,7 @@
   improper_ctypes,
   intra_doc_link_resolution_failure,
   late_bound_lifetime_arguments,
+  missing_copy_implementations,
   missing_debug_implementations,
   missing_docs,
   no_mangle_generic_items,
@@ -46,6 +47,7 @@
   safe_packed_borrows,
   stable_features,
   trivial_bounds,
+  trivial_numeric_casts,
   type_alias_bounds,
   tyvar_behind_raw_pointer,
   unconditional_recursion,
@@ -136,7 +138,7 @@ type Continue = Option<bool>;
 
 
 /// An event to be handled by the program.
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug)]
 pub enum Event {
   /// A key that has been received.
   Key(Key),
