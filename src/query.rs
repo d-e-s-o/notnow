@@ -291,7 +291,7 @@ impl Query {
                     map: &TagMap,
                     tasks: Rc<RefCell<Tasks>>) -> IoResult<Self> {
     let mut and_lits = Vec::with_capacity(query.lits.len());
-    for mut lits in query.lits.into_iter() {
+    for lits in query.lits.into_iter() {
       let mut or_lits = Vec::with_capacity(lits.len());
       for lit in lits.into_iter() {
         let id = map.get(&lit.id()).ok_or_else(|| {

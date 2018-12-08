@@ -40,8 +40,6 @@
   patterns_in_fns_without_body,
   plugin_as_library,
   private_in_public,
-  private_no_mangle_fns,
-  private_no_mangle_statics,
   proc_macro_derive_resolution_fallback,
   renamed_and_removed_lints,
   rust_2018_idioms,
@@ -73,21 +71,6 @@
 ))]
 
 //! A terminal based task management application.
-
-extern crate cell;
-extern crate dirs;
-extern crate gui;
-#[macro_use]
-extern crate gui_derive;
-extern crate libc;
-#[cfg(feature = "readline")]
-extern crate rline;
-extern crate serde;
-#[macro_use]
-extern crate serde_derive;
-extern crate serde_json;
-extern crate termion;
-extern crate uid;
 
 mod event;
 mod id;

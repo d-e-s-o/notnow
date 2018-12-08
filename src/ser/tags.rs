@@ -17,6 +17,9 @@
 // * along with this program.  If not, see <http://www.gnu.org/licenses/>. *
 // *************************************************************************
 
+use serde_derive::Deserialize;
+use serde_derive::Serialize;
+
 use crate::ser::id::Id as IdT;
 
 

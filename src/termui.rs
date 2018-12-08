@@ -27,6 +27,7 @@ use gui::Id;
 use gui::Key;
 use gui::UiEvent;
 use gui::UiEvents;
+use gui_derive::GuiWidget;
 
 use crate::in_out::InOut;
 use crate::in_out::InOutArea;

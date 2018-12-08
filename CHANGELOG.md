@@ -4,6 +4,7 @@ Unreleased
   - They will from now on be ignored
 - Updated README to reflect goals more accurately and to depict key
   bindings
+- Adjusted program to use Rust Edition 2018
 - Enabled `unused-results` lint
 - Added categories to `Cargo.toml`
 

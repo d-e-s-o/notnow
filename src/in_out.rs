@@ -30,6 +30,7 @@ use gui::OptionChain;
 use gui::UiEvent;
 use gui::UiEvents;
 use gui::Widget;
+use gui_derive::GuiWidget;
 
 #[cfg(feature = "readline")]
 use rline::Readline;
@@ -390,7 +391,7 @@ impl Handleable for InOutArea {
     match event {
       Event::KeyDown(key) |
       Event::KeyUp(key) => {
-        let (mut s, mut idx) = if let InOut::Input(s, idx) = self.in_out.get() {
+        let (s, idx) = if let InOut::Input(s, idx) = self.in_out.get() {
           (s.clone(), *idx)
         } else {
           panic!("In/out area not used for input.");
