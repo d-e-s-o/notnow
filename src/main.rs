@@ -68,10 +68,6 @@
   rust_2018_idioms,
 )]
 #![allow(unreachable_pub)]
-#![cfg_attr(feature = "cargo-clippy", allow(
-  let_and_return,
-  redundant_field_names,
-))]
 
 //! A terminal based task management application.
 
