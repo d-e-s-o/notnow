@@ -301,6 +301,7 @@ impl InOutArea {
   }
 
   /// Handle a key press.
+  #[allow(clippy::needless_pass_by_value)]
   #[cfg(feature = "readline")]
   fn handle_key(&mut self,
                 _s: String,

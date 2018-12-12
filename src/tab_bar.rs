@@ -203,7 +203,7 @@ impl TabBar {
 
           let iter = self.tabs.iter().map(|x| x.1);
           let new_idx = selection_state.normalize(iter);
-          let tab = self.tabs.get(new_idx).unwrap().1;
+          let tab = self.tabs[new_idx].1;
 
           let event = TermUiEvent::SearchTask(string, SearchState::First, selection_state);
           let event = UiEvent::Returnable(self.id, tab, Box::new(event));
@@ -230,7 +230,7 @@ impl TabBar {
         let new_idx = state.normalize(iter.clone());
 
         if !state.has_cycled(iter.len()) {
-          let tab = self.tabs.get(new_idx).unwrap().1;
+          let tab = self.tabs[new_idx].1;
           let event = UiEvent::Directed(tab, event);
           Some(ChainEvent::Event(event))
         } else {
@@ -353,7 +353,7 @@ impl Handleable for TabBar {
               SearchT::State(string, search_state, mut selection_state) => {
                 let iter = self.tabs.iter().map(|x| x.1);
                 let new_idx = selection_state.normalize(iter);
-                let tab = self.tabs.get(new_idx).unwrap().1;
+                let tab = self.tabs[new_idx].1;
                 let reverse = key == Key::Char('N');
                 selection_state.reverse(reverse);
 

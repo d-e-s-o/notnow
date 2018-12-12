@@ -67,7 +67,14 @@
   rust_2018_compatibility,
   rust_2018_idioms,
 )]
-#![allow(unreachable_pub)]
+#![allow(
+  unreachable_pub,
+  clippy::collapsible_if,
+  clippy::let_and_return,
+  clippy::let_unit_value,
+  clippy::new_ret_no_self,
+  clippy::redundant_field_names,
+)]
 
 //! A terminal based task management application.
 
@@ -203,14 +210,14 @@ fn receive_keys(send_event: Sender<Result<Event>>) {
   let _ = thread::spawn(move || {
     let keys = stdin().keys();
     for key in keys {
-      let event = key.map(|x| Event::Key(x));
+      let event = key.map(&Event::Key);
       send_event.send(event).unwrap();
     }
   });
 }
 
 /// Handle events in a loop.
-fn run_loop<R>(mut ui: Ui, renderer: R, recv_event: Receiver<Result<Event>>) -> Result<()>
+fn run_loop<R>(mut ui: Ui, renderer: &R, recv_event: &Receiver<Result<Event>>) -> Result<()>
 where
   R: Renderer,
 {
@@ -244,7 +251,7 @@ where
     }
 
     if render {
-      ui.render(&renderer);
+      ui.render(renderer);
     }
   }
   Ok(())
@@ -274,16 +281,16 @@ where
   // recent data presented.
   ui.render(&renderer);
 
-  run_loop(ui, renderer, recv_event)
+  run_loop(ui, &renderer, &recv_event)
 }
 
 /// Parse the arguments and run the program.
 fn run_with_args() -> Result<()> {
-  let it = args_os();
+  let mut it = args_os();
   match it.len() {
     0 | 1 => run_prog(stdout()),
     2 => {
-      let path = it.skip(1).next().unwrap();
+      let path = it.nth(1).unwrap();
       let file = OpenOptions::new().read(false).write(true).open(path)?;
       run_prog(file)
     },

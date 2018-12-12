@@ -74,7 +74,7 @@ static mut WRITE_FD: c_int = 0;
 /// Check the return value of a system call.
 fn check<T>(result: T, error: T) -> Result<()>
 where
-  T: PartialOrd<T>,
+  T: Copy + PartialOrd<T>,
 {
   if result == error {
     Err(Error::last_os_error())

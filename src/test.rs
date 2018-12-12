@@ -109,14 +109,14 @@ pub fn make_tasks(count: usize) -> Vec<SerTask> {
 ///
 /// ...
 pub fn make_tasks_with_tags(count: usize) -> (Vec<SerTag>, Vec<SerTemplate>, Vec<SerTask>) {
-  let tags = (0..count / 4 + 1)
+  let tags = (0..=count / 4)
     .map(|x| {
       SerTag {
         id: SerId::new(x),
       }
     })
     .collect::<Vec<_>>();
-  let templates = (0..count / 4 + 1)
+  let templates = (0..=count / 4)
     .map(|x| if x == 0 {
       SerTemplate {
         id: tags[x].id,

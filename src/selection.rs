@@ -150,6 +150,7 @@ where
 }
 
 
+#[allow(clippy::cyclomatic_complexity)]
 #[cfg(test)]
 mod tests {
   use super::*;
