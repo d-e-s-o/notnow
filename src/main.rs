@@ -269,8 +269,7 @@ where
   let screen = AlternateScreen::from(out.into_raw_mode()?);
   let renderer = TermRenderer::new(screen)?;
   let (ui, _) = Ui::new(&mut |id, cap| {
-    let State(task_state, ui_state) = state.take().unwrap();
-    Box::new(TermUi::new(id, cap, task_state, ui_state))
+    Box::new(TermUi::new(id, cap, state.take().unwrap()))
   });
 
   let (send_event, recv_event) = channel();

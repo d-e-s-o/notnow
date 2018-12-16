@@ -31,6 +31,7 @@ use gui_derive::GuiWidget;
 
 use crate::in_out::InOut;
 use crate::in_out::InOutArea;
+use crate::state::State;
 use crate::state::TaskState;
 use crate::state::UiState;
 use crate::tab_bar::SearchState;
@@ -106,7 +107,9 @@ pub struct TermUi {
 
 impl TermUi {
   /// Create a new view associated with the given `State` object.
-  pub fn new(id: Id, cap: &mut dyn Cap, task_state: TaskState, ui_state: UiState) -> Self {
+  pub fn new(id: Id, cap: &mut dyn Cap, state: State) -> Self {
+    let State(task_state, ui_state) = state;
+
     let in_out = cap.add_widget(id, &mut |id, cap| {
       Box::new(InOutArea::new(id, cap))
     });
@@ -306,8 +309,7 @@ mod tests {
         let task_state = task_state.take().unwrap();
         let ui_state = ui_state.take().unwrap();
         let state = State::with_serde(task_state, task_file.path(), ui_state, ui_file.path());
-        let State(ui_state, task_state) = state.unwrap();
-        Box::new(TermUi::new(id, cap, ui_state, task_state))
+        Box::new(TermUi::new(id, cap, state.unwrap()))
       });
 
       TestUi {
