@@ -8,7 +8,8 @@ Unreleased
 - Enabled `unused-results` lint
 - Enabled CI pipeline comprising building, testing, and linting of the
   project
-  - Added badge indicating pipeline status
+- Added badges indicating pipeline status, current `crates.io` published
+  version of the crate, and minimum version of `rustc` required
 - Added categories to `Cargo.toml`
 
 

@@ -1,4 +1,6 @@
 [![pipeline](https://gitlab.com/d-e-s-o/notnow/badges/devel/pipeline.svg)](https://gitlab.com/d-e-s-o/notnow/commits/devel)
+[![crates.io](https://img.shields.io/crates/v/notnow.svg)](https://crates.io/crates/notnow)
+[![rustc](https://img.shields.io/badge/rustc-1.31+-blue.svg)](https://blog.rust-lang.org/2018/12/06/Rust-1.31-and-rust-2018.html)
 
 notnow
 ======
@@ -74,13 +76,9 @@ honored.
 Status
 ------
 
-The program is in a well progressed development phase. A lot of the
+**notnow** is in a well progressed development phase. A lot of the
 desired functionality exists, but not all is hooked up with the UI. More
 improvements are being worked on.
-
-**notnow** typically compiles with the most recent version of stable
-Rust. On compile errors please try upgrading to a more recent version
-first.
 
 [rust-lang]: https://www.rust-lang.org
 [rfc-4791]: https://tools.ietf.org/html/rfc4791
