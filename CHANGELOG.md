@@ -6,6 +6,9 @@ Unreleased
   bindings
 - Adjusted program to use Rust Edition 2018
 - Enabled `unused-results` lint
+- Enabled CI pipeline comprising building, testing, and linting of the
+  project
+  - Added badge indicating pipeline status
 - Added categories to `Cargo.toml`
 
 

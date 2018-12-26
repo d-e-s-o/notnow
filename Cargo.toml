@@ -13,6 +13,9 @@ description = """
 A terminal based task and TODO management software.
 """
 
+[badges]
+gitlab = { repository = "d-e-s-o/notnow", branch = "devel" }
+
 [profile.release]
 opt-level = "z"
 lto = true

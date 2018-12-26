@@ -1,3 +1,5 @@
+[![pipeline](https://gitlab.com/d-e-s-o/notnow/badges/devel/pipeline.svg)](https://gitlab.com/d-e-s-o/notnow/commits/devel)
+
 notnow
 ======
 
