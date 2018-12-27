@@ -1,5 +1,5 @@
-Unreleased
-----------
+0.1.5
+-----
 - Fixed problem caused by input of multi-byte characters
   - They will from now on be ignored
 - Updated README to reflect goals more accurately and to depict key
