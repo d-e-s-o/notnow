@@ -1,3 +1,8 @@
+Unreleased
+----------
+- Further decreased binary size by using system allocator
+
+
 0.1.5
 -----
 - Fixed problem caused by input of multi-byte characters

@@ -1,7 +1,7 @@
 // main.rs
 
 // *************************************************************************
-// * Copyright (C) 2017-2018 Daniel Mueller (deso@posteo.net)              *
+// * Copyright (C) 2017-2019 Daniel Mueller (deso@posteo.net)              *
 // *                                                                       *
 // * This program is free software: you can redistribute it and/or modify  *
 // * it under the terms of the GNU General Public License as published by  *
@@ -96,6 +96,7 @@ mod termui;
 #[allow(unsafe_code)]
 mod test;
 
+use std::alloc::System;
 use std::env::args_os;
 use std::fs::OpenOptions;
 use std::io::Error;
@@ -132,6 +133,12 @@ use crate::term_renderer::TermRenderer;
 use crate::termui::TermUi;
 use crate::termui::TermUiEvent;
 
+// Switch from the default allocator (typically jemalloc) to the system
+// allocator (malloc based on Unix systems). Our application is by no
+// means allocation intensive and the default allocator is typically
+// much larger in size, causing binary bloat.
+#[global_allocator]
+static A: System = System;
 
 /// A type indicating the desire to continue execution.
 ///
