@@ -1,6 +1,7 @@
 Unreleased
 ----------
 - Further decreased binary size by using system allocator
+- Bumped `rline` dependency to `0.2`
 
 
 0.1.5

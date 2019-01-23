@@ -1,7 +1,7 @@
 // in_out.rs
 
 // *************************************************************************
-// * Copyright (C) 2018 Daniel Mueller (deso@posteo.net)                   *
+// * Copyright (C) 2018-2019 Daniel Mueller (deso@posteo.net)              *
 // *                                                                       *
 // * This program is free software: you can redistribute it and/or modify  *
 // * it under the terms of the GNU General Public License as published by  *
@@ -330,10 +330,13 @@ impl InOutArea {
     };
 
     if let Some(c) = c {
-      match self.readline.feed(c as i32) {
+      let mut buf = [0u8; 4];
+      let s = c.encode_utf8(&mut buf);
+
+      match self.readline.feed(s) {
         Some(line) => self.finish_input(Some(line.into_string().unwrap()), cap),
         None => {
-          let (s_, idx_) = self.readline.inspect(|s, pos| (s.to_owned(), pos));
+          let (s_, idx_) = self.readline.peek(|s, pos| (s.to_owned(), pos));
           // We treat Esc a little specially. In a vi-mode enabled
           // configuration of libreadline Esc cancels input mode when we
           // are in it, and does nothing otherwise. That is what we are

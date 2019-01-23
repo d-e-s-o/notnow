@@ -43,7 +43,7 @@ version = "0.2"
 version = "0.2"
 
 [dependencies.rline]
-version = "0.1"
+version = "0.2"
 optional = true
 
 [dependencies.serde]
