@@ -76,12 +76,19 @@ pub struct TaskListBox {
 
 impl TaskListBox {
   /// Create a new `TaskListBox` widget.
-  pub fn new(id: Id, tasks: Rc<RefCell<Tasks>>, query: Query) -> Self {
+  pub fn new(id: Id, tasks: Rc<RefCell<Tasks>>,
+             query: Query, selected: Option<usize>) -> Self {
+    let count = query.iter().clone().count();
+    let selected = selected
+      .map(|x| min(x, isize::MAX as usize))
+      .unwrap_or(0) as isize;
+    let selected = sanitize_selection(selected, count) as isize;
+
     TaskListBox {
       id: id,
       tasks: tasks,
       query: query,
-      selection: 0,
+      selection: selected,
       state: None,
     }
   }
@@ -266,7 +273,9 @@ impl TaskListBox {
       },
       TermUiEvent::GetTabState(ref mut tab_state, ref mut iter_state) => {
         let TabState{ref mut queries, ..} = tab_state;
-        queries.push(self.query());
+        let selected = Some(self.selection());
+
+        queries.push((self.query(), selected));
         iter_state.advance();
         None
       },

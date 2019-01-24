@@ -71,7 +71,7 @@ pub enum TermUiEvent {
   /// An event used to collect the state from the `TabBar`.
   CollectState(Id),
   /// The response to the `CollectState` event.
-  CollectedState(Vec<Query>, Option<usize>),
+  CollectedState(Vec<(Query, Option<usize>)>, Option<usize>),
   /// An event used to collect the state of all tabs.
   GetTabState(TabState, IterationState),
   /// A indication that some component changed and that we should
@@ -258,15 +258,15 @@ mod tests {
     };
     let ui_state = SerUiState {
       queries: vec![
-        SerQuery {
+        (SerQuery {
           name: "all".to_string(),
           lits: vec![],
-        },
-        SerQuery {
+        }, None),
+        (SerQuery {
           name: "tag complete".to_string(),
           lits: vec![vec![SerTagLit::Pos(tags[0])]],
-        },
-        SerQuery {
+        }, None),
+        (SerQuery {
           name: "tag2 || tag3".to_string(),
           lits: vec![
             vec![
@@ -274,14 +274,14 @@ mod tests {
               SerTagLit::Pos(tags[3]),
             ],
           ],
-        },
-        SerQuery {
+        }, None),
+        (SerQuery {
           name: "tag1 && tag3".to_string(),
           lits: vec![
             vec![SerTagLit::Pos(tags[1])],
             vec![SerTagLit::Pos(tags[3])],
           ],
-        },
+        }, None),
       ],
       selected: None,
     };
@@ -1654,10 +1654,38 @@ mod tests {
 
     let expected = SerUiState {
       queries: vec![
-        SerQuery {
+        (SerQuery {
           name: "all".to_string(),
           lits: vec![],
-        },
+        }, Some(0)),
+      ],
+      selected: Some(0),
+    };
+    assert_eq!(state, expected)
+  }
+
+  #[test]
+  fn save_ui_state_single_tab_different_task() {
+    let tasks = make_tasks(5);
+    let events = vec![
+      Event::KeyDown(Key::Char('j')).into(),
+      Event::KeyDown(Key::Char('j')).into(),
+      Event::KeyDown(Key::Char('w')).into(),
+    ];
+    let state = TestUiBuilder::with_ser_tasks(tasks)
+      .build()
+      .handle(events)
+      .load_state()
+      .unwrap()
+      .1
+      .to_serde();
+
+    let expected = SerUiState {
+      queries: vec![
+        (SerQuery {
+          name: "all".to_string(),
+          lits: vec![],
+        }, Some(2)),
       ],
       selected: Some(0),
     };
@@ -1680,18 +1708,25 @@ mod tests {
     let (_, expected) = default_tasks_and_tags();
     assert_eq!(state.queries.len(), expected.queries.len());
     assert_eq!(state.queries.len(), 4);
-    assert_eq!(state.queries[0].name, expected.queries[0].name);
-    assert_eq!(state.queries[1].name, expected.queries[1].name);
-    assert_eq!(state.queries[2].name, expected.queries[2].name);
-    assert_eq!(state.queries[3].name, expected.queries[3].name);
+    assert_eq!(state.queries[0].0.name, expected.queries[0].0.name);
+    assert_eq!(state.queries[1].0.name, expected.queries[1].0.name);
+    assert_eq!(state.queries[2].0.name, expected.queries[2].0.name);
+    assert_eq!(state.queries[3].0.name, expected.queries[3].0.name);
     assert_eq!(state.selected, Some(0));
   }
 
   #[test]
   fn save_ui_state_after_various_changes() {
     let events = vec![
+      Event::KeyDown(Key::Char('j')).into(),
       Event::KeyDown(Key::Char('l')).into(),
+      Event::KeyDown(Key::Char('j')).into(),
+      Event::KeyDown(Key::Char('j')).into(),
       Event::KeyDown(Key::Char('l')).into(),
+      Event::KeyDown(Key::Char('j')).into(),
+      Event::KeyDown(Key::Char('j')).into(),
+      Event::KeyDown(Key::Char('j')).into(),
+      Event::KeyDown(Key::Char('j')).into(),
       Event::KeyDown(Key::Char('w')).into(),
     ];
     let state = TestUiBuilder::with_default_tasks_and_tags()
@@ -1705,10 +1740,14 @@ mod tests {
     let (_, expected) = default_tasks_and_tags();
     assert_eq!(state.queries.len(), expected.queries.len());
     assert_eq!(state.queries.len(), 4);
-    assert_eq!(state.queries[0].name, expected.queries[0].name);
-    assert_eq!(state.queries[1].name, expected.queries[1].name);
-    assert_eq!(state.queries[2].name, expected.queries[2].name);
-    assert_eq!(state.queries[3].name, expected.queries[3].name);
+    assert_eq!(state.queries[0].0.name, expected.queries[0].0.name);
+    assert_eq!(state.queries[1].0.name, expected.queries[1].0.name);
+    assert_eq!(state.queries[2].0.name, expected.queries[2].0.name);
+    assert_eq!(state.queries[3].0.name, expected.queries[3].0.name);
+    assert_eq!(state.queries[0].1, Some(1));
+    assert_eq!(state.queries[1].1, Some(2));
+    assert_eq!(state.queries[2].1, Some(4));
+    assert_eq!(state.queries[3].1, Some(0));
     assert_eq!(state.selected, Some(2));
   }
 }

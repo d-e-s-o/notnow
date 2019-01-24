@@ -120,7 +120,7 @@ pub struct UiState {
   /// The path to the file in which to save the state.
   pub path: PathBuf,
   /// The queries used in the UI.
-  pub queries: Vec<Query>,
+  pub queries: Vec<(Query, Option<usize>)>,
   /// The currently selected `Query`.
   pub selected: Option<usize>,
 }
@@ -140,7 +140,7 @@ impl ToSerde<SerUiState> for UiState {
     let queries = self
       .queries
       .iter()
-      .map(|x| x.to_serde())
+      .map(|(q, s)| (q.to_serde(), *s))
       .collect();
 
     SerUiState {
@@ -183,13 +183,14 @@ impl State {
     let tasks = Tasks::with_serde(task_state.tasks, templates.clone(), &map)?;
     let tasks = Rc::new(RefCell::new(tasks));
     let mut queries = Vec::new();
-    for query in ui_state.queries.into_iter() {
-      queries.push(Query::with_serde(query, &templates, &map, tasks.clone())?)
+    for (query, selected) in ui_state.queries.into_iter() {
+      let query = Query::with_serde(query, &templates, &map, tasks.clone())?;
+      queries.push((query, selected))
     }
     // For convenience for the user, we add a default query capturing
     // all tasks if no other queries have been configured.
     if queries.is_empty() {
-      queries.push(QueryBuilder::new(tasks.clone()).build("all"))
+      queries.push((QueryBuilder::new(tasks.clone()).build("all"), None))
     }
 
     let task_state = TaskState {

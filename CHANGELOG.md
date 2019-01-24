@@ -1,6 +1,7 @@
 Unreleased
 ----------
 - Save and restore selected tab
+- Save and restore selected task on each tab
 - Automatically create configuration directory instead of potentially
   failing save operation
 - Further decreased binary size by using system allocator

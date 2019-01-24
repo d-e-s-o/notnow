@@ -38,7 +38,7 @@ pub struct TaskState {
 #[derive(Debug, Default, Deserialize, PartialEq, Serialize)]
 pub struct UiState {
   #[serde(default, skip_serializing_if = "Vec::is_empty")]
-  pub queries: Vec<Query>,
+  pub queries: Vec<(Query, Option<usize>)>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub selected: Option<usize>,
 }

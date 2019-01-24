@@ -131,7 +131,7 @@ pub struct TabState {
   pub id: Id,
   /// The accumulation of queries gathered from the individual
   /// `TaskListBox` objects.
-  pub queries: Vec<Query>,
+  pub queries: Vec<(Query, Option<usize>)>,
 }
 
 
@@ -158,7 +158,8 @@ pub struct TabBar {
 impl TabBar {
   /// Create a new `TabBar` widget.
   pub fn new(id: Id, cap: &mut dyn Cap, task_state: &TaskState,
-             queries: Vec<Query>, selected: Option<usize>) -> Self {
+             queries: Vec<(Query, Option<usize>)>,
+             selected: Option<usize>) -> Self {
     let count = queries.len();
     let selected = selected
       .map(|x| min(x, isize::MAX as usize))
@@ -168,11 +169,12 @@ impl TabBar {
     let tabs = queries
       .into_iter()
       .enumerate()
-      .map(|(i, query)| {
+      .map(|(i, (query, task))| {
         let name = query.name().to_string();
         let mut query = Some(query);
         let task_list = cap.add_widget(id, &mut |id, _cap| {
-          Box::new(TaskListBox::new(id, task_state.tasks(), query.take().unwrap()))
+          let query = query.take().unwrap();
+          Box::new(TaskListBox::new(id, task_state.tasks(), query, task))
         });
 
         if i == selected {
