@@ -1,7 +1,7 @@
 // test.rs
 
 // *************************************************************************
-// * Copyright (C) 2018 Daniel Mueller (deso@posteo.net)                   *
+// * Copyright (C) 2018-2019 Daniel Mueller (deso@posteo.net)              *
 // *                                                                       *
 // * This program is free software: you can redistribute it and/or modify  *
 // * it under the terms of the GNU General Public License as published by  *
@@ -17,8 +17,10 @@
 // * along with this program.  If not, see <http://www.gnu.org/licenses/>. *
 // *************************************************************************
 
+use std::env::temp_dir;
 use std::ffi::CString;
 use std::fs::remove_file;
+use std::os::unix::ffi::OsStringExt;
 use std::path::PathBuf;
 
 use libc::c_int;
@@ -42,7 +44,8 @@ pub struct NamedTempFile {
 
 impl NamedTempFile {
   pub fn new() -> Self {
-    let template = CString::new("/tmp/tempXXXXXX").unwrap();
+    let path = temp_dir().join("tempXXXXXX");
+    let template = CString::new(path.into_os_string().into_vec()).unwrap();
     let raw = template.into_raw();
     let result = unsafe { mkstemp(raw) };
     assert!(result > 0);
