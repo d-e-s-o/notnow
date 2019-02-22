@@ -1,7 +1,7 @@
 // state.rs
 
 // *************************************************************************
-// * Copyright (C) 2017-2018 Daniel Mueller (deso@posteo.net)              *
+// * Copyright (C) 2017-2019 Daniel Mueller (deso@posteo.net)              *
 // *                                                                       *
 // * This program is free software: you can redistribute it and/or modify  *
 // * it under the terms of the GNU General Public License as published by  *
@@ -17,6 +17,7 @@
 // * along with this program.  If not, see <http://www.gnu.org/licenses/>. *
 // *************************************************************************
 
+use std::fs::create_dir_all;
 use std::fs::File;
 use std::fs::OpenOptions;
 use std::io::ErrorKind;
@@ -67,6 +68,10 @@ fn save_state<T>(path: &Path, state: T) -> Result<()>
 where
   T: Serialize,
 {
+  if let Some(dir) = path.parent() {
+    create_dir_all(dir)?;
+  }
+
   let serialized = to_json(&state)?;
   OpenOptions::new()
     .create(true)
@@ -203,6 +208,11 @@ impl State {
 pub mod tests {
   use super::*;
 
+  use std::env::temp_dir;
+  use std::fs::File;
+  use std::fs::remove_dir_all;
+  use std::io::Read;
+
   use crate::ser::tags::Id as SerId;
   use crate::ser::tags::Tag as SerTag;
   use crate::ser::tags::Template as SerTemplate;
@@ -224,6 +234,20 @@ pub mod tests {
     let ui_file = NamedTempFile::new();
     let state = State::with_serde(task_state, task_file.path(), ui_state, ui_file.path());
     (state.unwrap(), task_file, ui_file)
+  }
+
+  #[test]
+  fn create_dirs_for_state() {
+    let base = temp_dir().join("dir1");
+    let path = base.join("dir2").join("file");
+
+    let _ = save_state(&path, 42).unwrap();
+    let mut file = File::open(path).unwrap();
+    let mut content = Vec::new();
+    let _ = file.read_to_end(&mut content).unwrap();
+    let _ = remove_dir_all(&base).unwrap();
+
+    assert_eq!(content, b"42")
   }
 
   #[test]
