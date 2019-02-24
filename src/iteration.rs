@@ -1,7 +1,7 @@
-// selection.rs
+// iteration.rs
 
 // *************************************************************************
-// * Copyright (C) 2018 Daniel Mueller (deso@posteo.net)                   *
+// * Copyright (C) 2018-2019 Daniel Mueller (deso@posteo.net)              *
 // *                                                                       *
 // * This program is free software: you can redistribute it and/or modify  *
 // * it under the terms of the GNU General Public License as published by  *
@@ -32,99 +32,99 @@ where
 }
 
 
-/// A helper object describing the states a selection can be in.
+/// A helper object describing the states an iteration can be in.
 #[derive(Debug, PartialEq)]
-enum Selection<T>
+enum Iteration<T>
 where
   T: Copy + PartialEq,
 {
-  /// When a selection is started from a widget other than the `TabBar`
+  /// When a iteration is started from a widget other than the `TabBar`
   /// itself, we only have the widget's ID as the potential start state.
   /// We cannot know its index internal to the `TabBar`.
   Start(T),
-  /// Once the `TabBar` has had a word in the selection process, it will
+  /// Once the `TabBar` has had a word in the iteration process, it will
   /// convert the widget ID into an index and we will work with that.
-  /// This state contains the index of the widget where the selection
+  /// This state contains the index of the widget where the iteration
   /// started.
   Normalized(usize),
 }
 
-impl<T> Selection<T>
+impl<T> Iteration<T>
 where
   T: Copy + PartialEq,
 {
-  /// Calculate the selection index the object represents.
+  /// Calculate the iteration index the object represents.
   fn index<I>(&self, mut iter: I) -> usize
   where
     I: ExactSizeIterator<Item=T>,
   {
     match *self {
-      Selection::Start(start) => iter.position(|x| x == start).unwrap(),
-      Selection::Normalized(idx) => idx,
+      Iteration::Start(start) => iter.position(|x| x == start).unwrap(),
+      Iteration::Normalized(idx) => idx,
     }
   }
 }
 
 
-/// A struct representing the state necessary to implement selection advancement in a `TabBar`.
+/// A struct representing the state necessary to implement iteration in a `TabBar`.
 // Note that the type parameter is useful only for testing. The program
 // effectively only works with `T` being `Id`.
 #[derive(Debug, PartialEq)]
-pub struct SelectionState<T>
+pub struct IterationState<T>
 where
   T: Copy + PartialEq,
 {
-  selection: Selection<T>,
+  iteration: Iteration<T>,
   reversed: bool,
   advanced: isize,
   total: isize,
 }
 
-impl<T> SelectionState<T>
+impl<T> IterationState<T>
 where
   T: Copy + PartialEq,
 {
-  /// Create a new `SelectionState`.
+  /// Create a new `IterationState`.
   pub fn new(current: T) -> Self {
     Self {
-      selection: Selection::Start(current),
+      iteration: Iteration::Start(current),
       reversed: false,
       advanced: 0,
       total: 0,
     }
   }
 
-  /// Reverse the selection, i.e., select in a counter clock-wise fashion.
+  /// Reverse the iteration, i.e., select in a counter clock-wise fashion.
   pub fn reverse(&mut self, reverse: bool) {
     self.reversed = reverse
   }
 
-  /// Check if the selection is happening in counter clock-wise fashion or not.
+  /// Check if the iteration is happening in counter clock-wise fashion or not.
   pub fn is_reversed(&self) -> bool {
     self.reversed
   }
 
-  /// Advance the selection by one.
+  /// Advance the iteration by one.
   pub fn advance(&mut self) {
     let change = if self.reversed { -1 } else { 1 };
     self.advanced += change;
     self.total += change;
   }
 
-  /// Check if the selection got advanced.
+  /// Check if the iteration got advanced.
   pub fn has_advanced(&self) -> bool {
     self.advanced != 0
   }
 
-  /// Reset the cycle state of the selection.
+  /// Reset the cycle state of the iteration.
   pub fn reset_cycled(&mut self) {
     self.total = 0
   }
 
-  /// Check whether the selection has cycled through all widgets once.
+  /// Check whether the iteration has cycled through all widgets once.
   pub fn has_cycled(&self, count: usize) -> bool {
     // Note that we allow for a single overlap here. That is required
-    // because a search (which uses a selection) may start in the middle
+    // because a search (which uses a iteration) may start in the middle
     // of a widget and so we need to be sure to revisit the widget again
     // after we cycled to identify items before the one where the search
     // started. Ultimately we are not so much interested in having an
@@ -132,7 +132,7 @@ where
     self.total.abs() as usize > count
   }
 
-  /// Normalize the selection based on the given iterator.
+  /// Normalize the iteration based on the given iterator.
   ///
   /// Return the current index.
   pub fn normalize<I>(&mut self, iter: I) -> usize
@@ -140,10 +140,10 @@ where
     I: ExactSizeIterator<Item=T>,
   {
     let count = iter.len() as isize;
-    let start_idx = self.selection.index(iter) as isize;
+    let start_idx = self.iteration.index(iter) as isize;
     let idx = modulo(start_idx + self.advanced, count) as usize;
 
-    self.selection = Selection::Normalized(idx);
+    self.iteration = Iteration::Normalized(idx);
     self.advanced = 0;
     idx
   }
@@ -155,7 +155,7 @@ where
 mod tests {
   use super::*;
 
-  type TestSelectionState = SelectionState<u16>;
+  type TestIterationState = IterationState<u16>;
 
 
   #[test]
@@ -173,8 +173,8 @@ mod tests {
   }
 
   #[test]
-  fn selection_state_immediate_advancement() {
-    let mut state = TestSelectionState::new(42);
+  fn iteration_state_immediate_advancement() {
+    let mut state = TestIterationState::new(42);
     let iter = [42, 43, 44].iter().cloned();
 
     state.advance();
@@ -188,8 +188,8 @@ mod tests {
   }
 
   #[test]
-  fn selection_state_stays_cycled() {
-    let mut state = TestSelectionState::new(7);
+  fn iteration_state_stays_cycled() {
+    let mut state = TestIterationState::new(7);
     let iter = [8, 7, 6].iter().cloned();
 
     state.advance();
@@ -204,8 +204,8 @@ mod tests {
   }
 
   #[test]
-  fn selection_state_reset_cycled() {
-    let mut state = TestSelectionState::new(4);
+  fn iteration_state_reset_cycled() {
+    let mut state = TestIterationState::new(4);
     let iter = [3, 9, 4].iter().cloned();
 
     state.advance();
@@ -237,8 +237,8 @@ mod tests {
   }
 
   #[test]
-  fn reverse_selection() {
-    let mut state = TestSelectionState::new(1);
+  fn reverse_iteration() {
+    let mut state = TestIterationState::new(1);
     let iter = [2, 1, 3].iter().cloned();
 
     state.reverse(true);

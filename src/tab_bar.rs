@@ -1,7 +1,7 @@
 // tab_bar.rs
 
 // *************************************************************************
-// * Copyright (C) 2018 Daniel Mueller (deso@posteo.net)                   *
+// * Copyright (C) 2018-2019 Daniel Mueller (deso@posteo.net)              *
 // *                                                                       *
 // * This program is free software: you can redistribute it and/or modify  *
 // * it under the terms of the GNU General Public License as published by  *
@@ -36,7 +36,7 @@ use gui_derive::GuiWidget;
 
 use crate::event::EventUpdate;
 use crate::in_out::InOut;
-use crate::selection::SelectionState as SelectionStateT;
+use crate::iteration::IterationState as SelectionStateT;
 use crate::state::TaskState;
 use crate::state::UiState;
 use crate::task_list_box::TaskListBox;
