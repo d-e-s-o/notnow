@@ -1,7 +1,7 @@
 // termui.rs
 
 // *************************************************************************
-// * Copyright (C) 2017-2018 Daniel Mueller (deso@posteo.net)              *
+// * Copyright (C) 2017-2019 Daniel Mueller (deso@posteo.net)              *
 // *                                                                       *
 // * This program is free software: you can redistribute it and/or modify  *
 // * it under the terms of the GNU General Public License as published by  *
@@ -73,13 +73,13 @@ pub enum TermUiEvent {
   GetTasks,
   /// The response to the `GetTasks` event.
   #[cfg(all(test, not(feature = "readline")))]
-  GetTasksResp(Vec<Task>),
+  GotTasks(Vec<Task>),
   /// Retrieve the current state of the input/output area.
   #[cfg(all(test, not(feature = "readline")))]
   GetInOut,
   /// The response to the `GetInOut` event.
   #[cfg(all(test, not(feature = "readline")))]
-  GetInOutResp(InOut),
+  GotInOut(InOut),
 }
 
 impl TermUiEvent {
@@ -155,7 +155,7 @@ impl TermUi {
       TermUiEvent::GetTasks => {
         let tasks = self.task_state.tasks();
         let tasks = tasks.borrow().iter().cloned().collect();
-        let resp = TermUiEvent::GetTasksResp(tasks);
+        let resp = TermUiEvent::GotTasks(tasks);
         Some(UiEvent::Custom(Box::new(resp)).into())
       },
       #[cfg(all(test, not(feature = "readline")))]
@@ -359,7 +359,7 @@ mod tests {
         .unwrap()
         .unwrap_custom::<TermUiEvent>();
 
-      if let TermUiEvent::GetInOutResp(in_out) = resp {
+      if let TermUiEvent::GotInOut(in_out) = resp {
         in_out
       } else {
         panic!("Unexpected response: {:?}", resp)
@@ -375,7 +375,7 @@ mod tests {
         .unwrap()
         .unwrap_custom::<TermUiEvent>();
 
-      if let TermUiEvent::GetTasksResp(tasks) = resp {
+      if let TermUiEvent::GotTasks(tasks) = resp {
         tasks
       } else {
         panic!("Unexpected response: {:?}", resp)

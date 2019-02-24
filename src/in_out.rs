@@ -210,7 +210,7 @@ impl InOutArea {
       },
       #[cfg(all(test, not(feature = "readline")))]
       TermUiEvent::GetInOut => {
-        let resp = TermUiEvent::GetInOutResp(self.in_out.get().clone());
+        let resp = TermUiEvent::GotInOut(self.in_out.get().clone());
         Some(UiEvent::Custom(Box::new(resp)).into())
       },
       _ => Some(UiEvent::Custom(event).into()),
