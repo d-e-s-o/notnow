@@ -36,15 +36,15 @@ use gui_derive::GuiWidget;
 
 use crate::event::EventUpdate;
 use crate::in_out::InOut;
-use crate::iteration::IterationState as SelectionStateT;
+use crate::iteration::IterationState as IterationStateT;
 use crate::state::TaskState;
 use crate::state::UiState;
 use crate::task_list_box::TaskListBox;
 use crate::termui::TermUiEvent;
 
 
-/// The selection state as used by a `TabBar`.
-pub type SelectionState = SelectionStateT<Id>;
+/// The iteration state as used by a `TabBar`.
+pub type IterationState = IterationStateT<Id>;
 
 
 /// An enum representing the states a search can be in.
@@ -67,7 +67,7 @@ where
   Taken,
   /// The full state of a search. The first value is the (lowercased)
   /// text to search for, the second one represents the task that was
-  /// selected last, and the third one represents the selection state.
+  /// selected last, and the third one represents the iteration state.
   State(String, SearchState, T),
 }
 
@@ -96,8 +96,8 @@ where
   }
 }
 
-/// The selection state as used by a `TabBar`.
-type Search = SearchT<SelectionState>;
+/// A search as used by a `TabBar`.
+type Search = SearchT<IterationState>;
 
 
 /// An enum capturing the search behavior on an individual tab.
@@ -179,7 +179,7 @@ impl TabBar {
   fn handle_search_task(&mut self,
                         string: String,
                         search_state: SearchState,
-                        mut selection_state: SelectionState) -> Option<UiEvents> {
+                        mut iter_state: IterationState) -> Option<UiEvents> {
     match self.search {
       SearchT::Taken => {
         // We have to distinguish three cases here, in order:
@@ -192,25 +192,25 @@ impl TabBar {
         // 3) The next task in line was found and selected, in which
         //    case we just store the search state and wait for
         //    additional user input to select the next one or similar.
-        if selection_state.has_cycled(self.tabs.iter().len()) {
-          self.search = SearchT::State(string.clone(), search_state, selection_state);
+        if iter_state.has_cycled(self.tabs.iter().len()) {
+          self.search = SearchT::State(string.clone(), search_state, iter_state);
 
           let error = format!("Text '{}' not found", string).to_string();
           let event = TermUiEvent::SetInOut(InOut::Error(error));
           Some(UiEvent::Custom(Box::new(event)).into())
-        } else if selection_state.has_advanced() {
+        } else if iter_state.has_advanced() {
           debug_assert!(search_state.is_first());
 
           let iter = self.tabs.iter().map(|x| x.1);
-          let new_idx = selection_state.normalize(iter);
+          let new_idx = iter_state.normalize(iter);
           let tab = self.tabs[new_idx].1;
 
-          let event = TermUiEvent::SearchTask(string, SearchState::First, selection_state);
+          let event = TermUiEvent::SearchTask(string, SearchState::First, iter_state);
           let event = UiEvent::Returnable(self.id, tab, Box::new(event));
           Some(ChainEvent::Event(event))
         } else {
-          selection_state.reset_cycled();
-          self.search = SearchT::State(string, search_state, selection_state);
+          iter_state.reset_cycled();
+          self.search = SearchT::State(string, search_state, iter_state);
           None
         }
       },
@@ -248,7 +248,7 @@ impl TabBar {
 
           let reverse = self.search.take().is_reverse();
           let tab = self.selected_tab();
-          let mut state = SelectionState::new(tab);
+          let mut state = IterationState::new(tab);
           state.reverse(reverse);
 
           let event1 = TermUiEvent::SetInOut(InOut::Search(string.clone()));
@@ -263,8 +263,8 @@ impl TabBar {
         }
       },
       TermUiEvent::InputCanceled => None,
-      TermUiEvent::SearchTask(string, search_state, selection_state) => {
-        self.handle_search_task(string, search_state, selection_state)
+      TermUiEvent::SearchTask(string, search_state, iter_state) => {
+        self.handle_search_task(string, search_state, iter_state)
       },
       _ => Some(UiEvent::Custom(event).into()),
     }
@@ -350,17 +350,17 @@ impl Handleable for TabBar {
               },
               SearchT::Taken |
               SearchT::Preparing(..) => panic!("invalid search state"),
-              SearchT::State(string, search_state, mut selection_state) => {
+              SearchT::State(string, search_state, mut iter_state) => {
                 let iter = self.tabs.iter().map(|x| x.1);
-                let new_idx = selection_state.normalize(iter);
+                let new_idx = iter_state.normalize(iter);
                 let tab = self.tabs[new_idx].1;
                 let reverse = key == Key::Char('N');
-                selection_state.reverse(reverse);
+                iter_state.reverse(reverse);
 
                 let event1 = TermUiEvent::SetInOut(InOut::Search(string.clone()));
                 let event1 = UiEvent::Custom(Box::new(event1));
 
-                let event2 = TermUiEvent::SearchTask(string, search_state, selection_state);
+                let event2 = TermUiEvent::SearchTask(string, search_state, iter_state);
                 let event2 = UiEvent::Returnable(self.id, tab, Box::new(event2));
 
                 UiEvents::from(event1).chain(event2)
@@ -397,7 +397,7 @@ impl Handleable for TabBar {
 mod tests {
   use super::*;
 
-  type TestSelectionState = SelectionStateT<u16>;
+  type TestIterationState = IterationStateT<u16>;
 
 
   #[test]
@@ -410,14 +410,14 @@ mod tests {
     assert_eq!(search.take(), SearchT::Taken);
     assert_eq!(search, SearchT::Taken);
 
-    let selection_state = TestSelectionState::new(42);
-    let mut search = SearchT::State("test".to_string(), SearchState::First, selection_state);
+    let iter_state = TestIterationState::new(42);
+    let mut search = SearchT::State("test".to_string(), SearchState::First, iter_state);
 
     match search.take() {
-      SearchT::State(string, search_state, selection_state) => {
+      SearchT::State(string, search_state, iter_state) => {
         assert_eq!(string, "test");
         assert_eq!(search_state, SearchState::First);
-        assert_eq!(selection_state, TestSelectionState::new(42));
+        assert_eq!(iter_state, TestIterationState::new(42));
       },
       _ => assert!(false),
     }

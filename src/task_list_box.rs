@@ -1,7 +1,7 @@
 // task_list_box.rs
 
 // *************************************************************************
-// * Copyright (C) 2018 Daniel Mueller (deso@posteo.net)                   *
+// * Copyright (C) 2018-2019 Daniel Mueller (deso@posteo.net)              *
 // *                                                                       *
 // * This program is free software: you can redistribute it and/or modify  *
 // * it under the terms of the GNU General Public License as published by  *
@@ -37,8 +37,8 @@ use gui_derive::GuiWidget;
 use crate::event::EventUpdate;
 use crate::in_out::InOut;
 use crate::query::Query;
+use crate::tab_bar::IterationState;
 use crate::tab_bar::SearchState;
-use crate::tab_bar::SelectionState;
 use crate::tasks::Id as TaskId;
 use crate::tasks::Task;
 use crate::tasks::Tasks;
@@ -97,7 +97,7 @@ impl TaskListBox {
   /// conditions under which an update must happen, e.g., when the
   /// summary or the tags of the task changed. Handling of updates in
   /// those cases is left to clients.
-  fn handle_select_task(&mut self, task_id: TaskId, mut state: SelectionState) -> Option<UiEvents> {
+  fn handle_select_task(&mut self, task_id: TaskId, mut state: IterationState) -> Option<UiEvents> {
     let idx = self.query.iter().position(|x| x.id() == task_id);
     if let Some(idx) = idx {
       let update = self.set_select(idx as isize);
@@ -119,7 +119,7 @@ impl TaskListBox {
 
   /// Start the selection of a task.
   fn handle_select_task_start(&mut self, task_id: TaskId) -> Option<UiEvents> {
-    let state = SelectionState::new(self.id);
+    let state = IterationState::new(self.id);
     self.handle_select_task(task_id, state)
   }
 
@@ -127,7 +127,7 @@ impl TaskListBox {
   fn search_task_index(&self,
                        string: &str,
                        search_state: &mut SearchState,
-                       selection_state: &mut SelectionState) -> Option<usize> {
+                       iter_state: &mut IterationState) -> Option<usize> {
     // Note that because we use the count for index calculation
     // purposes, we subtract one below on every use.
     let count = self.query.iter().clone().count();
@@ -137,7 +137,7 @@ impl TaskListBox {
     // skip those.
     let start_idx = match search_state {
       SearchState::Current => {
-        if selection_state.is_reversed() {
+        if iter_state.is_reversed() {
           (count - 1) - self.selection()
         } else {
           self.selection()
@@ -145,7 +145,7 @@ impl TaskListBox {
       },
       SearchState::First => 0,
       SearchState::Task(idx) => {
-        if selection_state.is_reversed() {
+        if iter_state.is_reversed() {
           (count - 1) - *idx + 1
         } else {
           *idx + 1
@@ -157,7 +157,7 @@ impl TaskListBox {
     // the `enumerate` functionality. However, for some reason that
     // would require us to work with an `ExactSizeIterator`, which is
     // not something that we can provide.
-    if selection_state.is_reversed() {
+    if iter_state.is_reversed() {
       self
         .query
         .iter()
@@ -181,10 +181,10 @@ impl TaskListBox {
   fn handle_search_task(&mut self,
                         string: &str,
                         search_state: &mut SearchState,
-                        selection_state: &mut SelectionState) -> Option<UiEvents> {
+                        iter_state: &mut IterationState) -> Option<UiEvents> {
     debug_assert_eq!(string, &string.to_ascii_lowercase());
 
-    let idx = self.search_task_index(string, search_state, selection_state);
+    let idx = self.search_task_index(string, search_state, iter_state);
     if let Some(idx) = idx {
       *search_state = SearchState::Task(idx);
 
@@ -192,7 +192,7 @@ impl TaskListBox {
       let event = TermUiEvent::SelectedTask(self.id);
       Some(UiEvent::Custom(Box::new(event))).maybe_update(update)
     } else {
-      selection_state.advance();
+      iter_state.advance();
       *search_state = SearchState::First;
       None
     }
@@ -260,8 +260,8 @@ impl TaskListBox {
   /// Handle a "returnable" custom event.
   fn handle_custom_event_ref(&mut self, event: &mut TermUiEvent) -> Option<UiEvents> {
     match event {
-      TermUiEvent::SearchTask(string, search_state, selection_state) => {
-        self.handle_search_task(string, search_state, selection_state)
+      TermUiEvent::SearchTask(string, search_state, iter_state) => {
+        self.handle_search_task(string, search_state, iter_state)
       },
       _ => None,
     }

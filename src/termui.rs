@@ -34,8 +34,8 @@ use crate::in_out::InOutArea;
 use crate::state::State;
 use crate::state::TaskState;
 use crate::state::UiState;
+use crate::tab_bar::IterationState;
 use crate::tab_bar::SearchState;
-use crate::tab_bar::SelectionState;
 use crate::tab_bar::TabBar;
 use crate::tasks::Id as TaskId;
 #[cfg(all(test, not(feature = "readline")))]
@@ -47,10 +47,10 @@ use crate::tasks::Task;
 pub enum TermUiEvent {
   /// An event to ask a widget to select the task with the given
   /// `TaskId`.
-  SelectTask(TaskId, SelectionState),
+  SelectTask(TaskId, IterationState),
   /// Search for a task containing the given string in its summary and
   /// select it.
-  SearchTask(String, SearchState, SelectionState),
+  SearchTask(String, SearchState, IterationState),
   /// The tab with the given `Id` has selected the task as indicated by
   /// `SelectTask` or `SearchTask`.
   SelectedTask(Id),
