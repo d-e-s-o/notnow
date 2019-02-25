@@ -117,8 +117,10 @@ impl ToSerde<SerTaskState> for TaskState {
 /// A struct encapsulating the UI's state.
 #[derive(Debug)]
 pub struct UiState {
-  path: PathBuf,
-  queries: Vec<Query>,
+  /// The path to the file in which to save the state.
+  pub path: PathBuf,
+  /// The queries used in the UI.
+  pub queries: Vec<Query>,
 }
 
 impl UiState {
