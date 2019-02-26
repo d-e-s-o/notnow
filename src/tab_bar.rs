@@ -157,8 +157,14 @@ pub struct TabBar {
 
 impl TabBar {
   /// Create a new `TabBar` widget.
-  pub fn new(id: Id, cap: &mut dyn Cap, task_state: &TaskState, queries: Vec<Query>) -> Self {
-    let selection = 0;
+  pub fn new(id: Id, cap: &mut dyn Cap, task_state: &TaskState,
+             queries: Vec<Query>, selected: Option<usize>) -> Self {
+    let count = queries.len();
+    let selected = selected
+      .map(|x| min(x, isize::MAX as usize))
+      .unwrap_or(0) as isize;
+    let selected = sanitize_selection(selected, count);
+
     let tabs = queries
       .into_iter()
       .enumerate()
@@ -169,7 +175,7 @@ impl TabBar {
           Box::new(TaskListBox::new(id, task_state.tasks(), query.take().unwrap()))
         });
 
-        if i == selection {
+        if i == selected {
           cap.focus(task_list);
         } else {
           cap.hide(task_list);
@@ -180,8 +186,8 @@ impl TabBar {
     TabBar {
       id: id,
       tabs: tabs,
-      selection: selection as isize,
-      prev_selection: selection as isize,
+      selection: selected as isize,
+      prev_selection: selected as isize,
       search: SearchT::Unset,
     }
   }
@@ -286,7 +292,7 @@ impl TabBar {
         } else {
           // If there are no tabs there are no queries -- respond
           // directly.
-          let event = TermUiEvent::CollectedState(Vec::new());
+          let event = TermUiEvent::CollectedState(Vec::new(), None);
           Some(UiEvent::Directed(id, Box::new(event)).into())
         }
       },
@@ -297,7 +303,8 @@ impl TabBar {
         // requester.
         if iter_state.is_last(self.tabs.iter().len()) {
           let TabState{id, queries} = tab_state;
-          let event = TermUiEvent::CollectedState(queries);
+          let selected = Some(self.selection());
+          let event = TermUiEvent::CollectedState(queries, selected);
           Some(UiEvent::Directed(id, Box::new(event)).into())
         } else {
           let iter = self.tabs.iter().map(|x| x.1);

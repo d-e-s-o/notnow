@@ -1,7 +1,7 @@
 // state.rs
 
 // *************************************************************************
-// * Copyright (C) 2018 Daniel Mueller (deso@posteo.net)                   *
+// * Copyright (C) 2018-2019 Daniel Mueller (deso@posteo.net)              *
 // *                                                                       *
 // * This program is free software: you can redistribute it and/or modify  *
 // * it under the terms of the GNU General Public License as published by  *
@@ -39,4 +39,6 @@ pub struct TaskState {
 pub struct UiState {
   #[serde(default, skip_serializing_if = "Vec::is_empty")]
   pub queries: Vec<Query>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub selected: Option<usize>,
 }

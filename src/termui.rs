@@ -71,7 +71,7 @@ pub enum TermUiEvent {
   /// An event used to collect the state from the `TabBar`.
   CollectState(Id),
   /// The response to the `CollectState` event.
-  CollectedState(Vec<Query>),
+  CollectedState(Vec<Query>, Option<usize>),
   /// An event used to collect the state of all tabs.
   GetTabState(TabState, IterationState),
   /// A indication that some component changed and that we should
@@ -117,7 +117,7 @@ pub struct TermUi {
 impl TermUi {
   /// Create a new view associated with the given `State` object.
   pub fn new(id: Id, cap: &mut dyn Cap, state: State) -> Self {
-    let State(task_state, UiState{path, queries}) = state;
+    let State(task_state, UiState{path, queries, selected}) = state;
     let mut queries = Some(queries);
 
     let in_out = cap.add_widget(id, &mut |id, cap| {
@@ -125,7 +125,7 @@ impl TermUi {
     });
     let tab_bar = cap.add_widget(id, &mut |id, cap| {
       let queries = queries.take().unwrap();
-      Box::new(TabBar::new(id, cap, &task_state, queries))
+      Box::new(TabBar::new(id, cap, &task_state, queries, selected))
     });
 
     TermUi {
@@ -165,10 +165,11 @@ impl TermUi {
   /// Handle a custom event.
   fn handle_custom_event(&mut self, event: Box<TermUiEvent>) -> Option<UiEvents> {
     match *event {
-      TermUiEvent::CollectedState(queries) => {
+      TermUiEvent::CollectedState(queries, selected) => {
         let ui_state = UiState {
           path: self.ui_state_path.clone(),
           queries: queries,
+          selected: selected,
         };
         Some(self.save_and_report(&ui_state))
       },
@@ -282,6 +283,7 @@ mod tests {
           ],
         },
       ],
+      selected: None,
     };
 
     (task_state, ui_state)
@@ -1657,6 +1659,7 @@ mod tests {
           lits: vec![],
         },
       ],
+      selected: Some(0),
     };
     assert_eq!(state, expected)
   }
@@ -1681,5 +1684,31 @@ mod tests {
     assert_eq!(state.queries[1].name, expected.queries[1].name);
     assert_eq!(state.queries[2].name, expected.queries[2].name);
     assert_eq!(state.queries[3].name, expected.queries[3].name);
+    assert_eq!(state.selected, Some(0));
+  }
+
+  #[test]
+  fn save_ui_state_after_various_changes() {
+    let events = vec![
+      Event::KeyDown(Key::Char('l')).into(),
+      Event::KeyDown(Key::Char('l')).into(),
+      Event::KeyDown(Key::Char('w')).into(),
+    ];
+    let state = TestUiBuilder::with_default_tasks_and_tags()
+      .build()
+      .handle(events)
+      .load_state()
+      .unwrap()
+      .1
+      .to_serde();
+
+    let (_, expected) = default_tasks_and_tags();
+    assert_eq!(state.queries.len(), expected.queries.len());
+    assert_eq!(state.queries.len(), 4);
+    assert_eq!(state.queries[0].name, expected.queries[0].name);
+    assert_eq!(state.queries[1].name, expected.queries[1].name);
+    assert_eq!(state.queries[2].name, expected.queries[2].name);
+    assert_eq!(state.queries[3].name, expected.queries[3].name);
+    assert_eq!(state.selected, Some(2));
   }
 }

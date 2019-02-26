@@ -121,6 +121,8 @@ pub struct UiState {
   pub path: PathBuf,
   /// The queries used in the UI.
   pub queries: Vec<Query>,
+  /// The currently selected `Query`.
+  pub selected: Option<usize>,
 }
 
 impl UiState {
@@ -133,6 +135,8 @@ impl UiState {
 impl ToSerde<SerUiState> for UiState {
   /// Convert this object into a serializable one.
   fn to_serde(&self) -> SerUiState {
+    debug_assert!(self.selected.is_none() || self.selected.unwrap() < self.queries.len());
+
     let queries = self
       .queries
       .iter()
@@ -141,6 +145,7 @@ impl ToSerde<SerUiState> for UiState {
 
     SerUiState {
       queries: queries,
+      selected: self.selected,
     }
   }
 }
@@ -195,6 +200,7 @@ impl State {
     let ui_state = UiState {
       path: ui_path.into(),
       queries: queries,
+      selected: ui_state.selected,
     };
     Ok(State(task_state, ui_state))
   }

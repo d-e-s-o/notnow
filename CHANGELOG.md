@@ -1,5 +1,6 @@
 Unreleased
 ----------
+- Save and restore selected tab
 - Automatically create configuration directory instead of potentially
   failing save operation
 - Further decreased binary size by using system allocator
