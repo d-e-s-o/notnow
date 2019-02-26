@@ -19,6 +19,7 @@
 
 use std::any::Any;
 use std::io::Result;
+use std::path::PathBuf;
 
 use gui::Cap;
 use gui::Event;
@@ -31,12 +32,14 @@ use gui_derive::GuiWidget;
 
 use crate::in_out::InOut;
 use crate::in_out::InOutArea;
+use crate::query::Query;
 use crate::state::State;
 use crate::state::TaskState;
 use crate::state::UiState;
 use crate::tab_bar::IterationState;
 use crate::tab_bar::SearchState;
 use crate::tab_bar::TabBar;
+use crate::tab_bar::TabState;
 use crate::tasks::Id as TaskId;
 #[cfg(all(test, not(feature = "readline")))]
 use crate::tasks::Task;
@@ -65,6 +68,12 @@ pub enum TermUiEvent {
   EnteredText(String),
   /// Text input has been canceled.
   InputCanceled,
+  /// An event used to collect the state from the `TabBar`.
+  CollectState(Id),
+  /// The response to the `CollectState` event.
+  CollectedState(Vec<Query>),
+  /// An event used to collect the state of all tabs.
+  GetTabState(TabState, IterationState),
   /// A indication that some component changed and that we should
   /// re-render everything.
   Updated,
@@ -101,20 +110,22 @@ pub struct TermUi {
   in_out: Id,
   tab_bar: Id,
   task_state: TaskState,
-  ui_state: UiState,
+  ui_state_path: PathBuf,
 }
 
 
 impl TermUi {
   /// Create a new view associated with the given `State` object.
   pub fn new(id: Id, cap: &mut dyn Cap, state: State) -> Self {
-    let State(task_state, ui_state) = state;
+    let State(task_state, UiState{path, queries}) = state;
+    let mut queries = Some(queries);
 
     let in_out = cap.add_widget(id, &mut |id, cap| {
       Box::new(InOutArea::new(id, cap))
     });
     let tab_bar = cap.add_widget(id, &mut |id, cap| {
-      Box::new(TabBar::new(id, cap, &task_state, &ui_state))
+      let queries = queries.take().unwrap();
+      Box::new(TabBar::new(id, cap, &task_state, queries))
     });
 
     TermUi {
@@ -122,22 +133,22 @@ impl TermUi {
       in_out: in_out,
       tab_bar: tab_bar,
       task_state: task_state,
-      ui_state: ui_state,
+      ui_state_path: path,
     }
   }
 
   /// Persist the state into a file.
-  fn save_all(&self) -> Result<()> {
+  fn save_all(&self, ui_state: &UiState) -> Result<()> {
     self.task_state.save()?;
     // TODO: We risk data inconsistencies if the second save operation
     //       fails.
-    self.ui_state.save()?;
+    ui_state.save()?;
     Ok(())
   }
 
   /// Save the current state.
-  fn save(&mut self) -> UiEvents {
-    let in_out = match self.save_all() {
+  fn save_and_report(&mut self, ui_state: &UiState) -> UiEvents {
+    let in_out = match self.save_all(ui_state) {
       Ok(_) => InOut::Saved,
       Err(err) => InOut::Error(format!("{}", err)),
     };
@@ -145,9 +156,22 @@ impl TermUi {
     UiEvent::Directed(self.in_out, Box::new(event)).into()
   }
 
+  /// Emit an event that will eventually cause the state to be saved.
+  fn save(&mut self) -> UiEvents {
+    let event = TermUiEvent::CollectState(self.id);
+    UiEvent::Directed(self.tab_bar, Box::new(event)).into()
+  }
+
   /// Handle a custom event.
   fn handle_custom_event(&mut self, event: Box<TermUiEvent>) -> Option<UiEvents> {
     match *event {
+      TermUiEvent::CollectedState(queries) => {
+        let ui_state = UiState {
+          path: self.ui_state_path.clone(),
+          queries: queries,
+        };
+        Some(self.save_and_report(&ui_state))
+      },
       TermUiEvent::SetInOut(_) => {
         Some(UiEvent::Directed(self.in_out, event).into())
       },
@@ -222,6 +246,47 @@ mod tests {
   use crate::test::NamedTempFile;
 
 
+  /// Create the default `UiState` with four queries and 15 tasks with
+  /// tags. Tag assignment follows the pattern that
+  /// `make_tasks_with_tags` creates.
+  fn default_tasks_and_tags() -> (SerTaskState, SerUiState) {
+    let (tags, templates, tasks) = make_tasks_with_tags(15);
+    let task_state = SerTaskState {
+      templates: SerTemplates(templates),
+      tasks: SerTasks(tasks),
+    };
+    let ui_state = SerUiState {
+      queries: vec![
+        SerQuery {
+          name: "all".to_string(),
+          lits: vec![],
+        },
+        SerQuery {
+          name: "tag complete".to_string(),
+          lits: vec![vec![SerTagLit::Pos(tags[0])]],
+        },
+        SerQuery {
+          name: "tag2 || tag3".to_string(),
+          lits: vec![
+            vec![
+              SerTagLit::Pos(tags[2]),
+              SerTagLit::Pos(tags[3]),
+            ],
+          ],
+        },
+        SerQuery {
+          name: "tag1 && tag3".to_string(),
+          lits: vec![
+            vec![SerTagLit::Pos(tags[1])],
+            vec![SerTagLit::Pos(tags[3])],
+          ],
+        },
+      ],
+    };
+
+    (task_state, ui_state)
+  }
+
   /// A builder object used for instantiating a UI with a certain
   /// composition of tasks.
   struct TestUiBuilder {
@@ -254,48 +319,11 @@ mod tests {
       }
     }
 
-    /// Create a builder that will instantiate a UI with four queries
-    /// and 15 tasks with tags. Tag assignment follows the pattern that
-    /// `make_tasks_with_tags` creates.
+    /// Create a builder that will instantiate a UI with state as
+    /// created by `default_tasks_and_tags`.
     fn with_default_tasks_and_tags() -> TestUiBuilder {
-      let (tags, templates, tasks) = make_tasks_with_tags(15);
-      let task_state = SerTaskState {
-        templates: SerTemplates(templates),
-        tasks: SerTasks(tasks),
-      };
-      let ui_state = SerUiState {
-        queries: vec![
-          SerQuery {
-            name: "all".to_string(),
-            lits: vec![],
-          },
-          SerQuery {
-            name: "tag complete".to_string(),
-            lits: vec![vec![SerTagLit::Pos(tags[0])]],
-          },
-          SerQuery {
-            name: "tag2 || tag3".to_string(),
-            lits: vec![
-              vec![
-                SerTagLit::Pos(tags[2]),
-                SerTagLit::Pos(tags[3]),
-              ],
-            ],
-          },
-          SerQuery {
-            name: "tag1 && tag3".to_string(),
-            lits: vec![
-              vec![SerTagLit::Pos(tags[1])],
-              vec![SerTagLit::Pos(tags[3])],
-            ],
-          },
-        ],
-      };
-
-      TestUiBuilder {
-        task_state: task_state,
-        ui_state: ui_state,
-      }
+      let (task_state, ui_state) = default_tasks_and_tags();
+      TestUiBuilder { task_state, ui_state }
     }
 
     /// Build the actual UI object that we can test with.
@@ -385,6 +413,12 @@ mod tests {
     /// Retrieve the current set of tasks in the form of `SerTask` objects from the UI.
     fn ser_tasks(&mut self) -> Vec<SerTask> {
       self.tasks().iter().map(|x| x.to_serde()).collect()
+    }
+
+    /// Load the UI's state from a file. Note that unless the state has
+    /// been saved, the result will probably just be the default state.
+    fn load_state(&self) -> Result<State> {
+      State::new(self.task_file.path(), self.ui_file.path())
     }
   }
 
@@ -1600,5 +1634,52 @@ mod tests {
       .map_or(false, |x| x.is_updated());
 
     assert!(!updated);
+  }
+
+  #[test]
+  fn save_ui_state_single_tab() {
+    let tasks = make_tasks(1);
+    let events = vec![
+      Event::KeyDown(Key::Char('w')).into(),
+    ];
+    let state = TestUiBuilder::with_ser_tasks(tasks)
+      .build()
+      .handle(events)
+      .load_state()
+      .unwrap()
+      .1
+      .to_serde();
+
+    let expected = SerUiState {
+      queries: vec![
+        SerQuery {
+          name: "all".to_string(),
+          lits: vec![],
+        },
+      ],
+    };
+    assert_eq!(state, expected)
+  }
+
+  #[test]
+  fn save_ui_state_multiple_tabs() {
+    let events = vec![
+      Event::KeyDown(Key::Char('w')).into(),
+    ];
+    let state = TestUiBuilder::with_default_tasks_and_tags()
+      .build()
+      .handle(events)
+      .load_state()
+      .unwrap()
+      .1
+      .to_serde();
+
+    let (_, expected) = default_tasks_and_tags();
+    assert_eq!(state.queries.len(), expected.queries.len());
+    assert_eq!(state.queries.len(), 4);
+    assert_eq!(state.queries[0].name, expected.queries[0].name);
+    assert_eq!(state.queries[1].name, expected.queries[1].name);
+    assert_eq!(state.queries[2].name, expected.queries[2].name);
+    assert_eq!(state.queries[3].name, expected.queries[3].name);
   }
 }

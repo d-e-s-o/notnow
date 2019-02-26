@@ -37,8 +37,8 @@ use gui_derive::GuiWidget;
 use crate::event::EventUpdate;
 use crate::in_out::InOut;
 use crate::iteration::IterationState as IterationStateT;
+use crate::query::Query;
 use crate::state::TaskState;
-use crate::state::UiState;
 use crate::task_list_box::TaskListBox;
 use crate::termui::TermUiEvent;
 
@@ -122,6 +122,19 @@ impl SearchState {
 }
 
 
+/// The state used for collecting the queries from the various
+/// `TaskListBox` objects.
+#[derive(Debug)]
+pub struct TabState {
+  /// The `Id` of the receiving widget. Used only when responding back
+  /// to the requester.
+  pub id: Id,
+  /// The accumulation of queries gathered from the individual
+  /// `TaskListBox` objects.
+  pub queries: Vec<Query>,
+}
+
+
 /// Sanitize a selection index.
 fn sanitize_selection(selection: isize, count: usize) -> usize {
   if count == 0 {
@@ -144,12 +157,10 @@ pub struct TabBar {
 
 impl TabBar {
   /// Create a new `TabBar` widget.
-  pub fn new(id: Id, cap: &mut dyn Cap, task_state: &TaskState, ui_state: &UiState) -> Self {
+  pub fn new(id: Id, cap: &mut dyn Cap, task_state: &TaskState, queries: Vec<Query>) -> Self {
     let selection = 0;
-    // TODO: We really should not be cloning the queries to use here.
-    let tabs = ui_state
-      .queries()
-      .cloned()
+    let tabs = queries
+      .into_iter()
       .enumerate()
       .map(|(i, query)| {
         let name = query.name().to_string();
@@ -263,6 +274,40 @@ impl TabBar {
         }
       },
       TermUiEvent::InputCanceled => None,
+      TermUiEvent::CollectState(id) => {
+        if let Some((_, tab)) = self.tabs.first() {
+          let tab_state = TabState{
+            id: id,
+            queries: Vec::new(),
+          };
+          let iter_state = IterationState::new(*tab);
+          let event = TermUiEvent::GetTabState(tab_state, iter_state);
+          Some(UiEvent::Returnable(self.id, *tab, Box::new(event)).into())
+        } else {
+          // If there are no tabs there are no queries -- respond
+          // directly.
+          let event = TermUiEvent::CollectedState(Vec::new());
+          Some(UiEvent::Directed(id, Box::new(event)).into())
+        }
+      },
+      TermUiEvent::GetTabState(tab_state, mut iter_state) => {
+        debug_assert!(iter_state.has_advanced());
+
+        // If we have covered all tabs then send back the queries to the
+        // requester.
+        if iter_state.is_last(self.tabs.iter().len()) {
+          let TabState{id, queries} = tab_state;
+          let event = TermUiEvent::CollectedState(queries);
+          Some(UiEvent::Directed(id, Box::new(event)).into())
+        } else {
+          let iter = self.tabs.iter().map(|x| x.1);
+          let new_idx = iter_state.normalize(iter);
+          let tab = self.tabs[new_idx].1;
+
+          let event = TermUiEvent::GetTabState(tab_state, iter_state);
+          Some(UiEvent::Returnable(self.id, tab, Box::new(event)).into())
+        }
+      },
       TermUiEvent::SearchTask(string, search_state, iter_state) => {
         self.handle_search_task(string, search_state, iter_state)
       },

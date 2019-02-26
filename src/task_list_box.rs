@@ -39,6 +39,7 @@ use crate::in_out::InOut;
 use crate::query::Query;
 use crate::tab_bar::IterationState;
 use crate::tab_bar::SearchState;
+use crate::tab_bar::TabState;
 use crate::tasks::Id as TaskId;
 use crate::tasks::Task;
 use crate::tasks::Tasks;
@@ -262,6 +263,12 @@ impl TaskListBox {
     match event {
       TermUiEvent::SearchTask(string, search_state, iter_state) => {
         self.handle_search_task(string, search_state, iter_state)
+      },
+      TermUiEvent::GetTabState(ref mut tab_state, ref mut iter_state) => {
+        let TabState{ref mut queries, ..} = tab_state;
+        queries.push(self.query());
+        iter_state.advance();
+        None
       },
       _ => None,
     }

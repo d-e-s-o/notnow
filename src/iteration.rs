@@ -121,6 +121,12 @@ where
     self.total = 0
   }
 
+  /// Check whether the iteration has reached the last item before we
+  /// would cycle.
+  pub fn is_last(&self, count: usize) -> bool {
+    self.total.abs() as usize >= count
+  }
+
   /// Check whether the iteration has cycled through all widgets once.
   pub fn has_cycled(&self, count: usize) -> bool {
     // Note that we allow for a single overlap here. That is required
@@ -184,6 +190,7 @@ mod tests {
 
     let current = state.normalize(iter.clone());
     assert_eq!(current, 1);
+    assert!(state.is_last(iter.len()));
     assert!(state.has_cycled(iter.len()));
   }
 
@@ -199,6 +206,7 @@ mod tests {
 
     for _ in 1..200 {
       let _ = state.normalize(iter.clone());
+      assert!(state.is_last(iter.len()));
       assert!(state.has_cycled(iter.len()));
     }
   }
@@ -213,6 +221,7 @@ mod tests {
     state.advance();
     state.advance();
     assert_eq!(state.normalize(iter.clone()), 0);
+    assert!(state.is_last(iter.len()));
     assert!(state.has_cycled(iter.len()));
 
     state.advance();
@@ -221,18 +230,22 @@ mod tests {
 
     state.advance();
     assert_eq!(state.normalize(iter.clone()), 2);
+    assert!(!state.is_last(iter.len()));
     assert!(!state.has_cycled(iter.len()));
 
     state.advance();
     assert_eq!(state.normalize(iter.clone()), 0);
+    assert!(!state.is_last(iter.len()));
     assert!(!state.has_cycled(iter.len()));
 
     state.advance();
     assert_eq!(state.normalize(iter.clone()), 1);
+    assert!(state.is_last(iter.len()));
     assert!(!state.has_cycled(iter.len()));
 
     state.advance();
     assert_eq!(state.normalize(iter.clone()), 2);
+    assert!(state.is_last(iter.len()));
     assert!(state.has_cycled(iter.len()));
   }
 
@@ -242,42 +255,49 @@ mod tests {
     let iter = [2, 1, 3].iter().cloned();
 
     state.reverse(true);
+    assert!(!state.is_last(iter.len()));
     assert!(!state.has_cycled(iter.len()));
     assert!(!state.has_advanced());
 
     state.advance();
     assert!(state.has_advanced());
     assert_eq!(state.normalize(iter.clone()), 0);
+    assert!(!state.is_last(iter.len()));
     assert!(!state.has_cycled(iter.len()));
     assert!(!state.has_advanced());
 
     state.advance();
     assert!(state.has_advanced());
     assert_eq!(state.normalize(iter.clone()), 2);
+    assert!(!state.is_last(iter.len()));
     assert!(!state.has_cycled(iter.len()));
     assert!(!state.has_advanced());
 
     state.advance();
     assert!(state.has_advanced());
     assert_eq!(state.normalize(iter.clone()), 1);
+    assert!(state.is_last(iter.len()));
     assert!(!state.has_cycled(iter.len()));
     assert!(!state.has_advanced());
 
     state.reverse(false);
     assert!(!state.has_advanced());
     assert_eq!(state.normalize(iter.clone()), 1);
+    assert!(state.is_last(iter.len()));
     assert!(!state.has_cycled(iter.len()));
     assert!(!state.has_advanced());
 
     state.advance();
     assert!(state.has_advanced());
     assert_eq!(state.normalize(iter.clone()), 2);
+    assert!(!state.is_last(iter.len()));
     assert!(!state.has_cycled(iter.len()));
     assert!(!state.has_advanced());
 
     state.advance();
     assert!(state.has_advanced());
     assert_eq!(state.normalize(iter.clone()), 0);
+    assert!(!state.is_last(iter.len()));
     assert!(!state.has_cycled(iter.len()));
     assert!(!state.has_advanced());
   }

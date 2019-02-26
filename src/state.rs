@@ -128,11 +128,6 @@ impl UiState {
   pub fn save(&self) -> Result<()> {
     save_state(&self.path, self.to_serde())
   }
-
-  /// Retrieve the queries to use.
-  pub fn queries(&self) -> impl Iterator<Item=&Query> {
-    self.queries.iter()
-  }
 }
 
 impl ToSerde<SerUiState> for UiState {
