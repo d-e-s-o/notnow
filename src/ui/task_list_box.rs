@@ -34,16 +34,17 @@ use gui::UiEvent;
 use gui::UiEvents;
 use gui_derive::GuiWidget;
 
-use crate::event::EventUpdate;
-use crate::in_out::InOut;
 use crate::query::Query;
-use crate::tab_bar::IterationState;
-use crate::tab_bar::SearchState;
-use crate::tab_bar::TabState;
 use crate::tasks::Id as TaskId;
 use crate::tasks::Task;
 use crate::tasks::Tasks;
-use crate::termui::TermUiEvent;
+
+use super::event::EventUpdate;
+use super::in_out::InOut;
+use super::tab_bar::IterationState;
+use super::tab_bar::SearchState;
+use super::tab_bar::TabState;
+use super::termui::TermUiEvent;
 
 
 /// Sanitize a selection index.

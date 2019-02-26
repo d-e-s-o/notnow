@@ -35,8 +35,8 @@ use gui_derive::GuiWidget;
 #[cfg(feature = "readline")]
 use rline::Readline;
 
-use crate::event::EventUpdate;
-use crate::termui::TermUiEvent;
+use super::event::EventUpdate;
+use super::termui::TermUiEvent;
 
 
 /// An object representing the in/out area within the TermUi.

@@ -43,11 +43,11 @@ use gui::Object;
 use gui::Renderer;
 use gui::Widget;
 
-use crate::in_out::InOut;
-use crate::in_out::InOutArea;
-use crate::tab_bar::TabBar;
-use crate::task_list_box::TaskListBox;
-use crate::termui::TermUi;
+use super::in_out::InOut;
+use super::in_out::InOutArea;
+use super::tab_bar::TabBar;
+use super::task_list_box::TaskListBox;
+use super::termui::TermUi;
 
 const MAIN_MARGIN_X: u16 = 3;
 const MAIN_MARGIN_Y: u16 = 2;

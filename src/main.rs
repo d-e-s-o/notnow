@@ -77,23 +77,17 @@
 
 //! A terminal based task management application.
 
-mod event;
 mod id;
-mod in_out;
-mod iteration;
 mod query;
 mod resize;
 mod ser;
 mod state;
-mod tab_bar;
 mod tags;
-mod task_list_box;
 mod tasks;
-mod term_renderer;
-mod termui;
 #[cfg(test)]
 #[allow(unsafe_code)]
 mod test;
+mod ui;
 
 use std::alloc::System;
 use std::env::args_os;
@@ -125,12 +119,12 @@ use gui::Ui;
 use gui::UnhandledEvent;
 use gui::UnhandledEvents;
 
-use crate::event::convert;
 use crate::resize::receive_window_resizes;
 use crate::state::State;
-use crate::term_renderer::TermRenderer;
-use crate::termui::TermUi;
-use crate::termui::TermUiEvent;
+use crate::ui::event::convert;
+use crate::ui::term_renderer::TermRenderer;
+use crate::ui::termui::TermUi;
+use crate::ui::termui::TermUiEvent;
 
 // Switch from the default allocator (typically jemalloc) to the system
 // allocator (malloc based on Unix systems). Our application is by no

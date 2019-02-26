@@ -30,19 +30,20 @@ use gui::UiEvent;
 use gui::UiEvents;
 use gui_derive::GuiWidget;
 
-use crate::in_out::InOut;
-use crate::in_out::InOutArea;
 use crate::query::Query;
 use crate::state::State;
 use crate::state::TaskState;
 use crate::state::UiState;
-use crate::tab_bar::IterationState;
-use crate::tab_bar::SearchState;
-use crate::tab_bar::TabBar;
-use crate::tab_bar::TabState;
 use crate::tasks::Id as TaskId;
 #[cfg(all(test, not(feature = "readline")))]
 use crate::tasks::Task;
+
+use super::in_out::InOut;
+use super::in_out::InOutArea;
+use super::tab_bar::IterationState;
+use super::tab_bar::SearchState;
+use super::tab_bar::TabBar;
+use super::tab_bar::TabState;
 
 
 /// An enumeration comprising all custom events we support.
@@ -231,8 +232,6 @@ mod tests {
   use gui::UnhandledEvent;
   use gui::UnhandledEvents;
 
-  use crate::event::EventUpdated;
-  use crate::event::tests::CustomEvent;
   use crate::ser::query::Query as SerQuery;
   use crate::ser::query::TagLit as SerTagLit;
   use crate::ser::state::TaskState as SerTaskState;
@@ -245,6 +244,8 @@ mod tests {
   use crate::test::make_tasks;
   use crate::test::make_tasks_with_tags;
   use crate::test::NamedTempFile;
+  use crate::ui::event::EventUpdated;
+  use crate::ui::event::tests::CustomEvent;
 
 
   /// Create the default `UiState` with four queries and 15 tasks with

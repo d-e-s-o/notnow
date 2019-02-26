@@ -34,13 +34,14 @@ use gui::UiEvent;
 use gui::UiEvents;
 use gui_derive::GuiWidget;
 
-use crate::event::EventUpdate;
-use crate::in_out::InOut;
-use crate::iteration::IterationState as IterationStateT;
 use crate::query::Query;
 use crate::state::TaskState;
-use crate::task_list_box::TaskListBox;
-use crate::termui::TermUiEvent;
+
+use super::event::EventUpdate;
+use super::in_out::InOut;
+use super::iteration::IterationState as IterationStateT;
+use super::task_list_box::TaskListBox;
+use super::termui::TermUiEvent;
 
 
 /// The iteration state as used by a `TabBar`.

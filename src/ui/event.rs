@@ -27,7 +27,7 @@ use gui::UiEvents as GuiUiEvents;
 use gui::UnhandledEvent as GuiUnhandledEvent;
 use gui::UnhandledEvents as GuiUnhandledEvents;
 
-use crate::termui::TermUiEvent;
+use super::termui::TermUiEvent;
 
 
 pub trait EventUpdated {
