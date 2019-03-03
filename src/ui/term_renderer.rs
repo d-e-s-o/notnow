@@ -40,8 +40,8 @@ use gui::BBox;
 use gui::Cap;
 use gui::Id;
 use gui::Object;
+use gui::Renderable;
 use gui::Renderer;
-use gui::Widget;
 
 use super::in_out::InOut;
 use super::in_out::InOutArea;
@@ -469,7 +469,7 @@ where
     }
   }
 
-  fn render(&self, widget: &dyn Widget, bbox: BBox, cap: &dyn Cap) -> BBox {
+  fn render(&self, widget: &dyn Renderable, bbox: BBox, cap: &dyn Cap) -> BBox {
     let result;
 
     self.writer.restrict(bbox);

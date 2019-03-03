@@ -5,6 +5,7 @@ Unreleased
 - Automatically create configuration directory instead of potentially
   failing save operation
 - Further decreased binary size by using system allocator
+- Bumped `gui` dependency to `0.3`
 - Bumped `rline` dependency to `0.2`
 
 

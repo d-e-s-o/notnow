@@ -34,10 +34,8 @@ version = "0.1"
 version = "1.0"
 
 [dependencies.gui]
-version = "0.2"
-
-[dependencies.gui-derive]
-version = "0.2"
+version = "0.3"
+features = ["derive"]
 
 [dependencies.libc]
 version = "0.2"

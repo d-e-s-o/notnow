@@ -22,20 +22,22 @@ use std::any::Any;
 use std::ffi::CString;
 
 use gui::Cap;
-use gui::Event;
+use gui::ChainEvent;
+use gui::derive::Widget;
 use gui::Handleable;
 use gui::Id;
-use gui::Key;
+use gui::MutCap;
 use gui::OptionChain;
 use gui::UiEvent;
 use gui::UiEvents;
 use gui::Widget;
-use gui_derive::GuiWidget;
 
 #[cfg(feature = "readline")]
 use rline::Readline;
 
+use super::event::Event;
 use super::event::EventUpdate;
+use super::event::Key;
 use super::termui::TermUiEvent;
 
 
@@ -100,7 +102,8 @@ impl Default for InOutState {
 
 
 /// A widget representing an input/output and status area.
-#[derive(Debug, GuiWidget)]
+#[derive(Debug, Widget)]
+#[gui(Event = "Event")]
 pub struct InOutArea {
   id: Id,
   prev_focused: Option<Id>,
@@ -111,7 +114,7 @@ pub struct InOutArea {
 
 impl InOutArea {
   /// Create a new input/output area object.
-  pub fn new(id: Id, cap: &mut dyn Cap) -> Self {
+  pub fn new(id: Id, cap: &mut dyn MutCap<Event>) -> Self {
     // Install a hook to be able to reset the input/output area into
     // "clear" state on every key press.
     let _ = cap.hook_events(id, Some(&InOutArea::handle_hooked_event));
@@ -126,7 +129,7 @@ impl InOutArea {
   }
 
   /// Conditionally change the `InOut` state of the widget.
-  fn change_state(&mut self, in_out: InOut) -> Option<UiEvents> {
+  fn change_state(&mut self, in_out: InOut) -> Option<UiEvents<Event>> {
     // We received a request to change the state. Unconditionally bump
     // the generation it has, irrespective of whether we actually change
     // it (which we don't, if the new state is equal to what we already
@@ -154,9 +157,9 @@ impl InOutArea {
   }
 
   /// Handle a hooked event.
-  fn handle_hooked_event(widget: &mut dyn Widget,
-                         event: Event,
-                         _cap: &dyn Cap) -> Option<UiEvents> {
+  fn handle_hooked_event(widget: &mut dyn Widget<Event>,
+                         event: &Event,
+                         _cap: &dyn Cap) -> Option<UiEvents<Event>> {
     let in_out = widget.downcast_mut::<InOutArea>();
     if let Some(in_out) = in_out {
       // We basically schedule a "callback" by virtue of sending an
@@ -165,8 +168,7 @@ impl InOutArea {
       // about what happened and can determine whether we ultimately
       // want to set our state to "Clear" or not.
       match event {
-        Event::KeyDown(_) |
-        Event::KeyUp(_) => {
+        Event::Key(_) => {
           let event = Box::new(TermUiEvent::ClearInOut(in_out.in_out.gen));
           Some(UiEvent::Directed(in_out.id, event).into())
         },
@@ -179,7 +181,7 @@ impl InOutArea {
   /// Handle a custom event.
   fn handle_custom_event(&mut self,
                          event: Box<TermUiEvent>,
-                         cap: &mut dyn Cap) -> Option<UiEvents> {
+                         cap: &mut dyn MutCap<Event>) -> Option<UiEvents<Event>> {
     match *event {
       TermUiEvent::SetInOut(in_out) => {
         if let InOut::Input(ref s, idx) = in_out {
@@ -218,7 +220,9 @@ impl InOutArea {
   }
 
   /// Finish text input by changing the internal state and emitting an event.
-  fn finish_input(&mut self, string: Option<String>, cap: &mut dyn Cap) -> Option<UiEvents> {
+  fn finish_input(&mut self,
+                  string: Option<String>,
+                  cap: &mut dyn MutCap<Event>) -> Option<UiEvents<Event>> {
     let update = self.change_state(InOut::Clear);
     let widget = self.restore_focus(cap);
     let event = if let Some(s) = string {
@@ -227,7 +231,7 @@ impl InOutArea {
       Box::new(TermUiEvent::InputCanceled)
     };
     debug_assert!(update.is_some());
-    Some(UiEvent::Directed(widget, event)).chain(update)
+    Some(ChainEvent::from(UiEvent::Directed(widget, event))).chain(update)
   }
 
   /// Handle a key press.
@@ -236,11 +240,11 @@ impl InOutArea {
                 mut s: String,
                 mut idx: usize,
                 key: Key,
-                cap: &mut dyn Cap) -> Option<UiEvents> {
+                cap: &mut dyn MutCap<Event>) -> Option<UiEvents<Event>> {
     match key {
       Key::Esc |
-      Key::Return => {
-        let string = if key == Key::Return { Some(s) } else { None };
+      Key::Char('\n') => {
+        let string = if key == Key::Char('\n') { Some(s) } else { None };
         self.finish_input(string, cap)
       },
       // We cannot easily handle multi byte Unicode graphemes with
@@ -307,7 +311,7 @@ impl InOutArea {
                 _s: String,
                 idx: usize,
                 key: Key,
-                cap: &mut dyn Cap) -> Option<UiEvents> {
+                cap: &mut dyn MutCap<Event>) -> Option<UiEvents<Event>> {
     const BACKSPACE: char = 0x08 as char;
     const DELETE: char = 0x7f as char;
     const ESCAPE: char = 0x1b as char;
@@ -321,7 +325,6 @@ impl InOutArea {
     // means encoding deep terminal knowledge which we don't want to
     // have to deal with.
     let c = match key {
-      Key::Return => Some('\n'),
       Key::Backspace => Some(BACKSPACE),
       Key::Delete => Some(DELETE),
       Key::Esc => Some(ESCAPE),
@@ -371,7 +374,7 @@ impl InOutArea {
   }
 
   /// Focus the previously focused widget or the parent.
-  fn restore_focus(&mut self, cap: &mut dyn Cap) -> Id {
+  fn restore_focus(&mut self, cap: &mut dyn MutCap<Event>) -> Id {
     match self.prev_focused {
       Some(to_focus) => {
         cap.focus(to_focus);
@@ -389,12 +392,11 @@ impl InOutArea {
   }
 }
 
-impl Handleable for InOutArea {
+impl Handleable<Event> for InOutArea {
   /// Handle an event.
-  fn handle(&mut self, event: Event, cap: &mut dyn Cap) -> Option<UiEvents> {
+  fn handle(&mut self, event: Event, cap: &mut dyn MutCap<Event>) -> Option<UiEvents<Event>> {
     match event {
-      Event::KeyDown(key) |
-      Event::KeyUp(key) => {
+      Event::Key(key) => {
         let (s, idx) = if let InOut::Input(s, idx) = self.in_out.get() {
           (s.clone(), *idx)
         } else {
@@ -407,7 +409,9 @@ impl Handleable for InOutArea {
   }
 
   /// Handle a custom event.
-  fn handle_custom(&mut self, event: Box<dyn Any>, cap: &mut dyn Cap) -> Option<UiEvents> {
+  fn handle_custom(&mut self,
+                   event: Box<dyn Any>,
+                   cap: &mut dyn MutCap<Event>) -> Option<UiEvents<Event>> {
     match event.downcast::<TermUiEvent>() {
       Ok(e) => self.handle_custom_event(e, cap),
       Err(e) => panic!("Received unexpected custom event: {:?}", e),

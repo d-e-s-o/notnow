@@ -113,7 +113,6 @@ use termion::raw::IntoRawMode;
 use termion::screen::AlternateScreen;
 
 use gui::ChainEvent;
-use gui::Event as GuiEvent;
 use gui::Renderer;
 use gui::Ui;
 use gui::UnhandledEvent;
@@ -121,7 +120,7 @@ use gui::UnhandledEvents;
 
 use crate::resize::receive_window_resizes;
 use crate::state::State;
-use crate::ui::event::convert;
+use crate::ui::event::Event as UiEvent;
 use crate::ui::term_renderer::TermRenderer;
 use crate::ui::termui::TermUi;
 use crate::ui::termui::TermUiEvent;
@@ -176,7 +175,7 @@ fn ui_config() -> Result<PathBuf> {
 }
 
 /// Handle the given `UnhandledEvent`.
-fn handle_unhandled_event(event: UnhandledEvent) -> Continue {
+fn handle_unhandled_event(event: UnhandledEvent<UiEvent>) -> Continue {
   match event {
     UnhandledEvent::Quit => None,
     UnhandledEvent::Custom(data) => {
@@ -195,7 +194,7 @@ fn handle_unhandled_event(event: UnhandledEvent) -> Continue {
 }
 
 /// Handle the given chain of `UnhandledEvent` objects.
-fn handle_unhandled_events(events: UnhandledEvents) -> Continue {
+fn handle_unhandled_events(events: UnhandledEvents<UiEvent>) -> Continue {
   match events {
     ChainEvent::Event(event) => handle_unhandled_event(event),
     ChainEvent::Chain(event, chain) => {
@@ -217,7 +216,9 @@ fn receive_keys(send_event: Sender<Result<Event>>) {
 }
 
 /// Handle events in a loop.
-fn run_loop<R>(mut ui: Ui, renderer: &R, recv_event: &Receiver<Result<Event>>) -> Result<()>
+fn run_loop<R>(mut ui: Ui<UiEvent>,
+               renderer: &R,
+               recv_event: &Receiver<Result<Event>>) -> Result<()>
 where
   R: Renderer,
 {
@@ -237,12 +238,10 @@ where
           // Attempt to convert the key. If we fail the reason could be that
           // the key is not supported. We just ignore the failure. The UI
           // could not possibly react to it anyway.
-          if let Ok(key) = convert(key) {
-            if let Some(event) = ui.handle(GuiEvent::KeyDown(key)) {
-              match handle_unhandled_events(event) {
-                Some(update) => render = update || render,
-                None => break 'handler,
-              }
+          if let Some(event) = ui.handle(UiEvent::Key(key)) {
+            match handle_unhandled_events(event) {
+              Some(update) => render = update || render,
+              None => break 'handler,
             }
           }
         },

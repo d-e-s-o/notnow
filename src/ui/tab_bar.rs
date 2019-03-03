@@ -23,21 +23,21 @@ use std::cmp::min;
 use std::isize;
 use std::mem::replace;
 
-use gui::Cap;
 use gui::ChainEvent;
-use gui::Event;
+use gui::derive::Widget;
 use gui::EventChain;
 use gui::Handleable;
 use gui::Id;
-use gui::Key;
+use gui::MutCap;
 use gui::UiEvent;
 use gui::UiEvents;
-use gui_derive::GuiWidget;
 
 use crate::query::Query;
 use crate::state::TaskState;
 
+use super::event::Event;
 use super::event::EventUpdate;
+use super::event::Key;
 use super::in_out::InOut;
 use super::iteration::IterationState as IterationStateT;
 use super::task_list_box::TaskListBox;
@@ -147,7 +147,8 @@ fn sanitize_selection(selection: isize, count: usize) -> usize {
 
 
 /// A widget representing a tabbed container for other widgets.
-#[derive(Debug, GuiWidget)]
+#[derive(Debug, Widget)]
+#[gui(Event = "Event")]
 pub struct TabBar {
   id: Id,
   tabs: Vec<(String, Id)>,
@@ -158,7 +159,9 @@ pub struct TabBar {
 
 impl TabBar {
   /// Create a new `TabBar` widget.
-  pub fn new(id: Id, cap: &mut dyn Cap, task_state: &TaskState,
+  pub fn new(id: Id,
+             cap: &mut dyn MutCap<Event>,
+             task_state: &TaskState,
              queries: Vec<(Query, Option<usize>)>,
              selected: Option<usize>) -> Self {
     let count = queries.len();
@@ -199,7 +202,7 @@ impl TabBar {
   fn handle_search_task(&mut self,
                         string: String,
                         search_state: SearchState,
-                        mut iter_state: IterationState) -> Option<UiEvents> {
+                        mut iter_state: IterationState) -> Option<UiEvents<Event>> {
     match self.search {
       SearchT::Taken => {
         // We have to distinguish three cases here, in order:
@@ -243,7 +246,7 @@ impl TabBar {
   /// Handle a custom event.
   fn handle_custom_event(&mut self,
                          mut event: Box<TermUiEvent>,
-                         cap: &mut dyn Cap) -> Option<UiEvents> {
+                         cap: &mut dyn MutCap<Event>) -> Option<UiEvents<Event>> {
     match *event {
       TermUiEvent::SelectTask(_, ref mut state) => {
         let iter = self.tabs.iter().map(|x| x.1);
@@ -342,7 +345,7 @@ impl TabBar {
   }
 
   /// Change the currently selected tab.
-  fn set_select(&mut self, selection: isize, cap: &mut dyn Cap) -> bool {
+  fn set_select(&mut self, selection: isize, cap: &mut dyn MutCap<Event>) -> bool {
     let count = self.tabs.iter().len();
     let old_selection = sanitize_selection(self.selection, count);
     let new_selection = sanitize_selection(selection, count);
@@ -359,7 +362,7 @@ impl TabBar {
   }
 
   /// Change the currently selected tab.
-  fn select(&mut self, change: isize, cap: &mut dyn Cap) -> bool {
+  fn select(&mut self, change: isize, cap: &mut dyn MutCap<Event>) -> bool {
     let count = self.tabs.iter().len();
     let selection = sanitize_selection(self.selection, count);
     let new_selection = selection as isize + change;
@@ -367,18 +370,17 @@ impl TabBar {
   }
 
   /// Select the previously selected tab.
-  fn select_previous(&mut self, cap: &mut dyn Cap) -> bool {
+  fn select_previous(&mut self, cap: &mut dyn MutCap<Event>) -> bool {
     let selection = self.prev_selection;
     self.set_select(selection, cap)
   }
 }
 
-impl Handleable for TabBar {
+impl Handleable<Event> for TabBar {
   /// Check for new input and react to it.
-  fn handle(&mut self, event: Event, cap: &mut dyn Cap) -> Option<UiEvents> {
+  fn handle(&mut self, event: Event, cap: &mut dyn MutCap<Event>) -> Option<UiEvents<Event>> {
     match event {
-      Event::KeyDown(key) |
-      Event::KeyUp(key) => {
+      Event::Key(key) => {
         match key {
           Key::Char('1') => (None as Option<Event>).maybe_update(self.set_select(0, cap)),
           Key::Char('2') => (None as Option<Event>).maybe_update(self.set_select(1, cap)),
@@ -439,7 +441,9 @@ impl Handleable for TabBar {
   }
 
   /// Handle a custom event.
-  fn handle_custom(&mut self, event: Box<dyn Any>, cap: &mut dyn Cap) -> Option<UiEvents> {
+  fn handle_custom(&mut self,
+                   event: Box<dyn Any>,
+                   cap: &mut dyn MutCap<Event>) -> Option<UiEvents<Event>> {
     match event.downcast::<TermUiEvent>() {
       Ok(e) => self.handle_custom_event(e, cap),
       Err(e) => panic!("Received unexpected custom event: {:?}", e),

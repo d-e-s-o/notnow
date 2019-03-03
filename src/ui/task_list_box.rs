@@ -25,21 +25,21 @@ use std::rc::Rc;
 
 use cell::RefCell;
 
-use gui::Cap;
-use gui::Event;
 use gui::Handleable;
 use gui::Id;
-use gui::Key;
+use gui::MutCap;
 use gui::UiEvent;
 use gui::UiEvents;
-use gui_derive::GuiWidget;
+use gui::derive::Widget;
 
 use crate::query::Query;
 use crate::tasks::Id as TaskId;
 use crate::tasks::Task;
 use crate::tasks::Tasks;
 
+use super::event::Event;
 use super::event::EventUpdate;
+use super::event::Key;
 use super::in_out::InOut;
 use super::tab_bar::IterationState;
 use super::tab_bar::SearchState;
@@ -66,7 +66,8 @@ enum State {
 
 
 /// A widget representing a list of `Task` objects.
-#[derive(Debug, GuiWidget)]
+#[derive(Debug, Widget)]
+#[gui(Event = "Event")]
 pub struct TaskListBox {
   id: Id,
   tasks: Rc<RefCell<Tasks>>,
@@ -106,7 +107,9 @@ impl TaskListBox {
   /// conditions under which an update must happen, e.g., when the
   /// summary or the tags of the task changed. Handling of updates in
   /// those cases is left to clients.
-  fn handle_select_task(&mut self, task_id: TaskId, mut state: IterationState) -> Option<UiEvents> {
+  fn handle_select_task(&mut self,
+                        task_id: TaskId,
+                        mut state: IterationState) -> Option<UiEvents<Event>> {
     let idx = self.query.iter().position(|x| x.id() == task_id);
     if let Some(idx) = idx {
       let update = self.set_select(idx as isize);
@@ -127,7 +130,7 @@ impl TaskListBox {
   }
 
   /// Start the selection of a task.
-  fn handle_select_task_start(&mut self, task_id: TaskId) -> Option<UiEvents> {
+  fn handle_select_task_start(&mut self, task_id: TaskId) -> Option<UiEvents<Event>> {
     let state = IterationState::new(self.id);
     self.handle_select_task(task_id, state)
   }
@@ -190,7 +193,7 @@ impl TaskListBox {
   fn handle_search_task(&mut self,
                         string: &str,
                         search_state: &mut SearchState,
-                        iter_state: &mut IterationState) -> Option<UiEvents> {
+                        iter_state: &mut IterationState) -> Option<UiEvents<Event>> {
     debug_assert_eq!(string, &string.to_ascii_lowercase());
 
     let idx = self.search_task_index(string, search_state, iter_state);
@@ -208,7 +211,7 @@ impl TaskListBox {
   }
 
   /// Handle a custom event.
-  fn handle_custom_event(&mut self, event: Box<TermUiEvent>) -> Option<UiEvents> {
+  fn handle_custom_event(&mut self, event: Box<TermUiEvent>) -> Option<UiEvents<Event>> {
     match *event {
       TermUiEvent::SelectTask(task_id, state) => {
         self.handle_select_task(task_id, state)
@@ -267,7 +270,7 @@ impl TaskListBox {
   }
 
   /// Handle a "returnable" custom event.
-  fn handle_custom_event_ref(&mut self, event: &mut TermUiEvent) -> Option<UiEvents> {
+  fn handle_custom_event_ref(&mut self, event: &mut TermUiEvent) -> Option<UiEvents<Event>> {
     match event {
       TermUiEvent::SearchTask(string, search_state, iter_state) => {
         self.handle_search_task(string, search_state, iter_state)
@@ -342,12 +345,11 @@ impl TaskListBox {
   }
 }
 
-impl Handleable for TaskListBox {
+impl Handleable<Event> for TaskListBox {
   /// Check for new input and react to it.
-  fn handle(&mut self, event: Event, _cap: &mut dyn Cap) -> Option<UiEvents> {
+  fn handle(&mut self, event: Event, _cap: &mut dyn MutCap<Event>) -> Option<UiEvents<Event>> {
     match event {
-      Event::KeyDown(key) |
-      Event::KeyUp(key) => {
+      Event::Key(key) => {
         match key {
           Key::Char(' ') => {
             if !self.query().is_empty() {
@@ -431,7 +433,9 @@ impl Handleable for TaskListBox {
   }
 
   /// Handle a custom event.
-  fn handle_custom(&mut self, event: Box<dyn Any>, _cap: &mut dyn Cap) -> Option<UiEvents> {
+  fn handle_custom(&mut self,
+                   event: Box<dyn Any>,
+                   _cap: &mut dyn MutCap<Event>) -> Option<UiEvents<Event>> {
     match event.downcast::<TermUiEvent>() {
       Ok(e) => self.handle_custom_event(e),
       Err(e) => panic!("Received unexpected custom event: {:?}", e),
@@ -439,7 +443,9 @@ impl Handleable for TaskListBox {
   }
 
   /// Handle a custom event.
-  fn handle_custom_ref(&mut self, event: &mut dyn Any, _cap: &mut dyn Cap) -> Option<UiEvents> {
+  fn handle_custom_ref(&mut self,
+                       event: &mut dyn Any,
+                       _cap: &mut dyn MutCap<Event>) -> Option<UiEvents<Event>> {
     match event.downcast_mut::<TermUiEvent>() {
       Some(e) => self.handle_custom_event_ref(e),
       None => panic!("Received unexpected custom event"),

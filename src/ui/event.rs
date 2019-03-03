@@ -17,17 +17,24 @@
 // * along with this program.  If not, see <http://www.gnu.org/licenses/>. *
 // *************************************************************************
 
-use termion::event::Key as TermKey;
-
-use gui::ChainEvent as GuiChainEvent;
+use gui::ChainEvent;
 use gui::EventChain;
-use gui::Key as GuiKey;
-use gui::UiEvent as GuiUiEvent;
-use gui::UiEvents as GuiUiEvents;
-use gui::UnhandledEvent as GuiUnhandledEvent;
-use gui::UnhandledEvents as GuiUnhandledEvents;
+use gui::UiEvent;
+use gui::UiEvents;
+use gui::UnhandledEvent;
+use gui::UnhandledEvents;
 
 use super::termui::TermUiEvent;
+
+/// A key as used by the UI.
+pub use termion::event::Key;
+
+
+/// An event as used by the UI.
+#[derive(Clone, Debug)]
+pub enum Event {
+  Key(Key),
+}
 
 
 pub trait EventUpdated {
@@ -35,12 +42,12 @@ pub trait EventUpdated {
   fn is_updated(&self) -> bool;
 }
 
-impl EventUpdated for GuiUiEvent {
+impl EventUpdated for UiEvent<Event> {
   fn is_updated(&self) -> bool {
     match self {
-      GuiUiEvent::Custom(data) |
-      GuiUiEvent::Directed(_, data) |
-      GuiUiEvent::Returnable(_, _, data) => {
+      UiEvent::Custom(data) |
+      UiEvent::Directed(_, data) |
+      UiEvent::Returnable(_, _, data) => {
         if let Some(event) = data.downcast_ref::<TermUiEvent>() {
           event.is_updated()
         } else {
@@ -52,36 +59,36 @@ impl EventUpdated for GuiUiEvent {
   }
 }
 
-impl EventUpdated for GuiUiEvents {
+impl EventUpdated for UiEvents<Event> {
   fn is_updated(&self) -> bool {
     match self {
-      GuiChainEvent::Event(event) => event.is_updated(),
-      GuiChainEvent::Chain(event, chain) => event.is_updated() || chain.is_updated(),
+      ChainEvent::Event(event) => event.is_updated(),
+      ChainEvent::Chain(event, chain) => event.is_updated() || chain.is_updated(),
     }
   }
 }
 
-impl EventUpdated for GuiUnhandledEvent {
+impl EventUpdated for UnhandledEvent<Event> {
   fn is_updated(&self) -> bool {
     match self {
-      GuiUnhandledEvent::Custom(data) => {
+      UnhandledEvent::Custom(data) => {
         if let Some(event) = data.downcast_ref::<TermUiEvent>() {
           event.is_updated()
         } else {
           false
         }
       },
-      GuiUnhandledEvent::Event(_) |
-      GuiUnhandledEvent::Quit => false,
+      UnhandledEvent::Event(_) |
+      UnhandledEvent::Quit => false,
     }
   }
 }
 
-impl EventUpdated for GuiUnhandledEvents {
+impl EventUpdated for UnhandledEvents<Event> {
   fn is_updated(&self) -> bool {
     match self {
-      GuiChainEvent::Event(event) => event.is_updated(),
-      GuiChainEvent::Chain(event, chain) => event.is_updated() || chain.is_updated(),
+      ChainEvent::Event(event) => event.is_updated(),
+      ChainEvent::Chain(event, chain) => event.is_updated() || chain.is_updated(),
     }
   }
 }
@@ -90,18 +97,18 @@ impl EventUpdated for GuiUnhandledEvents {
 /// A trait to chain a `TermUiEvent::Updated` event to an event.
 pub trait EventUpdate {
   /// Chain an update event onto yourself.
-  fn update(self) -> Option<GuiUiEvents>;
+  fn update(self) -> Option<UiEvents<Event>>;
 
   /// Potentially chain an update event onto yourself.
-  fn maybe_update(self, update: bool) -> Option<GuiUiEvents>;
+  fn maybe_update(self, update: bool) -> Option<UiEvents<Event>>;
 }
 
 impl<E> EventUpdate for Option<E>
 where
-  E: Into<GuiUiEvents>,
+  E: Into<UiEvents<Event>>,
 {
-  fn update(self) -> Option<GuiUiEvents> {
-    let updated = GuiUiEvent::Custom(Box::new(TermUiEvent::Updated));
+  fn update(self) -> Option<UiEvents<Event>> {
+    let updated = UiEvent::Custom(Box::new(TermUiEvent::Updated));
 
     Some(match self {
       Some(event) => {
@@ -119,36 +126,12 @@ where
     })
   }
 
-  fn maybe_update(self, update: bool) -> Option<GuiUiEvents> {
+  fn maybe_update(self, update: bool) -> Option<UiEvents<Event>> {
     if update {
       self.update()
     } else {
       self.and_then(|x| Some(x.into()))
     }
-  }
-}
-
-
-/// Convert a `termion::event::Key` into a `gui::Key`.
-///
-/// If the conversion fails, the supplied key is returned.
-pub fn convert(key: TermKey) -> Result<GuiKey, TermKey> {
-  match key {
-    TermKey::Backspace => Ok(GuiKey::Backspace),
-    TermKey::Char(c) if c == '\n' => Ok(GuiKey::Return),
-    TermKey::Char(c) => Ok(GuiKey::Char(c)),
-    TermKey::Delete => Ok(GuiKey::Delete),
-    TermKey::Down => Ok(GuiKey::Down),
-    TermKey::End => Ok(GuiKey::End),
-    TermKey::Esc => Ok(GuiKey::Esc),
-    TermKey::Home => Ok(GuiKey::Home),
-    TermKey::Insert => Ok(GuiKey::Insert),
-    TermKey::Left => Ok(GuiKey::Left),
-    TermKey::PageDown => Ok(GuiKey::PageDown),
-    TermKey::PageUp => Ok(GuiKey::PageUp),
-    TermKey::Right => Ok(GuiKey::Right),
-    TermKey::Up => Ok(GuiKey::Up),
-    _ => Err(key),
   }
 }
 
@@ -159,8 +142,6 @@ pub mod tests {
   use super::*;
 
   use gui::ChainEvent;
-  use gui::Event;
-  use gui::Key;
   use gui::UiEvent;
   use gui::UnhandledEvent;
   use gui::UnhandledEvents;
@@ -174,7 +155,7 @@ pub mod tests {
       T: 'static;
   }
 
-  impl CustomEvent for UnhandledEvent {
+  impl CustomEvent for UnhandledEvent<Event> {
     fn unwrap_custom<T>(self) -> T
     where
       T: 'static,
@@ -186,7 +167,7 @@ pub mod tests {
     }
   }
 
-  impl CustomEvent for UnhandledEvents {
+  impl CustomEvent for UnhandledEvents<Event> {
     fn unwrap_custom<T>(self) -> T
     where
       T: 'static,
@@ -218,15 +199,12 @@ pub mod tests {
 
   #[test]
   fn update_some_event() {
-    let event = Some(Event::KeyUp(Key::Char(' '))).update().update();
+    let event = Some(Event::Key(Key::Char(' '))).update().update();
     match event.unwrap() {
       ChainEvent::Chain(event, chain) => {
         match event {
-          UiEvent::Event(event) => {
-            match event {
-              Event::KeyUp(key) => assert_eq!(key, Key::Char(' ')),
-              _ => assert!(false),
-            }
+          UiEvent::Event(Event::Key(key)) => {
+            assert_eq!(key, Key::Char(' '))
           },
           _ => assert!(false),
         };
@@ -259,7 +237,7 @@ pub mod tests {
   #[test]
   #[should_panic(expected = "Unexpected event")]
   fn unwrap_unhandled_event_of_wrong_type() {
-    let event = Event::KeyUp(Key::Esc);
+    let event = Event::Key(Key::Esc);
     let event = UnhandledEvent::Event(event);
     let event = ChainEvent::Event(event);
 
