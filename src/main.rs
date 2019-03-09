@@ -107,8 +107,9 @@ use std::thread;
 
 use dirs::config_dir;
 
+use termion::event::Event as TermEvent;
 use termion::event::Key;
-use termion::input::TermRead;
+use termion::input::TermReadEventsAndRaw;
 use termion::raw::IntoRawMode;
 use termion::screen::AlternateScreen;
 
@@ -141,10 +142,10 @@ type Continue = Option<bool>;
 
 
 /// An event to be handled by the program.
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub enum Event {
-  /// A key that has been received.
-  Key(Key),
+  /// A key that has been received, including the raw input data.
+  Key(Key, Vec<u8>),
   /// The window has been resized.
   Resize,
 }
@@ -207,10 +208,14 @@ fn handle_unhandled_events(events: UnhandledEvents<UiEvent>) -> Continue {
 /// Instantiate a key receiver thread and have it send key events through the given channel.
 fn receive_keys(send_event: Sender<Result<Event>>) {
   let _ = thread::spawn(move || {
-    let keys = stdin().keys();
-    for key in keys {
-      let event = key.map(&Event::Key);
-      send_event.send(event).unwrap();
+    let events = stdin().events_and_raw();
+    for event in events {
+      let result = match event {
+        Ok((TermEvent::Key(key), data)) => Ok(Event::Key(key, data)),
+        Ok(..) => continue,
+        Err(err) => Err(err)
+      };
+      send_event.send(result).unwrap();
     }
   });
 }
@@ -234,7 +239,7 @@ where
     let event = recv_event.recv().unwrap();
     for event in Some(event).into_iter().chain(recv_event.try_iter()) {
       match event? {
-        Event::Key(key) => {
+        Event::Key(key, _) => {
           // Attempt to convert the key. If we fail the reason could be that
           // the key is not supported. We just ignore the failure. The UI
           // could not possibly react to it anyway.
