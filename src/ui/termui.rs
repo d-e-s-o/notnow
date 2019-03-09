@@ -200,7 +200,7 @@ impl Handleable<Event> for TermUi {
   /// Check for new input and react to it.
   fn handle(&mut self, event: Event, _cap: &mut dyn MutCap<Event>) -> Option<UiEvents<Event>> {
     match event {
-      Event::Key(key) => {
+      Event::Key(key, _) => {
         match key {
           Key::Char('q') => Some(UiEvent::Quit.into()),
           Key::Char('w') => Some(self.save()),
@@ -252,13 +252,13 @@ mod tests {
 
   impl From<Key> for Event {
     fn from(key: Key) -> Self {
-      Event::Key(key)
+      Event::Key(key, ())
     }
   }
 
   impl From<char> for Event {
     fn from(c: char) -> Self {
-      Event::Key(Key::Char(c))
+      Event::Key(Key::Char(c), ())
     }
   }
 

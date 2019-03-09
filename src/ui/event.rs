@@ -33,12 +33,18 @@ pub use termion::event::Key;
 /// An event as used by the UI.
 #[derive(Clone, Debug)]
 pub enum Event {
-  Key(Key),
+  #[cfg(not(feature = "readline"))]
+  Key(Key, ()),
+  #[cfg(feature = "readline")]
+  Key(Key, Vec<u8>),
 }
 
 impl From<u8> for Event {
   fn from(b: u8) -> Self {
-    Event::Key(Key::Char(char::from(b)))
+    #[cfg(not(feature = "readline"))]
+    { Event::Key(Key::Char(char::from(b)), ()) }
+    #[cfg(feature = "readline")]
+    { Event::Key(Key::Char(char::from(b)), vec![b]) }
   }
 }
 
@@ -209,7 +215,7 @@ pub mod tests {
     match event.unwrap() {
       ChainEvent::Chain(event, chain) => {
         match event {
-          UiEvent::Event(Event::Key(key)) => {
+          UiEvent::Event(Event::Key(key, _)) => {
             assert_eq!(key, Key::Char(' '))
           },
           _ => assert!(false),

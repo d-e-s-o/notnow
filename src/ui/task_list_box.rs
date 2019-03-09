@@ -349,7 +349,7 @@ impl Handleable<Event> for TaskListBox {
   /// Check for new input and react to it.
   fn handle(&mut self, event: Event, _cap: &mut dyn MutCap<Event>) -> Option<UiEvents<Event>> {
     match event {
-      Event::Key(key) => {
+      Event::Key(key, _) => {
         match key {
           Key::Char(' ') => {
             if !self.query().is_empty() {

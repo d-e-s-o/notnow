@@ -239,11 +239,16 @@ where
     let event = recv_event.recv().unwrap();
     for event in Some(event).into_iter().chain(recv_event.try_iter()) {
       match event? {
-        Event::Key(key, _) => {
+        Event::Key(key, raw) => {
           // Attempt to convert the key. If we fail the reason could be that
           // the key is not supported. We just ignore the failure. The UI
           // could not possibly react to it anyway.
-          if let Some(event) = ui.handle(UiEvent::Key(key)) {
+          #[cfg(not(feature = "readline"))]
+          let event = { let _ = raw; UiEvent::Key(key, ()) };
+          #[cfg(feature = "readline")]
+          let event = UiEvent::Key(key, raw);
+
+          if let Some(event) = ui.handle(event) {
             match handle_unhandled_events(event) {
               Some(update) => render = update || render,
               None => break 'handler,

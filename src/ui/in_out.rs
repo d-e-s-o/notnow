@@ -168,7 +168,7 @@ impl InOutArea {
       // about what happened and can determine whether we ultimately
       // want to set our state to "Clear" or not.
       match event {
-        Event::Key(_) => {
+        Event::Key(..) => {
           let event = Box::new(TermUiEvent::ClearInOut(in_out.in_out.gen));
           Some(UiEvent::Directed(in_out.id, event).into())
         },
@@ -240,6 +240,7 @@ impl InOutArea {
                 mut s: String,
                 mut idx: usize,
                 key: Key,
+                _raw: &(),
                 cap: &mut dyn MutCap<Event>) -> Option<UiEvents<Event>> {
     match key {
       Key::Esc |
@@ -311,65 +312,39 @@ impl InOutArea {
                 _s: String,
                 idx: usize,
                 key: Key,
+                raw: &[u8],
                 cap: &mut dyn MutCap<Event>) -> Option<UiEvents<Event>> {
-    const BACKSPACE: char = 0x08 as char;
-    const DELETE: char = 0x7f as char;
-    const ESCAPE: char = 0x1b as char;
-
-    // We only support a couple of very basic keys when running in
-    // readline enabled mode. The entire idea behind using libreadline
-    // is that we can stay closer to the central keyboard position and
-    // don't have to use, say, the arrow keys. Doing more would also
-    // require us to map more keys to much more complex character
-    // sequences that libreadline understands which in turn basically
-    // means encoding deep terminal knowledge which we don't want to
-    // have to deal with.
-    let c = match key {
-      Key::Backspace => Some(BACKSPACE),
-      Key::Delete => Some(DELETE),
-      Key::Esc => Some(ESCAPE),
-      Key::Char(c) if c.len_utf8() == 1 => Some(c),
-      _ => None,
-    };
-
-    if let Some(c) = c {
-      let mut buf = [0u8; 4];
-      let s = c.encode_utf8(&mut buf);
-
-      match self.readline.feed(s) {
-        Some(line) => self.finish_input(Some(line.into_string().unwrap()), cap),
-        None => {
-          let (s_, idx_) = self.readline.peek(|s, pos| (s.to_owned(), pos));
-          // We treat Esc a little specially. In a vi-mode enabled
-          // configuration of libreadline Esc cancels input mode when we
-          // are in it, and does nothing otherwise. That is what we are
-          // interested in here. So we peek at the index we get and see
-          // if it changed (because leaving input mode moves the cursor
-          // to the left by one). If nothing changed, then we actually
-          // cancel the text input. That is not the nicest logic, but
-          // the only way we have found that accomplishes what we want.
-          if key == Key::Esc && idx_ == idx {
-            // TODO: We have a problem here. What may end up happening
-            //       is that we disrupt libreadline's workflow by
-            //       effectively canceling what it was doing. If, for
-            //       instance, we were in vi-movement-mode and we simply
-            //       stop the input process libreadline does not know
-            //       about that and will stay in this mode. So next time
-            //       we start editing again, we will still be in this
-            //       mode. Unfortunately, rline's reset does not deal
-            //       with this case (perhaps rightly so). For now, just
-            //       create a new `Readline` context and that will take
-            //       care of resetting things to the default (which is
-            //       input mode).
-            self.readline = Readline::new();
-            self.finish_input(None, cap)
-          } else {
-            self.change_state(InOut::Input(s_.into_string().unwrap(), idx_))
-          }
-        },
-      }
-    } else {
-      None
+    match self.readline.feed(raw) {
+      Some(line) => self.finish_input(Some(line.into_string().unwrap()), cap),
+      None => {
+        let (s_, idx_) = self.readline.peek(|s, pos| (s.to_owned(), pos));
+        // We treat Esc a little specially. In a vi-mode enabled
+        // configuration of libreadline Esc cancels input mode when we
+        // are in it, and does nothing otherwise. That is what we are
+        // interested in here. So we peek at the index we get and see
+        // if it changed (because leaving input mode moves the cursor
+        // to the left by one). If nothing changed, then we actually
+        // cancel the text input. That is not the nicest logic, but
+        // the only way we have found that accomplishes what we want.
+        if key == Key::Esc && idx_ == idx {
+          // TODO: We have a problem here. What may end up happening
+          //       is that we disrupt libreadline's workflow by
+          //       effectively canceling what it was doing. If, for
+          //       instance, we were in vi-movement-mode and we simply
+          //       stop the input process libreadline does not know
+          //       about that and will stay in this mode. So next time
+          //       we start editing again, we will still be in this
+          //       mode. Unfortunately, rline's reset does not deal
+          //       with this case (perhaps rightly so). For now, just
+          //       create a new `Readline` context and that will take
+          //       care of resetting things to the default (which is
+          //       input mode).
+          self.readline = Readline::new();
+          self.finish_input(None, cap)
+        } else {
+          self.change_state(InOut::Input(s_.into_string().unwrap(), idx_))
+        }
+      },
     }
   }
 
@@ -396,14 +371,14 @@ impl Handleable<Event> for InOutArea {
   /// Handle an event.
   fn handle(&mut self, event: Event, cap: &mut dyn MutCap<Event>) -> Option<UiEvents<Event>> {
     match event {
-      Event::Key(key) => {
+      Event::Key(key, raw) => {
         let (s, idx) = if let InOut::Input(s, idx) = self.in_out.get() {
           (s.clone(), *idx)
         } else {
           panic!("In/out area not used for input.");
         };
 
-        self.handle_key(s, idx, key, cap)
+        self.handle_key(s, idx, key, &raw, cap)
       },
     }
   }

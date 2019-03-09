@@ -380,7 +380,7 @@ impl Handleable<Event> for TabBar {
   /// Check for new input and react to it.
   fn handle(&mut self, event: Event, cap: &mut dyn MutCap<Event>) -> Option<UiEvents<Event>> {
     match event {
-      Event::Key(key) => {
+      Event::Key(key, _) => {
         match key {
           Key::Char('1') => (None as Option<Event>).maybe_update(self.set_select(0, cap)),
           Key::Char('2') => (None as Option<Event>).maybe_update(self.set_select(1, cap)),

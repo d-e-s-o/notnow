@@ -66,11 +66,10 @@ In addition, when inputting text (e.g., when **a**dding or **e**diting a
 task), the backspace, delete, home, end, and left and right cursor keys
 have functions similar to those they carry most commonly.
 
-The program has limited support for [`libreadline`][libreadline] style
-task input, when built with the `readline` feature flag enabled. That
-is, when entering actual text (as opposed to just pressing a key to,
-say, selecting a different task), `libreadline` bindings will be
-honored.
+The program has support for [`libreadline`][libreadline] style task
+input, when built with the `readline` feature flag enabled. That is,
+when entering actual text (as opposed to just pressing a key to, say,
+selecting a different task), `libreadline` bindings will be honored.
 
 
 Status
