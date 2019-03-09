@@ -1,7 +1,7 @@
 // event.rs
 
 // *************************************************************************
-// * Copyright (C) 2018 Daniel Mueller (deso@posteo.net)                   *
+// * Copyright (C) 2018-2019 Daniel Mueller (deso@posteo.net)              *
 // *                                                                       *
 // * This program is free software: you can redistribute it and/or modify  *
 // * it under the terms of the GNU General Public License as published by  *
@@ -34,6 +34,12 @@ pub use termion::event::Key;
 #[derive(Clone, Debug)]
 pub enum Event {
   Key(Key),
+}
+
+impl From<u8> for Event {
+  fn from(b: u8) -> Self {
+    Event::Key(Key::Char(char::from(b)))
+  }
 }
 
 
@@ -199,7 +205,7 @@ pub mod tests {
 
   #[test]
   fn update_some_event() {
-    let event = Some(Event::Key(Key::Char(' '))).update().update();
+    let event = Some(Event::from(b' ')).update().update();
     match event.unwrap() {
       ChainEvent::Chain(event, chain) => {
         match event {
@@ -237,7 +243,7 @@ pub mod tests {
   #[test]
   #[should_panic(expected = "Unexpected event")]
   fn unwrap_unhandled_event_of_wrong_type() {
-    let event = Event::Key(Key::Esc);
+    let event = Event::from(b'x');
     let event = UnhandledEvent::Event(event);
     let event = ChainEvent::Event(event);
 
