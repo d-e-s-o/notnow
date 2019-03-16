@@ -17,16 +17,18 @@
 // * along with this program.  If not, see <http://www.gnu.org/licenses/>. *
 // *************************************************************************
 
+use std::any::Any;
 use std::cmp::max;
 use std::cmp::min;
 
 use gui::Cap;
+use gui::ChainEvent;
 use gui::Event;
 use gui::Handleable;
 use gui::Id;
 use gui::Key;
-use gui::MetaEvent;
 use gui::UiEvent;
+use gui::UiEvents;
 
 use event::EventUpdated;
 use state::State;
@@ -80,7 +82,7 @@ impl TabBar {
   }
 
   /// Handle a custom event.
-  fn handle_custom_event(&mut self, event: Box<TermUiEvent>, cap: &mut Cap) -> Option<MetaEvent> {
+  fn handle_custom_event(&mut self, event: Box<TermUiEvent>, cap: &mut Cap) -> Option<UiEvents> {
     match *event {
       TermUiEvent::SelectTask(task_id, widget_id) => {
         let next_idx = if let Some(widget_id) = widget_id {
@@ -96,8 +98,8 @@ impl TabBar {
         let next_tab = self.tabs.get(next_idx).map(|x| x.1);
         if let Some(next_tab) = next_tab {
           let event = Box::new(TermUiEvent::SelectTask(task_id, Some(next_tab)));
-          let event = UiEvent::Custom(next_tab, event);
-          Some(MetaEvent::UiEvent(event))
+          let event = UiEvent::Directed(next_tab, event);
+          Some(ChainEvent::Event(event))
         } else {
           None
         }
@@ -107,7 +109,7 @@ impl TabBar {
         let update = self.set_select(select as isize, cap);
         (None as Option<Event>).maybe_update(update)
       },
-      _ => Some(Event::Custom(event).into()),
+      _ => Some(UiEvent::Custom(event).into()),
     }
   }
 
@@ -151,7 +153,7 @@ impl TabBar {
 
 impl Handleable for TabBar {
   /// Check for new input and react to it.
-  fn handle(&mut self, event: Event, cap: &mut Cap) -> Option<MetaEvent> {
+  fn handle(&mut self, event: Event, cap: &mut Cap) -> Option<UiEvents> {
     match event {
       Event::KeyDown(key) |
       Event::KeyUp(key) => {
@@ -161,12 +163,14 @@ impl Handleable for TabBar {
           _ => Some(event.into()),
         }
       },
-      Event::Custom(data) => {
-        match data.downcast::<TermUiEvent>() {
-          Ok(e) => self.handle_custom_event(e, cap),
-          Err(e) => panic!("Received unexpected custom event: {:?}", e),
-        }
-      },
+    }
+  }
+
+  /// Handle a custom event.
+  fn handle_custom(&mut self, event: Box<Any>, cap: &mut Cap) -> Option<UiEvents> {
+    match event.downcast::<TermUiEvent>() {
+      Ok(e) => self.handle_custom_event(e, cap),
+      Err(e) => panic!("Received unexpected custom event: {:?}", e),
     }
   }
 }

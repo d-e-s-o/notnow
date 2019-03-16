@@ -19,18 +19,20 @@
 
 use termion::event::Key as TermKey;
 
-use gui::Event as GuiEvent;
+use gui::ChainEvent as GuiChainEvent;
 use gui::EventChain;
 use gui::Key as GuiKey;
-use gui::MetaEvent as GuiMetaEvent;
 use gui::UiEvent as GuiUiEvent;
+use gui::UiEvents as GuiUiEvents;
 
 use termui::TermUiEvent;
 
 
-fn is_event_updated(event: &GuiEvent) -> bool {
+fn is_ui_event_updated(event: &GuiUiEvent) -> bool {
   match event {
-    GuiEvent::Custom(data) => {
+    GuiUiEvent::Custom(data) |
+    GuiUiEvent::Directed(_, data) |
+    GuiUiEvent::Returnable(_, _, data) => {
       if let Some(event) = data.downcast_ref::<TermUiEvent>() {
         event.is_updated()
       } else {
@@ -41,20 +43,11 @@ fn is_event_updated(event: &GuiEvent) -> bool {
   }
 }
 
-fn is_ui_event_updated(event: &GuiUiEvent) -> bool {
-  match event {
-    GuiUiEvent::Event(event) => is_event_updated(event),
-    _ => false,
-  }
-}
-
 /// Check whether `update` has ever been called on the given event.
-pub fn is_updated(event: &GuiMetaEvent) -> bool {
+pub fn is_updated(event: &GuiUiEvents) -> bool {
   match event {
-    GuiMetaEvent::UiEvent(event) => is_ui_event_updated(event),
-    GuiMetaEvent::Chain(event, meta_event) => {
-      is_ui_event_updated(event) || is_updated(meta_event)
-    },
+    GuiChainEvent::Event(event) => is_ui_event_updated(event),
+    GuiChainEvent::Chain(event, chain) => is_ui_event_updated(event) || is_updated(chain),
   }
 }
 
@@ -62,18 +55,18 @@ pub fn is_updated(event: &GuiMetaEvent) -> bool {
 /// A trait to chain a `TermUiEvent::Updated` event to an event.
 pub trait EventUpdated {
   /// Chain an update event onto yourself.
-  fn update(self) -> Option<GuiMetaEvent>;
+  fn update(self) -> Option<GuiUiEvents>;
 
   /// Potentially chain an update event onto yourself.
-  fn maybe_update(self, update: bool) -> Option<GuiMetaEvent>;
+  fn maybe_update(self, update: bool) -> Option<GuiUiEvents>;
 }
 
 impl<E> EventUpdated for Option<E>
 where
-  E: Into<GuiMetaEvent>,
+  E: Into<GuiUiEvents>,
 {
-  fn update(self) -> Option<GuiMetaEvent> {
-    let updated = GuiEvent::Custom(Box::new(TermUiEvent::Updated));
+  fn update(self) -> Option<GuiUiEvents> {
+    let updated = GuiUiEvent::Custom(Box::new(TermUiEvent::Updated));
 
     Some(match self {
       Some(event) => {
@@ -91,7 +84,7 @@ where
     })
   }
 
-  fn maybe_update(self, update: bool) -> Option<GuiMetaEvent> {
+  fn maybe_update(self, update: bool) -> Option<GuiUiEvents> {
     if update {
       self.update()
     } else {
@@ -129,10 +122,12 @@ pub fn convert(key: TermKey) -> Result<GuiKey, TermKey> {
 pub mod tests {
   use super::*;
 
+  use gui::ChainEvent;
   use gui::Event;
   use gui::Key;
-  use gui::MetaEvent;
   use gui::UiEvent;
+  use gui::UnhandledEvent;
+  use gui::UnhandledEvents;
 
 
   /// A trait for working with custom events.
@@ -143,37 +138,25 @@ pub mod tests {
       T: 'static;
   }
 
-  impl CustomEvent for Event {
+  impl CustomEvent for UnhandledEvent {
     fn unwrap_custom<T>(self) -> T
     where
       T: 'static,
     {
       match self {
-        Event::Custom(x) => *x.downcast::<T>().unwrap(),
+        UnhandledEvent::Custom(event) => *event.downcast::<T>().unwrap(),
         _ => panic!("Unexpected event: {:?}", self),
       }
     }
   }
 
-  impl CustomEvent for UiEvent {
+  impl CustomEvent for UnhandledEvents {
     fn unwrap_custom<T>(self) -> T
     where
       T: 'static,
     {
       match self {
-        UiEvent::Event(event) => event.unwrap_custom(),
-        _ => panic!("Unexpected event: {:?}", self),
-      }
-    }
-  }
-
-  impl CustomEvent for MetaEvent {
-    fn unwrap_custom<T>(self) -> T
-    where
-      T: 'static,
-    {
-      match self {
-        MetaEvent::UiEvent(event) => event.unwrap_custom(),
+        ChainEvent::Event(event) => event.unwrap_custom(),
         _ => panic!("Unexpected event: {:?}", self),
       }
     }
@@ -184,16 +167,11 @@ pub mod tests {
   fn update_none() {
     let event = (None as Option<Event>).update().update();
     match event.unwrap() {
-      MetaEvent::UiEvent(event) => {
+      ChainEvent::Event(event) => {
         match event {
-          UiEvent::Event(event) => {
-            match event {
-              Event::Custom(data) => {
-                let event = data.downcast::<TermUiEvent>().unwrap();
-                assert!(event.is_updated())
-              },
-              _ => assert!(false),
-            }
+          UiEvent::Custom(data) => {
+            let event = data.downcast::<TermUiEvent>().unwrap();
+            assert!(event.is_updated())
           },
           _ => assert!(false),
         }
@@ -206,7 +184,7 @@ pub mod tests {
   fn update_some_event() {
     let event = Some(Event::KeyUp(Key::Char(' '))).update().update();
     match event.unwrap() {
-      MetaEvent::Chain(event, meta_event) => {
+      ChainEvent::Chain(event, chain) => {
         match event {
           UiEvent::Event(event) => {
             match event {
@@ -217,17 +195,12 @@ pub mod tests {
           _ => assert!(false),
         };
 
-        match *meta_event {
-          MetaEvent::UiEvent(event) => {
+        match *chain {
+          ChainEvent::Event(event) => {
             match event {
-              UiEvent::Event(event) => {
-                match event {
-                  Event::Custom(data) => {
-                    let event = data.downcast::<TermUiEvent>().unwrap();
-                    assert!(event.is_updated())
-                  },
-                  _ => assert!(false),
-                }
+              UiEvent::Custom(data) => {
+                let event = data.downcast::<TermUiEvent>().unwrap();
+                assert!(event.is_updated())
               },
               _ => assert!(false),
             }
@@ -240,20 +213,19 @@ pub mod tests {
   }
 
   #[test]
-  fn unwrap_meta_event() {
-    let event = Event::Custom(Box::new(42u64));
-    let event = UiEvent::Event(event);
-    let event = MetaEvent::UiEvent(event);
+  fn unwrap_unhandled_event() {
+    let event = UnhandledEvent::Custom(Box::new(42u64));
+    let event = ChainEvent::Event(event);
 
     assert_eq!(event.unwrap_custom::<u64>(), 42);
   }
 
   #[test]
   #[should_panic(expected = "Unexpected event")]
-  fn unwrap_meta_event_of_wrong_type() {
+  fn unwrap_unhandled_event_of_wrong_type() {
     let event = Event::KeyUp(Key::Esc);
-    let event = UiEvent::Event(event);
-    let event = MetaEvent::UiEvent(event);
+    let event = UnhandledEvent::Event(event);
+    let event = ChainEvent::Event(event);
 
     event.unwrap_custom::<u64>();
   }

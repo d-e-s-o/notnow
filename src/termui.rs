@@ -17,6 +17,7 @@
 // * along with this program.  If not, see <http://www.gnu.org/licenses/>. *
 // *************************************************************************
 
+use std::any::Any;
 use std::io::Result;
 
 use gui::Cap;
@@ -24,8 +25,8 @@ use gui::Event;
 use gui::Handleable;
 use gui::Id;
 use gui::Key;
-use gui::MetaEvent;
 use gui::UiEvent;
+use gui::UiEvents;
 
 use in_out::InOut;
 use in_out::InOutArea;
@@ -109,42 +110,42 @@ impl TermUi {
   }
 
   /// Save the current state.
-  fn save(&mut self) -> MetaEvent {
+  fn save(&mut self) -> UiEvents {
     let in_out = match self.state.save() {
       Ok(_) => InOut::Saved,
       Err(err) => InOut::Error(format!("{}", err)),
     };
     let event = TermUiEvent::SetInOut(in_out);
-    UiEvent::Custom(self.in_out, Box::new(event)).into()
+    UiEvent::Directed(self.in_out, Box::new(event)).into()
   }
 
   /// Handle a custom event.
-  fn handle_custom_event(&mut self, event: Box<TermUiEvent>) -> Option<MetaEvent> {
+  fn handle_custom_event(&mut self, event: Box<TermUiEvent>) -> Option<UiEvents> {
     match *event {
       TermUiEvent::SetInOut(_) => {
-        Some(UiEvent::Custom(self.in_out, event).into())
+        Some(UiEvent::Directed(self.in_out, event).into())
       },
       #[cfg(test)]
       TermUiEvent::GetTasks => {
         let tasks = self.state.tasks();
         let tasks = tasks.borrow().iter().cloned().collect();
         let resp = TermUiEvent::GetTasksResp(tasks);
-        Some(Event::Custom(Box::new(resp)).into())
+        Some(UiEvent::Custom(Box::new(resp)).into())
       },
       #[cfg(test)]
       TermUiEvent::GetInOut => {
         // We merely relay this event to the InOutArea widget, which is
         // the only entity able to satisfy the request.
-        Some(UiEvent::Custom(self.in_out, event).into())
+        Some(UiEvent::Directed(self.in_out, event).into())
       },
-      _ => Some(Event::Custom(event).into()),
+      _ => Some(UiEvent::Custom(event).into()),
     }
   }
 }
 
 impl Handleable for TermUi {
   /// Check for new input and react to it.
-  fn handle(&mut self, event: Event, _cap: &mut Cap) -> Option<MetaEvent> {
+  fn handle(&mut self, event: Event, _cap: &mut Cap) -> Option<UiEvents> {
     match event {
       Event::KeyDown(key) |
       Event::KeyUp(key) => {
@@ -154,12 +155,14 @@ impl Handleable for TermUi {
           _ => Some(event.into()),
         }
       },
-      Event::Custom(data) => {
-        match data.downcast::<TermUiEvent>() {
-          Ok(e) => self.handle_custom_event(e),
-          Err(e) => panic!("Received unexpected custom event: {:?}", e),
-        }
-      },
+    }
+  }
+
+  /// Handle a custom event.
+  fn handle_custom(&mut self, event: Box<Any>, _cap: &mut Cap) -> Option<UiEvents> {
+    match event.downcast::<TermUiEvent>() {
+      Ok(e) => self.handle_custom_event(e),
+      Err(e) => panic!("Received unexpected custom event: {:?}", e),
     }
   }
 }
@@ -170,6 +173,7 @@ mod tests {
   use super::*;
 
   use gui::Ui;
+  use gui::UnhandledEvent;
 
   use event::tests::CustomEvent;
   use ser::query::Query as SerQuery;
@@ -199,7 +203,7 @@ mod tests {
 
     for event in events.drain(..) {
       if let Some(event) = ui.handle(event) {
-        if let UiEvent::Quit = event.into_last() {
+        if let UnhandledEvent::Quit = event.into_last() {
           break
         }
       }
@@ -256,7 +260,7 @@ mod tests {
     };
 
     let mut ui = test_ui(prog_state, task_state, events);
-    let event = Event::Custom(Box::new(TermUiEvent::GetTasks));
+    let event = UiEvent::Custom(Box::new(TermUiEvent::GetTasks));
     let resp = ui.handle(event).unwrap().unwrap_custom::<TermUiEvent>();
 
     if let TermUiEvent::GetTasksResp(tasks) = resp {
@@ -272,7 +276,7 @@ mod tests {
   /// were in the `TermUi`.
   fn test_for_tasks(tasks: Vec<SerTask>, events: Vec<UiEvent>) -> Vec<Task> {
     let mut ui = test_ui_with_tasks(tasks, events);
-    let event = Event::Custom(Box::new(TermUiEvent::GetTasks));
+    let event = UiEvent::Custom(Box::new(TermUiEvent::GetTasks));
     let resp = ui.handle(event).unwrap().unwrap_custom::<TermUiEvent>();
 
     if let TermUiEvent::GetTasksResp(tasks) = resp {
@@ -832,7 +836,7 @@ mod tests {
   /// Test function for the `TermUi` that returns the state of the `InOutArea` widget.
   fn test_state(tasks: Vec<SerTask>, events: Vec<UiEvent>) -> InOut {
     let mut ui = test_ui_with_tasks(tasks, events);
-    let event = Event::Custom(Box::new(TermUiEvent::GetInOut));
+    let event = UiEvent::Custom(Box::new(TermUiEvent::GetInOut));
     let resp = ui.handle(event).unwrap().unwrap_custom::<TermUiEvent>();
 
     if let TermUiEvent::GetInOutResp(in_out) = resp {

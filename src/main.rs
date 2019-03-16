@@ -116,11 +116,12 @@ use termion::input::TermRead;
 use termion::raw::IntoRawMode;
 use termion::screen::AlternateScreen;
 
+use gui::ChainEvent;
 use gui::Event as GuiEvent;
-use gui::MetaEvent as GuiMetaEvent;
 use gui::Renderer;
 use gui::Ui;
-use gui::UiEvent;
+use gui::UnhandledEvent;
+use gui::UnhandledEvents;
 
 use event::convert;
 use resize::receive_window_resizes;
@@ -174,11 +175,11 @@ fn task_config() -> Result<PathBuf> {
   )
 }
 
-/// Handle the given `UiEvent`.
-fn handle_ui_event(event: UiEvent) -> Continue {
+/// Handle the given `UnhandledEvent`.
+fn handle_unhandled_event(event: UnhandledEvent) -> Continue {
   match event {
-    UiEvent::Quit => None,
-    UiEvent::Event(GuiEvent::Custom(data)) => {
+    UnhandledEvent::Quit => None,
+    UnhandledEvent::Custom(data) => {
       match data.downcast::<TermUiEvent>() {
         Ok(event) => {
           match *event {
@@ -193,13 +194,13 @@ fn handle_ui_event(event: UiEvent) -> Continue {
   }
 }
 
-/// Handle the given `GuiMetaEvent`.
-fn handle_meta_event(event: GuiMetaEvent) -> Continue {
-  match event {
-    GuiMetaEvent::UiEvent(ui_event) => handle_ui_event(ui_event),
-    GuiMetaEvent::Chain(ui_event, meta_event) => {
-      handle_ui_event(ui_event)?;
-      handle_meta_event(*meta_event)
+/// Handle the given chain of `UnhandledEvent` objects.
+fn handle_unhandled_events(events: UnhandledEvents) -> Continue {
+  match events {
+    ChainEvent::Event(event) => handle_unhandled_event(event),
+    ChainEvent::Chain(event, chain) => {
+      handle_unhandled_event(event)?;
+      handle_unhandled_events(*chain)
     },
   }
 }
@@ -238,7 +239,7 @@ where
           // could not possibly react to it anyway.
           if let Ok(key) = convert(key) {
             if let Some(event) = ui.handle(GuiEvent::KeyDown(key)) {
-              match handle_meta_event(event) {
+              match handle_unhandled_events(event) {
                 Some(update) => render = update || render,
                 None => break 'handler,
               }

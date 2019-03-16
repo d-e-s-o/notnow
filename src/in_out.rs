@@ -17,13 +17,15 @@
 // * along with this program.  If not, see <http://www.gnu.org/licenses/>. *
 // *************************************************************************
 
+use std::any::Any;
+
 use gui::Cap;
 use gui::Event;
 use gui::Handleable;
 use gui::Id;
 use gui::Key;
-use gui::MetaEvent;
 use gui::UiEvent;
+use gui::UiEvents;
 use gui::Widget;
 
 use event::EventUpdated;
@@ -63,7 +65,7 @@ impl InOutArea {
   }
 
   /// Conditionally change the `InOut` state of the widget.
-  fn change_state(&mut self, in_out: InOut) -> Option<MetaEvent> {
+  fn change_state(&mut self, in_out: InOut) -> Option<UiEvents> {
     if in_out != self.in_out {
       self.in_out = in_out;
       (None as Option<Event>).update()
@@ -73,7 +75,7 @@ impl InOutArea {
   }
 
   /// Handle a hooked event.
-  fn handle_hooked_event(widget: &mut Widget, event: &Event, cap: &Cap) -> Option<MetaEvent> {
+  fn handle_hooked_event(widget: &mut Widget, event: Event, cap: &Cap) -> Option<UiEvents> {
     let in_out = widget.downcast_mut::<InOutArea>();
     if let Some(in_out) = in_out {
       // If we are focused then text is being entered and we should not
@@ -82,7 +84,6 @@ impl InOutArea {
         match event {
           Event::KeyDown(_) |
           Event::KeyUp(_) => in_out.change_state(InOut::Clear),
-          _ => None,
         }
       } else {
         None
@@ -93,7 +94,7 @@ impl InOutArea {
   }
 
   /// Handle a custom event.
-  fn handle_custom_event(&mut self, event: Box<TermUiEvent>, cap: &mut Cap) -> Option<MetaEvent> {
+  fn handle_custom_event(&mut self, event: Box<TermUiEvent>, cap: &mut Cap) -> Option<UiEvents> {
     match *event {
       TermUiEvent::SetInOut(in_out) => {
         if let InOut::Input(ref s, idx) = in_out {
@@ -109,9 +110,9 @@ impl InOutArea {
       #[cfg(test)]
       TermUiEvent::GetInOut => {
         let resp = TermUiEvent::GetInOutResp(self.in_out.clone());
-        Some(Event::Custom(Box::new(resp)).into())
+        Some(UiEvent::Custom(Box::new(resp)).into())
       },
-      _ => Some(Event::Custom(event).into()),
+      _ => Some(UiEvent::Custom(event).into()),
     }
   }
 
@@ -137,7 +138,7 @@ impl InOutArea {
 
 impl Handleable for InOutArea {
   /// Handle an event.
-  fn handle(&mut self, event: Event, cap: &mut Cap) -> Option<MetaEvent> {
+  fn handle(&mut self, event: Event, cap: &mut Cap) -> Option<UiEvents> {
     match event {
       Event::KeyDown(key) |
       Event::KeyUp(key) => {
@@ -152,7 +153,7 @@ impl Handleable for InOutArea {
             self.in_out = InOut::Clear;
 
             let event = if let Some(id) = self.prev_focused {
-              Some(UiEvent::Custom(id, Box::new(TermUiEvent::EnteredText(s))))
+              Some(UiEvent::Directed(id, Box::new(TermUiEvent::EnteredText(s))))
             } else {
               None
             };
@@ -219,17 +220,19 @@ impl Handleable for InOutArea {
             self.in_out = InOut::Clear;
             let widget = self.restore_focus(cap);
             let event = Box::new(TermUiEvent::InputCanceled);
-            Some(UiEvent::Custom(widget, event)).update()
+            Some(UiEvent::Directed(widget, event)).update()
           },
           _ => None,
         }
       },
-      Event::Custom(data) => {
-        match data.downcast::<TermUiEvent>() {
-          Ok(e) => self.handle_custom_event(e, cap),
-          Err(e) => panic!("Received unexpected custom event: {:?}", e),
-        }
-      },
+    }
+  }
+
+  /// Handle a custom event.
+  fn handle_custom(&mut self, event: Box<Any>, cap: &mut Cap) -> Option<UiEvents> {
+    match event.downcast::<TermUiEvent>() {
+      Ok(e) => self.handle_custom_event(e, cap),
+      Err(e) => panic!("Received unexpected custom event: {:?}", e),
     }
   }
 }
