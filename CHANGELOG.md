@@ -1,5 +1,5 @@
-Unreleased
-----------
+0.2.0
+-----
 - Save and restore selected tab
 - Save and restore selected task on each tab
 - Support all `libreadline` supported keys when `readline` feature is
