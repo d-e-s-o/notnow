@@ -1,3 +1,8 @@
+Unreleased
+----------
+- Downgraded `deny` crate-level lints to `warn`
+
+
 0.2.0
 -----
 - Save and restore selected tab
