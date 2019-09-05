@@ -100,8 +100,8 @@ const IN_OUT_STATUS_BG: Rgb = Rgb(0x00, 0x00, 0x00);
 const IN_OUT_ERROR_FG: Rgb = Rgb(0x00, 0x00, 0x00);
 /// Color 197.
 const IN_OUT_ERROR_BG: Rgb = Rgb(0xff, 0x00, 0x00);
-/// Color 0.
-const IN_OUT_STRING_FG: Rgb = Rgb(0x00, 0x00, 0x00);
+/// The terminal default foreground.
+const IN_OUT_STRING_FG: Reset = Reset;
 /// The terminal default background.
 const IN_OUT_STRING_BG: Reset = Reset;
 
