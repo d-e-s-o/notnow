@@ -478,7 +478,7 @@ mod tests {
         assert_eq!(search_state, SearchState::First);
         assert_eq!(iter_state, TestIterationState::new(42));
       },
-      _ => assert!(false),
+      _ => panic!(),
     }
     assert_eq!(search, SearchT::Taken);
   }

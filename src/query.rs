@@ -1,7 +1,7 @@
 // query.rs
 
 // *************************************************************************
-// * Copyright (C) 2017-2018 Daniel Mueller (deso@posteo.net)              *
+// * Copyright (C) 2017-2019 Daniel Mueller (deso@posteo.net)              *
 // *                                                                       *
 // * This program is free software: you can redistribute it and/or modify  *
 // * it under the terms of the GNU General Public License as published by  *
@@ -338,7 +338,7 @@ impl ToSerde<SerQuery> for Query {
     let lits = self
       .lits
       .iter()
-      .map(|lits| lits.iter().map(|x| x.to_serde()).collect())
+      .map(|lits| lits.iter().map(ToSerde::to_serde).collect())
       .collect();
 
     SerQuery {

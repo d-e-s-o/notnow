@@ -202,10 +202,10 @@ pub mod tests {
             let event = data.downcast::<TermUiEvent>().unwrap();
             assert!(event.is_updated())
           },
-          _ => assert!(false),
+          _ => panic!(),
         }
       },
-      _ => assert!(false),
+      _ => panic!(),
     }
   }
 
@@ -218,7 +218,7 @@ pub mod tests {
           UiEvent::Event(Event::Key(key, _)) => {
             assert_eq!(key, Key::Char(' '))
           },
-          _ => assert!(false),
+          _ => panic!(),
         };
 
         match *chain {
@@ -228,13 +228,13 @@ pub mod tests {
                 let event = data.downcast::<TermUiEvent>().unwrap();
                 assert!(event.is_updated())
               },
-              _ => assert!(false),
+              _ => panic!(),
             }
           },
-          _ => assert!(false),
+          _ => panic!(),
         };
       },
-      _ => assert!(false),
+      _ => panic!(),
     }
   }
 

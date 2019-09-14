@@ -266,7 +266,7 @@ pub mod tests {
       .tasks
       .borrow()
       .iter()
-      .map(|x| x.to_serde())
+      .map(ToSerde::to_serde)
       .collect::<Vec<_>>();
     assert_eq!(new_task_vec, make_tasks(3));
   }
@@ -289,7 +289,7 @@ pub mod tests {
       .tasks
       .borrow()
       .iter()
-      .map(|x| x.to_serde())
+      .map(ToSerde::to_serde)
       .collect::<Vec<_>>();
     assert_eq!(new_task_vec, make_tasks(0));
   }

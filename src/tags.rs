@@ -1,7 +1,7 @@
 // tags.rs
 
 // *************************************************************************
-// * Copyright (C) 2018 Daniel Mueller (deso@posteo.net)                   *
+// * Copyright (C) 2018-2019 Daniel Mueller (deso@posteo.net)              *
 // *                                                                       *
 // * This program is free software: you can redistribute it and/or modify  *
 // * it under the terms of the GNU General Public License as published by  *
@@ -237,12 +237,14 @@ impl Templates {
   /// Retrieve an iterator over all the tag templates.
   #[cfg(test)]
   pub fn iter(&self) -> impl Iterator<Item=&Template> {
-    self.templates.iter().map(|x| x.as_ref())
+    self.templates.iter().map(AsRef::as_ref)
   }
 }
 
 impl ToSerde<SerTemplates> for Templates {
   /// Convert the tag templates object into a serializable form.
+  // TODO: Remove lint with newer version of clippy in use.
+  #[allow(clippy::redundant_closure)]
   fn to_serde(&self) -> SerTemplates {
     SerTemplates(self.templates.iter().map(|x| x.to_serde()).collect())
   }

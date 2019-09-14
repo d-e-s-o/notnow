@@ -1,7 +1,7 @@
 // tasks.rs
 
 // *************************************************************************
-// * Copyright (C) 2017-2018 Daniel Mueller (deso@posteo.net)              *
+// * Copyright (C) 2017-2019 Daniel Mueller (deso@posteo.net)              *
 // *                                                                       *
 // * This program is free software: you can redistribute it and/or modify  *
 // * it under the terms of the GNU General Public License as published by  *
@@ -179,7 +179,7 @@ impl Tasks {
 
   /// Convert this object into a serializable one.
   pub fn to_serde(&self) -> SerTasks {
-    SerTasks(self.tasks.iter().map(|x| x.to_serde()).collect())
+    SerTasks(self.tasks.iter().map(ToSerde::to_serde).collect())
   }
 
   /// Retrieve an iterator over the tasks.
