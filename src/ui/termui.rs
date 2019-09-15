@@ -106,7 +106,7 @@ impl TermUiEvent {
 
 /// An implementation of a terminal based view.
 #[derive(Debug, Widget)]
-#[gui(Event = "Event")]
+#[gui(Event = Event)]
 pub struct TermUi {
   id: Id,
   in_out: Id,

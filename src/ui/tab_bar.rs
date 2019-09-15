@@ -148,7 +148,7 @@ fn sanitize_selection(selection: isize, count: usize) -> usize {
 
 /// A widget representing a tabbed container for other widgets.
 #[derive(Debug, Widget)]
-#[gui(Event = "Event")]
+#[gui(Event = Event)]
 pub struct TabBar {
   id: Id,
   tabs: Vec<(String, Id)>,

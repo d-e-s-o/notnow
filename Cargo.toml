@@ -40,7 +40,7 @@ optional = true
 version = "1.0"
 
 [dependencies.gui]
-version = "0.3"
+version = "0.4"
 features = ["derive"]
 
 [dependencies.libc]

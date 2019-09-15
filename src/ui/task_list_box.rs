@@ -67,7 +67,7 @@ enum State {
 
 /// A widget representing a list of `Task` objects.
 #[derive(Debug, Widget)]
-#[gui(Event = "Event")]
+#[gui(Event = Event)]
 pub struct TaskListBox {
   id: Id,
   tasks: Rc<RefCell<Tasks>>,

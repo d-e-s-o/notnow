@@ -103,7 +103,7 @@ impl Default for InOutState {
 
 /// A widget representing an input/output and status area.
 #[derive(Debug, Widget)]
-#[gui(Event = "Event")]
+#[gui(Event = Event)]
 pub struct InOutArea {
   id: Id,
   prev_focused: Option<Id>,
