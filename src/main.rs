@@ -103,6 +103,9 @@ use std::sync::mpsc::Receiver;
 use std::sync::mpsc::Sender;
 use std::thread;
 
+#[cfg(feature = "coredump")]
+use cdump::register_panic_handler;
+
 use dirs::config_dir;
 
 use termion::event::Event as TermEvent;
@@ -292,6 +295,11 @@ where
 
 /// Parse the arguments and run the program.
 fn run_with_args() -> Result<()> {
+  #[cfg(feature = "coredump")] {
+    register_panic_handler()
+      .map_err(|(ctx, err)| Error::new(ErrorKind::Other, format!("{}: {}", ctx, err)))?;
+  }
+
   let mut it = args_os();
   match it.len() {
     0 | 1 => run_prog(stdout()),

@@ -18,17 +18,23 @@ gitlab = { repository = "d-e-s-o/notnow", branch = "devel" }
 
 [profile.release]
 opt-level = "z"
+debug = true
 lto = true
 codegen-units = 1
 incremental = false
-panic = "abort"
 
 [features]
 default = []
+coredump = ["cdump"]
 readline = ["rline"]
 
 [dependencies.cell]
 version = "0.1"
+
+[dependencies.cdump]
+version = "0.1"
+package = "coredump"
+optional = true
 
 [dependencies.dirs]
 version = "1.0"

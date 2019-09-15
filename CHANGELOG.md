@@ -1,5 +1,6 @@
 Unreleased
 ----------
+- Added support for creating a core dump on panic
 - Bumped required Rust version to `1.34`
 - Downgraded `deny` crate-level lints to `warn`
 
