@@ -50,6 +50,8 @@ where that is possible. The key bindings are as follows:
 | Space  | Toggle completion state of selected task |
 | h      | Select tab to the left                   |
 | l      | Select tab to the right                  |
+| H      | Move tab to the left                     |
+| L      | Move tab to the right                    |
 | 1-9    | Select tab #x                            |
 | 0      | Select last tab                          |
 | `      | Select previous tab                      |

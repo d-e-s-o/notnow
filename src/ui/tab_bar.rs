@@ -132,6 +132,17 @@ pub struct TabState {
   pub queries: Vec<(Query, Option<usize>)>,
   /// The currently selected query.
   pub selected: Option<usize>,
+  /// Flag indicating whether we retrieve the state for a save operation
+  /// or not.
+  // TODO: That feels more like a hack than anything else. The problem
+  //       we are trying to solve is that the TermUi but also tests use
+  //       an event containing this struct. The TermUi uses it as part
+  //       of the save-to-file functionality and will handle the
+  //       corresponding event. However, for tests we need a dedicated
+  //       way to retrieve the same information without the UI
+  //       intercepting and handling the event on its own (as it did not
+  //       issue it).
+  pub for_save: bool,
 }
 
 
@@ -285,11 +296,12 @@ impl TabBar {
         }
       },
       TermUiEvent::InputCanceled => None,
-      TermUiEvent::CollectState => {
+      TermUiEvent::CollectState(for_save) => {
         if let Some((_, tab)) = self.tabs.first() {
           let tab_state = TabState{
             queries: Vec::new(),
             selected: Some(self.selection()),
+            for_save,
           };
           let iter_state = IterationState::new(*tab);
           let event = TermUiEvent::GetTabState(tab_state, iter_state);
@@ -300,6 +312,7 @@ impl TabBar {
           let tab_state = TabState{
             queries: Vec::new(),
             selected: None,
+            for_save,
           };
           let event = TermUiEvent::CollectedState(tab_state);
           Some(UiEvent::Custom(Box::new(event)).into())
@@ -374,6 +387,22 @@ impl TabBar {
     let selection = self.prev_selection;
     self.set_select(selection, cap)
   }
+
+  /// Swap the currently selected tab with the one to its left or right.
+  fn swap(&mut self, left: bool) -> bool {
+    let count = self.tabs.iter().len();
+    let old_selection = sanitize_selection(self.selection, count);
+    let selection = self.selection + if left { -1 } else { 1 };
+    let new_selection = sanitize_selection(selection, count);
+
+    if new_selection != old_selection {
+      self.tabs.swap(old_selection, new_selection);
+      self.selection = selection;
+      true
+    } else {
+      false
+    }
+  }
 }
 
 impl Handleable<Event> for TabBar {
@@ -395,6 +424,8 @@ impl Handleable<Event> for TabBar {
           Key::Char('`') => (None as Option<Event>).maybe_update(self.select_previous(cap)),
           Key::Char('h') => (None as Option<Event>).maybe_update(self.select(-1, cap)),
           Key::Char('l') => (None as Option<Event>).maybe_update(self.select(1, cap)),
+          Key::Char('H') => (None as Option<Event>).maybe_update(self.swap(true)),
+          Key::Char('L') => (None as Option<Event>).maybe_update(self.swap(false)),
           Key::Char('n') |
           Key::Char('N') => {
             let event = match self.search.take() {
