@@ -68,8 +68,11 @@ pub enum TermUiEvent {
   EnteredText(String),
   /// Text input has been canceled.
   InputCanceled,
-  /// An event used to collect the state from the `TabBar`.
-  CollectState,
+  /// An event used to collect the state from the `TabBar`. The flag
+  /// indicates whether the `TermUi` issued the event as part of a
+  /// "save" operation. If it is false, the UI will just ignore the
+  /// response to this event and let it bubble up.
+  CollectState(bool),
   /// The response to the `CollectState` event.
   CollectedState(TabState),
   /// An event used to collect the state of all tabs.
@@ -159,21 +162,28 @@ impl TermUi {
 
   /// Emit an event that will eventually cause the state to be saved.
   fn save(&mut self) -> UiEvents<Event> {
-    let event = TermUiEvent::CollectState;
+    let event = TermUiEvent::CollectState(true);
     UiEvent::Directed(self.tab_bar, Box::new(event)).into()
   }
 
   /// Handle a custom event.
   fn handle_custom_event(&mut self, event: Box<TermUiEvent>) -> Option<UiEvents<Event>> {
     match *event {
+      // TODO: Ideally we would use a pattern guard here to check
+      //       `for_save`. That requires the bind_by_move_pattern_guards
+      //       feature which should be stable with 1.39.
       TermUiEvent::CollectedState(state) => {
-        let TabState{queries, selected} = state;
-        let ui_state = UiState {
-          path: self.ui_state_path.clone(),
-          queries,
-          selected,
-        };
-        Some(self.save_and_report(&ui_state))
+        if state.for_save {
+          let TabState{queries, selected, ..} = state;
+          let ui_state = UiState {
+            path: self.ui_state_path.clone(),
+            queries,
+            selected,
+          };
+          Some(self.save_and_report(&ui_state))
+        } else {
+          Some(UiEvent::Custom(Box::new(TermUiEvent::CollectedState(state))).into())
+        }
       },
       TermUiEvent::SetInOut(_) => {
         Some(UiEvent::Directed(self.in_out, event).into())
@@ -411,6 +421,22 @@ mod tests {
 
       if let TermUiEvent::GotInOut(in_out) = resp {
         in_out
+      } else {
+        panic!("Unexpected response: {:?}", resp)
+      }
+    }
+
+    /// Retrieve the names of all tabs.
+    fn queries(&mut self) -> Vec<String> {
+      let event = UiEvent::Custom(Box::new(TermUiEvent::CollectState(false)));
+      let resp = self
+        .ui
+        .handle(event)
+        .unwrap()
+        .unwrap_custom::<TermUiEvent>();
+
+      if let TermUiEvent::CollectedState(tab_state) = resp {
+        tab_state.queries.into_iter().map(|(query, _)| query.name().to_string()).collect()
       } else {
         panic!("Unexpected response: {:?}", resp)
       }
@@ -1225,6 +1251,66 @@ mod tests {
       .collect::<Vec<_>>();
 
     assert_eq!(tasks, expected);
+  }
+
+  #[test]
+  fn move_tab_left() {
+    let events = vec![
+      Event::from('2'),
+      Event::from('H'),
+    ];
+
+    let mut ui = TestUiBuilder::with_default_tasks_and_tags().build();
+    let queries = ui
+      .handle(events)
+      .queries();
+
+    let expected = vec![
+      "tag complete",
+      "all",
+      "tag2 || tag3",
+      "tag1 && tag3",
+    ];
+    assert_eq!(queries, expected);
+
+    // Try moving the tab once more but since we are already all the way
+    // to the left nothing should change.
+    let events = vec![
+      Event::from('H'),
+    ];
+    let queries = ui
+      .handle(events)
+      .queries();
+    assert_eq!(queries, expected);
+  }
+
+  #[test]
+  fn move_tab_right() {
+    let events = vec![
+      Event::from('3'),
+      Event::from('L'),
+    ];
+
+    let mut ui = TestUiBuilder::with_default_tasks_and_tags().build();
+    let queries = ui
+      .handle(events)
+      .queries();
+
+    let expected = vec![
+      "all",
+      "tag complete",
+      "tag1 && tag3",
+      "tag2 || tag3",
+    ];
+    assert_eq!(queries, expected);
+
+    let events = vec![
+      Event::from('L'),
+    ];
+    let queries = ui
+      .handle(events)
+      .queries();
+    assert_eq!(queries, expected);
   }
 
   #[test]
