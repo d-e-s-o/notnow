@@ -127,9 +127,6 @@ impl SearchState {
 /// `TaskListBox` objects.
 #[derive(Debug)]
 pub struct TabState {
-  /// The `Id` of the receiving widget. Used only when responding back
-  /// to the requester.
-  pub id: Id,
   /// The accumulation of queries gathered from the individual
   /// `TaskListBox` objects.
   pub queries: Vec<(Query, Option<usize>)>,
@@ -286,10 +283,9 @@ impl TabBar {
         }
       },
       TermUiEvent::InputCanceled => None,
-      TermUiEvent::CollectState(id) => {
+      TermUiEvent::CollectState => {
         if let Some((_, tab)) = self.tabs.first() {
           let tab_state = TabState{
-            id: id,
             queries: Vec::new(),
           };
           let iter_state = IterationState::new(*tab);
@@ -299,19 +295,18 @@ impl TabBar {
           // If there are no tabs there are no queries -- respond
           // directly.
           let event = TermUiEvent::CollectedState(Vec::new(), None);
-          Some(UiEvent::Directed(id, Box::new(event)).into())
+          Some(UiEvent::Custom(Box::new(event)).into())
         }
       },
       TermUiEvent::GetTabState(tab_state, mut iter_state) => {
         debug_assert!(iter_state.has_advanced());
 
-        // If we have covered all tabs then send back the queries to the
-        // requester.
+        // If we have covered all tabs then send back the queries.
         if iter_state.is_last(self.tabs.iter().len()) {
-          let TabState{id, queries} = tab_state;
+          let TabState{queries} = tab_state;
           let selected = Some(self.selection());
           let event = TermUiEvent::CollectedState(queries, selected);
-          Some(UiEvent::Directed(id, Box::new(event)).into())
+          Some(UiEvent::Custom(Box::new(event)).into())
         } else {
           let iter = self.tabs.iter().map(|x| x.1);
           let new_idx = iter_state.normalize(iter);

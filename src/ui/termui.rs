@@ -70,7 +70,7 @@ pub enum TermUiEvent {
   /// Text input has been canceled.
   InputCanceled,
   /// An event used to collect the state from the `TabBar`.
-  CollectState(Id),
+  CollectState,
   /// The response to the `CollectState` event.
   CollectedState(Vec<(Query, Option<usize>)>, Option<usize>),
   /// An event used to collect the state of all tabs.
@@ -160,7 +160,7 @@ impl TermUi {
 
   /// Emit an event that will eventually cause the state to be saved.
   fn save(&mut self) -> UiEvents<Event> {
-    let event = TermUiEvent::CollectState(self.id);
+    let event = TermUiEvent::CollectState;
     UiEvent::Directed(self.tab_bar, Box::new(event)).into()
   }
 
