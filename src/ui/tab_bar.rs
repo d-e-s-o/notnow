@@ -130,6 +130,8 @@ pub struct TabState {
   /// The accumulation of queries gathered from the individual
   /// `TaskListBox` objects.
   pub queries: Vec<(Query, Option<usize>)>,
+  /// The currently selected query.
+  pub selected: Option<usize>,
 }
 
 
@@ -287,6 +289,7 @@ impl TabBar {
         if let Some((_, tab)) = self.tabs.first() {
           let tab_state = TabState{
             queries: Vec::new(),
+            selected: Some(self.selection()),
           };
           let iter_state = IterationState::new(*tab);
           let event = TermUiEvent::GetTabState(tab_state, iter_state);
@@ -294,7 +297,11 @@ impl TabBar {
         } else {
           // If there are no tabs there are no queries -- respond
           // directly.
-          let event = TermUiEvent::CollectedState(Vec::new(), None);
+          let tab_state = TabState{
+            queries: Vec::new(),
+            selected: None,
+          };
+          let event = TermUiEvent::CollectedState(tab_state);
           Some(UiEvent::Custom(Box::new(event)).into())
         }
       },
@@ -303,9 +310,7 @@ impl TabBar {
 
         // If we have covered all tabs then send back the queries.
         if iter_state.is_last(self.tabs.iter().len()) {
-          let TabState{queries} = tab_state;
-          let selected = Some(self.selection());
-          let event = TermUiEvent::CollectedState(queries, selected);
+          let event = TermUiEvent::CollectedState(tab_state);
           Some(UiEvent::Custom(Box::new(event)).into())
         } else {
           let iter = self.tabs.iter().map(|x| x.1);

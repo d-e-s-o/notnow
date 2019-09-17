@@ -28,7 +28,6 @@ use gui::MutCap;
 use gui::UiEvent;
 use gui::UiEvents;
 
-use crate::query::Query;
 use crate::state::State;
 use crate::state::TaskState;
 use crate::state::UiState;
@@ -72,7 +71,7 @@ pub enum TermUiEvent {
   /// An event used to collect the state from the `TabBar`.
   CollectState,
   /// The response to the `CollectState` event.
-  CollectedState(Vec<(Query, Option<usize>)>, Option<usize>),
+  CollectedState(TabState),
   /// An event used to collect the state of all tabs.
   GetTabState(TabState, IterationState),
   /// A indication that some component changed and that we should
@@ -167,11 +166,12 @@ impl TermUi {
   /// Handle a custom event.
   fn handle_custom_event(&mut self, event: Box<TermUiEvent>) -> Option<UiEvents<Event>> {
     match *event {
-      TermUiEvent::CollectedState(queries, selected) => {
+      TermUiEvent::CollectedState(state) => {
+        let TabState{queries, selected} = state;
         let ui_state = UiState {
           path: self.ui_state_path.clone(),
-          queries: queries,
-          selected: selected,
+          queries,
+          selected,
         };
         Some(self.save_and_report(&ui_state))
       },
