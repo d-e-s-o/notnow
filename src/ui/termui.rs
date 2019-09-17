@@ -385,7 +385,11 @@ mod tests {
     }
 
     /// Send the given list of events to the UI.
-    fn handle(&mut self, events: Vec<UiEvent<Event>>) -> &mut Self {
+    fn handle<E, I>(&mut self, events: I) -> &mut Self
+    where
+      E: Into<UiEvent<Event>>,
+      I: IntoIterator<Item=E>,
+    {
       for event in events.into_iter() {
         if let Some(event) = self.ui.handle(event) {
           if let UnhandledEvent::Quit = event.into_last() {
@@ -443,10 +447,10 @@ mod tests {
   #[test]
   fn exit_on_quit() {
     let events = vec![
-      Event::from('q').into(),
-      Event::from('a').into(),
-      Event::from('f').into(),
-      Event::from('\n').into(),
+      Event::from('q'),
+      Event::from('a'),
+      Event::from('f'),
+      Event::from('\n'),
     ];
 
     let tasks = TestUiBuilder::new()
@@ -460,7 +464,7 @@ mod tests {
   #[test]
   fn remove_no_task() {
     let events = vec![
-      Event::from('d').into(),
+      Event::from('d'),
     ];
 
     let tasks = TestUiBuilder::new()
@@ -475,7 +479,7 @@ mod tests {
   fn remove_only_task() {
     let tasks = make_tasks(1);
     let events = vec![
-      Event::from('d').into(),
+      Event::from('d'),
     ];
 
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
@@ -490,12 +494,12 @@ mod tests {
   fn remove_task_after_down_select() {
     let tasks = make_tasks(2);
     let events = vec![
-      Event::from('j').into(),
-      Event::from('j').into(),
-      Event::from('j').into(),
-      Event::from('j').into(),
-      Event::from('j').into(),
-      Event::from('d').into(),
+      Event::from('j'),
+      Event::from('j'),
+      Event::from('j'),
+      Event::from('j'),
+      Event::from('j'),
+      Event::from('d'),
     ];
 
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
@@ -510,10 +514,10 @@ mod tests {
   fn remove_task_after_up_select() {
     let tasks = make_tasks(3);
     let events = vec![
-      Event::from('j').into(),
-      Event::from('j').into(),
-      Event::from('k').into(),
-      Event::from('d').into(),
+      Event::from('j'),
+      Event::from('j'),
+      Event::from('k'),
+      Event::from('d'),
     ];
 
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
@@ -530,11 +534,11 @@ mod tests {
   fn remove_last_task() {
     let tasks = make_tasks(3);
     let events = vec![
-      Event::from('j').into(),
-      Event::from('j').into(),
-      Event::from('d').into(),
-      Event::from('k').into(),
-      Event::from('d').into(),
+      Event::from('j'),
+      Event::from('j'),
+      Event::from('d'),
+      Event::from('k'),
+      Event::from('d'),
     ];
 
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
@@ -552,9 +556,9 @@ mod tests {
   fn remove_second_to_last_task() {
     let tasks = make_tasks(5);
     let events = vec![
-      Event::from('G').into(),
-      Event::from('k').into(),
-      Event::from('d').into(),
+      Event::from('G'),
+      Event::from('k'),
+      Event::from('d'),
     ];
 
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
@@ -571,14 +575,14 @@ mod tests {
   fn remove_second_task_after_up_select() {
     let tasks = make_tasks(3);
     let events = vec![
-      Event::from('k').into(),
-      Event::from('k').into(),
-      Event::from('k').into(),
-      Event::from('k').into(),
-      Event::from('k').into(),
-      Event::from('k').into(),
-      Event::from('j').into(),
-      Event::from('d').into(),
+      Event::from('k'),
+      Event::from('k'),
+      Event::from('k'),
+      Event::from('k'),
+      Event::from('k'),
+      Event::from('k'),
+      Event::from('j'),
+      Event::from('d'),
     ];
 
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
@@ -595,12 +599,12 @@ mod tests {
   fn selection_after_removal() {
     let tasks = make_tasks(5);
     let events = vec![
-      Event::from('G').into(),
-      Event::from('d').into(),
-      Event::from('e').into(),
-      Event::from(Key::Backspace).into(),
-      Event::from('o').into(),
-      Event::from('\n').into(),
+      Event::from('G'),
+      Event::from('d'),
+      Event::from('e'),
+      Event::from(Key::Backspace),
+      Event::from('o'),
+      Event::from('\n'),
     ];
 
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
@@ -616,14 +620,14 @@ mod tests {
   #[test]
   fn add_task() {
     let events = vec![
-      Event::from('a').into(),
-      Event::from('f').into(),
-      Event::from('o').into(),
-      Event::from('o').into(),
-      Event::from('b').into(),
-      Event::from('a').into(),
-      Event::from('r').into(),
-      Event::from('\n').into(),
+      Event::from('a'),
+      Event::from('f'),
+      Event::from('o'),
+      Event::from('o'),
+      Event::from('b'),
+      Event::from('a'),
+      Event::from('r'),
+      Event::from('\n'),
     ];
 
     let tasks = TestUiBuilder::new()
@@ -640,18 +644,18 @@ mod tests {
   #[test]
   fn add_and_remove_tasks() {
     let events = vec![
-      Event::from('a').into(),
-      Event::from('f').into(),
-      Event::from('o').into(),
-      Event::from('o').into(),
-      Event::from('\n').into(),
-      Event::from('a').into(),
-      Event::from('b').into(),
-      Event::from('a').into(),
-      Event::from('r').into(),
-      Event::from('\n').into(),
-      Event::from('d').into(),
-      Event::from('d').into(),
+      Event::from('a'),
+      Event::from('f'),
+      Event::from('o'),
+      Event::from('o'),
+      Event::from('\n'),
+      Event::from('a'),
+      Event::from('b'),
+      Event::from('a'),
+      Event::from('r'),
+      Event::from('\n'),
+      Event::from('d'),
+      Event::from('d'),
     ];
 
     let tasks = TestUiBuilder::new()
@@ -665,14 +669,14 @@ mod tests {
   #[test]
   fn add_task_cancel() {
     let events = vec![
-      Event::from('a').into(),
-      Event::from('f').into(),
-      Event::from('o').into(),
-      Event::from('o').into(),
-      Event::from('b').into(),
-      Event::from('a').into(),
-      Event::from('z').into(),
-      Event::from(Key::Esc).into(),
+      Event::from('a'),
+      Event::from('f'),
+      Event::from('o'),
+      Event::from('o'),
+      Event::from('b'),
+      Event::from('a'),
+      Event::from('z'),
+      Event::from(Key::Esc),
     ];
 
     let tasks = TestUiBuilder::new()
@@ -687,17 +691,17 @@ mod tests {
   fn add_task_with_character_removal() {
     let tasks = make_tasks(1);
     let events = vec![
-      Event::from('a').into(),
-      Event::from('f').into(),
-      Event::from('o').into(),
-      Event::from('o').into(),
-      Event::from(Key::Backspace).into(),
-      Event::from(Key::Backspace).into(),
-      Event::from(Key::Backspace).into(),
-      Event::from('b').into(),
-      Event::from('a').into(),
-      Event::from('z').into(),
-      Event::from('\n').into(),
+      Event::from('a'),
+      Event::from('f'),
+      Event::from('o'),
+      Event::from('o'),
+      Event::from(Key::Backspace),
+      Event::from(Key::Backspace),
+      Event::from(Key::Backspace),
+      Event::from('b'),
+      Event::from('a'),
+      Event::from('z'),
+      Event::from('\n'),
     ];
 
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
@@ -715,21 +719,21 @@ mod tests {
   fn add_task_with_cursor_movement() {
     let tasks = make_tasks(1);
     let events = vec![
-      Event::from('a').into(),
-      Event::from(Key::Delete).into(),
-      Event::from(Key::Right).into(),
-      Event::from('s').into(),
-      Event::from('t').into(),
-      Event::from(Key::Home).into(),
-      Event::from(Key::Home).into(),
-      Event::from('t').into(),
-      Event::from('e').into(),
-      Event::from(Key::End).into(),
-      Event::from(Key::End).into(),
-      Event::from(Key::Delete).into(),
-      Event::from('4').into(),
-      Event::from('2').into(),
-      Event::from('\n').into(),
+      Event::from('a'),
+      Event::from(Key::Delete),
+      Event::from(Key::Right),
+      Event::from('s'),
+      Event::from('t'),
+      Event::from(Key::Home),
+      Event::from(Key::Home),
+      Event::from('t'),
+      Event::from('e'),
+      Event::from(Key::End),
+      Event::from(Key::End),
+      Event::from(Key::Delete),
+      Event::from('4'),
+      Event::from('2'),
+      Event::from('\n'),
     ];
 
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
@@ -747,8 +751,8 @@ mod tests {
   fn add_empty_task() {
     let tasks = make_tasks(1);
     let events = vec![
-      Event::from('a').into(),
-      Event::from('\n').into(),
+      Event::from('a'),
+      Event::from('\n'),
     ];
 
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
@@ -762,20 +766,20 @@ mod tests {
   #[test]
   fn add_task_from_completed_one() {
     let events = vec![
-      Event::from('l').into(),
-      Event::from('a').into(),
-      Event::from('t').into(),
-      Event::from('e').into(),
-      Event::from('s').into(),
-      Event::from('t').into(),
-      Event::from('\n').into(),
-      Event::from('l').into(),
-      Event::from('l').into(),
-      Event::from('g').into(),
-      Event::from('a').into(),
-      Event::from('h').into(),
-      Event::from('i').into(),
-      Event::from('\n').into(),
+      Event::from('l'),
+      Event::from('a'),
+      Event::from('t'),
+      Event::from('e'),
+      Event::from('s'),
+      Event::from('t'),
+      Event::from('\n'),
+      Event::from('l'),
+      Event::from('l'),
+      Event::from('g'),
+      Event::from('a'),
+      Event::from('h'),
+      Event::from('i'),
+      Event::from('\n'),
     ];
 
     let tasks = TestUiBuilder::with_default_tasks_and_tags()
@@ -805,14 +809,14 @@ mod tests {
   #[test]
   fn add_task_with_tags() {
     let events = vec![
-      Event::from('l').into(),
-      Event::from('l').into(),
-      Event::from('l').into(),
-      Event::from('a').into(),
-      Event::from('f').into(),
-      Event::from('o').into(),
-      Event::from('o').into(),
-      Event::from('\n').into(),
+      Event::from('l'),
+      Event::from('l'),
+      Event::from('l'),
+      Event::from('a'),
+      Event::from('f'),
+      Event::from('o'),
+      Event::from('o'),
+      Event::from('\n'),
     ];
 
     let tasks = TestUiBuilder::with_default_tasks_and_tags()
@@ -838,11 +842,11 @@ mod tests {
   fn complete_task() {
     let tasks = make_tasks(3);
     let events = vec![
-      Event::from('j').into(),
-      Event::from(' ').into(),
-      Event::from('j').into(),
-      Event::from(' ').into(),
-      Event::from(' ').into(),
+      Event::from('j'),
+      Event::from(' '),
+      Event::from('j'),
+      Event::from(' '),
+      Event::from(' '),
     ];
 
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
@@ -859,15 +863,15 @@ mod tests {
   fn edit_task() {
     let tasks = make_tasks(3);
     let events = vec![
-      Event::from('j').into(),
-      Event::from('e').into(),
-      Event::from(Key::Backspace).into(),
-      Event::from('a').into(),
-      Event::from('m').into(),
-      Event::from('e').into(),
-      Event::from('n').into(),
-      Event::from('d').into(),
-      Event::from('\n').into(),
+      Event::from('j'),
+      Event::from('e'),
+      Event::from(Key::Backspace),
+      Event::from('a'),
+      Event::from('m'),
+      Event::from('e'),
+      Event::from('n'),
+      Event::from('d'),
+      Event::from('\n'),
     ];
 
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
@@ -885,14 +889,14 @@ mod tests {
   fn edit_task_cancel() {
     let tasks = make_tasks(3);
     let events = vec![
-      Event::from('j').into(),
-      Event::from('e').into(),
-      Event::from(Key::Esc).into(),
-      Event::from('a').into(),
-      Event::from('f').into(),
-      Event::from('o').into(),
-      Event::from('o').into(),
-      Event::from('\n').into(),
+      Event::from('j'),
+      Event::from('e'),
+      Event::from(Key::Esc),
+      Event::from('a'),
+      Event::from('f'),
+      Event::from('o'),
+      Event::from('o'),
+      Event::from('\n'),
     ];
 
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
@@ -910,10 +914,10 @@ mod tests {
   fn edit_task_to_empty() {
     let tasks = make_tasks(3);
     let events = vec![
-      Event::from('j').into(),
-      Event::from('e').into(),
-      Event::from(Key::Backspace).into(),
-      Event::from('\n').into(),
+      Event::from('j'),
+      Event::from('e'),
+      Event::from(Key::Backspace),
+      Event::from('\n'),
     ];
 
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
@@ -931,10 +935,10 @@ mod tests {
   fn edit_task_multi_byte_char() {
     let tasks = make_tasks(1);
     let events = vec![
-      Event::from('e').into(),
-      Event::from('ä').into(),
-      Event::from('ö').into(),
-      Event::from('\n').into(),
+      Event::from('e'),
+      Event::from('ä'),
+      Event::from('ö'),
+      Event::from('\n'),
     ];
 
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
@@ -949,24 +953,24 @@ mod tests {
   fn edit_task_with_cursor_movement() {
     let tasks = make_tasks(3);
     let events = vec![
-      Event::from('j').into(),
-      Event::from('j').into(),
-      Event::from('e').into(),
-      Event::from(Key::Left).into(),
-      Event::from(Key::Left).into(),
-      Event::from(Key::Left).into(),
-      Event::from(Key::Delete).into(),
-      Event::from('t').into(),
-      Event::from('a').into(),
-      Event::from(Key::Left).into(),
-      Event::from(Key::Delete).into(),
-      Event::from(Key::Right).into(),
-      Event::from('e').into(),
-      Event::from('s').into(),
-      Event::from('t').into(),
-      Event::from(Key::Right).into(),
-      Event::from(Key::Right).into(),
-      Event::from('\n').into(),
+      Event::from('j'),
+      Event::from('j'),
+      Event::from('e'),
+      Event::from(Key::Left),
+      Event::from(Key::Left),
+      Event::from(Key::Left),
+      Event::from(Key::Delete),
+      Event::from('t'),
+      Event::from('a'),
+      Event::from(Key::Left),
+      Event::from(Key::Delete),
+      Event::from(Key::Right),
+      Event::from('e'),
+      Event::from('s'),
+      Event::from('t'),
+      Event::from(Key::Right),
+      Event::from(Key::Right),
+      Event::from('\n'),
     ];
 
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
@@ -983,13 +987,13 @@ mod tests {
   #[test]
   fn edit_multiple_tasks() {
     let events = vec![
-      Event::from('3').into(),
-      Event::from('e').into(),
-      Event::from('a').into(),
-      Event::from('\n').into(),
-      Event::from('e').into(),
-      Event::from('b').into(),
-      Event::from('\n').into(),
+      Event::from('3'),
+      Event::from('e'),
+      Event::from('a'),
+      Event::from('\n'),
+      Event::from('e'),
+      Event::from('b'),
+      Event::from('\n'),
     ];
 
     let tasks = TestUiBuilder::with_default_tasks_and_tags()
@@ -1012,7 +1016,7 @@ mod tests {
     fn test_tasks(count: usize, key: char) {
       let tasks = make_tasks(count);
       let events = vec![
-        Event::from(key).into(),
+        Event::from(key),
       ];
 
       let tasks = TestUiBuilder::with_ser_tasks(tasks)
@@ -1033,7 +1037,7 @@ mod tests {
   fn move_task_down() {
     let tasks = make_tasks(3);
     let events = vec![
-      Event::from('J').into(),
+      Event::from('J'),
     ];
 
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
@@ -1051,8 +1055,8 @@ mod tests {
   fn move_task_up() {
     let tasks = make_tasks(3);
     let events = vec![
-      Event::from('G').into(),
-      Event::from('K').into(),
+      Event::from('G'),
+      Event::from('K'),
     ];
 
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
@@ -1070,8 +1074,8 @@ mod tests {
   fn move_second_task_down() {
     let tasks = make_tasks(4);
     let events = vec![
-      Event::from('j').into(),
-      Event::from('J').into(),
+      Event::from('j'),
+      Event::from('J'),
     ];
 
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
@@ -1089,8 +1093,8 @@ mod tests {
   fn move_second_task_up() {
     let tasks = make_tasks(4);
     let events = vec![
-      Event::from('j').into(),
-      Event::from('K').into(),
+      Event::from('j'),
+      Event::from('K'),
     ];
 
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
@@ -1107,21 +1111,21 @@ mod tests {
   #[test]
   fn transparent_task_removal_down_to_empty_query() {
     let events = vec![
-      Event::from('l').into(),
-      Event::from('l').into(),
-      Event::from('l').into(),
-      Event::from('G').into(),
-      Event::from('h').into(),
-      Event::from('h').into(),
-      Event::from('h').into(),
-      Event::from('G').into(),
-      Event::from('d').into(),
-      Event::from('l').into(),
-      Event::from('l').into(),
-      Event::from('l').into(),
+      Event::from('l'),
+      Event::from('l'),
+      Event::from('l'),
+      Event::from('G'),
+      Event::from('h'),
+      Event::from('h'),
+      Event::from('h'),
+      Event::from('G'),
+      Event::from('d'),
+      Event::from('l'),
+      Event::from('l'),
+      Event::from('l'),
       // The edit should be a no-op.
-      Event::from('e').into(),
-      Event::from('\n').into(),
+      Event::from('e'),
+      Event::from('\n'),
     ];
 
     let tasks = TestUiBuilder::with_default_tasks_and_tags()
@@ -1135,10 +1139,10 @@ mod tests {
   #[test]
   fn tab_selection_by_number() {
     let events = vec![
-      Event::from('4').into(),
-      Event::from('e').into(),
-      Event::from('a').into(),
-      Event::from('\n').into(),
+      Event::from('4'),
+      Event::from('e'),
+      Event::from('a'),
+      Event::from('\n'),
     ];
 
     let tasks = TestUiBuilder::with_default_tasks_and_tags()
@@ -1162,19 +1166,19 @@ mod tests {
   #[test]
   fn select_previous_tab() {
     let events = vec![
-      Event::from('2').into(),
-      Event::from('e').into(),
-      Event::from('a').into(),
-      Event::from('\n').into(),
-      Event::from('4').into(),
-      Event::from('e').into(),
-      Event::from('a').into(),
-      Event::from('\n').into(),
-      Event::from('`').into(),
-      Event::from('j').into(),
-      Event::from('e').into(),
-      Event::from('a').into(),
-      Event::from('\n').into(),
+      Event::from('2'),
+      Event::from('e'),
+      Event::from('a'),
+      Event::from('\n'),
+      Event::from('4'),
+      Event::from('e'),
+      Event::from('a'),
+      Event::from('\n'),
+      Event::from('`'),
+      Event::from('j'),
+      Event::from('e'),
+      Event::from('a'),
+      Event::from('\n'),
     ];
 
     let tasks = TestUiBuilder::with_default_tasks_and_tags()
@@ -1200,9 +1204,9 @@ mod tests {
   #[test]
   fn select_last_tab_plus_one() {
     let events = vec![
-      Event::from('0').into(),
-      Event::from('l').into(),
-      Event::from('d').into(),
+      Event::from('0'),
+      Event::from('l'),
+      Event::from('d'),
     ];
 
     let tasks = TestUiBuilder::with_default_tasks_and_tags()
@@ -1227,7 +1231,7 @@ mod tests {
   fn in_out_state_after_write() {
     let tasks = make_tasks(2);
     let events = vec![
-      Event::from('w').into(),
+      Event::from('w'),
     ];
 
     let state = TestUiBuilder::with_ser_tasks(tasks)
@@ -1243,7 +1247,7 @@ mod tests {
     fn with_key(key: impl Into<Event>) -> InOut {
       let tasks = make_tasks(2);
       let events = vec![
-        Event::from('w').into(),
+        Event::from('w'),
         key.into().into(),
       ];
 
@@ -1271,7 +1275,7 @@ mod tests {
     fn with_key(key: impl Into<Event>) -> InOut {
       let tasks = make_tasks(4);
       let events = vec![
-        Event::from('a').into(),
+        Event::from('a'),
         key.into().into(),
       ];
 
@@ -1302,9 +1306,9 @@ mod tests {
     fn test(c: char) {
       let tasks = make_tasks(4);
       let events = vec![
-        Event::from(c).into(),
-        Event::from('f').into(),
-        Event::from(Key::Esc).into(),
+        Event::from(c),
+        Event::from('f'),
+        Event::from(Key::Esc),
       ];
 
       let state = TestUiBuilder::with_ser_tasks(tasks)
@@ -1324,11 +1328,11 @@ mod tests {
     fn test(c: char) {
       let tasks = make_tasks(8);
       let events = vec![
-        Event::from(c).into(),
-        Event::from('f').into(),
-        Event::from('o').into(),
-        Event::from('o').into(),
-        Event::from('\n').into(),
+        Event::from(c),
+        Event::from('f'),
+        Event::from('o'),
+        Event::from('o'),
+        Event::from('\n'),
       ];
 
       let state = TestUiBuilder::with_ser_tasks(tasks)
@@ -1348,11 +1352,11 @@ mod tests {
   fn search_multiple_tabs_not_found() {
     fn test(c: char) {
       let events = vec![
-        Event::from(c).into(),
-        Event::from('f').into(),
-        Event::from('o').into(),
-        Event::from('o').into(),
-        Event::from('\n').into(),
+        Event::from(c),
+        Event::from('f'),
+        Event::from('o'),
+        Event::from('o'),
+        Event::from('\n'),
       ];
 
       let state = TestUiBuilder::with_default_tasks_and_tags()
@@ -1373,9 +1377,9 @@ mod tests {
     fn test(c: char) {
       let tasks = make_tasks(4);
       let events = vec![
-        Event::from(c).into(),
-        Event::from(c).into(),
-        Event::from(c).into(),
+        Event::from(c),
+        Event::from(c),
+        Event::from(c),
       ];
 
       let state = TestUiBuilder::with_ser_tasks(tasks)
@@ -1396,10 +1400,10 @@ mod tests {
     fn test(c: char) {
       let tasks = make_tasks(8);
       let events = vec![
-        Event::from('/').into(),
-        Event::from('z').into(),
-        Event::from('\n').into(),
-        Event::from(c).into(),
+        Event::from('/'),
+        Event::from('z'),
+        Event::from('\n'),
+        Event::from(c),
       ];
 
       let state = TestUiBuilder::with_ser_tasks(tasks)
@@ -1419,12 +1423,12 @@ mod tests {
   fn search_tasks() {
     let tasks = make_tasks(12);
     let events = vec![
-      Event::from('/').into(),
-      Event::from('2').into(),
-      Event::from('\n').into(),
-      Event::from('d').into(),
-      Event::from('n').into(),
-      Event::from('d').into(),
+      Event::from('/'),
+      Event::from('2'),
+      Event::from('\n'),
+      Event::from('d'),
+      Event::from('n'),
+      Event::from('d'),
     ];
 
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
@@ -1443,10 +1447,10 @@ mod tests {
   fn search_reverse() {
     let tasks = make_tasks(12);
     let events = vec![
-      Event::from('?').into(),
-      Event::from('2').into(),
-      Event::from('\n').into(),
-      Event::from('d').into(),
+      Event::from('?'),
+      Event::from('2'),
+      Event::from('\n'),
+      Event::from('d'),
     ];
 
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
@@ -1474,13 +1478,13 @@ mod tests {
         },
       ];
       let events = vec![
-        Event::from(c).into(),
-        Event::from('c').into(),
-        Event::from('o').into(),
-        Event::from('N').into(),
-        Event::from('d').into(),
-        Event::from('\n').into(),
-        Event::from('d').into(),
+        Event::from(c),
+        Event::from('c'),
+        Event::from('o'),
+        Event::from('N'),
+        Event::from('d'),
+        Event::from('\n'),
+        Event::from('d'),
       ];
 
       let tasks = TestUiBuilder::with_ser_tasks(tasks)
@@ -1505,15 +1509,15 @@ mod tests {
   fn search_starting_at_selection() {
     let tasks = make_tasks(15);
     let events = vec![
-      Event::from('j').into(),
-      Event::from('j').into(),
-      Event::from('j').into(),
-      Event::from('j').into(),
-      Event::from('j').into(),
-      Event::from('/').into(),
-      Event::from('1').into(),
-      Event::from('\n').into(),
-      Event::from('d').into(),
+      Event::from('j'),
+      Event::from('j'),
+      Event::from('j'),
+      Event::from('j'),
+      Event::from('j'),
+      Event::from('/'),
+      Event::from('1'),
+      Event::from('\n'),
+      Event::from('d'),
     ];
 
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
@@ -1531,11 +1535,11 @@ mod tests {
   fn search_overlapping() {
     let tasks = make_tasks(5);
     let events = vec![
-      Event::from('G').into(),
-      Event::from('/').into(),
-      Event::from('2').into(),
-      Event::from('\n').into(),
-      Event::from('d').into(),
+      Event::from('G'),
+      Event::from('/'),
+      Event::from('2'),
+      Event::from('\n'),
+      Event::from('d'),
     ];
 
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
@@ -1554,17 +1558,17 @@ mod tests {
     fn test(c1: char, c2: char) {
       let events = vec![
         // Switch to tag2 || tag3 tab.
-        Event::from('l').into(),
+        Event::from('l'),
         // Search for a task with '4' in it.
-        Event::from(c1).into(),
-        Event::from('4').into(),
-        Event::from('\n').into(),
+        Event::from(c1),
+        Event::from('4'),
+        Event::from('\n'),
         // Delete it. That should be task 14.
-        Event::from('d').into(),
+        Event::from('d'),
         // Move to next task.
-        Event::from(c2).into(),
+        Event::from(c2),
         // Delete it. That should be task 4.
-        Event::from('d').into(),
+        Event::from('d'),
       ];
 
       let tasks = TestUiBuilder::with_default_tasks_and_tags()
@@ -1592,24 +1596,24 @@ mod tests {
   #[test]
   fn search_wrap_around() {
     let events = vec![
-      Event::from('/').into(),
-      Event::from('2').into(),
+      Event::from('/'),
+      Event::from('2'),
       // After this event we should have selected task '2'.
-      Event::from('\n').into(),
+      Event::from('\n'),
       // After this event task '12'.
-      Event::from('n').into(),
+      Event::from('n'),
       // Rename.
-      Event::from('e').into(),
-      Event::from(Key::Backspace).into(),
-      Event::from(Key::Backspace).into(),
-      Event::from('a').into(),
-      Event::from('a').into(),
-      Event::from('\n').into(),
+      Event::from('e'),
+      Event::from(Key::Backspace),
+      Event::from(Key::Backspace),
+      Event::from('a'),
+      Event::from('a'),
+      Event::from('\n'),
       // '2'
-      Event::from('n').into(),
+      Event::from('n'),
       // '2'
-      Event::from('n').into(),
-      Event::from('d').into(),
+      Event::from('n'),
+      Event::from('d'),
     ];
 
     let tasks = TestUiBuilder::with_default_tasks_and_tags()
@@ -1662,7 +1666,7 @@ mod tests {
   fn save_ui_state_single_tab() {
     let tasks = make_tasks(1);
     let events = vec![
-      Event::from('w').into(),
+      Event::from('w'),
     ];
     let state = TestUiBuilder::with_ser_tasks(tasks)
       .build()
@@ -1688,9 +1692,9 @@ mod tests {
   fn save_ui_state_single_tab_different_task() {
     let tasks = make_tasks(5);
     let events = vec![
-      Event::from('j').into(),
-      Event::from('j').into(),
-      Event::from('w').into(),
+      Event::from('j'),
+      Event::from('j'),
+      Event::from('w'),
     ];
     let state = TestUiBuilder::with_ser_tasks(tasks)
       .build()
@@ -1715,7 +1719,7 @@ mod tests {
   #[test]
   fn save_ui_state_multiple_tabs() {
     let events = vec![
-      Event::from('w').into(),
+      Event::from('w'),
     ];
     let state = TestUiBuilder::with_default_tasks_and_tags()
       .build()
@@ -1738,16 +1742,16 @@ mod tests {
   #[test]
   fn save_ui_state_after_various_changes() {
     let events = vec![
-      Event::from('j').into(),
-      Event::from('l').into(),
-      Event::from('j').into(),
-      Event::from('j').into(),
-      Event::from('l').into(),
-      Event::from('j').into(),
-      Event::from('j').into(),
-      Event::from('j').into(),
-      Event::from('j').into(),
-      Event::from('w').into(),
+      Event::from('j'),
+      Event::from('l'),
+      Event::from('j'),
+      Event::from('j'),
+      Event::from('l'),
+      Event::from('j'),
+      Event::from('j'),
+      Event::from('j'),
+      Event::from('j'),
+      Event::from('w'),
     ];
     let state = TestUiBuilder::with_default_tasks_and_tags()
       .build()
