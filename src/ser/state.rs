@@ -23,7 +23,7 @@ use serde::Serialize;
 use crate::ser::query::Query;
 use crate::ser::tags::Templates;
 use crate::ser::tasks::Tasks;
-
+use crate::state::Colors;
 
 /// A struct comprising the task state of the program.
 #[derive(Debug, Default, Deserialize, PartialEq, Serialize)]
@@ -37,6 +37,8 @@ pub struct TaskState {
 /// A struct comprising the program state itself.
 #[derive(Debug, Default, Deserialize, PartialEq, Serialize)]
 pub struct UiState {
+  #[serde(default)]
+  pub colors: Colors,
   #[serde(default, skip_serializing_if = "Vec::is_empty")]
   pub queries: Vec<(Query, Option<usize>)>,
   #[serde(default, skip_serializing_if = "Option::is_none")]

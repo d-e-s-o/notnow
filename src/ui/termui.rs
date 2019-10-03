@@ -121,7 +121,7 @@ pub struct TermUi {
 impl TermUi {
   /// Create a new view associated with the given `State` object.
   pub fn new(id: Id, cap: &mut dyn MutCap<Event>, state: State) -> Self {
-    let State(task_state, UiState{path, queries, selected}) = state;
+    let State(task_state, UiState{path, queries, selected, ..}) = state;
     let mut queries = Some(queries);
 
     let in_out = cap.add_widget(id, &mut |id, cap| {
@@ -179,6 +179,7 @@ impl TermUi {
             path: self.ui_state_path.clone(),
             queries,
             selected,
+            colors: Default::default(),
           };
           Some(self.save_and_report(&ui_state))
         } else {
@@ -310,6 +311,7 @@ mod tests {
         }, None),
       ],
       selected: None,
+      colors: Default::default(),
     };
 
     (task_state, ui_state)
@@ -1770,6 +1772,7 @@ mod tests {
         }, Some(0)),
       ],
       selected: Some(0),
+      colors: Default::default(),
     };
     assert_eq!(state, expected)
   }
@@ -1798,6 +1801,7 @@ mod tests {
         }, Some(2)),
       ],
       selected: Some(0),
+      colors: Default::default(),
     };
     assert_eq!(state, expected)
   }
