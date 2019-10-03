@@ -23,6 +23,7 @@ use serde::Serialize;
 use crate::ser::query::Query;
 use crate::ser::tags::Templates;
 use crate::ser::tasks::Tasks;
+use crate::state::Colors;
 
 
 /// A struct comprising the task state of the program.
@@ -37,6 +38,11 @@ pub struct TaskState {
 /// A struct comprising the program state itself.
 #[derive(Debug, Default, Deserialize, PartialEq, Serialize)]
 pub struct UiState {
+  // We keep the colors at the start of the struct because that means
+  // they will be at the start of the file and they are the most likely
+  // to be modified by a user.
+  #[serde(default)]
+  pub colors: Colors,
   #[serde(default, skip_serializing_if = "Vec::is_empty")]
   pub queries: Vec<(Query, Option<usize>)>,
   #[serde(default, skip_serializing_if = "Option::is_none")]

@@ -275,9 +275,11 @@ where
   let task_path = task_config()?;
   let ui_path = ui_config()?;
 
-  let mut state = Some(State::new(&task_path, &ui_path)?);
+  let state = State::new(&task_path, &ui_path)?;
   let screen = AlternateScreen::from(out.into_raw_mode()?);
-  let renderer = TermRenderer::new(screen)?;
+  let colors = state.1.colors.get().unwrap_or_default();
+  let mut state = Some(state);
+  let renderer = TermRenderer::new(screen, colors)?;
   let (ui, _) = Ui::new(&mut |id, cap| {
     Box::new(TermUi::new(id, cap, state.take().unwrap()))
   });

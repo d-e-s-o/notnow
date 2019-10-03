@@ -1,7 +1,7 @@
 // term_renderer.rs
 
 // *************************************************************************
-// * Copyright (C) 2018 Daniel Mueller (deso@posteo.net)                   *
+// * Copyright (C) 2018-2019 Daniel Mueller (deso@posteo.net)              *
 // *                                                                       *
 // * This program is free software: you can redistribute it and/or modify  *
 // * it under the terms of the GNU General Public License as published by  *
@@ -27,10 +27,8 @@ use std::iter::repeat;
 
 use termion::clear::All;
 use termion::color::Bg;
-use termion::color::Color;
 use termion::color::Fg;
 use termion::color::Reset;
-use termion::color::Rgb;
 use termion::cursor::Goto;
 use termion::cursor::Hide;
 use termion::cursor::Show;
@@ -42,6 +40,9 @@ use gui::Id;
 use gui::Object;
 use gui::Renderable;
 use gui::Renderer;
+
+use crate::state::Color;
+use crate::state::Colors;
 
 use super::in_out::InOut;
 use super::in_out::InOutArea;
@@ -58,53 +59,6 @@ const SAVED_TEXT: &str = " Saved ";
 const SEARCH_TEXT: &str = " Search ";
 const ERROR_TEXT: &str = " Error ";
 const INPUT_TEXT: &str = " > ";
-
-// TODO: Make the colors run time configurable at some point.
-/// Color 15.
-const MORE_TASKS_FG: Rgb = Rgb(0x00, 0x00, 0x00);
-/// Bright green.
-const MORE_TASKS_BG: Rgb = Rgb(0x00, 0xd7, 0x00);
-/// Color 15.
-const SELECTED_QUERY_FG: Rgb = Rgb(0xff, 0xff, 0xff);
-/// Color 240.
-const SELECTED_QUERY_BG: Rgb = Rgb(0x58, 0x58, 0x58);
-/// Color 15.
-const UNSELECTED_QUERY_FG: Rgb = Rgb(0xff, 0xff, 0xff);
-/// Color 235.
-const UNSELECTED_QUERY_BG: Rgb = Rgb(0x26, 0x26, 0x26);
-/// Color 0.
-const UNSELECTED_TASK_FG: Rgb = Rgb(0x00, 0x00, 0x00);
-/// The terminal default background.
-const UNSELECTED_TASK_BG: Reset = Reset;
-/// Color 15.
-const SELECTED_TASK_FG: Rgb = Rgb(0xff, 0xff, 0xff);
-/// Color 240.
-const SELECTED_TASK_BG: Rgb = Rgb(0x58, 0x58, 0x58);
-/// Soft red.
-const TASK_NOT_STARTED_FG: Rgb = Rgb(0xfe, 0x0d, 0x0c);
-/// Color 15.
-const TASK_NOT_STARTED_BG: Reset = Reset;
-/// Bright green.
-const TASK_DONE_FG: Rgb = Rgb(0x00, 0xd7, 0x00);
-/// Color 15.
-const TASK_DONE_BG: Reset = Reset;
-/// Color 0.
-const IN_OUT_SUCCESS_FG: Rgb = Rgb(0x00, 0x00, 0x00);
-/// Color 40.
-const IN_OUT_SUCCESS_BG: Rgb = Rgb(0x00, 0xd7, 0x00);
-/// Color 0.
-const IN_OUT_STATUS_FG: Rgb = Rgb(0xff, 0xff, 0xff);
-/// Color 40.
-const IN_OUT_STATUS_BG: Rgb = Rgb(0x00, 0x00, 0x00);
-/// Color 0.
-const IN_OUT_ERROR_FG: Rgb = Rgb(0x00, 0x00, 0x00);
-/// Color 197.
-const IN_OUT_ERROR_BG: Rgb = Rgb(0xff, 0x00, 0x00);
-/// The terminal default foreground.
-const IN_OUT_STRING_FG: Reset = Reset;
-/// The terminal default background.
-const IN_OUT_STRING_BG: Reset = Reset;
-
 
 /// Sanitize an offset.
 fn sanitize_offset(offset: usize, selection: usize, limit: usize) -> usize {
@@ -183,10 +137,8 @@ where
   }
 
   /// Write a string to the terminal.
-  fn write<F, B, S>(&self, x: u16, y: u16, fg: F, bg: B, string: S) -> Result<()>
+  fn write<S>(&self, x: u16, y: u16, fg: Color, bg: Color, string: S) -> Result<()>
   where
-    F: Color,
-    B: Color,
     S: AsRef<str>,
   {
     let string = clip(x, y, string.as_ref(), self.bbox.get());
@@ -201,8 +153,8 @@ where
         self.writer.borrow_mut(),
         "{}{}{}{}",
         Goto(x, y),
-        Fg(fg),
-        Bg(bg),
+        Fg(fg.to_term_color().as_ref()),
+        Bg(bg.to_term_color().as_ref()),
         string,
       )?
     }
@@ -251,6 +203,7 @@ where
 {
   writer: ClippingWriter<BufWriter<W>>,
   data: RefCell<HashMap<Id, OffsetData>>,
+  colors: Colors,
 }
 
 impl<W> TermRenderer<W>
@@ -258,7 +211,7 @@ where
   W: Write,
 {
   /// Create a new `TermRenderer` object.
-  pub fn new(writer: W) -> Result<Self> {
+  pub fn new(writer: W, colors: Colors) -> Result<Self> {
     // Compared to termbox termion suffers from flickering when clearing
     // the entire screen as it lacks any double buffering capabilities
     // and uses an escape sequence for the clearing. One proposed
@@ -271,6 +224,7 @@ where
     Ok(TermRenderer {
       writer: writer,
       data: Default::default(),
+      colors,
     })
   }
 
@@ -310,30 +264,30 @@ where
     let offset = sanitize_offset(data.offset, selection, limit);
 
     if offset > 0 {
-      let fg = MORE_TASKS_FG;
-      let bg = MORE_TASKS_BG;
+      let fg = self.colors.more_tasks_fg;
+      let bg = self.colors.more_tasks_bg;
       self.writer.write(0, 0, fg, bg, "<")?;
     } else {
-      let fg = UNSELECTED_QUERY_FG;
-      let bg = UNSELECTED_QUERY_BG;
+      let fg = self.colors.unselected_query_fg;
+      let bg = self.colors.unselected_query_bg;
       self.writer.write(0, 0, fg, bg, " ")?;
     }
 
     if count > offset + limit {
-      let fg = MORE_TASKS_FG;
-      let bg = MORE_TASKS_BG;
+      let fg = self.colors.more_tasks_fg;
+      let bg = self.colors.more_tasks_bg;
       self.writer.write(bbox.w - 1, 0, fg, bg, ">")?;
     } else {
-      let fg = UNSELECTED_QUERY_FG;
-      let bg = UNSELECTED_QUERY_BG;
+      let fg = self.colors.unselected_query_fg;
+      let bg = self.colors.unselected_query_bg;
       self.writer.write(bbox.w - 1, 0, fg, bg, " ")?;
     }
 
     for (i, tab) in tab_bar.iter().enumerate().skip(offset).take(limit) {
       let (fg, bg) = if i == selection {
-        (SELECTED_QUERY_FG, SELECTED_QUERY_BG)
+        (self.colors.selected_query_fg, self.colors.selected_query_bg)
       } else {
-        (UNSELECTED_QUERY_FG, UNSELECTED_QUERY_BG)
+        (self.colors.unselected_query_fg, self.colors.unselected_query_bg)
       };
 
       let title = align_center(tab.clone(), TAB_TITLE_WIDTH as usize - 4);
@@ -345,8 +299,8 @@ where
 
     if x < w {
       let pad = repeat(" ").take((w - x) as usize).collect::<String>();
-      let fg = UNSELECTED_QUERY_FG;
-      let bg = UNSELECTED_QUERY_BG;
+      let fg = self.colors.unselected_query_fg;
+      let bg = self.colors.unselected_query_bg;
       self.writer.write(x, 0, fg, bg, pad)?
     }
 
@@ -377,15 +331,15 @@ where
     for (i, task) in query.iter().clone().enumerate().skip(offset).take(limit) {
       let complete = task.is_complete();
       let (state, state_fg, state_bg) = if !complete {
-        ("[ ]", TASK_NOT_STARTED_FG, TASK_NOT_STARTED_BG)
+        ("[ ]", self.colors.task_not_started_fg, self.colors.task_not_started_bg)
       } else {
-        ("[X]", TASK_DONE_FG, TASK_DONE_BG)
+        ("[X]", self.colors.task_done_fg, self.colors.task_done_bg)
       };
 
       let (task_fg, task_bg) = if i == selection {
-        (SELECTED_TASK_FG, &SELECTED_TASK_BG as &dyn Color)
+        (self.colors.selected_task_fg, self.colors.selected_task_bg)
       } else {
-        (UNSELECTED_TASK_FG, &UNSELECTED_TASK_BG as &dyn Color)
+        (self.colors.unselected_task_fg, self.colors.unselected_task_bg)
       };
 
       self.writer.write(x, y, state_fg, state_bg, state)?;
@@ -415,10 +369,30 @@ where
   /// Render an `InOutArea`.
   fn render_input_output(&self, in_out: &InOutArea, bbox: BBox, cap: &dyn Cap) -> Result<BBox> {
     let (prefix, fg, bg, string) = match in_out.state() {
-      InOut::Saved => (SAVED_TEXT, IN_OUT_SUCCESS_FG, IN_OUT_SUCCESS_BG, None),
-      InOut::Search(ref s) => (SEARCH_TEXT, IN_OUT_STATUS_FG, IN_OUT_STATUS_BG, Some(s)),
-      InOut::Error(ref e) => (ERROR_TEXT, IN_OUT_ERROR_FG, IN_OUT_ERROR_BG, Some(e)),
-      InOut::Input(ref s, _) => (INPUT_TEXT, IN_OUT_SUCCESS_FG, IN_OUT_SUCCESS_BG, Some(s)),
+      InOut::Saved => (
+        SAVED_TEXT,
+        self.colors.in_out_success_fg,
+        self.colors.in_out_success_bg,
+        None,
+      ),
+      InOut::Search(ref s) => (
+        SEARCH_TEXT,
+        self.colors.in_out_status_fg,
+        self.colors.in_out_status_bg,
+        Some(s),
+      ),
+      InOut::Error(ref e) => (
+        ERROR_TEXT,
+        self.colors.in_out_error_fg,
+        self.colors.in_out_error_bg,
+        Some(e),
+      ),
+      InOut::Input(ref s, _) => (
+        INPUT_TEXT,
+        self.colors.in_out_success_fg,
+        self.colors.in_out_success_bg,
+        Some(s),
+      ),
       InOut::Clear => return Ok(Default::default()),
     };
 
@@ -426,8 +400,8 @@ where
 
     if let Some(string) = string {
       let x = prefix.len() as u16 + 1;
-      let fg = IN_OUT_STRING_FG;
-      let bg = IN_OUT_STRING_BG;
+      let fg = self.colors.in_out_string_fg;
+      let bg = self.colors.in_out_string_bg;
 
       self.writer.write(x, bbox.h - 1, fg, bg, string)?;
 
