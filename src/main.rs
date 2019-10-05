@@ -75,6 +75,7 @@
 
 //! A terminal based task management application.
 
+mod colors;
 mod id;
 mod query;
 mod resize;

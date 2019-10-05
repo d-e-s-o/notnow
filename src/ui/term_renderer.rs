@@ -41,8 +41,8 @@ use gui::Object;
 use gui::Renderable;
 use gui::Renderer;
 
-use crate::state::Color;
-use crate::state::Colors;
+use crate::colors::Color;
+use crate::colors::Colors;
 
 use super::in_out::InOut;
 use super::in_out::InOutArea;
