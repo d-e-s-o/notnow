@@ -14,7 +14,7 @@ A terminal based task and TODO management software.
 """
 
 [badges]
-gitlab = { repository = "d-e-s-o/notnow", branch = "devel" }
+gitlab = { repository = "d-e-s-o/notnow", branch = "master" }
 
 [profile.release]
 opt-level = "z"
