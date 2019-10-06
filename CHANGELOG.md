@@ -1,5 +1,5 @@
-Unreleased
-----------
+0.2.1
+-----
 - Added support for configuring colors through `notnow.json`
 - Added support for moving tabs left/right
 - Added support for creating a core dump on panic
