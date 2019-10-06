@@ -153,8 +153,8 @@ where
         self.writer.borrow_mut(),
         "{}{}{}{}",
         Goto(x, y),
-        Fg(fg.to_term_color().as_ref()),
-        Bg(bg.to_term_color().as_ref()),
+        Fg(fg.as_term_color()),
+        Bg(bg.as_term_color()),
         string,
       )?
     }

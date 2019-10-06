@@ -17,59 +17,283 @@
 // * along with this program.  If not, see <http://www.gnu.org/licenses/>. *
 // *************************************************************************
 
+use std::fmt::Formatter;
+use std::fmt::Result as FmtResult;
+use std::marker::PhantomData;
+
+use serde::de::EnumAccess;
+use serde::de::Error;
+use serde::de::SeqAccess;
+use serde::de::Unexpected;
+use serde::de::VariantAccess;
+use serde::de::Visitor;
 use serde::Deserialize;
+use serde::Deserializer;
+use serde::ser::SerializeTupleVariant;
 use serde::Serialize;
+use serde::Serializer;
 
 use termion::color::Color as TermColor;
 use termion::color::Reset;
 use termion::color::Rgb;
 
 
-#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
-#[serde(rename_all = "lowercase")]
+#[derive(Clone, Copy, Debug)]
 pub enum Color {
-  Reset,
-  Rgb(u8, u8, u8),
+  Reset(Reset),
+  Rgb(Rgb),
 }
 
 impl Color {
   pub fn bright_green() -> Self {
-    Color::Rgb(0x00, 0xd7, 0x00)
+    Color::Rgb(Rgb(0x00, 0xd7, 0x00))
   }
 
   pub fn color0() -> Self {
-    Color::Rgb(0x00, 0x00, 0x00)
+    Color::Rgb(Rgb(0x00, 0x00, 0x00))
   }
 
   pub fn color15() -> Self {
-    Color::Rgb(0xff, 0xff, 0xff)
+    Color::Rgb(Rgb(0xff, 0xff, 0xff))
   }
 
   pub fn color197() -> Self {
-    Color::Rgb(0xff, 0x00, 0x00)
+    Color::Rgb(Rgb(0xff, 0x00, 0x00))
   }
 
   pub fn color235() -> Self {
-    Color::Rgb(0x26, 0x26, 0x26)
+    Color::Rgb(Rgb(0x26, 0x26, 0x26))
   }
 
   pub fn color240() -> Self {
-    Color::Rgb(0x58, 0x58, 0x58)
+    Color::Rgb(Rgb(0x58, 0x58, 0x58))
   }
 
   pub fn reset() -> Self {
-    Color::Reset
+    Color::Reset(Reset)
   }
 
   pub fn soft_red() -> Self {
-    Color::Rgb(0xfe, 0x0d, 0x0c)
+    Color::Rgb(Rgb(0xfe, 0x0d, 0x0c))
   }
 
-  pub fn to_term_color(self) -> Box<dyn TermColor> {
+  pub fn as_term_color(&self) -> &dyn TermColor {
     match self {
-      Color::Reset => Box::new(Reset),
-      Color::Rgb(r, g, b) => Box::new(Rgb(r, g, b)),
+      Color::Reset(c) => c,
+      Color::Rgb(c) => c,
     }
+  }
+}
+
+impl PartialEq for Color {
+  fn eq(&self, other: &Self) -> bool {
+    match self {
+      Color::Reset(_) => match other {
+        Color::Reset(_) => true,
+        Color::Rgb(_) => false,
+      },
+      Color::Rgb(rgb) => match other {
+        Color::Reset(_) => false,
+        Color::Rgb(other_rgb) => {
+          rgb.0 == other_rgb.0 && rgb.1 == other_rgb.1 && rgb.2 == other_rgb.2
+        }
+      },
+    }
+  }
+}
+
+impl Serialize for Color {
+  fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+  where
+    S: Serializer,
+  {
+    match self {
+      Color::Reset(_) => serializer.serialize_unit_variant("Color", 0, "reset"),
+      Color::Rgb(c) => {
+        let mut tuple = serializer.serialize_tuple_variant("Color", 1, "rgb", 3)?;
+        tuple.serialize_field(&c.0)?;
+        tuple.serialize_field(&c.1)?;
+        tuple.serialize_field(&c.2)?;
+        tuple.end()
+      },
+    }
+  }
+}
+
+impl<'de> Deserialize<'de> for Color {
+  fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+  where
+    D: Deserializer<'de>,
+  {
+    deserializer.deserialize_enum(
+      "Color",
+      VARIANTS,
+      ColorVisitor {
+        marker: PhantomData,
+      },
+    )
+  }
+}
+
+
+const VARIANTS: &[&str] = &["reset", "rgb"];
+
+
+/// A helper enum for deserializing a `Color`.
+enum ColorEnum {
+  Reset,
+  Rgb,
+}
+
+impl<'de> Deserialize<'de> for ColorEnum {
+  fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+  where
+    D: Deserializer<'de>,
+  {
+    deserializer.deserialize_identifier(VariantVisitor)
+  }
+}
+
+
+/// A visitor for the `Color` enum.
+struct ColorVisitor<'de> {
+  marker: PhantomData<&'de Color>,
+}
+
+impl<'de> Visitor<'de> for ColorVisitor<'de> {
+  type Value = Color;
+
+  fn expecting(&self, formatter: &mut Formatter<'_>) -> FmtResult {
+    formatter.write_str("enum Color")
+  }
+
+  fn visit_enum<A>(self, data: A) -> Result<Self::Value, A::Error>
+  where
+    A: EnumAccess<'de>,
+  {
+    EnumAccess::variant(data).and_then(|value| match value {
+      (ColorEnum::Reset, variant) => {
+        VariantAccess::unit_variant(variant).map(|_| Color::Reset(Reset))
+      }
+      (ColorEnum::Rgb, variant) => VariantAccess::tuple_variant(
+        variant,
+        3,
+        RgbVisitor {
+          marker: PhantomData,
+        },
+      ),
+    })
+  }
+}
+
+
+/// A visitor for the individual variants of the `Color` enum.
+struct VariantVisitor;
+
+impl<'de> Visitor<'de> for VariantVisitor {
+  type Value = ColorEnum;
+
+  fn expecting(&self, formatter: &mut Formatter<'_>) -> FmtResult {
+    formatter.write_str("variant identifier")
+  }
+
+  fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E>
+  where
+    E: Error,
+  {
+    match value {
+      0 => Ok(ColorEnum::Reset),
+      1 => Ok(ColorEnum::Rgb),
+      _ => Err(Error::invalid_value(
+        Unexpected::Unsigned(value),
+        &"variant index 0 <= i < 2",
+      )),
+    }
+  }
+
+  fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+  where
+    E: Error,
+  {
+    match value {
+      "reset" => Ok(ColorEnum::Reset),
+      "rgb" => Ok(ColorEnum::Rgb),
+      _ => Err(Error::unknown_variant(value, VARIANTS)),
+    }
+  }
+
+  fn visit_bytes<E>(self, value: &[u8]) -> Result<Self::Value, E>
+  where
+    E: Error,
+  {
+    match value {
+      b"reset" => Ok(ColorEnum::Reset),
+      b"rgb" => Ok(ColorEnum::Rgb),
+      _ => {
+        let value = &String::from_utf8_lossy(value);
+        Err(Error::unknown_variant(value, VARIANTS))
+      }
+    }
+  }
+}
+
+
+/// A visitor for the `Color::Rgb` variant.
+struct RgbVisitor<'de> {
+  marker: PhantomData<&'de Color>,
+}
+
+impl<'de> Visitor<'de> for RgbVisitor<'de> {
+  type Value = Color;
+
+  fn expecting(&self, formatter: &mut Formatter<'_>) -> FmtResult {
+    formatter.write_str("tuple variant Color::Rgb")
+  }
+
+  fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+  where
+    A: SeqAccess<'de>,
+  {
+    let r = match match SeqAccess::next_element::<u8>(&mut seq) {
+      Ok(value) => value,
+      Err(err) => return Err(err),
+    } {
+      Some(value) => value,
+      None => {
+        return Err(Error::invalid_length(
+          0,
+          &"tuple variant Color::Rgb with 3 elements",
+        ));
+      }
+    };
+
+    let g = match match SeqAccess::next_element::<u8>(&mut seq) {
+      Ok(value) => value,
+      Err(err) => return Err(err),
+    } {
+      Some(value) => value,
+      None => {
+        return Err(Error::invalid_length(
+          1,
+          &"tuple variant Color::Rgb with 3 elements",
+        ));
+      }
+    };
+
+    let b = match match SeqAccess::next_element::<u8>(&mut seq) {
+      Ok(value) => value,
+      Err(err) => return Err(err),
+    } {
+      Some(value) => value,
+      None => {
+        return Err(Error::invalid_length(
+          2,
+          &"tuple variant Color::Rgb with 3 elements",
+        ));
+      }
+    };
+
+    Ok(Color::Rgb(Rgb(r, g, b)))
   }
 }
 
@@ -148,5 +372,52 @@ impl Default for Colors {
       in_out_string_fg: Color::reset(),
       in_out_string_bg: Color::reset(),
     }
+  }
+}
+
+
+#[cfg(test)]
+pub mod tests {
+  use super::*;
+
+  use serde_json::from_str as from_json;
+  use serde_json::to_string as to_json;
+
+
+  #[test]
+  fn color_equal() {
+    let reset = Color::Reset(Reset);
+    assert_eq!(reset, reset);
+
+    let color = Color::Rgb(Rgb(127, 45, 32));
+    assert_eq!(color, color);
+  }
+
+  #[test]
+  fn color_unequal() {
+    assert_ne!(Color::Reset(Reset), Color::Rgb(Rgb(0, 68, 11)));
+    assert_ne!(Color::Rgb(Rgb(0, 68, 12)), Color::Rgb(Rgb(0, 68, 11)));
+    assert_ne!(Color::Rgb(Rgb(0, 69, 12)), Color::Rgb(Rgb(0, 68, 12)));
+    assert_ne!(Color::Rgb(Rgb(1, 69, 12)), Color::Rgb(Rgb(0, 69, 12)));
+  }
+
+  #[test]
+  fn serialize_deserialize_reset() {
+    let reset = Color::Reset(Reset);
+    let serialized = to_json(&reset).unwrap();
+    assert_eq!(serialized, "\"reset\"");
+
+    let deserialized = from_json::<Color>(&serialized).unwrap();
+    assert_eq!(deserialized, reset);
+  }
+
+  #[test]
+  fn serialize_deserialize_rgb() {
+    let rgb = Color::Rgb(Rgb(1, 2, 3));
+    let serialized = to_json(&rgb).unwrap();
+    assert_eq!(serialized, "{\"rgb\":[1,2,3]}");
+
+    let deserialized = from_json::<Color>(&serialized).unwrap();
+    assert_eq!(deserialized, rgb);
   }
 }
