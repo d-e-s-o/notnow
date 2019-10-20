@@ -7,13 +7,30 @@
 # https://github.com/rust-lang/docker-rust/blob/7663b3d6680c62dee26c8c20b03a836fc09b6325/1.34.0/stretch/Dockerfile
 image: "rust:1.34.0"
 
-build-test:cargo:
+stages:
+  - build
+  - test
+
+build:cargo:
+  stage: build
+  artifacts:
+    paths:
+      - target/
   script:
   - rustc --version && cargo --version
-  - cargo build --all --verbose
+  - cargo build --tests --all --verbose
+
+test:cargo:
+  stage: test
+  dependencies:
+  - build:cargo
+  script:
   - cargo test --all --verbose
 
 lint:clippy:
+  stage: test
+  dependencies:
+    - build:cargo
   script:
   - rustup component add clippy
   - cargo clippy --all-targets --all-features -- -D warnings
