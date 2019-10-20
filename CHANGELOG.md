@@ -1,3 +1,8 @@
+Unreleased
+----------
+- Added code coverage collection and reporting to CI pipeline
+
+
 0.2.1
 -----
 - Added support for configuring colors through `notnow.json`

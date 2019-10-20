@@ -1,4 +1,5 @@
 [![pipeline](https://gitlab.com/d-e-s-o/notnow/badges/master/pipeline.svg)](https://gitlab.com/d-e-s-o/notnow/commits/master)
+[![coverage](https://gitlab.com/d-e-s-o/notnow/badges/master/coverage.svg)](https://gitlab.com/d-e-s-o/notnow/commits/master)
 [![crates.io](https://img.shields.io/crates/v/notnow.svg)](https://crates.io/crates/notnow)
 [![rustc](https://img.shields.io/badge/rustc-1.34+-blue.svg)](https://blog.rust-lang.org/2019/04/11/Rust-1.34.0.html)
 
