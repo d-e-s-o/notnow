@@ -1,5 +1,6 @@
 Unreleased
 ----------
+- Fixed assertion failure when searching after aborting search term entry
 - Added code coverage collection and reporting to CI pipeline
 
 

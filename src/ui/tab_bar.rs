@@ -429,6 +429,7 @@ impl Handleable<Event> for TabBar {
           Key::Char('n') |
           Key::Char('N') => {
             let event = match self.search.take() {
+              SearchT::Preparing(..) |
               SearchT::Unset => {
                 self.search = SearchT::Unset;
 
@@ -436,8 +437,7 @@ impl Handleable<Event> for TabBar {
                 let event = TermUiEvent::SetInOut(error);
                 UiEvent::Custom(Box::new(event)).into()
               },
-              SearchT::Taken |
-              SearchT::Preparing(..) => panic!("invalid search state"),
+              SearchT::Taken => panic!("invalid search state"),
               SearchT::State(string, search_state, mut iter_state) => {
                 let iter = self.tabs.iter().map(|x| x.1);
                 let new_idx = iter_state.normalize(iter);

@@ -1721,6 +1721,32 @@ mod tests {
   }
 
   #[test]
+  fn search_term_entry_aborted() {
+    let tasks = make_tasks(5);
+    let events = vec![
+      Event::from('j'),
+      Event::from('/'),
+      Event::from('3'),
+      // Abort the search term entry.
+      Event::from(Key::Esc),
+      // Perform a search. That shouldn't really change anything.
+      Event::from('n'),
+    ];
+
+    let mut ui = TestUiBuilder::with_ser_tasks(tasks).build();
+    ui.handle(events);
+
+    assert_eq!(ui.in_out(), InOut::Error("Nothing to search for".to_string()));
+
+    ui.handle(vec![Event::from('d')]);
+    let tasks = ui.ser_tasks();
+    let mut expected = make_tasks(5);
+    expected.remove(1);
+
+    assert_eq!(tasks, expected);
+  }
+
+  #[test]
   fn valid_update_events() {
     for c in 0u8..127u8 {
       let mut ui = TestUiBuilder::new().build();
