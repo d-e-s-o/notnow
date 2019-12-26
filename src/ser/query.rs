@@ -1,7 +1,7 @@
 // query.rs
 
 // *************************************************************************
-// * Copyright (C) 2018 Daniel Mueller (deso@posteo.net)                   *
+// * Copyright (C) 2018-2019 Daniel Mueller (deso@posteo.net)              *
 // *                                                                       *
 // * This program is free software: you can redistribute it and/or modify  *
 // * it under the terms of the GNU General Public License as published by  *
@@ -26,8 +26,13 @@ use crate::ser::tags::Tag;
 
 /// A literal that can be serialized and deserialized.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(rename_all = "lowercase")]
 pub enum TagLit {
+  // TODO: Remove the aliases with the next compatibility breaking
+  //       release.
+  #[serde(alias = "Pos")]
   Pos(Tag),
+  #[serde(alias = "Neg")]
   Neg(Tag),
 }
 
