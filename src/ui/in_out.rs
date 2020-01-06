@@ -1,7 +1,7 @@
 // in_out.rs
 
 // *************************************************************************
-// * Copyright (C) 2018-2019 Daniel Mueller (deso@posteo.net)              *
+// * Copyright (C) 2018-2020 Daniel Mueller (deso@posteo.net)              *
 // *                                                                       *
 // * This program is free software: you can redistribute it and/or modify  *
 // * it under the terms of the GNU General Public License as published by  *
@@ -98,6 +98,19 @@ impl Default for InOutState {
       gen: 0,
     }
   }
+}
+
+
+/// Retrieve the index and length of a character at the given byte
+/// index.
+#[cfg(any(test, not(feature = "readline")))]
+fn str_char(s: &str, pos: usize) -> (usize, usize) {
+  for (idx, c) in s.char_indices() {
+    if pos < idx + c.len_utf8() {
+      return (idx, c.len_utf8())
+    }
+  }
+  (pos, 1)
 }
 
 
@@ -252,36 +265,37 @@ impl InOutArea {
       // Rust's standard library, so just ignore everything that is
       // represented as more than one byte (the `unicode_segmentation`
       // would allow us to circumvent this restriction).
-      Key::Char(c) if c.len_utf8() == 1 => {
+      Key::Char(c) => {
         s.insert(idx, c);
-        self.change_state(InOut::Input(s, idx + 1))
+        self.change_state(InOut::Input(s, idx + c.len_utf8()))
       },
       Key::Backspace => {
         if idx > 0 {
-          let _ = s.remove(idx - 1);
-          idx -= 1;
+          let (i, len) = str_char(&s, idx - 1);
+          let _ = s.remove(i);
+          idx = idx.saturating_sub(len);
         }
         self.change_state(InOut::Input(s, idx))
       },
       Key::Delete => {
         if idx < s.len() {
           let _ = s.remove(idx);
-          if idx > s.len() {
-            idx -= 1;
-          }
         }
         self.change_state(InOut::Input(s, idx))
       },
       Key::Left => {
         if idx > 0 {
-          self.change_state(InOut::Input(s, idx - 1))
+          idx = str_char(&s, idx - 1).0;
+          self.change_state(InOut::Input(s, idx))
         } else {
           None
         }
       },
       Key::Right => {
         if idx < s.len() {
-          self.change_state(InOut::Input(s, idx + 1))
+          let (idx, len) = str_char(&s, idx);
+          debug_assert!(idx + len <= s.len());
+          self.change_state(InOut::Input(s, idx + len))
         } else {
           None
         }
@@ -391,5 +405,25 @@ impl Handleable<Event> for InOutArea {
       Ok(e) => self.handle_custom_event(e, cap),
       Err(e) => panic!("Received unexpected custom event: {:?}", e),
     }
+  }
+}
+
+
+#[cfg(all(test, feature = "readline"))]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn string_characters() {
+    let s = "abödeägh";
+    assert_eq!(str_char(s, 0), (0, 1));
+    assert_eq!(str_char(s, 1), (1, 1));
+    assert_eq!(str_char(s, 2), (2, 2));
+    assert_eq!(str_char(s, 3), (2, 2));
+    assert_eq!(str_char(s, 4), (4, 1));
+    assert_eq!(str_char(s, 5), (5, 1));
+    assert_eq!(str_char(s, 6), (6, 2));
+    assert_eq!(str_char(s, 7), (6, 2));
+    assert_eq!(str_char(s, 8), (8, 1));
   }
 }

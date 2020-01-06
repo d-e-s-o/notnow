@@ -1,7 +1,7 @@
 // termui.rs
 
 // *************************************************************************
-// * Copyright (C) 2017-2019 Daniel Mueller (deso@posteo.net)              *
+// * Copyright (C) 2017-2020 Daniel Mueller (deso@posteo.net)              *
 // *                                                                       *
 // * This program is free software: you can redistribute it and/or modify  *
 // * it under the terms of the GNU General Public License as published by  *
@@ -974,7 +974,10 @@ mod tests {
       .handle(events)
       .ser_tasks();
 
-    assert_eq!(tasks, make_tasks(1))
+    let mut expected = make_tasks(1);
+    expected[0].summary = "1äö".to_string();
+
+    assert_eq!(tasks, expected);
   }
 
   #[test]
@@ -1035,6 +1038,56 @@ mod tests {
     let (.., mut expected) = make_tasks_with_tags(15);
     expected[8].summary = "9ab".to_string();
     let expected = expected.into_iter().map(|x| x.summary).collect::<Vec<_>>();
+
+    assert_eq!(tasks, expected);
+  }
+
+  #[test]
+  fn remove_before_multi_byte_characters() {
+    let tasks = make_tasks(1);
+    let events = vec![
+      Event::from('e'),
+      Event::from('b'),
+      Event::from('ä'),
+      Event::from('b'),
+      Event::from(Key::Left),
+      Event::from(Key::Left),
+      Event::from(Key::Backspace),
+      Event::from('\n'),
+    ];
+
+    let tasks = TestUiBuilder::with_ser_tasks(tasks)
+      .build()
+      .handle(events)
+      .ser_tasks();
+
+    let mut expected = make_tasks(1);
+    expected[0].summary = "1äb".to_string();
+
+    assert_eq!(tasks, expected);
+  }
+
+  #[test]
+  fn remove_multi_byte_characters() {
+    let tasks = make_tasks(1);
+    let events = vec![
+      Event::from('e'),
+      Event::from('b'),
+      Event::from('ä'),
+      Event::from('b'),
+      Event::from(Key::Left),
+      Event::from(Key::Left),
+      Event::from(Key::Delete),
+      Event::from('\n'),
+    ];
+
+    let tasks = TestUiBuilder::with_ser_tasks(tasks)
+      .build()
+      .handle(events)
+      .ser_tasks();
+
+    let mut expected = make_tasks(1);
+    expected[0].summary = "1bb".to_string();
 
     assert_eq!(tasks, expected);
   }

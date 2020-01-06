@@ -1,7 +1,7 @@
 // term_renderer.rs
 
 // *************************************************************************
-// * Copyright (C) 2018-2019 Daniel Mueller (deso@posteo.net)              *
+// * Copyright (C) 2018-2020 Daniel Mueller (deso@posteo.net)              *
 // *                                                                       *
 // * This program is free software: you can redistribute it and/or modify  *
 // * it under the terms of the GNU General Public License as published by  *
@@ -59,6 +59,19 @@ const SAVED_TEXT: &str = " Saved ";
 const SEARCH_TEXT: &str = " Search ";
 const ERROR_TEXT: &str = " Error ";
 const INPUT_TEXT: &str = " > ";
+
+
+/// Find the character index that maps to the given byte position.
+fn char_index(s: &str, pos: usize) -> usize {
+  let mut count = 0;
+  for (idx, c) in s.char_indices() {
+    if pos < idx + c.len_utf8() {
+      break
+    }
+    count += 1;
+  }
+  count
+}
 
 /// Sanitize an offset.
 fn sanitize_offset(offset: usize, selection: usize, limit: usize) -> usize {
@@ -405,9 +418,11 @@ where
 
       self.writer.write(x, bbox.h - 1, fg, bg, string)?;
 
-      if let InOut::Input(_, idx) = in_out.state() {
+      if let InOut::Input(s, idx) = in_out.state() {
         debug_assert!(cap.is_focused(in_out.id()));
-        self.writer.goto(x + *idx as u16, bbox.h - 1)?;
+
+        let idx = char_index(&s, *idx);
+        self.writer.goto(x + idx as u16, bbox.h - 1)?;
         self.writer.show()?
       }
     }
