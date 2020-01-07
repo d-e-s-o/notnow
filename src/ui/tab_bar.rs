@@ -1,7 +1,7 @@
 // tab_bar.rs
 
 // *************************************************************************
-// * Copyright (C) 2018-2019 Daniel Mueller (deso@posteo.net)              *
+// * Copyright (C) 2018-2020 Daniel Mueller (deso@posteo.net)              *
 // *                                                                       *
 // * This program is free software: you can redistribute it and/or modify  *
 // * it under the terms of the GNU General Public License as published by  *
@@ -228,7 +228,7 @@ impl TabBar {
         if iter_state.has_cycled(self.tabs.iter().len()) {
           self.search = SearchT::State(string.clone(), search_state, iter_state);
 
-          let error = format!("Text '{}' not found", string).to_string();
+          let error = format!("Text '{}' not found", string);
           let event = TermUiEvent::SetInOut(InOut::Error(error));
           Some(UiEvent::Custom(Box::new(event)).into())
         } else if iter_state.has_advanced() {

@@ -1,7 +1,7 @@
 // event.rs
 
 // *************************************************************************
-// * Copyright (C) 2018-2019 Daniel Mueller (deso@posteo.net)              *
+// * Copyright (C) 2018-2020 Daniel Mueller (deso@posteo.net)              *
 // *                                                                       *
 // * This program is free software: you can redistribute it and/or modify  *
 // * it under the terms of the GNU General Public License as published by  *
@@ -142,7 +142,7 @@ where
     if update {
       self.update()
     } else {
-      self.and_then(|x| Some(x.into()))
+      self.map(Into::into)
     }
   }
 }

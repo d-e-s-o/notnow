@@ -1,7 +1,7 @@
 // task_list_box.rs
 
 // *************************************************************************
-// * Copyright (C) 2018-2019 Daniel Mueller (deso@posteo.net)              *
+// * Copyright (C) 2018-2020 Daniel Mueller (deso@posteo.net)              *
 // *                                                                       *
 // * This program is free software: you can redistribute it and/or modify  *
 // * it under the terms of the GNU General Public License as published by  *
@@ -177,7 +177,7 @@ impl TaskListBox {
         .rev()
         .skip(start_idx)
         .position(|x| x.summary.to_ascii_lowercase().contains(string))
-        .and_then(|idx| Some((count - 1) - (start_idx + idx)))
+        .map(|idx| (count - 1) - (start_idx + idx))
     } else {
       self
         .query
@@ -185,7 +185,7 @@ impl TaskListBox {
         .clone()
         .skip(start_idx)
         .position(|x| x.summary.to_ascii_lowercase().contains(string))
-        .and_then(|idx| Some(start_idx + idx))
+        .map(|idx| start_idx + idx)
     }
   }
 
