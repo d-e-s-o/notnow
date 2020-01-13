@@ -4,6 +4,7 @@ Unreleased
 - Fixed assertion failure when searching after aborting search term entry
 - Lowercased `Pos` and `Neg` fields of serialized queries
 - Added code coverage collection and reporting to CI pipeline
+- Bumped `dirs` dependency to `2.0`
 
 
 0.2.1

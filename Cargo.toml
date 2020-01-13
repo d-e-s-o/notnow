@@ -37,7 +37,7 @@ package = "coredump"
 optional = true
 
 [dependencies.dirs]
-version = "1.0"
+version = "2.0"
 
 [dependencies.gui]
 version = "0.4"
