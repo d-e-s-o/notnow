@@ -1,3 +1,9 @@
+Unreleased
+----------
+- Adjusted link to coverage to actually reference coverage information
+  artifacts
+
+
 0.2.2
 -----
 - Improved support for handling multi-byte characters
