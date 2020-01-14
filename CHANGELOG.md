@@ -1,5 +1,5 @@
-Unreleased
-----------
+0.2.2
+-----
 - Improved support for handling multi-byte characters
 - Fixed assertion failure when searching after aborting search term entry
 - Lowercased `Pos` and `Neg` fields of serialized queries
