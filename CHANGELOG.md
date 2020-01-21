@@ -2,6 +2,7 @@ Unreleased
 ----------
 - Adjusted link to coverage to actually reference coverage information
   artifacts
+- Bumped `rline` dependency to `0.3`
 - Bumped required Rust version to `1.36`
 
 
