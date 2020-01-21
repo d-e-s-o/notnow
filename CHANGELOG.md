@@ -2,6 +2,7 @@ Unreleased
 ----------
 - Adjusted link to coverage to actually reference coverage information
   artifacts
+- Bumped required Rust version to `1.36`
 
 
 0.2.2
