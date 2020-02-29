@@ -1,7 +1,7 @@
 // main.rs
 
 // *************************************************************************
-// * Copyright (C) 2017-2019 Daniel Mueller (deso@posteo.net)              *
+// * Copyright (C) 2017-2020 Daniel Mueller (deso@posteo.net)              *
 // *                                                                       *
 // * This program is free software: you can redistribute it and/or modify  *
 // * it under the terms of the GNU General Public License as published by  *
@@ -37,7 +37,6 @@
   overflowing_literals,
   path_statements,
   patterns_in_fns_without_body,
-  plugin_as_library,
   private_in_public,
   proc_macro_derive_resolution_fallback,
   renamed_and_removed_lints,
