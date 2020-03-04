@@ -303,7 +303,7 @@ fn run_with_args() -> Result<()> {
 
   let mut it = args_os();
   match it.len() {
-    0 | 1 => run_prog(stdout()),
+    0 | 1 => run_prog(stdout().lock()),
     2 => {
       let path = it.nth(1).unwrap();
       let file = OpenOptions::new().read(false).write(true).open(path)?;

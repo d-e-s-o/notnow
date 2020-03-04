@@ -1,5 +1,6 @@
 Unreleased
 ----------
+- Reduce synchronization overhead by locking stdout only once
 - Adjusted link to coverage to actually reference coverage information
   artifacts
 - Bumped `rline` dependency to `0.3`
