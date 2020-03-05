@@ -19,6 +19,7 @@
 
 use std::cell::Cell;
 use std::cell::RefCell;
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::io::BufWriter;
 use std::io::Result;
@@ -89,20 +90,25 @@ fn align_center(string: impl Into<String>, width: usize) -> String {
   let mut string = string.into();
   let length = string.len();
 
-  if length > width {
-    // Note: May underflow if width < 3. That's not really a supported
-    //       use case, though, so we ignore it here.
-    string.replace_range(width - 3..length, "...");
-  } else if length < width {
-    let pad_right = (width - length) / 2;
-    let pad_left = width - length - pad_right;
+  match length.cmp(&width) {
+    Ordering::Greater => {
+      // Note: May underflow if width < 3. That's not really a supported
+      //       use case, though, so we ignore it here.
+      string.replace_range(width - 3..length, "...");
+    },
+    Ordering::Less => {
+      let pad_right = (width - length) / 2;
+      let pad_left = width - length - pad_right;
 
-    let pad_right = repeat(" ").take(pad_right).collect::<String>();
-    let pad_left = repeat(" ").take(pad_left).collect::<String>();
+      let pad_right = repeat(" ").take(pad_right).collect::<String>();
+      let pad_left = repeat(" ").take(pad_left).collect::<String>();
 
-    string.insert_str(0, &pad_right);
-    string.push_str(&pad_left);
+      string.insert_str(0, &pad_right);
+      string.push_str(&pad_left);
+    },
+    Ordering::Equal => (),
   }
+
   string
 }
 

@@ -1,7 +1,7 @@
 // query.rs
 
 // *************************************************************************
-// * Copyright (C) 2017-2019 Daniel Mueller (deso@posteo.net)              *
+// * Copyright (C) 2017-2020 Daniel Mueller (deso@posteo.net)              *
 // *                                                                       *
 // * This program is free software: you can redistribute it and/or modify  *
 // * it under the terms of the GNU General Public License as published by  *
@@ -390,7 +390,7 @@ mod tests {
   fn filter_completions() {
     let (templates, tasks) = make_tagged_tasks(16);
     let complete_tag = templates.instantiate(templates.complete_tag().id());
-    let query = QueryBuilder::new(tasks.clone())
+    let query = QueryBuilder::new(tasks)
       .and(complete_tag)
       .build("test");
 
@@ -412,7 +412,7 @@ mod tests {
   fn filter_no_completions() {
     let (templates, tasks) = make_tagged_tasks(16);
     let complete_tag = templates.instantiate(templates.complete_tag().id());
-    let query = QueryBuilder::new(tasks.clone())
+    let query = QueryBuilder::new(tasks)
       .and_not(complete_tag)
       .build("test");
 
@@ -435,7 +435,7 @@ mod tests {
     let (templates, tasks) = make_tagged_tasks(20);
     let tag1 = templates.instantiate(templates.iter().nth(1).unwrap().id());
     let tag2 = templates.instantiate(templates.iter().nth(2).unwrap().id());
-    let query = QueryBuilder::new(tasks.clone())
+    let query = QueryBuilder::new(tasks)
       .and(tag1)
       .and(tag2)
       .build("test");
@@ -455,7 +455,7 @@ mod tests {
     let (templates, tasks) = make_tagged_tasks(20);
     let tag1 = templates.instantiate(templates.iter().nth(1).unwrap().id());
     let tag3 = templates.instantiate(templates.iter().nth(3).unwrap().id());
-    let query = QueryBuilder::new(tasks.clone())
+    let query = QueryBuilder::new(tasks)
       .or(tag3)
       .or(tag1)
       .build("test");
@@ -482,7 +482,7 @@ mod tests {
     let complete_tag = templates.instantiate(templates.complete_tag().id());
     let tag1 = templates.instantiate(templates.iter().nth(1).unwrap().id());
     let tag4 = templates.instantiate(templates.iter().nth(4).unwrap().id());
-    let query = QueryBuilder::new(tasks.clone())
+    let query = QueryBuilder::new(tasks)
       .and(tag1)
       .and(complete_tag)
       .or(tag4)
@@ -503,7 +503,7 @@ mod tests {
     let (templates, tasks) = make_tagged_tasks(20);
     let complete_tag = templates.instantiate(templates.complete_tag().id());
     let tag2 = templates.instantiate(templates.iter().nth(2).unwrap().id());
-    let query = QueryBuilder::new(tasks.clone())
+    let query = QueryBuilder::new(tasks)
       .and_not(tag2)
       .and_not(complete_tag)
       .build("test");
@@ -524,7 +524,7 @@ mod tests {
     let complete_tag = templates.instantiate(templates.complete_tag().id());
     let tag2 = templates.instantiate(templates.iter().nth(2).unwrap().id());
     let tag3 = templates.instantiate(templates.iter().nth(3).unwrap().id());
-    let query = QueryBuilder::new(tasks.clone())
+    let query = QueryBuilder::new(tasks)
       .or_not(tag2)
       .or_not(complete_tag)
       .and(tag3)

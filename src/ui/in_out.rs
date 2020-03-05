@@ -56,9 +56,9 @@ impl InOut {
   /// Check whether the `InOut` state is `Input`.
   fn is_input(&self) -> bool {
     if let InOut::Input(..) = &self {
-      return true
+      true
     } else {
-      return false
+      false
     }
   }
 }

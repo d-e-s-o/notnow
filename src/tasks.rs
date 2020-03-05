@@ -1,7 +1,7 @@
 // tasks.rs
 
 // *************************************************************************
-// * Copyright (C) 2017-2019 Daniel Mueller (deso@posteo.net)              *
+// * Copyright (C) 2017-2020 Daniel Mueller (deso@posteo.net)              *
 // *                                                                       *
 // * This program is free software: you can redistribute it and/or modify  *
 // * it under the terms of the GNU General Public License as published by  *
@@ -297,7 +297,7 @@ pub mod tests {
   #[test]
   fn move_before_for_first() {
     let mut tasks = Tasks::with_serde_tasks(make_tasks(3)).unwrap();
-    let id1 = tasks.iter().nth(0).unwrap().id();
+    let id1 = tasks.iter().next().unwrap().id();
     let id2 = tasks.iter().nth(1).unwrap().id();
     tasks.move_before(id1, id2);
 
