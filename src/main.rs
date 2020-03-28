@@ -86,7 +86,6 @@ mod tasks;
 mod test;
 mod ui;
 
-use std::alloc::System;
 use std::env::args_os;
 use std::fs::OpenOptions;
 use std::io::Error;
@@ -125,13 +124,6 @@ use crate::ui::event::Event as UiEvent;
 use crate::ui::term_renderer::TermRenderer;
 use crate::ui::termui::TermUi;
 use crate::ui::termui::TermUiEvent;
-
-// Switch from the default allocator (typically jemalloc) to the system
-// allocator (malloc based on Unix systems). Our application is by no
-// means allocation intensive and the default allocator is typically
-// much larger in size, causing binary bloat.
-#[global_allocator]
-static A: System = System;
 
 /// A type indicating the desire to continue execution.
 ///
