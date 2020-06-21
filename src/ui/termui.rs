@@ -169,22 +169,15 @@ impl TermUi {
   /// Handle a custom event.
   fn handle_custom_event(&mut self, event: Box<TermUiEvent>) -> Option<UiEvents<Event>> {
     match *event {
-      // TODO: Ideally we would use a pattern guard here to check
-      //       `for_save`. That requires the bind_by_move_pattern_guards
-      //       feature which should be stable with 1.39.
-      TermUiEvent::CollectedState(state) => {
-        if state.for_save {
-          let TabState{queries, selected, ..} = state;
-          let ui_state = UiState {
-            path: self.ui_state_path.clone(),
-            queries,
-            selected,
-            colors: Default::default(),
-          };
-          Some(self.save_and_report(&ui_state))
-        } else {
-          Some(UiEvent::Custom(Box::new(TermUiEvent::CollectedState(state))).into())
-        }
+      TermUiEvent::CollectedState(state) if state.for_save => {
+        let TabState{queries, selected, ..} = state;
+        let ui_state = UiState {
+          path: self.ui_state_path.clone(),
+          queries,
+          selected,
+          colors: Default::default(),
+        };
+        Some(self.save_and_report(&ui_state))
       },
       TermUiEvent::SetInOut(_) => {
         Some(UiEvent::Directed(self.in_out, event).into())
