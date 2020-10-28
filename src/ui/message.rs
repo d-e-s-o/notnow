@@ -90,11 +90,29 @@ impl Message {
 
 /// A trait for converting something into an `Option<UiEvent<Event>>`.
 pub trait MessageExt {
+  /// Potentially convert an optional `Message` into the
+  /// `Message::Updated` variant.
+  fn maybe_update(self, update: bool) -> Option<Message>;
+
   /// Convert an optional message into an optional event.
   fn into_event(self) -> Option<UiEvent<Event>>;
 }
 
 impl MessageExt for Option<Message> {
+  fn maybe_update(self, update: bool) -> Option<Message> {
+    match self {
+      Some(Message::Updated) => self,
+      None => {
+        if update {
+          Some(Message::Updated)
+        } else {
+          None
+        }
+      },
+      Some(..) => panic!("Unexpected message: {:?}", self),
+    }
+  }
+
   fn into_event(self) -> Option<UiEvent<Event>> {
     match self {
       Some(m @ Message::Updated) => Some(UiEvent::Custom(Box::new(m))),

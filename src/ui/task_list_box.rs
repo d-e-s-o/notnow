@@ -142,6 +142,7 @@ impl TaskListBoxData {
 pub struct TaskListBox {
   id: Id,
   in_out: Id,
+  tab_bar: Id,
 }
 
 impl TaskListBox {
@@ -149,10 +150,15 @@ impl TaskListBox {
   pub fn new(
     id: Id,
     cap: &mut dyn MutCap<Event, Message>,
+    tab_bar: Id,
     in_out: Id,
     selected: Option<usize>,
   ) -> Self {
-    let task_list_box = Self { id, in_out };
+    let task_list_box = Self {
+      id,
+      tab_bar,
+      in_out,
+    };
     let data = task_list_box.data_mut::<TaskListBoxData>(cap);
 
     let count = data.query.iter().clone().count();
@@ -168,50 +174,42 @@ impl TaskListBox {
   /// Select a task and emit an event indicating success/failure.
   ///
   /// This method takes care of correctly selecting a task after it was
-  /// added or modified. After a such an operation task may or may not
+  /// added or modified. After such an operation a task may or may not
   /// be covered by our query anymore, meaning we either need to select
   /// it or find somebody else who displays it and ask him to select it.
-  ///
-  /// Note that the emitted event chain will only contain an `Updated`
-  /// event if the selection changed. However, there may be other
-  /// conditions under which an update must happen, e.g., when the
-  /// summary or the tags of the task changed. Handling of updates in
-  /// those cases is left to clients.
-  fn handle_select_task(
+  async fn handle_select_task(
     &self,
     cap: &mut dyn MutCap<Event, Message>,
     task_id: TaskId,
     mut state: IterationState,
-  ) -> Option<UiEvents<Event>> {
+  ) -> Option<Message> {
     let data = self.data_mut::<TaskListBoxData>(cap);
     let idx = data.query.iter().position(|x| x.id() == task_id);
 
     if let Some(idx) = idx {
       let update = data.set_select(idx as isize);
-      let event = Message::SelectedTask(self.id);
-      // Indicate to the parent that we selected the task in
-      // question successfully. The widget should make sure to focus
-      // us subsequently.
-      Some(UiEvent::Custom(Box::new(event))).maybe_update(update)
+      // Indicate to the TabBar that we selected the task in question
+      // successfully. It should make sure to focus us subsequently.
+      let message = Message::SelectedTask(self.id);
+      cap.send(self.tab_bar, message).await.maybe_update(update)
     } else {
       // We don't have a task that should get selected. Bounce the event
-      // back to the parent to let it check with the next widget.
+      // back to the TabBar to let it check with the next widget.
       state.advance();
 
-      let data = Box::new(Message::SelectTask(task_id, state));
-      let event = UiEvent::Custom(data);
-      Some(event.into())
+      let message = Message::SelectTask(task_id, state);
+      cap.send(self.tab_bar, message).await
     }
   }
 
   /// Start the selection of a task.
-  fn handle_select_task_start(
+  async fn handle_select_task_start(
     &self,
     cap: &mut dyn MutCap<Event, Message>,
     task_id: TaskId,
-  ) -> Option<UiEvents<Event>> {
+  ) -> Option<Message> {
     let state = IterationState::new(self.id);
-    self.handle_select_task(cap, task_id, state)
+    self.handle_select_task(cap, task_id, state).await
   }
 
   /// Search for a task containing the given string.
@@ -273,7 +271,7 @@ impl TaskListBox {
   }
 
   /// Handle a `Message::SearchTask` event.
-  fn handle_search_task(
+  async fn handle_search_task(
     &self,
     cap: &mut dyn MutCap<Event, Message>,
     string: &str,
@@ -288,8 +286,9 @@ impl TaskListBox {
 
       let data = self.data_mut::<TaskListBoxData>(cap);
       let update = data.set_select(idx as isize);
-      let event = Message::SelectedTask(self.id);
-      Some(UiEvent::Custom(Box::new(event))).maybe_update(update)
+      let message = Message::SelectedTask(self.id);
+      let _ = cap.send(self.tab_bar, message).await;
+      (None as Option<Event>).maybe_update(update)
     } else {
       iter_state.advance();
       *search_state = SearchState::First;
@@ -298,16 +297,13 @@ impl TaskListBox {
   }
 
   /// Handle a custom event.
-  fn handle_custom_event(
+  async fn handle_custom_event(
     &self,
     cap: &mut dyn MutCap<Event, Message>,
     event: Box<Message>,
   ) -> Option<UiEvents<Event>> {
     let data = self.data_mut::<TaskListBoxData>(cap);
     match *event {
-      Message::SelectTask(task_id, state) => {
-        self.handle_select_task(cap, task_id, state)
-      },
       Message::EnteredText(ref text) => {
         if let Some(state) = data.state.take() {
           match state {
@@ -325,7 +321,11 @@ impl TaskListBox {
                 };
 
                 let id = data.tasks.borrow_mut().add(text.clone(), tags);
-                self.handle_select_task_start(cap, id)
+                self
+                  .handle_select_task_start(cap, id)
+                  .await
+                  .into_event()
+                  .map(UiEvents::from)
               } else {
                 None
               }
@@ -338,7 +338,12 @@ impl TaskListBox {
               if !text.is_empty() {
                 task.summary = text.clone();
                 data.tasks.borrow_mut().update(task);
-                self.handle_select_task_start(cap, id).update()
+                self
+                  .handle_select_task_start(cap, id)
+                  .await
+                  .into_event()
+                  .map(UiEvents::from)
+                  .update()
               } else {
                 data.tasks.borrow_mut().remove(id);
                 (None as Option<Event>).update()
@@ -362,14 +367,16 @@ impl TaskListBox {
   }
 
   /// Handle a "returnable" custom event.
-  fn handle_custom_event_ref(
+  async fn handle_custom_event_ref(
     &self,
     event: &mut Message,
     cap: &mut dyn MutCap<Event, Message>,
   ) -> Option<UiEvents<Event>> {
     match event {
       Message::SearchTask(string, search_state, iter_state) => {
-        self.handle_search_task(cap, string, search_state, iter_state)
+        self
+          .handle_search_task(cap, string, search_state, iter_state)
+          .await
       },
       _ => None,
     }
@@ -408,7 +415,12 @@ impl Handleable<Event, Message> for TaskListBox {
               let id = task.id();
               task.toggle_complete();
               data.tasks.borrow_mut().update(task);
-              self.handle_select_task_start(cap, id).update()
+              self
+                .handle_select_task_start(cap, id)
+                .await
+                .into_event()
+                .map(UiEvents::from)
+                .update()
             } else {
               None
             }
@@ -485,7 +497,7 @@ impl Handleable<Event, Message> for TaskListBox {
     event: Box<dyn Any>,
   ) -> Option<UiEvents<Event>> {
     match event.downcast::<Message>() {
-      Ok(e) => self.handle_custom_event(cap, e),
+      Ok(e) => self.handle_custom_event(cap, e).await,
       Err(e) => panic!("Received unexpected custom event: {:?}", e),
     }
   }
@@ -497,8 +509,17 @@ impl Handleable<Event, Message> for TaskListBox {
     event: &mut dyn Any,
   ) -> Option<UiEvents<Event>> {
     match event.downcast_mut::<Message>() {
-      Some(e) => self.handle_custom_event_ref(e, cap),
+      Some(e) => self.handle_custom_event_ref(e, cap).await,
       None => panic!("Received unexpected custom event"),
+    }
+  }
+
+
+  /// React to a message.
+  async fn react(&self, message: Message, cap: &mut dyn MutCap<Event, Message>) -> Option<Message> {
+    match message {
+      Message::SelectTask(task_id, state) => self.handle_select_task(cap, task_id, state).await,
+      m => panic!("Received unexpected message: {:?}", m),
     }
   }
 

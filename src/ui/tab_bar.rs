@@ -47,7 +47,7 @@ use super::event::Key;
 use super::in_out::InOut;
 use super::iteration::IterationState as IterationStateT;
 use super::message::Message;
-use super::message::MessageExt as _;
+use super::message::MessageExt;
 use crate::tasks::Tasks;
 use super::task_list_box::TaskListBox;
 use super::task_list_box::TaskListBoxData;
@@ -212,6 +212,7 @@ impl TabBar {
       .map(|x| min(x, isize::MAX as usize))
       .unwrap_or(0) as isize;
     let selected = sanitize_selection(selected, count);
+    let tab_bar = id;
 
     let tabs = queries
       .into_iter()
@@ -222,7 +223,7 @@ impl TabBar {
         let task_list = cap.add_widget(
           id,
           Box::new(|| Box::new(TaskListBoxData::new(tasks, query))),
-          Box::new(move |id, cap| Box::new(TaskListBox::new(id, cap, in_out, task))),
+          Box::new(move |id, cap| Box::new(TaskListBox::new(id, cap, tab_bar, in_out, task))),
         );
 
         if i == selected {
@@ -299,28 +300,9 @@ impl TabBar {
   async fn handle_custom_event(
     &self,
     cap: &mut dyn MutCap<Event, Message>,
-    mut event: Box<Message>,
+    event: Box<Message>,
   ) -> Option<UiEvents<Event>> {
     match *event {
-      Message::SelectTask(_, ref mut state) => {
-        let data = self.data::<TabBarData>(cap);
-        let iter = data.tabs.iter().map(|x| x.1);
-        let new_idx = state.normalize(iter.clone());
-
-        if !state.has_cycled(iter.len()) {
-          let tab = data.tabs[new_idx].1;
-          let event = UiEvent::Directed(tab, event);
-          Some(ChainEvent::Event(event))
-        } else {
-          None
-        }
-      },
-      Message::SelectedTask(widget_id) => {
-        let data = self.data::<TabBarData>(cap);
-        let select = data.tabs.iter().position(|x| x.1 == widget_id).unwrap();
-        let update = self.set_select(cap, select as isize);
-        (None as Option<Event>).maybe_update(update)
-      },
       Message::EnteredText(mut string) => {
         let data = self.data_mut::<TabBarData>(cap);
         if !string.is_empty() && !data.tabs.is_empty() {
@@ -521,7 +503,11 @@ impl Handleable<Event, Message> for TabBar {
   }
 
   /// React to a message.
-  async fn react(&self, message: Message, cap: &mut dyn MutCap<Event, Message>) -> Option<Message> {
+  async fn react(
+    &self,
+    mut message: Message,
+    cap: &mut dyn MutCap<Event, Message>,
+  ) -> Option<Message> {
     match message {
       Message::CollectState => {
         let tab_state = TabState {
@@ -553,6 +539,24 @@ impl Handleable<Event, Message> for TabBar {
 
         let message = Message::CollectedState(tab_state);
         Some(message)
+      },
+      Message::SelectTask(_, ref mut state) => {
+        let data = self.data::<TabBarData>(cap);
+        let iter = data.tabs.iter().map(|x| x.1);
+        let new_idx = state.normalize(iter.clone());
+
+        if !state.has_cycled(iter.len()) {
+          let tab = data.tabs[new_idx].1;
+          cap.send(tab, message).await
+        } else {
+          None
+        }
+      },
+      Message::SelectedTask(widget_id) => {
+        let data = self.data::<TabBarData>(cap);
+        let select = data.tabs.iter().position(|x| x.1 == widget_id).unwrap();
+        let update = self.set_select(cap, select as isize);
+        MessageExt::maybe_update(None, update)
       },
       m => panic!("Received unexpected message: {:?}", m),
     }
