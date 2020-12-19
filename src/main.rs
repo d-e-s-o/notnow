@@ -22,11 +22,11 @@
 // avoid build breakages when upgrading to new Rust versions.
 #![warn(
   bad_style,
+  broken_intra_doc_links,
   dead_code,
   future_incompatible,
   illegal_floating_point_literal_pattern,
   improper_ctypes,
-  intra_doc_link_resolution_failure,
   late_bound_lifetime_arguments,
   missing_copy_implementations,
   missing_debug_implementations,
