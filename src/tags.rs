@@ -1,7 +1,7 @@
 // tags.rs
 
 // *************************************************************************
-// * Copyright (C) 2018-2019 Daniel Mueller (deso@posteo.net)              *
+// * Copyright (C) 2018-2020 Daniel Mueller (deso@posteo.net)              *
 // *                                                                       *
 // * This program is free software: you can redistribute it and/or modify  *
 // * it under the terms of the GNU General Public License as published by  *
@@ -50,7 +50,7 @@ pub struct Template {
 impl Template {
   /// Create a new tag template with the given name.
   fn new(name: impl Into<String>) -> Self {
-    Template {
+    Self {
       id: Id::new(),
       name: name.into(),
     }
@@ -99,7 +99,7 @@ impl Ord for Template {
 
 impl From<SerTemplate> for Template {
   fn from(template: SerTemplate) -> Self {
-    Template {
+    Self {
       id: Id::new(),
       name: template.name,
     }
@@ -126,9 +126,7 @@ pub struct Tag {
 impl Tag {
   /// Create a new tag referencing the given template.
   fn new(template: Rc<Template>) -> Tag {
-    Tag {
-      template: template,
-    }
+    Self { template }
   }
 
   /// Retrieve the tag's ID.
@@ -212,9 +210,9 @@ impl Templates {
       .unzip();
 
     let complete = ensure_contains(&mut templates, COMPLETE_TAG);
-    let templates = Templates {
-      templates: templates,
-      complete: complete,
+    let templates = Self {
+      templates,
+      complete,
     };
     (templates, map)
   }

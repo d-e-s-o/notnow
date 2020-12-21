@@ -53,7 +53,7 @@ impl Task {
   /// Create a new task.
   #[cfg(test)]
   pub fn new(summary: impl Into<String>) -> Self {
-    Task {
+    Self {
       id: Id::new(),
       summary: summary.into(),
       tags: Default::default(),
@@ -65,9 +65,9 @@ impl Task {
   fn with_summary_and_tags(summary: String, tags: Vec<Tag>, templates: Rc<Templates>) -> Self {
     Task {
       id: Id::new(),
-      summary: summary,
+      summary,
       tags: tags.into_iter().map(|x| (x.id(), x)).collect(),
-      templates: templates,
+      templates,
     }
   }
 
@@ -82,11 +82,11 @@ impl Task {
       let _ = tags.insert(*id, templates.instantiate(*id));
     }
 
-    Ok(Task {
+    Ok(Self {
       id: Id::new(),
       summary: task.summary,
-      tags: tags,
-      templates: templates,
+      tags,
+      templates,
     })
   }
 
@@ -158,8 +158,8 @@ impl Tasks {
       new_tasks.push(task);
     }
 
-    Ok(Tasks {
-      templates: templates,
+    Ok(Self {
+      templates,
       tasks: new_tasks,
     })
   }

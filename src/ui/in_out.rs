@@ -132,8 +132,8 @@ impl InOutArea {
     // "clear" state on every key press.
     let _ = cap.hook_events(id, Some(&InOutArea::handle_hooked_event));
 
-    InOutArea {
-      id: id,
+    Self {
+      id,
       prev_focused: None,
       in_out: Default::default(),
       #[cfg(feature = "readline")]

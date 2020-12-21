@@ -132,11 +132,11 @@ impl TermUi {
       Box::new(TabBar::new(id, cap, &task_state, queries, selected))
     });
 
-    TermUi {
-      id: id,
-      in_out: in_out,
-      tab_bar: tab_bar,
-      task_state: task_state,
+    Self {
+      id,
+      in_out,
+      tab_bar,
+      task_state,
       ui_state_path: path,
     }
   }
@@ -320,7 +320,7 @@ mod tests {
   impl TestUiBuilder {
     /// Create a builder that will create a UI without any tasks.
     fn new() -> TestUiBuilder {
-      TestUiBuilder {
+      Self {
         task_state: Default::default(),
         ui_state: Default::default(),
       }
@@ -333,7 +333,7 @@ mod tests {
     {
       tasks.as_ref().iter().for_each(|x| assert!(x.tags.is_empty()));
 
-      TestUiBuilder {
+      Self {
         task_state: SerTaskState {
           templates: Default::default(),
           tasks: SerTasks(tasks.into()),
@@ -364,9 +364,9 @@ mod tests {
       });
 
       TestUi {
-        task_file: task_file,
-        ui_file: ui_file,
-        ui: ui,
+        task_file,
+        ui_file,
+        ui,
       }
     }
   }

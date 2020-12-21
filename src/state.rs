@@ -1,7 +1,7 @@
 // state.rs
 
 // *************************************************************************
-// * Copyright (C) 2017-2019 Daniel Mueller (deso@posteo.net)              *
+// * Copyright (C) 2017-2020 Daniel Mueller (deso@posteo.net)              *
 // *                                                                       *
 // * This program is free software: you can redistribute it and/or modify  *
 // * it under the terms of the GNU General Public License as published by  *
@@ -151,7 +151,7 @@ impl ToSerde<SerUiState> for UiState {
 
     SerUiState {
       colors: self.colors.get().unwrap_or_default(),
-      queries: queries,
+      queries,
       selected: self.selected,
     }
   }
@@ -202,16 +202,16 @@ impl State {
 
     let task_state = TaskState {
       path: task_path.into(),
-      templates: templates,
-      tasks: tasks,
+      templates,
+      tasks,
     };
     let ui_state = UiState {
       colors: Cell::new(Some(ui_state.colors)),
       path: ui_path.into(),
-      queries: queries,
+      queries,
       selected: ui_state.selected,
     };
-    Ok(State(task_state, ui_state))
+    Ok(Self(task_state, ui_state))
   }
 }
 
@@ -377,8 +377,8 @@ pub mod tests {
       },
     ]);
     let task_state = SerTaskState {
-      templates: templates,
-      tasks: tasks,
+      templates,
+      tasks,
     };
     let task_path = PathBuf::default();
 

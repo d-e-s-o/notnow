@@ -86,10 +86,10 @@ impl TaskListBox {
       .unwrap_or(0) as isize;
     let selected = sanitize_selection(selected, count) as isize;
 
-    TaskListBox {
-      id: id,
-      tasks: tasks,
-      query: query,
+    Self {
+      id,
+      tasks,
+      query,
       selection: selected,
       state: None,
     }

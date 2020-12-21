@@ -83,10 +83,7 @@ pub struct Filter<'t> {
 impl<'t> Filter<'t> {
   /// Create a new `Filter` wrapping an iterator and filtering using the given set of literals.
   fn new(iter: TaskIter<'t>, lits: &'t [Vec<TagLit>]) -> Self {
-    Self {
-      iter: iter,
-      lits: lits,
-    }
+    Self { iter, lits }
   }
 
   /// Check if one of the given tags matches the available ones.
@@ -175,8 +172,8 @@ pub struct QueryBuilder {
 impl QueryBuilder {
   /// Create a new `QueryBuilder` object.
   pub fn new(tasks: Rc<RefCell<Tasks>>) -> QueryBuilder {
-    QueryBuilder {
-      tasks: tasks,
+    Self {
+      tasks,
       lits: Default::default(),
     }
   }
@@ -311,7 +308,7 @@ impl Query {
 
     Ok(Query {
       name: query.name,
-      tasks: tasks,
+      tasks,
       lits: and_lits,
     })
   }
@@ -343,7 +340,7 @@ impl ToSerde<SerQuery> for Query {
 
     SerQuery {
       name: self.name.clone(),
-      lits: lits,
+      lits,
     }
   }
 }

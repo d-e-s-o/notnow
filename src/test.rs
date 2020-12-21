@@ -1,7 +1,7 @@
 // test.rs
 
 // *************************************************************************
-// * Copyright (C) 2018-2019 Daniel Mueller (deso@posteo.net)              *
+// * Copyright (C) 2018-2020 Daniel Mueller (deso@posteo.net)              *
 // *                                                                       *
 // * This program is free software: you can redistribute it and/or modify  *
 // * it under the terms of the GNU General Public License as published by  *
@@ -50,7 +50,7 @@ impl NamedTempFile {
     let result = unsafe { mkstemp(raw) };
     assert!(result > 0);
 
-    NamedTempFile {
+    Self {
       file: result as u64,
       path: unsafe { PathBuf::from(CString::from_raw(raw).into_string().unwrap()) },
     }

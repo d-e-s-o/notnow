@@ -199,9 +199,9 @@ impl TabBar {
         (name, task_list)
       }).collect();
 
-    TabBar {
-      id: id,
-      tabs: tabs,
+    Self {
+      id,
+      tabs,
       selection: selected as isize,
       prev_selection: selected as isize,
       search: SearchT::Unset,

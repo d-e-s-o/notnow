@@ -1,7 +1,7 @@
 // id.rs
 
 // *************************************************************************
-// * Copyright (C) 2018 Daniel Mueller (deso@posteo.net)                   *
+// * Copyright (C) 2018-2020 Daniel Mueller (deso@posteo.net)              *
 // *                                                                       *
 // * This program is free software: you can redistribute it and/or modify  *
 // * it under the terms of the GNU General Public License as published by  *
@@ -44,8 +44,8 @@ where
   T: Copy,
 {
   pub fn new(id: usize) -> Self {
-    Id {
-      id: id,
+    Self {
+      id,
       phantom: PhantomData,
     }
   }
@@ -92,7 +92,7 @@ where
   where
     D: Deserializer<'de>,
   {
-    Ok(Id {
+    Ok(Self {
       id: u64::deserialize(deserializer)? as usize,
       phantom: PhantomData,
     })

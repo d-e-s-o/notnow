@@ -144,7 +144,7 @@ where
 {
   /// Create a new `ClippingWriter` object.
   fn new(writer: W) -> Self {
-    ClippingWriter {
+    Self {
       writer: RefCell::new(writer),
       bbox: Default::default(),
     }
@@ -241,7 +241,7 @@ where
     let writer = ClippingWriter::new(BufWriter::new(writer));
 
     Ok(TermRenderer {
-      writer: writer,
+      writer,
       data: Default::default(),
       colors,
     })
@@ -446,8 +446,8 @@ where
         BBox {
           x: 0,
           y: 0,
-          w: w,
-          h: h,
+          w,
+          h,
         }
       },
       Err(e) => panic!("Retrieving terminal size failed: {}", e),
@@ -544,8 +544,8 @@ mod tests {
     for x in 0..5 {
       for y in 0..3 {
         let bbox = BBox {
-          x: x,
-          y: y,
+          x,
+          y,
           w: 5,
           h: 3,
         };
