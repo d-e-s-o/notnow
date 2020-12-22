@@ -40,8 +40,8 @@ use super::event::EventUpdate;
 use super::event::Key;
 use super::in_out::InOut;
 use super::iteration::IterationState as IterationStateT;
+use super::message::Message;
 use super::task_list_box::TaskListBox;
-use super::termui::Message;
 
 
 /// The iteration state as used by a `TabBar`.

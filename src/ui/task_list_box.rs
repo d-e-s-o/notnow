@@ -41,10 +41,10 @@ use super::event::Event;
 use super::event::EventUpdate;
 use super::event::Key;
 use super::in_out::InOut;
+use super::message::Message;
 use super::tab_bar::IterationState;
 use super::tab_bar::SearchState;
 use super::tab_bar::TabState;
-use super::termui::Message;
 
 
 /// Sanitize a selection index.

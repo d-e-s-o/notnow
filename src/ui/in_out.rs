@@ -38,7 +38,7 @@ use rline::Readline;
 use super::event::Event;
 use super::event::EventUpdate;
 use super::event::Key;
-use super::termui::Message;
+use super::message::Message;
 
 
 /// An object representing the in/out area within the TermUi.

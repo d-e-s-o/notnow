@@ -121,9 +121,9 @@ use gui::UnhandledEvents;
 use crate::resize::receive_window_resizes;
 use crate::state::State;
 use crate::ui::event::Event as UiEvent;
+use crate::ui::message::Message;
 use crate::ui::term_renderer::TermRenderer;
 use crate::ui::termui::TermUi;
-use crate::ui::termui::Message;
 
 /// A type indicating the desire to continue execution.
 ///

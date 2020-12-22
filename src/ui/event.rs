@@ -24,7 +24,8 @@ use gui::UiEvents;
 use gui::UnhandledEvent;
 use gui::UnhandledEvents;
 
-use super::termui::Message;
+use super::message::Message;
+
 
 /// A key as used by the UI.
 pub use termion::event::Key;
