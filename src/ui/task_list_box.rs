@@ -44,7 +44,7 @@ use super::in_out::InOut;
 use super::tab_bar::IterationState;
 use super::tab_bar::SearchState;
 use super::tab_bar::TabState;
-use super::termui::TermUiEvent;
+use super::termui::Message;
 
 
 /// Sanitize a selection index.
@@ -113,7 +113,7 @@ impl TaskListBox {
     let idx = self.query.iter().position(|x| x.id() == task_id);
     if let Some(idx) = idx {
       let update = self.set_select(idx as isize);
-      let event = TermUiEvent::SelectedTask(self.id);
+      let event = Message::SelectedTask(self.id);
       // Indicate to the parent that we selected the task in
       // question successfully. The widget should make sure to focus
       // us subsequently.
@@ -123,7 +123,7 @@ impl TaskListBox {
       // back to the parent to let it check with the next widget.
       state.advance();
 
-      let data = Box::new(TermUiEvent::SelectTask(task_id, state));
+      let data = Box::new(Message::SelectTask(task_id, state));
       let event = UiEvent::Custom(data);
       Some(event.into())
     }
@@ -189,7 +189,7 @@ impl TaskListBox {
     }
   }
 
-  /// Handle a `TermUiEvent::SearchTask` event.
+  /// Handle a `Message::SearchTask` event.
   fn handle_search_task(&mut self,
                         string: &str,
                         search_state: &mut SearchState,
@@ -201,7 +201,7 @@ impl TaskListBox {
       *search_state = SearchState::Task(idx);
 
       let update = self.set_select(idx as isize);
-      let event = TermUiEvent::SelectedTask(self.id);
+      let event = Message::SelectedTask(self.id);
       Some(UiEvent::Custom(Box::new(event))).maybe_update(update)
     } else {
       iter_state.advance();
@@ -211,12 +211,12 @@ impl TaskListBox {
   }
 
   /// Handle a custom event.
-  fn handle_custom_event(&mut self, event: Box<TermUiEvent>) -> Option<UiEvents<Event>> {
+  fn handle_custom_event(&mut self, event: Box<Message>) -> Option<UiEvents<Event>> {
     match *event {
-      TermUiEvent::SelectTask(task_id, state) => {
+      Message::SelectTask(task_id, state) => {
         self.handle_select_task(task_id, state)
       },
-      TermUiEvent::EnteredText(ref text) => {
+      Message::EnteredText(ref text) => {
         if let Some(state) = self.state.take() {
           match state {
             State::Add => {
@@ -258,11 +258,11 @@ impl TaskListBox {
         }
       },
       #[cfg(not(feature = "readline"))]
-      TermUiEvent::InputCanceled => {
+      Message::InputCanceled => {
         if self.state.take().is_some() {
           (None as Option<Event>).update()
         } else {
-          Some(UiEvent::Custom(Box::new(TermUiEvent::InputCanceled)).into())
+          Some(UiEvent::Custom(Box::new(Message::InputCanceled)).into())
         }
       },
       _ => Some(UiEvent::Custom(event).into()),
@@ -270,12 +270,12 @@ impl TaskListBox {
   }
 
   /// Handle a "returnable" custom event.
-  fn handle_custom_event_ref(&mut self, event: &mut TermUiEvent) -> Option<UiEvents<Event>> {
+  fn handle_custom_event_ref(&mut self, event: &mut Message) -> Option<UiEvents<Event>> {
     match event {
-      TermUiEvent::SearchTask(string, search_state, iter_state) => {
+      Message::SearchTask(string, search_state, iter_state) => {
         self.handle_search_task(string, search_state, iter_state)
       },
-      TermUiEvent::GetTabState(ref mut tab_state, ref mut iter_state) => {
+      Message::GetTabState(ref mut tab_state, ref mut iter_state) => {
         let TabState{ref mut queries, ..} = tab_state;
         let selected = Some(self.selection());
 
@@ -363,7 +363,7 @@ impl Handleable<Event> for TaskListBox {
             }
           },
           Key::Char('a') => {
-            let event = TermUiEvent::SetInOut(InOut::Input("".to_string(), 0));
+            let event = Message::SetInOut(InOut::Input("".to_string(), 0));
             let event = UiEvent::Custom(Box::new(event));
 
             self.state = Some(State::Add);
@@ -383,7 +383,7 @@ impl Handleable<Event> for TaskListBox {
               let task = self.selected_task();
               let string = task.summary.clone();
               let idx = string.len();
-              let event = TermUiEvent::SetInOut(InOut::Input(string, idx));
+              let event = Message::SetInOut(InOut::Input(string, idx));
               let event = UiEvent::Custom(Box::new(event));
 
               self.state = Some(State::Edit(task));
@@ -436,7 +436,7 @@ impl Handleable<Event> for TaskListBox {
   fn handle_custom(&mut self,
                    event: Box<dyn Any>,
                    _cap: &mut dyn MutCap<Event>) -> Option<UiEvents<Event>> {
-    match event.downcast::<TermUiEvent>() {
+    match event.downcast::<Message>() {
       Ok(e) => self.handle_custom_event(e),
       Err(e) => panic!("Received unexpected custom event: {:?}", e),
     }
@@ -446,7 +446,7 @@ impl Handleable<Event> for TaskListBox {
   fn handle_custom_ref(&mut self,
                        event: &mut dyn Any,
                        _cap: &mut dyn MutCap<Event>) -> Option<UiEvents<Event>> {
-    match event.downcast_mut::<TermUiEvent>() {
+    match event.downcast_mut::<Message>() {
       Some(e) => self.handle_custom_event_ref(e),
       None => panic!("Received unexpected custom event"),
     }

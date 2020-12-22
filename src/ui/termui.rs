@@ -47,8 +47,8 @@ use super::tab_bar::TabState;
 
 /// An enumeration comprising all custom events we support.
 #[derive(Debug)]
-pub enum TermUiEvent {
-  /// An event to ask a widget to select the task with the given
+pub enum Message {
+  /// A message to ask a widget to select the task with the given
   /// `TaskId`.
   SelectTask(TaskId, IterationState),
   /// Search for a task containing the given string in its summary and
@@ -61,21 +61,21 @@ pub enum TermUiEvent {
   SetInOut(InOut),
   /// Change the state of the input/output area to Clear, unless the
   /// generation ID supplied does not match the current generation ID.
-  /// This event is internal to the InOutArea, there is no need for
+  /// This message is internal to the InOutArea, there is no need for
   /// other clients to use it.
   ClearInOut(usize),
   /// Text has been entered.
   EnteredText(String),
   /// Text input has been canceled.
   InputCanceled,
-  /// An event used to collect the state from the `TabBar`. The flag
-  /// indicates whether the `TermUi` issued the event as part of a
+  /// A message used to collect the state from the `TabBar`. The flag
+  /// indicates whether the `TermUi` issued the message as part of a
   /// "save" operation. If it is false, the UI will just ignore the
-  /// response to this event and let it bubble up.
+  /// response to this message and let it bubble up.
   CollectState(bool),
-  /// The response to the `CollectState` event.
+  /// The response to the `CollectState` message.
   CollectedState(TabState),
-  /// An event used to collect the state of all tabs.
+  /// A message used to collect the state of all tabs.
   GetTabState(TabState, IterationState),
   /// A indication that some component changed and that we should
   /// re-render everything.
@@ -83,21 +83,21 @@ pub enum TermUiEvent {
   /// Retrieve the current set of tasks.
   #[cfg(all(test, not(feature = "readline")))]
   GetTasks,
-  /// The response to the `GetTasks` event.
+  /// The response to the `GetTasks` message.
   #[cfg(all(test, not(feature = "readline")))]
   GotTasks(Vec<Task>),
   /// Retrieve the current state of the input/output area.
   #[cfg(all(test, not(feature = "readline")))]
   GetInOut,
-  /// The response to the `GetInOut` event.
+  /// The response to the `GetInOut` message.
   #[cfg(all(test, not(feature = "readline")))]
   GotInOut(InOut),
 }
 
-impl TermUiEvent {
-  /// Check whether the event is the `Updated` variant.
+impl Message {
+  /// Check whether the message is the `Updated` variant.
   pub fn is_updated(&self) -> bool {
-    if let TermUiEvent::Updated = self {
+    if let Message::Updated = self {
       true
     } else {
       false
@@ -156,20 +156,20 @@ impl TermUi {
       Ok(_) => InOut::Saved,
       Err(err) => InOut::Error(format!("{}", err)),
     };
-    let event = TermUiEvent::SetInOut(in_out);
+    let event = Message::SetInOut(in_out);
     UiEvent::Directed(self.in_out, Box::new(event)).into()
   }
 
   /// Emit an event that will eventually cause the state to be saved.
   fn save(&mut self) -> UiEvents<Event> {
-    let event = TermUiEvent::CollectState(true);
+    let event = Message::CollectState(true);
     UiEvent::Directed(self.tab_bar, Box::new(event)).into()
   }
 
   /// Handle a custom event.
-  fn handle_custom_event(&mut self, event: Box<TermUiEvent>) -> Option<UiEvents<Event>> {
+  fn handle_custom_event(&mut self, event: Box<Message>) -> Option<UiEvents<Event>> {
     match *event {
-      TermUiEvent::CollectedState(state) if state.for_save => {
+      Message::CollectedState(state) if state.for_save => {
         let TabState{queries, selected, ..} = state;
         let ui_state = UiState {
           path: self.ui_state_path.clone(),
@@ -179,18 +179,18 @@ impl TermUi {
         };
         Some(self.save_and_report(&ui_state))
       },
-      TermUiEvent::SetInOut(_) => {
+      Message::SetInOut(_) => {
         Some(UiEvent::Directed(self.in_out, event).into())
       },
       #[cfg(all(test, not(feature = "readline")))]
-      TermUiEvent::GetTasks => {
+      Message::GetTasks => {
         let tasks = self.task_state.tasks();
         let tasks = tasks.borrow().iter().cloned().collect();
-        let resp = TermUiEvent::GotTasks(tasks);
+        let resp = Message::GotTasks(tasks);
         Some(UiEvent::Custom(Box::new(resp)).into())
       },
       #[cfg(all(test, not(feature = "readline")))]
-      TermUiEvent::GetInOut => {
+      Message::GetInOut => {
         // We merely relay this event to the InOutArea widget, which is
         // the only entity able to satisfy the request.
         Some(UiEvent::Directed(self.in_out, event).into())
@@ -218,7 +218,7 @@ impl Handleable<Event> for TermUi {
   fn handle_custom(&mut self,
                    event: Box<dyn Any>,
                    _cap: &mut dyn MutCap<Event>) -> Option<UiEvents<Event>> {
-    match event.downcast::<TermUiEvent>() {
+    match event.downcast::<Message>() {
       Ok(e) => self.handle_custom_event(e),
       Err(e) => panic!("Received unexpected custom event: {:?}", e),
     }
@@ -407,14 +407,14 @@ mod tests {
 
     /// Retrieve the current `InOutArea` state.
     fn in_out(&mut self) -> InOut {
-      let event = UiEvent::Custom(Box::new(TermUiEvent::GetInOut));
+      let event = UiEvent::Custom(Box::new(Message::GetInOut));
       let resp = self
         .ui
         .handle(event)
         .unwrap()
-        .unwrap_custom::<TermUiEvent>();
+        .unwrap_custom::<Message>();
 
-      if let TermUiEvent::GotInOut(in_out) = resp {
+      if let Message::GotInOut(in_out) = resp {
         in_out
       } else {
         panic!("Unexpected response: {:?}", resp)
@@ -423,14 +423,14 @@ mod tests {
 
     /// Retrieve the names of all tabs.
     fn queries(&mut self) -> Vec<String> {
-      let event = UiEvent::Custom(Box::new(TermUiEvent::CollectState(false)));
+      let event = UiEvent::Custom(Box::new(Message::CollectState(false)));
       let resp = self
         .ui
         .handle(event)
         .unwrap()
-        .unwrap_custom::<TermUiEvent>();
+        .unwrap_custom::<Message>();
 
-      if let TermUiEvent::CollectedState(tab_state) = resp {
+      if let Message::CollectedState(tab_state) = resp {
         tab_state.queries.into_iter().map(|(query, _)| query.name().to_string()).collect()
       } else {
         panic!("Unexpected response: {:?}", resp)
@@ -439,14 +439,14 @@ mod tests {
 
     /// Retrieve the current set of tasks from the UI.
     fn tasks(&mut self) -> Vec<Task> {
-      let event = UiEvent::Custom(Box::new(TermUiEvent::GetTasks));
+      let event = UiEvent::Custom(Box::new(Message::GetTasks));
       let resp = self
         .ui
         .handle(event)
         .unwrap()
-        .unwrap_custom::<TermUiEvent>();
+        .unwrap_custom::<Message>();
 
-      if let TermUiEvent::GotTasks(tasks) = resp {
+      if let Message::GotTasks(tasks) = resp {
         tasks
       } else {
         panic!("Unexpected response: {:?}", resp)

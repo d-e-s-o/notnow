@@ -41,7 +41,7 @@ use super::event::Key;
 use super::in_out::InOut;
 use super::iteration::IterationState as IterationStateT;
 use super::task_list_box::TaskListBox;
-use super::termui::TermUiEvent;
+use super::termui::Message;
 
 
 /// The iteration state as used by a `TabBar`.
@@ -208,7 +208,7 @@ impl TabBar {
     }
   }
 
-  /// Handle a `TermUiEvent::SearchTask` event.
+  /// Handle a `Message::SearchTask` event.
   fn handle_search_task(&mut self,
                         string: String,
                         search_state: SearchState,
@@ -229,7 +229,7 @@ impl TabBar {
           self.search = SearchT::State(string.clone(), search_state, iter_state);
 
           let error = format!("Text '{}' not found", string);
-          let event = TermUiEvent::SetInOut(InOut::Error(error));
+          let event = Message::SetInOut(InOut::Error(error));
           Some(UiEvent::Custom(Box::new(event)).into())
         } else if iter_state.has_advanced() {
           debug_assert!(search_state.is_first());
@@ -238,7 +238,7 @@ impl TabBar {
           let new_idx = iter_state.normalize(iter);
           let tab = self.tabs[new_idx].1;
 
-          let event = TermUiEvent::SearchTask(string, SearchState::First, iter_state);
+          let event = Message::SearchTask(string, SearchState::First, iter_state);
           let event = UiEvent::Returnable(self.id, tab, Box::new(event));
           Some(ChainEvent::Event(event))
         } else {
@@ -255,10 +255,10 @@ impl TabBar {
 
   /// Handle a custom event.
   fn handle_custom_event(&mut self,
-                         mut event: Box<TermUiEvent>,
+                         mut event: Box<Message>,
                          cap: &mut dyn MutCap<Event>) -> Option<UiEvents<Event>> {
     match *event {
-      TermUiEvent::SelectTask(_, ref mut state) => {
+      Message::SelectTask(_, ref mut state) => {
         let iter = self.tabs.iter().map(|x| x.1);
         let new_idx = state.normalize(iter.clone());
 
@@ -270,12 +270,12 @@ impl TabBar {
           None
         }
       },
-      TermUiEvent::SelectedTask(widget_id) => {
+      Message::SelectedTask(widget_id) => {
         let select = self.tabs.iter().position(|x| x.1 == widget_id).unwrap();
         let update = self.set_select(select as isize, cap);
         (None as Option<Event>).maybe_update(update)
       },
-      TermUiEvent::EnteredText(mut string) => {
+      Message::EnteredText(mut string) => {
         if !string.is_empty() && !self.tabs.is_empty() {
           string.make_ascii_lowercase();
 
@@ -284,10 +284,10 @@ impl TabBar {
           let mut state = IterationState::new(tab);
           state.reverse(reverse);
 
-          let event1 = TermUiEvent::SetInOut(InOut::Search(string.clone()));
+          let event1 = Message::SetInOut(InOut::Search(string.clone()));
           let event1 = UiEvent::Custom(Box::new(event1));
 
-          let event2 = TermUiEvent::SearchTask(string, SearchState::Current, state);
+          let event2 = Message::SearchTask(string, SearchState::Current, state);
           let event2 = UiEvent::Returnable(self.id, tab, Box::new(event2));
 
           Some(UiEvents::from(event1).chain(event2)).update()
@@ -295,8 +295,8 @@ impl TabBar {
           None
         }
       },
-      TermUiEvent::InputCanceled => None,
-      TermUiEvent::CollectState(for_save) => {
+      Message::InputCanceled => None,
+      Message::CollectState(for_save) => {
         if let Some((_, tab)) = self.tabs.first() {
           let tab_state = TabState{
             queries: Vec::new(),
@@ -304,7 +304,7 @@ impl TabBar {
             for_save,
           };
           let iter_state = IterationState::new(*tab);
-          let event = TermUiEvent::GetTabState(tab_state, iter_state);
+          let event = Message::GetTabState(tab_state, iter_state);
           Some(UiEvent::Returnable(self.id, *tab, Box::new(event)).into())
         } else {
           // If there are no tabs there are no queries -- respond
@@ -314,27 +314,27 @@ impl TabBar {
             selected: None,
             for_save,
           };
-          let event = TermUiEvent::CollectedState(tab_state);
+          let event = Message::CollectedState(tab_state);
           Some(UiEvent::Custom(Box::new(event)).into())
         }
       },
-      TermUiEvent::GetTabState(tab_state, mut iter_state) => {
+      Message::GetTabState(tab_state, mut iter_state) => {
         debug_assert!(iter_state.has_advanced());
 
         // If we have covered all tabs then send back the queries.
         if iter_state.is_last(self.tabs.iter().len()) {
-          let event = TermUiEvent::CollectedState(tab_state);
+          let event = Message::CollectedState(tab_state);
           Some(UiEvent::Custom(Box::new(event)).into())
         } else {
           let iter = self.tabs.iter().map(|x| x.1);
           let new_idx = iter_state.normalize(iter);
           let tab = self.tabs[new_idx].1;
 
-          let event = TermUiEvent::GetTabState(tab_state, iter_state);
+          let event = Message::GetTabState(tab_state, iter_state);
           Some(UiEvent::Returnable(self.id, tab, Box::new(event)).into())
         }
       },
-      TermUiEvent::SearchTask(string, search_state, iter_state) => {
+      Message::SearchTask(string, search_state, iter_state) => {
         self.handle_search_task(string, search_state, iter_state)
       },
       _ => Some(UiEvent::Custom(event).into()),
@@ -434,7 +434,7 @@ impl Handleable<Event> for TabBar {
                 self.search = SearchT::Unset;
 
                 let error = InOut::Error("Nothing to search for".to_string());
-                let event = TermUiEvent::SetInOut(error);
+                let event = Message::SetInOut(error);
                 UiEvent::Custom(Box::new(event)).into()
               },
               SearchT::Taken => panic!("invalid search state"),
@@ -445,10 +445,10 @@ impl Handleable<Event> for TabBar {
                 let reverse = key == Key::Char('N');
                 iter_state.reverse(reverse);
 
-                let event1 = TermUiEvent::SetInOut(InOut::Search(string.clone()));
+                let event1 = Message::SetInOut(InOut::Search(string.clone()));
                 let event1 = UiEvent::Custom(Box::new(event1));
 
-                let event2 = TermUiEvent::SearchTask(string, search_state, iter_state);
+                let event2 = Message::SearchTask(string, search_state, iter_state);
                 let event2 = UiEvent::Returnable(self.id, tab, Box::new(event2));
 
                 UiEvents::from(event1).chain(event2)
@@ -461,7 +461,7 @@ impl Handleable<Event> for TabBar {
             let reverse = key == Key::Char('?');
             self.search = SearchT::Preparing(reverse);
 
-            let event = TermUiEvent::SetInOut(InOut::Input("".to_string(), 0));
+            let event = Message::SetInOut(InOut::Input("".to_string(), 0));
             let event = UiEvent::Custom(Box::new(event));
             Some(event.into())
           },
@@ -475,7 +475,7 @@ impl Handleable<Event> for TabBar {
   fn handle_custom(&mut self,
                    event: Box<dyn Any>,
                    cap: &mut dyn MutCap<Event>) -> Option<UiEvents<Event>> {
-    match event.downcast::<TermUiEvent>() {
+    match event.downcast::<Message>() {
       Ok(e) => self.handle_custom_event(e, cap),
       Err(e) => panic!("Received unexpected custom event: {:?}", e),
     }

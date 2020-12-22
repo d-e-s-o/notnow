@@ -38,7 +38,7 @@ use rline::Readline;
 use super::event::Event;
 use super::event::EventUpdate;
 use super::event::Key;
-use super::termui::TermUiEvent;
+use super::termui::Message;
 
 
 /// An object representing the in/out area within the TermUi.
@@ -182,7 +182,7 @@ impl InOutArea {
       // want to set our state to "Clear" or not.
       match event {
         Event::Key(..) => {
-          let event = Box::new(TermUiEvent::ClearInOut(in_out.in_out.gen));
+          let event = Box::new(Message::ClearInOut(in_out.in_out.gen));
           Some(UiEvent::Directed(in_out.id, event).into())
         },
       }
@@ -193,10 +193,10 @@ impl InOutArea {
 
   /// Handle a custom event.
   fn handle_custom_event(&mut self,
-                         event: Box<TermUiEvent>,
+                         event: Box<Message>,
                          cap: &mut dyn MutCap<Event>) -> Option<UiEvents<Event>> {
     match *event {
-      TermUiEvent::SetInOut(in_out) => {
+      Message::SetInOut(in_out) => {
         if let InOut::Input(ref s, idx) = in_out {
           // TODO: It is not nice that we allow clients to provide
           //       potentially unsanitized inputs.
@@ -207,7 +207,7 @@ impl InOutArea {
         };
         self.change_state(in_out)
       },
-      TermUiEvent::ClearInOut(gen) => {
+      Message::ClearInOut(gen) => {
         // We only change our state to "Clear" if the generation number
         // is still the same, meaning that we did not change our state
         // between receiving the event hook and retrieving this event.
@@ -224,8 +224,8 @@ impl InOutArea {
         }
       },
       #[cfg(all(test, not(feature = "readline")))]
-      TermUiEvent::GetInOut => {
-        let resp = TermUiEvent::GotInOut(self.in_out.get().clone());
+      Message::GetInOut => {
+        let resp = Message::GotInOut(self.in_out.get().clone());
         Some(UiEvent::Custom(Box::new(resp)).into())
       },
       _ => Some(UiEvent::Custom(event).into()),
@@ -239,9 +239,9 @@ impl InOutArea {
     let update = self.change_state(InOut::Clear);
     let widget = self.restore_focus(cap);
     let event = if let Some(s) = string {
-      Box::new(TermUiEvent::EnteredText(s))
+      Box::new(Message::EnteredText(s))
     } else {
-      Box::new(TermUiEvent::InputCanceled)
+      Box::new(Message::InputCanceled)
     };
     debug_assert!(update.is_some());
     Some(ChainEvent::from(UiEvent::Directed(widget, event))).chain(update)
@@ -402,7 +402,7 @@ impl Handleable<Event> for InOutArea {
   fn handle_custom(&mut self,
                    event: Box<dyn Any>,
                    cap: &mut dyn MutCap<Event>) -> Option<UiEvents<Event>> {
-    match event.downcast::<TermUiEvent>() {
+    match event.downcast::<Message>() {
       Ok(e) => self.handle_custom_event(e, cap),
       Err(e) => panic!("Received unexpected custom event: {:?}", e),
     }

@@ -24,7 +24,7 @@ use gui::UiEvents;
 use gui::UnhandledEvent;
 use gui::UnhandledEvents;
 
-use super::termui::TermUiEvent;
+use super::termui::Message;
 
 /// A key as used by the UI.
 pub use termion::event::Key;
@@ -60,7 +60,7 @@ impl EventUpdated for UiEvent<Event> {
       UiEvent::Custom(data) |
       UiEvent::Directed(_, data) |
       UiEvent::Returnable(_, _, data) => {
-        if let Some(event) = data.downcast_ref::<TermUiEvent>() {
+        if let Some(event) = data.downcast_ref::<Message>() {
           event.is_updated()
         } else {
           false
@@ -84,7 +84,7 @@ impl EventUpdated for UnhandledEvent<Event> {
   fn is_updated(&self) -> bool {
     match self {
       UnhandledEvent::Custom(data) => {
-        if let Some(event) = data.downcast_ref::<TermUiEvent>() {
+        if let Some(event) = data.downcast_ref::<Message>() {
           event.is_updated()
         } else {
           false
@@ -106,7 +106,7 @@ impl EventUpdated for UnhandledEvents<Event> {
 }
 
 
-/// A trait to chain a `TermUiEvent::Updated` event to an event.
+/// A trait to chain a `Message::Updated` event to an event.
 pub trait EventUpdate {
   /// Chain an update event onto yourself.
   fn update(self) -> Option<UiEvents<Event>>;
@@ -120,7 +120,7 @@ where
   E: Into<UiEvents<Event>>,
 {
   fn update(self) -> Option<UiEvents<Event>> {
-    let updated = UiEvent::Custom(Box::new(TermUiEvent::Updated));
+    let updated = UiEvent::Custom(Box::new(Message::Updated));
 
     Some(match self {
       Some(event) => {
@@ -199,7 +199,7 @@ pub mod tests {
       ChainEvent::Event(event) => {
         match event {
           UiEvent::Custom(data) => {
-            let event = data.downcast::<TermUiEvent>().unwrap();
+            let event = data.downcast::<Message>().unwrap();
             assert!(event.is_updated())
           },
           _ => panic!(),
@@ -225,7 +225,7 @@ pub mod tests {
           ChainEvent::Event(event) => {
             match event {
               UiEvent::Custom(data) => {
-                let event = data.downcast::<TermUiEvent>().unwrap();
+                let event = data.downcast::<Message>().unwrap();
                 assert!(event.is_updated())
               },
               _ => panic!(),

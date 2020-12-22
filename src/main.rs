@@ -123,7 +123,7 @@ use crate::state::State;
 use crate::ui::event::Event as UiEvent;
 use crate::ui::term_renderer::TermRenderer;
 use crate::ui::termui::TermUi;
-use crate::ui::termui::TermUiEvent;
+use crate::ui::termui::Message;
 
 /// A type indicating the desire to continue execution.
 ///
@@ -172,11 +172,11 @@ fn handle_unhandled_event(event: UnhandledEvent<UiEvent>) -> Continue {
   match event {
     UnhandledEvent::Quit => None,
     UnhandledEvent::Custom(data) => {
-      match data.downcast::<TermUiEvent>() {
+      match data.downcast::<Message>() {
         Ok(event) => {
           match *event {
-            TermUiEvent::Updated => Some(true),
-            _ => panic!("Unexpected TermUiEvent variant escaped: {:?}", event),
+            Message::Updated => Some(true),
+            _ => panic!("Unexpected Message variant escaped: {:?}", event),
           }
         },
         Err(event) => panic!("Received unexpected custom event: {:?}", event),
