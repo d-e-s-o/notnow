@@ -114,26 +114,22 @@ fn str_char(s: &str, pos: usize) -> (usize, usize) {
 }
 
 
-/// A widget representing an input/output and status area.
-#[derive(Debug, Widget)]
-#[gui(Event = Event)]
-pub struct InOutArea {
-  id: Id,
+/// The data associated with an `InOutArea`.
+pub struct InOutAreaData {
+  /// The ID of the widget that was focused before the input/output area
+  /// received the input focus.
   prev_focused: Option<Id>,
+  /// The state of the area.
   in_out: InOutState,
+  /// A readline object used for input.
   #[cfg(feature = "readline")]
   readline: Readline,
 }
 
-impl InOutArea {
-  /// Create a new input/output area object.
-  pub fn new(id: Id, cap: &mut dyn MutCap<Event>) -> Self {
-    // Install a hook to be able to reset the input/output area into
-    // "clear" state on every key press.
-    let _ = cap.hook_events(id, Some(&InOutArea::handle_hooked_event));
-
+impl InOutAreaData {
+  /// Create a new `InOutAreaData` object.
+  pub fn new() -> Self {
     Self {
-      id,
       prev_focused: None,
       in_out: Default::default(),
       #[cfg(feature = "readline")]
@@ -168,12 +164,32 @@ impl InOutArea {
       None
     }
   }
+}
+
+
+/// A widget representing an input/output and status area.
+#[derive(Debug, Widget)]
+#[gui(Event = Event)]
+pub struct InOutArea {
+  id: Id,
+}
+
+impl InOutArea {
+  /// Create a new input/output area object.
+  pub fn new(id: Id, cap: &mut dyn MutCap<Event>) -> Self {
+    // Install a hook to be able to reset the input/output area into
+    // "clear" state on every key press.
+    let _ = cap.hook_events(id, Some(&InOutArea::handle_hooked_event));
+    Self { id }
+  }
 
   /// Handle a hooked event.
-  fn handle_hooked_event(widget: &mut dyn Widget<Event>,
-                         event: &Event,
-                         _cap: &dyn Cap) -> Option<UiEvents<Event>> {
-    let in_out = widget.downcast_mut::<InOutArea>();
+  fn handle_hooked_event(
+    widget: &dyn Widget<Event>,
+    cap: &mut dyn MutCap<Event>,
+    event: &Event,
+  ) -> Option<UiEvents<Event>> {
+    let in_out = widget.downcast_ref::<InOutArea>();
     if let Some(in_out) = in_out {
       // We basically schedule a "callback" by virtue of sending an
       // event to ourselves. This event will be received only after we
@@ -182,7 +198,8 @@ impl InOutArea {
       // want to set our state to "Clear" or not.
       match event {
         Event::Key(..) => {
-          let event = Box::new(Message::ClearInOut(in_out.in_out.gen));
+          let data = in_out.data::<InOutAreaData>(cap);
+          let event = Box::new(Message::ClearInOut(data.in_out.gen));
           Some(UiEvent::Directed(in_out.id, event).into())
         },
       }
@@ -192,9 +209,12 @@ impl InOutArea {
   }
 
   /// Handle a custom event.
-  fn handle_custom_event(&mut self,
-                         event: Box<Message>,
-                         cap: &mut dyn MutCap<Event>) -> Option<UiEvents<Event>> {
+  fn handle_custom_event(
+    &self,
+    event: Box<Message>,
+    cap: &mut dyn MutCap<Event>,
+  ) -> Option<UiEvents<Event>> {
+    let data = self.data_mut::<InOutAreaData>(cap);
     match *event {
       Message::SetInOut(in_out) => {
         if let InOut::Input(ref s, idx) = in_out {
@@ -202,20 +222,25 @@ impl InOutArea {
           //       potentially unsanitized inputs.
           debug_assert!(idx <= s.len());
 
-          self.prev_focused = cap.focused();
+          let focused = cap.focused();
           cap.focus(self.id);
+
+          let data = self.data_mut::<InOutAreaData>(cap);
+          data.prev_focused = focused;
         };
-        self.change_state(in_out)
+
+        let data = self.data_mut::<InOutAreaData>(cap);
+        data.change_state(in_out)
       },
       Message::ClearInOut(gen) => {
         // We only change our state to "Clear" if the generation number
         // is still the same, meaning that we did not change our state
         // between receiving the event hook and retrieving this event.
-        if self.in_out.gen == gen {
-          match self.in_out.get() {
+        if data.in_out.gen == gen {
+          match data.in_out.get() {
             InOut::Saved |
             InOut::Search(_) |
-            InOut::Error(_) => self.change_state(InOut::Clear),
+            InOut::Error(_) => data.change_state(InOut::Clear),
             InOut::Input(..) |
             InOut::Clear => None,
           }
@@ -225,7 +250,7 @@ impl InOutArea {
       },
       #[cfg(all(test, not(feature = "readline")))]
       Message::GetInOut => {
-        let resp = Message::GotInOut(self.in_out.get().clone());
+        let resp = Message::GotInOut(data.in_out.get().clone());
         Some(UiEvent::Custom(Box::new(resp)).into())
       },
       _ => Some(UiEvent::Custom(event).into()),
@@ -233,10 +258,13 @@ impl InOutArea {
   }
 
   /// Finish text input by changing the internal state and emitting an event.
-  fn finish_input(&mut self,
-                  string: Option<String>,
-                  cap: &mut dyn MutCap<Event>) -> Option<UiEvents<Event>> {
-    let update = self.change_state(InOut::Clear);
+  fn finish_input(
+    &self,
+    cap: &mut dyn MutCap<Event>,
+    string: Option<String>,
+  ) -> Option<UiEvents<Event>> {
+    let data = self.data_mut::<InOutAreaData>(cap);
+    let update = data.change_state(InOut::Clear);
     let widget = self.restore_focus(cap);
     let event = if let Some(s) = string {
       Box::new(Message::EnteredText(s))
@@ -250,17 +278,20 @@ impl InOutArea {
   /// Handle a key press.
   #[allow(clippy::trivially_copy_pass_by_ref)]
   #[cfg(not(feature = "readline"))]
-  fn handle_key(&mut self,
-                mut s: String,
-                mut idx: usize,
-                key: Key,
-                _raw: &(),
-                cap: &mut dyn MutCap<Event>) -> Option<UiEvents<Event>> {
+  fn handle_key(
+    &self,
+    cap: &mut dyn MutCap<Event>,
+    mut s: String,
+    mut idx: usize,
+    key: Key,
+    _raw: &(),
+  ) -> Option<UiEvents<Event>> {
+    let data = self.data_mut::<InOutAreaData>(cap);
     match key {
       Key::Esc |
       Key::Char('\n') => {
         let string = if key == Key::Char('\n') { Some(s) } else { None };
-        self.finish_input(string, cap)
+        self.finish_input(cap, string)
       },
       // We cannot easily handle multi byte Unicode graphemes with
       // Rust's standard library, so just ignore everything that is
@@ -268,7 +299,7 @@ impl InOutArea {
       // would allow us to circumvent this restriction).
       Key::Char(c) => {
         s.insert(idx, c);
-        self.change_state(InOut::Input(s, idx + c.len_utf8()))
+        data.change_state(InOut::Input(s, idx + c.len_utf8()))
       },
       Key::Backspace => {
         if idx > 0 {
@@ -276,18 +307,18 @@ impl InOutArea {
           let _ = s.remove(i);
           idx = idx.saturating_sub(len);
         }
-        self.change_state(InOut::Input(s, idx))
+        data.change_state(InOut::Input(s, idx))
       },
       Key::Delete => {
         if idx < s.len() {
           let _ = s.remove(idx);
         }
-        self.change_state(InOut::Input(s, idx))
+        data.change_state(InOut::Input(s, idx))
       },
       Key::Left => {
         if idx > 0 {
           idx = str_char(&s, idx - 1).0;
-          self.change_state(InOut::Input(s, idx))
+          data.change_state(InOut::Input(s, idx))
         } else {
           None
         }
@@ -296,14 +327,14 @@ impl InOutArea {
         if idx < s.len() {
           let (idx, len) = str_char(&s, idx);
           debug_assert!(idx + len <= s.len());
-          self.change_state(InOut::Input(s, idx + len))
+          data.change_state(InOut::Input(s, idx + len))
         } else {
           None
         }
       },
       Key::Home => {
         if idx != 0 {
-          self.change_state(InOut::Input(s, 0))
+          data.change_state(InOut::Input(s, 0))
         } else {
           None
         }
@@ -311,7 +342,7 @@ impl InOutArea {
       Key::End => {
         let length = s.len();
         if idx != length {
-          self.change_state(InOut::Input(s, length))
+          data.change_state(InOut::Input(s, length))
         } else {
           None
         }
@@ -323,16 +354,19 @@ impl InOutArea {
   /// Handle a key press.
   #[allow(clippy::needless_pass_by_value)]
   #[cfg(feature = "readline")]
-  fn handle_key(&mut self,
-                _s: String,
-                idx: usize,
-                key: Key,
-                raw: &[u8],
-                cap: &mut dyn MutCap<Event>) -> Option<UiEvents<Event>> {
-    match self.readline.feed(raw) {
-      Some(line) => self.finish_input(Some(line.into_string().unwrap()), cap),
+  fn handle_key(
+    &self,
+    cap: &mut dyn MutCap<Event>,
+    _s: String,
+    idx: usize,
+    key: Key,
+    raw: &[u8],
+  ) -> Option<UiEvents<Event>> {
+    let data = self.data_mut::<InOutAreaData>(cap);
+    match data.readline.feed(raw) {
+      Some(line) => self.finish_input(cap, Some(line.into_string().unwrap())),
       None => {
-        let (s_, idx_) = self.readline.peek(|s, pos| (s.to_owned(), pos));
+        let (s_, idx_) = data.readline.peek(|s, pos| (s.to_owned(), pos));
         // We treat Esc a little specially. In a vi-mode enabled
         // configuration of libreadline Esc cancels input mode when we
         // are in it, and does nothing otherwise. That is what we are
@@ -354,18 +388,19 @@ impl InOutArea {
           //       create a new `Readline` context and that will take
           //       care of resetting things to the default (which is
           //       input mode).
-          self.readline = Readline::new();
-          self.finish_input(None, cap)
+          data.readline = Readline::new();
+          self.finish_input(cap, None)
         } else {
-          self.change_state(InOut::Input(s_.into_string().unwrap(), idx_))
+          data.change_state(InOut::Input(s_.into_string().unwrap(), idx_))
         }
       },
     }
   }
 
   /// Focus the previously focused widget or the parent.
-  fn restore_focus(&mut self, cap: &mut dyn MutCap<Event>) -> Id {
-    match self.prev_focused {
+  fn restore_focus(&self, cap: &mut dyn MutCap<Event>) -> Id {
+    let data = self.data::<InOutAreaData>(cap);
+    match data.prev_focused {
       Some(to_focus) => {
         cap.focus(to_focus);
         to_focus
@@ -377,31 +412,35 @@ impl InOutArea {
   }
 
   /// Retrieve the input/output area's current state.
-  pub fn state(&self) -> &InOut {
-    &self.in_out.get()
+  pub fn state<'slf>(&'slf self, cap: &'slf dyn Cap) -> &'slf InOut {
+    let data = self.data::<InOutAreaData>(cap);
+    &data.in_out.get()
   }
 }
 
 impl Handleable<Event> for InOutArea {
   /// Handle an event.
-  fn handle(&mut self, event: Event, cap: &mut dyn MutCap<Event>) -> Option<UiEvents<Event>> {
+  fn handle(&self, cap: &mut dyn MutCap<Event>, event: Event) -> Option<UiEvents<Event>> {
     match event {
       Event::Key(key, raw) => {
-        let (s, idx) = if let InOut::Input(s, idx) = self.in_out.get() {
+        let data = self.data::<InOutAreaData>(cap);
+        let (s, idx) = if let InOut::Input(s, idx) = data.in_out.get() {
           (s.clone(), *idx)
         } else {
           panic!("In/out area not used for input.");
         };
 
-        self.handle_key(s, idx, key, &raw, cap)
+        self.handle_key(cap, s, idx, key, &raw)
       },
     }
   }
 
   /// Handle a custom event.
-  fn handle_custom(&mut self,
-                   event: Box<dyn Any>,
-                   cap: &mut dyn MutCap<Event>) -> Option<UiEvents<Event>> {
+  fn handle_custom(
+    &self,
+    cap: &mut dyn MutCap<Event>,
+    event: Box<dyn Any>,
+  ) -> Option<UiEvents<Event>> {
     match event.downcast::<Message>() {
       Ok(e) => self.handle_custom_event(e, cap),
       Err(e) => panic!("Received unexpected custom event: {:?}", e),

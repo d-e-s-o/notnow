@@ -25,11 +25,13 @@ use std::rc::Rc;
 
 use cell::RefCell;
 
+use gui::Cap;
 use gui::Handleable;
 use gui::Id;
 use gui::MutCap;
 use gui::UiEvent;
 use gui::UiEvents;
+use gui::Widget;
 use gui::derive::Widget;
 
 use crate::query::Query;
@@ -65,34 +67,93 @@ enum State {
 }
 
 
+/// The data associated with a `TaskListBox`.
+pub struct TaskListBoxData {
+  /// The tasks database.
+  tasks: Rc<RefCell<Tasks>>,
+  /// The query represented by the `TaskListBox`.
+  query: Query,
+  /// The currently selected task.
+  selection: isize,
+  /// The state the `TaskListBox` is in.
+  state: Option<State>,
+}
+
+impl TaskListBoxData {
+  /// Create a new `TaskListBoxData` object.
+  pub fn new(tasks: Rc<RefCell<Tasks>>, query: Query) -> Self {
+    Self {
+      tasks,
+      query,
+      selection: 0,
+      state: None,
+    }
+  }
+
+  /// Retrieve the selection index with some relative change.
+  fn selection(&self, add: isize) -> usize {
+    let count = self.query.iter().clone().count();
+    let selection = sanitize_selection(self.selection, count);
+    debug_assert!(add >= 0 || selection as isize >= add);
+    (selection as isize + add) as usize
+  }
+
+  /// Change the currently selected task.
+  fn set_select(&mut self, selection: isize) -> bool {
+    let count = self.query.iter().clone().count();
+    let old_selection = sanitize_selection(self.selection, count);
+    let new_selection = sanitize_selection(selection, count);
+
+    self.selection = selection;
+    new_selection != old_selection
+  }
+
+  /// Change the currently selected task in a relative fashion.
+  fn select(&mut self, change: isize) -> bool {
+    // We always make sure to base the given `change` value off of a
+    // sanitized selection. Otherwise the result is not as expected.
+    let count = self.query.iter().clone().count();
+    let selection = sanitize_selection(self.selection, count);
+    let new_selection = selection as isize + change;
+    self.set_select(new_selection)
+  }
+
+  /// Retrieve a copy of the selected task.
+  ///
+  /// This method must only be called if tasks are available.
+  fn selected_task(&self) -> Task {
+    debug_assert!(!self.query.is_empty());
+
+    let selection = self.selection(0);
+    // We maintain the invariant that the selection is always valid,
+    // which means that we should always expect a task to be found.
+    let task = self.query.iter().clone().cloned().nth(selection).unwrap();
+    task
+  }
+}
+
+
 /// A widget representing a list of `Task` objects.
 #[derive(Debug, Widget)]
 #[gui(Event = Event)]
 pub struct TaskListBox {
   id: Id,
-  tasks: Rc<RefCell<Tasks>>,
-  query: Query,
-  selection: isize,
-  state: Option<State>,
 }
 
 impl TaskListBox {
   /// Create a new `TaskListBox` widget.
-  pub fn new(id: Id, tasks: Rc<RefCell<Tasks>>,
-             query: Query, selected: Option<usize>) -> Self {
-    let count = query.iter().clone().count();
+  pub fn new(id: Id, cap: &mut dyn MutCap<Event>, selected: Option<usize>) -> Self {
+    let task_list_box = Self { id };
+    let data = task_list_box.data_mut::<TaskListBoxData>(cap);
+
+    let count = data.query.iter().clone().count();
     let selected = selected
       .map(|x| min(x, isize::MAX as usize))
       .unwrap_or(0) as isize;
     let selected = sanitize_selection(selected, count) as isize;
+    data.selection = selected;
 
-    Self {
-      id,
-      tasks,
-      query,
-      selection: selected,
-      state: None,
-    }
+    task_list_box
   }
 
   /// Select a task and emit an event indicating success/failure.
@@ -107,12 +168,17 @@ impl TaskListBox {
   /// conditions under which an update must happen, e.g., when the
   /// summary or the tags of the task changed. Handling of updates in
   /// those cases is left to clients.
-  fn handle_select_task(&mut self,
-                        task_id: TaskId,
-                        mut state: IterationState) -> Option<UiEvents<Event>> {
-    let idx = self.query.iter().position(|x| x.id() == task_id);
+  fn handle_select_task(
+    &self,
+    cap: &mut dyn MutCap<Event>,
+    task_id: TaskId,
+    mut state: IterationState,
+  ) -> Option<UiEvents<Event>> {
+    let data = self.data_mut::<TaskListBoxData>(cap);
+    let idx = data.query.iter().position(|x| x.id() == task_id);
+
     if let Some(idx) = idx {
-      let update = self.set_select(idx as isize);
+      let update = data.set_select(idx as isize);
       let event = Message::SelectedTask(self.id);
       // Indicate to the parent that we selected the task in
       // question successfully. The widget should make sure to focus
@@ -130,19 +196,27 @@ impl TaskListBox {
   }
 
   /// Start the selection of a task.
-  fn handle_select_task_start(&mut self, task_id: TaskId) -> Option<UiEvents<Event>> {
+  fn handle_select_task_start(
+    &self,
+    cap: &mut dyn MutCap<Event>,
+    task_id: TaskId,
+  ) -> Option<UiEvents<Event>> {
     let state = IterationState::new(self.id);
-    self.handle_select_task(task_id, state)
+    self.handle_select_task(cap, task_id, state)
   }
 
   /// Search for a task containing the given string.
-  fn search_task_index(&self,
-                       string: &str,
-                       search_state: &mut SearchState,
-                       iter_state: &mut IterationState) -> Option<usize> {
+  fn search_task_index(
+    &self,
+    cap: &dyn Cap,
+    string: &str,
+    search_state: &mut SearchState,
+    iter_state: &mut IterationState,
+  ) -> Option<usize> {
+    let data = self.data::<TaskListBoxData>(cap);
     // Note that because we use the count for index calculation
     // purposes, we subtract one below on every use.
-    let count = self.query.iter().clone().count();
+    let count = data.query.iter().clone().count();
     // First figure out from where we start the search. If we have
     // visited this `TaskListBox` beforehand we may have already visited
     // the first couple of tasks matching the given string and we should
@@ -150,9 +224,9 @@ impl TaskListBox {
     let start_idx = match search_state {
       SearchState::Current => {
         if iter_state.is_reversed() {
-          (count - 1) - self.selection()
+          (count - 1) - data.selection(0)
         } else {
-          self.selection()
+          data.selection(0)
         }
       },
       SearchState::First => 0,
@@ -170,7 +244,7 @@ impl TaskListBox {
     // would require us to work with an `ExactSizeIterator`, which is
     // not something that we can provide.
     if iter_state.is_reversed() {
-      self
+      data
         .query
         .iter()
         .clone()
@@ -179,7 +253,7 @@ impl TaskListBox {
         .position(|x| x.summary.to_ascii_lowercase().contains(string))
         .map(|idx| (count - 1) - (start_idx + idx))
     } else {
-      self
+      data
         .query
         .iter()
         .clone()
@@ -190,17 +264,21 @@ impl TaskListBox {
   }
 
   /// Handle a `Message::SearchTask` event.
-  fn handle_search_task(&mut self,
-                        string: &str,
-                        search_state: &mut SearchState,
-                        iter_state: &mut IterationState) -> Option<UiEvents<Event>> {
+  fn handle_search_task(
+    &self,
+    cap: &mut dyn MutCap<Event>,
+    string: &str,
+    search_state: &mut SearchState,
+    iter_state: &mut IterationState,
+  ) -> Option<UiEvents<Event>> {
     debug_assert_eq!(string, &string.to_ascii_lowercase());
 
-    let idx = self.search_task_index(string, search_state, iter_state);
+    let idx = self.search_task_index(cap, string, search_state, iter_state);
     if let Some(idx) = idx {
       *search_state = SearchState::Task(idx);
 
-      let update = self.set_select(idx as isize);
+      let data = self.data_mut::<TaskListBoxData>(cap);
+      let update = data.set_select(idx as isize);
       let event = Message::SelectedTask(self.id);
       Some(UiEvent::Custom(Box::new(event))).maybe_update(update)
     } else {
@@ -211,18 +289,23 @@ impl TaskListBox {
   }
 
   /// Handle a custom event.
-  fn handle_custom_event(&mut self, event: Box<Message>) -> Option<UiEvents<Event>> {
+  fn handle_custom_event(
+    &self,
+    event: Box<Message>,
+    cap: &mut dyn MutCap<Event>,
+  ) -> Option<UiEvents<Event>> {
+    let data = self.data_mut::<TaskListBoxData>(cap);
     match *event {
       Message::SelectTask(task_id, state) => {
-        self.handle_select_task(task_id, state)
+        self.handle_select_task(cap, task_id, state)
       },
       Message::EnteredText(ref text) => {
-        if let Some(state) = self.state.take() {
+        if let Some(state) = data.state.take() {
           match state {
             State::Add => {
               if !text.is_empty() {
-                let tags = if !self.query.is_empty() {
-                  let mut task = self.selected_task();
+                let tags = if !data.query.is_empty() {
+                  let mut task = data.selected_task();
                   if task.is_complete() {
                     task.toggle_complete()
                   }
@@ -232,8 +315,8 @@ impl TaskListBox {
                   Default::default()
                 };
 
-                let id = self.tasks.borrow_mut().add(text.clone(), tags);
-                self.handle_select_task_start(id)
+                let id = data.tasks.borrow_mut().add(text.clone(), tags);
+                self.handle_select_task_start(cap, id)
               } else {
                 None
               }
@@ -245,10 +328,10 @@ impl TaskListBox {
               // altogether.
               if !text.is_empty() {
                 task.summary = text.clone();
-                self.tasks.borrow_mut().update(task);
-                self.handle_select_task_start(id).update()
+                data.tasks.borrow_mut().update(task);
+                self.handle_select_task_start(cap, id).update()
               } else {
-                self.tasks.borrow_mut().remove(id);
+                data.tasks.borrow_mut().remove(id);
                 (None as Option<Event>).update()
               }
             },
@@ -259,7 +342,7 @@ impl TaskListBox {
       },
       #[cfg(not(feature = "readline"))]
       Message::InputCanceled => {
-        if self.state.take().is_some() {
+        if data.state.take().is_some() {
           (None as Option<Event>).update()
         } else {
           Some(UiEvent::Custom(Box::new(Message::InputCanceled)).into())
@@ -270,16 +353,21 @@ impl TaskListBox {
   }
 
   /// Handle a "returnable" custom event.
-  fn handle_custom_event_ref(&mut self, event: &mut Message) -> Option<UiEvents<Event>> {
+  fn handle_custom_event_ref(
+    &self,
+    event: &mut Message,
+    cap: &mut dyn MutCap<Event>,
+  ) -> Option<UiEvents<Event>> {
     match event {
       Message::SearchTask(string, search_state, iter_state) => {
-        self.handle_search_task(string, search_state, iter_state)
+        self.handle_search_task(cap, string, search_state, iter_state)
       },
       Message::GetTabState(ref mut tab_state, ref mut iter_state) => {
         let TabState{ref mut queries, ..} = tab_state;
-        let selected = Some(self.selection());
+        let data = self.data::<TaskListBoxData>(cap);
+        let selected = Some(data.selection(0));
 
-        queries.push((self.query(), selected));
+        queries.push((self.query(cap), selected));
         iter_state.advance();
         None
       },
@@ -288,76 +376,34 @@ impl TaskListBox {
   }
 
   /// Retrieve the query associated with this widget.
-  pub fn query(&self) -> Query {
-    self.query.clone()
-  }
-
-  /// Retrieve the selection index with some relative change.
-  fn some_selection(&self, add: isize) -> usize {
-    let query = self.query();
-    let count = query.iter().clone().count();
-    let selection = sanitize_selection(self.selection, count);
-    debug_assert!(add >= 0 || selection as isize >= add);
-    (selection as isize + add) as usize
+  pub fn query(&self, cap: &dyn Cap) -> Query {
+    let data = self.data::<TaskListBoxData>(cap);
+    data.query.clone()
   }
 
   /// Retrieve the current selection index.
   ///
   /// The selection index indicates the currently selected task.
-  pub fn selection(&self) -> usize {
-    self.some_selection(0)
-  }
-
-  /// Change the currently selected task.
-  fn set_select(&mut self, selection: isize) -> bool {
-    let query = self.query();
-    let count = query.iter().clone().count();
-    let old_selection = sanitize_selection(self.selection, count);
-    let new_selection = sanitize_selection(selection, count);
-
-    self.selection = selection;
-    new_selection != old_selection
-  }
-
-  /// Change the currently selected task.
-  fn select(&mut self, change: isize) -> bool {
-    // We always make sure to base the given `change` value off of a
-    // sanitized selection. Otherwise the result is not as expected.
-    let query = self.query();
-    let count = query.iter().clone().count();
-    let selection = sanitize_selection(self.selection, count);
-    let new_selection = selection as isize + change;
-    self.set_select(new_selection)
-  }
-
-  /// Retrieve a copy of the selected task.
-  ///
-  /// This method must only be called if tasks are available.
-  fn selected_task(&self) -> Task {
-    debug_assert!(!self.query().is_empty());
-
-    let selection = self.selection();
-    // We maintain the invariant that the selection is always valid,
-    // which means that we should always expect a task to be found.
-    let query = self.query();
-    let task = query.iter().clone().cloned().nth(selection).unwrap();
-    task
+  pub fn selection(&self, cap: &dyn Cap) -> usize {
+    let data = self.data::<TaskListBoxData>(cap);
+    data.selection(0)
   }
 }
 
 impl Handleable<Event> for TaskListBox {
   /// Check for new input and react to it.
-  fn handle(&mut self, event: Event, _cap: &mut dyn MutCap<Event>) -> Option<UiEvents<Event>> {
+  fn handle(&self, cap: &mut dyn MutCap<Event>, event: Event) -> Option<UiEvents<Event>> {
+    let data = self.data_mut::<TaskListBoxData>(cap);
     match event {
       Event::Key(key, _) => {
         match key {
           Key::Char(' ') => {
-            if !self.query().is_empty() {
-              let mut task = self.selected_task();
+            if !data.query.is_empty() {
+              let mut task = data.selected_task();
               let id = task.id();
               task.toggle_complete();
-              self.tasks.borrow_mut().update(task);
-              self.handle_select_task_start(id).update()
+              data.tasks.borrow_mut().update(task);
+              self.handle_select_task_start(cap, id).update()
             } else {
               None
             }
@@ -365,41 +411,38 @@ impl Handleable<Event> for TaskListBox {
           Key::Char('a') => {
             let event = Message::SetInOut(InOut::Input("".to_string(), 0));
             let event = UiEvent::Custom(Box::new(event));
-
-            self.state = Some(State::Add);
+            data.state = Some(State::Add);
             Some(event.into())
           },
           Key::Char('d') => {
-            if !self.query().is_empty() {
-              let id = self.selected_task().id();
-              self.tasks.borrow_mut().remove(id);
+            if !data.query.is_empty() {
+              let id = data.selected_task().id();
+              data.tasks.borrow_mut().remove(id);
               (None as Option<Event>).update()
             } else {
               None
             }
           },
           Key::Char('e') => {
-            if !self.query().is_empty() {
-              let task = self.selected_task();
+            if !data.query.is_empty() {
+              let task = data.selected_task();
               let string = task.summary.clone();
               let idx = string.len();
               let event = Message::SetInOut(InOut::Input(string, idx));
               let event = UiEvent::Custom(Box::new(event));
-
-              self.state = Some(State::Edit(task));
+              data.state = Some(State::Edit(task));
               Some(event.into())
             } else {
               None
             }
           },
           Key::Char('J') => {
-            if !self.query().is_empty() {
-              let to_move = self.selected_task();
-              let query = self.query();
-              let other = query.iter().nth(self.some_selection(1));
+            if !data.query.is_empty() {
+              let to_move = data.selected_task();
+              let other = data.query.iter().nth(data.selection(1));
               if let Some(other) = other {
-                self.tasks.borrow_mut().move_after(to_move.id(), other.id());
-                (None as Option<Event>).maybe_update(self.select(1))
+                data.tasks.borrow_mut().move_after(to_move.id(), other.id());
+                (None as Option<Event>).maybe_update(data.select(1))
               } else {
                 None
               }
@@ -408,13 +451,12 @@ impl Handleable<Event> for TaskListBox {
             }
           },
           Key::Char('K') => {
-            if !self.query().is_empty() && self.selection() > 0 {
-              let to_move = self.selected_task();
-              let query = self.query();
-              let other = query.iter().nth(self.some_selection(-1));
+            if !data.query.is_empty() && data.selection(0) > 0 {
+              let to_move = data.selected_task();
+              let other = data.query.iter().nth(data.selection(-1));
               if let Some(other) = other {
-                self.tasks.borrow_mut().move_before(to_move.id(), other.id());
-                (None as Option<Event>).maybe_update(self.select(-1))
+                data.tasks.borrow_mut().move_before(to_move.id(), other.id());
+                (None as Option<Event>).maybe_update(data.select(-1))
               } else {
                 None
               }
@@ -422,10 +464,10 @@ impl Handleable<Event> for TaskListBox {
               None
             }
           },
-          Key::Char('g') => (None as Option<Event>).maybe_update(self.set_select(0)),
-          Key::Char('G') => (None as Option<Event>).maybe_update(self.set_select(isize::MAX)),
-          Key::Char('j') => (None as Option<Event>).maybe_update(self.select(1)),
-          Key::Char('k') => (None as Option<Event>).maybe_update(self.select(-1)),
+          Key::Char('g') => (None as Option<Event>).maybe_update(data.set_select(0)),
+          Key::Char('G') => (None as Option<Event>).maybe_update(data.set_select(isize::MAX)),
+          Key::Char('j') => (None as Option<Event>).maybe_update(data.select(1)),
+          Key::Char('k') => (None as Option<Event>).maybe_update(data.select(-1)),
           _ => Some(event.into()),
         }
       },
@@ -433,21 +475,25 @@ impl Handleable<Event> for TaskListBox {
   }
 
   /// Handle a custom event.
-  fn handle_custom(&mut self,
-                   event: Box<dyn Any>,
-                   _cap: &mut dyn MutCap<Event>) -> Option<UiEvents<Event>> {
+  fn handle_custom(
+    &self,
+    cap: &mut dyn MutCap<Event>,
+    event: Box<dyn Any>,
+  ) -> Option<UiEvents<Event>> {
     match event.downcast::<Message>() {
-      Ok(e) => self.handle_custom_event(e),
+      Ok(e) => self.handle_custom_event(e, cap),
       Err(e) => panic!("Received unexpected custom event: {:?}", e),
     }
   }
 
   /// Handle a custom event.
-  fn handle_custom_ref(&mut self,
-                       event: &mut dyn Any,
-                       _cap: &mut dyn MutCap<Event>) -> Option<UiEvents<Event>> {
+  fn handle_custom_ref(
+    &self,
+    cap: &mut dyn MutCap<Event>,
+    event: &mut dyn Any,
+  ) -> Option<UiEvents<Event>> {
     match event.downcast_mut::<Message>() {
-      Some(e) => self.handle_custom_event_ref(e),
+      Some(e) => self.handle_custom_event_ref(e, cap),
       None => panic!("Received unexpected custom event"),
     }
   }

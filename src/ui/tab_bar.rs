@@ -22,7 +22,11 @@ use std::cmp::max;
 use std::cmp::min;
 use std::isize;
 use std::mem::replace;
+use std::rc::Rc;
 
+use cell::RefCell;
+
+use gui::Cap;
 use gui::ChainEvent;
 use gui::derive::Widget;
 use gui::EventChain;
@@ -31,9 +35,9 @@ use gui::Id;
 use gui::MutCap;
 use gui::UiEvent;
 use gui::UiEvents;
+use gui::Widget;
 
 use crate::query::Query;
-use crate::state::TaskState;
 
 use super::event::Event;
 use super::event::EventUpdate;
@@ -41,7 +45,9 @@ use super::event::Key;
 use super::in_out::InOut;
 use super::iteration::IterationState as IterationStateT;
 use super::message::Message;
+use crate::tasks::Tasks;
 use super::task_list_box::TaskListBox;
+use super::task_list_box::TaskListBoxData;
 
 
 /// The iteration state as used by a `TabBar`.
@@ -156,24 +162,57 @@ fn sanitize_selection(selection: isize, count: usize) -> usize {
 }
 
 
+/// The data associated with a `TabBar`.
+pub struct TabBarData {
+  /// The list of tabs, with title and widget ID.
+  tabs: Vec<(String, Id)>,
+  /// The index of the currently selected tab.
+  selection: isize,
+  /// The index of the previously selected tab.
+  prev_selection: isize,
+  /// An object representing a search.
+  search: Search,
+}
+
+impl TabBarData {
+  /// Create a new `TabBarData` object.
+  pub fn new() -> Self {
+    Self {
+      tabs: Default::default(),
+      selection: 0,
+      prev_selection: 0,
+      search: SearchT::Unset,
+    }
+  }
+
+  /// Retrieve the index of the currently selected tab.
+  pub fn selection(&self) -> usize {
+    let count = self.tabs.iter().len();
+    sanitize_selection(self.selection, count)
+  }
+
+  /// Retrieve the `Id` of the selected tab.
+  pub fn selected_tab(&self) -> Id {
+    self.tabs[self.selection()].1
+  }
+}
+
 /// A widget representing a tabbed container for other widgets.
 #[derive(Debug, Widget)]
 #[gui(Event = Event)]
 pub struct TabBar {
   id: Id,
-  tabs: Vec<(String, Id)>,
-  selection: isize,
-  prev_selection: isize,
-  search: Search,
 }
 
 impl TabBar {
   /// Create a new `TabBar` widget.
-  pub fn new(id: Id,
-             cap: &mut dyn MutCap<Event>,
-             task_state: &TaskState,
-             queries: Vec<(Query, Option<usize>)>,
-             selected: Option<usize>) -> Self {
+  pub fn new(
+    id: Id,
+    cap: &mut dyn MutCap<Event>,
+    tasks: Rc<RefCell<Tasks>>,
+    queries: Vec<(Query, Option<usize>)>,
+    selected: Option<usize>,
+  ) -> Self {
     let count = queries.len();
     let selected = selected
       .map(|x| min(x, isize::MAX as usize))
@@ -185,11 +224,12 @@ impl TabBar {
       .enumerate()
       .map(|(i, (query, task))| {
         let name = query.name().to_string();
-        let mut query = Some(query);
-        let task_list = cap.add_widget(id, &mut |id, _cap| {
-          let query = query.take().unwrap();
-          Box::new(TaskListBox::new(id, task_state.tasks(), query, task))
-        });
+        let tasks = tasks.clone();
+        let task_list = cap.add_widget(
+          id,
+          Box::new(|| Box::new(TaskListBoxData::new(tasks, query))),
+          Box::new(move |id, cap| Box::new(TaskListBox::new(id, cap, task))),
+        );
 
         if i == selected {
           cap.focus(task_list);
@@ -199,21 +239,25 @@ impl TabBar {
         (name, task_list)
       }).collect();
 
-    Self {
-      id,
-      tabs,
-      selection: selected as isize,
-      prev_selection: selected as isize,
-      search: SearchT::Unset,
-    }
+    let tab_bar = Self { id };
+    let data = tab_bar.data_mut::<TabBarData>(cap);
+    data.tabs = tabs;
+    data.selection = selected as isize;
+    data.prev_selection = selected as isize;
+
+    tab_bar
   }
 
   /// Handle a `Message::SearchTask` event.
-  fn handle_search_task(&mut self,
-                        string: String,
-                        search_state: SearchState,
-                        mut iter_state: IterationState) -> Option<UiEvents<Event>> {
-    match self.search {
+  fn handle_search_task(
+    &self,
+    cap: &mut dyn MutCap<Event>,
+    string: String,
+    search_state: SearchState,
+    mut iter_state: IterationState,
+  ) -> Option<UiEvents<Event>> {
+    let data = self.data_mut::<TabBarData>(cap);
+    match data.search {
       SearchT::Taken => {
         // We have to distinguish three cases here, in order:
         // 1) No matching task was to be found on all tabs, i.e., we
@@ -225,8 +269,8 @@ impl TabBar {
         // 3) The next task in line was found and selected, in which
         //    case we just store the search state and wait for
         //    additional user input to select the next one or similar.
-        if iter_state.has_cycled(self.tabs.iter().len()) {
-          self.search = SearchT::State(string.clone(), search_state, iter_state);
+        if iter_state.has_cycled(data.tabs.iter().len()) {
+          data.search = SearchT::State(string.clone(), search_state, iter_state);
 
           let error = format!("Text '{}' not found", string);
           let event = Message::SetInOut(InOut::Error(error));
@@ -234,16 +278,16 @@ impl TabBar {
         } else if iter_state.has_advanced() {
           debug_assert!(search_state.is_first());
 
-          let iter = self.tabs.iter().map(|x| x.1);
+          let iter = data.tabs.iter().map(|x| x.1);
           let new_idx = iter_state.normalize(iter);
-          let tab = self.tabs[new_idx].1;
+          let tab = data.tabs[new_idx].1;
 
           let event = Message::SearchTask(string, SearchState::First, iter_state);
           let event = UiEvent::Returnable(self.id, tab, Box::new(event));
           Some(ChainEvent::Event(event))
         } else {
           iter_state.reset_cycled();
-          self.search = SearchT::State(string, search_state, iter_state);
+          data.search = SearchT::State(string, search_state, iter_state);
           None
         }
       },
@@ -254,16 +298,19 @@ impl TabBar {
   }
 
   /// Handle a custom event.
-  fn handle_custom_event(&mut self,
-                         mut event: Box<Message>,
-                         cap: &mut dyn MutCap<Event>) -> Option<UiEvents<Event>> {
+  fn handle_custom_event(
+    &self,
+    mut event: Box<Message>,
+    cap: &mut dyn MutCap<Event>,
+  ) -> Option<UiEvents<Event>> {
     match *event {
       Message::SelectTask(_, ref mut state) => {
-        let iter = self.tabs.iter().map(|x| x.1);
+        let data = self.data::<TabBarData>(cap);
+        let iter = data.tabs.iter().map(|x| x.1);
         let new_idx = state.normalize(iter.clone());
 
         if !state.has_cycled(iter.len()) {
-          let tab = self.tabs[new_idx].1;
+          let tab = data.tabs[new_idx].1;
           let event = UiEvent::Directed(tab, event);
           Some(ChainEvent::Event(event))
         } else {
@@ -271,16 +318,18 @@ impl TabBar {
         }
       },
       Message::SelectedTask(widget_id) => {
-        let select = self.tabs.iter().position(|x| x.1 == widget_id).unwrap();
-        let update = self.set_select(select as isize, cap);
+        let data = self.data::<TabBarData>(cap);
+        let select = data.tabs.iter().position(|x| x.1 == widget_id).unwrap();
+        let update = self.set_select(cap, select as isize);
         (None as Option<Event>).maybe_update(update)
       },
       Message::EnteredText(mut string) => {
-        if !string.is_empty() && !self.tabs.is_empty() {
+        let data = self.data_mut::<TabBarData>(cap);
+        if !string.is_empty() && !data.tabs.is_empty() {
           string.make_ascii_lowercase();
 
-          let reverse = self.search.take().is_reverse();
-          let tab = self.selected_tab();
+          let reverse = data.search.take().is_reverse();
+          let tab = data.selected_tab();
           let mut state = IterationState::new(tab);
           state.reverse(reverse);
 
@@ -297,10 +346,11 @@ impl TabBar {
       },
       Message::InputCanceled => None,
       Message::CollectState(for_save) => {
-        if let Some((_, tab)) = self.tabs.first() {
+        let data = self.data::<TabBarData>(cap);
+        if let Some((_, tab)) = data.tabs.first() {
           let tab_state = TabState{
             queries: Vec::new(),
-            selected: Some(self.selection()),
+            selected: Some(self.selection(cap)),
             for_save,
           };
           let iter_state = IterationState::new(*tab);
@@ -321,53 +371,56 @@ impl TabBar {
       Message::GetTabState(tab_state, mut iter_state) => {
         debug_assert!(iter_state.has_advanced());
 
+        let data = self.data::<TabBarData>(cap);
         // If we have covered all tabs then send back the queries.
-        if iter_state.is_last(self.tabs.iter().len()) {
+        if iter_state.is_last(data.tabs.iter().len()) {
           let event = Message::CollectedState(tab_state);
           Some(UiEvent::Custom(Box::new(event)).into())
         } else {
-          let iter = self.tabs.iter().map(|x| x.1);
+          let iter = data.tabs.iter().map(|x| x.1);
           let new_idx = iter_state.normalize(iter);
-          let tab = self.tabs[new_idx].1;
+          let tab = data.tabs[new_idx].1;
 
           let event = Message::GetTabState(tab_state, iter_state);
           Some(UiEvent::Returnable(self.id, tab, Box::new(event)).into())
         }
       },
       Message::SearchTask(string, search_state, iter_state) => {
-        self.handle_search_task(string, search_state, iter_state)
+        self.handle_search_task(cap, string, search_state, iter_state)
       },
       _ => Some(UiEvent::Custom(event).into()),
     }
   }
 
   /// Retrieve an iterator over the names of all the tabs.
-  pub fn iter(&self) -> impl ExactSizeIterator<Item=&String> {
-    self.tabs.iter().map(|(x, _)| x)
+  pub fn iter<'slf>(&'slf self, cap: &'slf dyn Cap) -> impl ExactSizeIterator<Item=&'slf String> {
+    let data = self.data::<TabBarData>(cap);
+    data.tabs.iter().map(|(x, _)| x)
   }
 
   /// Retrieve the index of the currently selected tab.
-  pub fn selection(&self) -> usize {
-    let count = self.tabs.iter().len();
-    sanitize_selection(self.selection, count)
-  }
-
-  /// Retrieve the `Id` of the selected tab.
-  fn selected_tab(&self) -> Id {
-    self.tabs[self.selection()].1
+  pub fn selection(&self, cap: &dyn Cap) -> usize {
+    let data = self.data::<TabBarData>(cap);
+    data.selection()
   }
 
   /// Change the currently selected tab.
-  fn set_select(&mut self, selection: isize, cap: &mut dyn MutCap<Event>) -> bool {
-    let count = self.tabs.iter().len();
-    let old_selection = sanitize_selection(self.selection, count);
+  fn set_select(&self, cap: &mut dyn MutCap<Event>, selection: isize) -> bool {
+    let data = self.data::<TabBarData>(cap);
+    let count = data.tabs.iter().len();
+    let old_selection = sanitize_selection(data.selection, count);
     let new_selection = sanitize_selection(selection, count);
 
     if new_selection != old_selection {
-      cap.hide(self.selected_tab());
-      self.prev_selection = self.selection;
-      self.selection = selection;
-      cap.focus(self.selected_tab());
+      let selected = data.selected_tab();
+      cap.hide(selected);
+
+      let data = self.data_mut::<TabBarData>(cap);
+      data.prev_selection = data.selection;
+      data.selection = selection;
+
+      let selected = data.selected_tab();
+      cap.focus(selected);
       true
     } else {
       false
@@ -375,29 +428,32 @@ impl TabBar {
   }
 
   /// Change the currently selected tab.
-  fn select(&mut self, change: isize, cap: &mut dyn MutCap<Event>) -> bool {
-    let count = self.tabs.iter().len();
-    let selection = sanitize_selection(self.selection, count);
+  fn select(&self, cap: &mut dyn MutCap<Event>, change: isize) -> bool {
+    let data = self.data::<TabBarData>(cap);
+    let count = data.tabs.iter().len();
+    let selection = sanitize_selection(data.selection, count);
     let new_selection = selection as isize + change;
-    self.set_select(new_selection, cap)
+    self.set_select(cap, new_selection)
   }
 
   /// Select the previously selected tab.
-  fn select_previous(&mut self, cap: &mut dyn MutCap<Event>) -> bool {
-    let selection = self.prev_selection;
-    self.set_select(selection, cap)
+  fn select_previous(&self, cap: &mut dyn MutCap<Event>) -> bool {
+    let data = self.data::<TabBarData>(cap);
+    let selection = data.prev_selection;
+    self.set_select(cap, selection)
   }
 
   /// Swap the currently selected tab with the one to its left or right.
-  fn swap(&mut self, left: bool) -> bool {
-    let count = self.tabs.iter().len();
-    let old_selection = sanitize_selection(self.selection, count);
-    let selection = self.selection + if left { -1 } else { 1 };
+  fn swap(&self, cap: &mut dyn MutCap<Event>, left: bool) -> bool {
+    let data = self.data_mut::<TabBarData>(cap);
+    let count = data.tabs.iter().len();
+    let old_selection = sanitize_selection(data.selection, count);
+    let selection = data.selection + if left { -1 } else { 1 };
     let new_selection = sanitize_selection(selection, count);
 
     if new_selection != old_selection {
-      self.tabs.swap(old_selection, new_selection);
-      self.selection = selection;
+      data.tabs.swap(old_selection, new_selection);
+      data.selection = selection;
       true
     } else {
       false
@@ -407,31 +463,32 @@ impl TabBar {
 
 impl Handleable<Event> for TabBar {
   /// Check for new input and react to it.
-  fn handle(&mut self, event: Event, cap: &mut dyn MutCap<Event>) -> Option<UiEvents<Event>> {
+  fn handle(&self, cap: &mut dyn MutCap<Event>, event: Event) -> Option<UiEvents<Event>> {
+    let data = self.data_mut::<TabBarData>(cap);
     match event {
       Event::Key(key, _) => {
         match key {
-          Key::Char('1') => (None as Option<Event>).maybe_update(self.set_select(0, cap)),
-          Key::Char('2') => (None as Option<Event>).maybe_update(self.set_select(1, cap)),
-          Key::Char('3') => (None as Option<Event>).maybe_update(self.set_select(2, cap)),
-          Key::Char('4') => (None as Option<Event>).maybe_update(self.set_select(3, cap)),
-          Key::Char('5') => (None as Option<Event>).maybe_update(self.set_select(4, cap)),
-          Key::Char('6') => (None as Option<Event>).maybe_update(self.set_select(5, cap)),
-          Key::Char('7') => (None as Option<Event>).maybe_update(self.set_select(6, cap)),
-          Key::Char('8') => (None as Option<Event>).maybe_update(self.set_select(7, cap)),
-          Key::Char('9') => (None as Option<Event>).maybe_update(self.set_select(8, cap)),
-          Key::Char('0') => (None as Option<Event>).maybe_update(self.set_select(isize::MAX, cap)),
+          Key::Char('1') => (None as Option<Event>).maybe_update(self.set_select(cap, 0)),
+          Key::Char('2') => (None as Option<Event>).maybe_update(self.set_select(cap, 1)),
+          Key::Char('3') => (None as Option<Event>).maybe_update(self.set_select(cap, 2)),
+          Key::Char('4') => (None as Option<Event>).maybe_update(self.set_select(cap, 3)),
+          Key::Char('5') => (None as Option<Event>).maybe_update(self.set_select(cap, 4)),
+          Key::Char('6') => (None as Option<Event>).maybe_update(self.set_select(cap, 5)),
+          Key::Char('7') => (None as Option<Event>).maybe_update(self.set_select(cap, 6)),
+          Key::Char('8') => (None as Option<Event>).maybe_update(self.set_select(cap, 7)),
+          Key::Char('9') => (None as Option<Event>).maybe_update(self.set_select(cap, 8)),
+          Key::Char('0') => (None as Option<Event>).maybe_update(self.set_select(cap, isize::MAX)),
           Key::Char('`') => (None as Option<Event>).maybe_update(self.select_previous(cap)),
-          Key::Char('h') => (None as Option<Event>).maybe_update(self.select(-1, cap)),
-          Key::Char('l') => (None as Option<Event>).maybe_update(self.select(1, cap)),
-          Key::Char('H') => (None as Option<Event>).maybe_update(self.swap(true)),
-          Key::Char('L') => (None as Option<Event>).maybe_update(self.swap(false)),
+          Key::Char('h') => (None as Option<Event>).maybe_update(self.select(cap, -1)),
+          Key::Char('l') => (None as Option<Event>).maybe_update(self.select(cap, 1)),
+          Key::Char('H') => (None as Option<Event>).maybe_update(self.swap(cap, true)),
+          Key::Char('L') => (None as Option<Event>).maybe_update(self.swap(cap, false)),
           Key::Char('n') |
           Key::Char('N') => {
-            let event = match self.search.take() {
+            let event = match data.search.take() {
               SearchT::Preparing(..) |
               SearchT::Unset => {
-                self.search = SearchT::Unset;
+                data.search = SearchT::Unset;
 
                 let error = InOut::Error("Nothing to search for".to_string());
                 let event = Message::SetInOut(error);
@@ -439,9 +496,9 @@ impl Handleable<Event> for TabBar {
               },
               SearchT::Taken => panic!("invalid search state"),
               SearchT::State(string, search_state, mut iter_state) => {
-                let iter = self.tabs.iter().map(|x| x.1);
+                let iter = data.tabs.iter().map(|x| x.1);
                 let new_idx = iter_state.normalize(iter);
-                let tab = self.tabs[new_idx].1;
+                let tab = data.tabs[new_idx].1;
                 let reverse = key == Key::Char('N');
                 iter_state.reverse(reverse);
 
@@ -459,7 +516,7 @@ impl Handleable<Event> for TabBar {
           Key::Char('/') |
           Key::Char('?') => {
             let reverse = key == Key::Char('?');
-            self.search = SearchT::Preparing(reverse);
+            data.search = SearchT::Preparing(reverse);
 
             let event = Message::SetInOut(InOut::Input("".to_string(), 0));
             let event = UiEvent::Custom(Box::new(event));
@@ -472,9 +529,11 @@ impl Handleable<Event> for TabBar {
   }
 
   /// Handle a custom event.
-  fn handle_custom(&mut self,
-                   event: Box<dyn Any>,
-                   cap: &mut dyn MutCap<Event>) -> Option<UiEvents<Event>> {
+  fn handle_custom(
+    &self,
+    cap: &mut dyn MutCap<Event>,
+    event: Box<dyn Any>,
+  ) -> Option<UiEvents<Event>> {
     match event.downcast::<Message>() {
       Ok(e) => self.handle_custom_event(e, cap),
       Err(e) => panic!("Received unexpected custom event: {:?}", e),

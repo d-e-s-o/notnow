@@ -1,3 +1,8 @@
+Unreleased
+----------
+- Bumped `gui` dependency to `0.6.0-alpha.0`
+
+
 0.2.3
 -----
 - Reduce synchronization overhead by locking stdout only once

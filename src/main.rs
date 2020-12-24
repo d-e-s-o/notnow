@@ -124,6 +124,7 @@ use crate::ui::event::Event as UiEvent;
 use crate::ui::message::Message;
 use crate::ui::term_renderer::TermRenderer;
 use crate::ui::termui::TermUi;
+use crate::ui::termui::TermUiData;
 
 /// A type indicating the desire to continue execution.
 ///
@@ -269,11 +270,14 @@ where
   let state = State::new(&task_path, &ui_path)?;
   let screen = AlternateScreen::from(out.into_raw_mode()?);
   let colors = state.1.colors.get().unwrap_or_default();
-  let mut state = Some(state);
   let renderer = TermRenderer::new(screen, colors)?;
-  let (ui, _) = Ui::new(&mut |id, cap| {
-    Box::new(TermUi::new(id, cap, state.take().unwrap()))
-  });
+  let State(task_state, ui_state) = state;
+  let path = ui_state.path.clone();
+
+  let (ui, _) = Ui::new(
+    || Box::new(TermUiData::new(task_state, path)),
+    |id, cap| Box::new(TermUi::new(id, cap, ui_state)),
+  );
 
   let (send_event, recv_event) = channel();
   receive_window_resizes(send_event.clone())?;

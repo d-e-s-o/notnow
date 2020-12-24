@@ -263,7 +263,7 @@ where
   }
 
   /// Render a `TabBar`.
-  fn render_tab_bar(&self, tab_bar: &TabBar, mut bbox: BBox) -> Result<BBox> {
+  fn render_tab_bar(&self, tab_bar: &TabBar, cap: &dyn Cap, mut bbox: BBox) -> Result<BBox> {
     let mut map = self.data.borrow_mut();
     let data = map.entry(tab_bar.id()).or_default();
 
@@ -277,9 +277,9 @@ where
     //       terminal resizes. If the width of the terminal is increased
     //       the offset would need to be adjusted. Should/can this be
     //       fixed?
-    let count = tab_bar.iter().len();
+    let count = tab_bar.iter(cap).len();
     let limit = self.displayable_tabs(w - 1);
-    let selection = tab_bar.selection();
+    let selection = tab_bar.selection(cap);
     let offset = sanitize_offset(data.offset, selection, limit);
 
     if offset > 0 {
@@ -302,7 +302,7 @@ where
       self.writer.write(bbox.w - 1, 0, fg, bg, " ")?;
     }
 
-    for (i, tab) in tab_bar.iter().enumerate().skip(offset).take(limit) {
+    for (i, tab) in tab_bar.iter(cap).enumerate().skip(offset).take(limit) {
       let (fg, bg) = if i == selection {
         (self.colors.selected_query_fg, self.colors.selected_query_bg)
       } else {
@@ -334,7 +334,12 @@ where
   }
 
   /// Render a `TaskListBox`.
-  fn render_task_list_box(&self, task_list: &TaskListBox, bbox: BBox) -> Result<BBox> {
+  fn render_task_list_box(
+    &self,
+    task_list: &TaskListBox,
+    cap: &dyn Cap,
+    bbox: BBox,
+  ) -> Result<BBox> {
     let mut map = self.data.borrow_mut();
     let data = map.entry(task_list.id()).or_default();
 
@@ -342,9 +347,9 @@ where
     let mut y = MAIN_MARGIN_Y;
     let mut cursor = None;
 
-    let query = task_list.query();
+    let query = task_list.query(cap);
     let limit = self.displayable_tasks(bbox);
-    let selection = task_list.selection();
+    let selection = task_list.selection(cap);
     let offset = sanitize_offset(data.offset, selection, limit);
 
     for (i, task) in query.iter().clone().enumerate().skip(offset).take(limit) {
@@ -386,8 +391,8 @@ where
   }
 
   /// Render an `InOutArea`.
-  fn render_input_output(&self, in_out: &InOutArea, bbox: BBox, cap: &dyn Cap) -> Result<BBox> {
-    let (prefix, fg, bg, string) = match in_out.state() {
+  fn render_input_output(&self, in_out: &InOutArea, cap: &dyn Cap, bbox: BBox) -> Result<BBox> {
+    let (prefix, fg, bg, string) = match in_out.state(cap) {
       InOut::Saved => (
         SAVED_TEXT,
         self.colors.in_out_success_fg,
@@ -424,7 +429,7 @@ where
 
       self.writer.write(x, bbox.h - 1, fg, bg, string)?;
 
-      if let InOut::Input(s, idx) = in_out.state() {
+      if let InOut::Input(s, idx) = in_out.state(cap) {
         debug_assert!(cap.is_focused(in_out.id()));
 
         let idx = char_index(&s, *idx);
@@ -464,7 +469,7 @@ where
     }
   }
 
-  fn render(&self, widget: &dyn Renderable, bbox: BBox, cap: &dyn Cap) -> BBox {
+  fn render(&self, widget: &dyn Renderable, cap: &dyn Cap, bbox: BBox) -> BBox {
     let result;
 
     self.writer.restrict(bbox);
@@ -472,11 +477,11 @@ where
     if let Some(ui) = widget.downcast_ref::<TermUi>() {
       result = self.render_term_ui(ui, bbox)
     } else if let Some(in_out) = widget.downcast_ref::<InOutArea>() {
-      result = self.render_input_output(in_out, bbox, cap);
+      result = self.render_input_output(in_out, cap, bbox);
     } else if let Some(tab_bar) = widget.downcast_ref::<TabBar>() {
-      result = self.render_tab_bar(tab_bar, bbox);
+      result = self.render_tab_bar(tab_bar, cap, bbox);
     } else if let Some(task_list) = widget.downcast_ref::<TaskListBox>() {
-      result = self.render_task_list_box(task_list, bbox);
+      result = self.render_task_list_box(task_list, cap, bbox);
     } else {
       panic!("Widget {:?} is unknown to the renderer", widget)
     }

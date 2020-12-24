@@ -27,8 +27,8 @@ use gui::Id;
 use gui::MutCap;
 use gui::UiEvent;
 use gui::UiEvents;
+use gui::Widget;
 
-use crate::state::State;
 use crate::state::TaskState;
 use crate::state::UiState;
 #[cfg(all(test, not(feature = "readline")))]
@@ -38,10 +38,27 @@ use super::event::Event;
 use super::event::Key;
 use super::in_out::InOut;
 use super::in_out::InOutArea;
+use super::in_out::InOutAreaData;
 use super::message::Message;
 use super::tab_bar::TabBar;
+use super::tab_bar::TabBarData;
 use super::tab_bar::TabState;
 
+
+/// The data associated with a `TermUi`.
+pub struct TermUiData {
+  task_state: TaskState,
+  ui_state_path: PathBuf,
+}
+
+impl TermUiData {
+  pub fn new(task_state: TaskState, ui_state_path: PathBuf) -> Self {
+    Self {
+      task_state,
+      ui_state_path,
+    }
+  }
+}
 
 /// An implementation of a terminal based view.
 #[derive(Debug, Widget)]
@@ -50,37 +67,42 @@ pub struct TermUi {
   id: Id,
   in_out: Id,
   tab_bar: Id,
-  task_state: TaskState,
-  ui_state_path: PathBuf,
 }
 
 
 impl TermUi {
   /// Create a new view associated with the given `State` object.
-  pub fn new(id: Id, cap: &mut dyn MutCap<Event>, state: State) -> Self {
-    let State(task_state, UiState{path, queries, selected, ..}) = state;
-    let mut queries = Some(queries);
+  pub fn new(id: Id, cap: &mut dyn MutCap<Event>, state: UiState) -> Self {
+    let termui_id = id;
+    let UiState {
+      queries, selected, ..
+    } = state;
 
-    let in_out = cap.add_widget(id, &mut |id, cap| {
-      Box::new(InOutArea::new(id, cap))
-    });
-    let tab_bar = cap.add_widget(id, &mut |id, cap| {
-      let queries = queries.take().unwrap();
-      Box::new(TabBar::new(id, cap, &task_state, queries, selected))
-    });
+    let in_out = cap.add_widget(
+      id,
+      Box::new(|| Box::new(InOutAreaData::new())),
+      Box::new(|id, cap| Box::new(InOutArea::new(id, cap))),
+    );
+    let tab_bar = cap.add_widget(
+      id,
+      Box::new(|| Box::new(TabBarData::new())),
+      Box::new(move |id, cap| {
+        let data = cap.data(termui_id).downcast_ref::<TermUiData>().unwrap();
+        let tasks = data.task_state.tasks();
+        Box::new(TabBar::new(id, cap, tasks, queries, selected))
+      }),
+    );
 
     Self {
       id,
       in_out,
       tab_bar,
-      task_state,
-      ui_state_path: path,
     }
   }
 
   /// Persist the state into a file.
-  fn save_all(&self, ui_state: &UiState) -> Result<()> {
-    self.task_state.save()?;
+  fn save_all(&self, task_state: &TaskState, ui_state: &UiState) -> Result<()> {
+    task_state.save()?;
     // TODO: We risk data inconsistencies if the second save operation
     //       fails.
     ui_state.save()?;
@@ -88,8 +110,8 @@ impl TermUi {
   }
 
   /// Save the current state.
-  fn save_and_report(&mut self, ui_state: &UiState) -> UiEvents<Event> {
-    let in_out = match self.save_all(ui_state) {
+  fn save_and_report(&self, task_state: &TaskState, ui_state: &UiState) -> UiEvents<Event> {
+    let in_out = match self.save_all(task_state, ui_state) {
       Ok(_) => InOut::Saved,
       Err(err) => InOut::Error(format!("{}", err)),
     };
@@ -98,30 +120,36 @@ impl TermUi {
   }
 
   /// Emit an event that will eventually cause the state to be saved.
-  fn save(&mut self) -> UiEvents<Event> {
+  fn save(&self) -> UiEvents<Event> {
     let event = Message::CollectState(true);
     UiEvent::Directed(self.tab_bar, Box::new(event)).into()
   }
 
   /// Handle a custom event.
-  fn handle_custom_event(&mut self, event: Box<Message>) -> Option<UiEvents<Event>> {
+  fn handle_custom_event(
+    &self,
+    event: Box<Message>,
+    cap: &mut dyn MutCap<Event>,
+  ) -> Option<UiEvents<Event>> {
+    let data = self.data_mut::<TermUiData>(cap);
+
     match *event {
       Message::CollectedState(state) if state.for_save => {
         let TabState{queries, selected, ..} = state;
         let ui_state = UiState {
-          path: self.ui_state_path.clone(),
+          path: data.ui_state_path.clone(),
           queries,
           selected,
           colors: Default::default(),
         };
-        Some(self.save_and_report(&ui_state))
+        Some(self.save_and_report(&data.task_state, &ui_state))
       },
       Message::SetInOut(_) => {
         Some(UiEvent::Directed(self.in_out, event).into())
       },
       #[cfg(all(test, not(feature = "readline")))]
       Message::GetTasks => {
-        let tasks = self.task_state.tasks();
+        let tasks = data.task_state.tasks();
         let tasks = tasks.borrow().iter().cloned().collect();
         let resp = Message::GotTasks(tasks);
         Some(UiEvent::Custom(Box::new(resp)).into())
@@ -139,7 +167,7 @@ impl TermUi {
 
 impl Handleable<Event> for TermUi {
   /// Check for new input and react to it.
-  fn handle(&mut self, event: Event, _cap: &mut dyn MutCap<Event>) -> Option<UiEvents<Event>> {
+  fn handle(&self, _cap: &mut dyn MutCap<Event>, event: Event) -> Option<UiEvents<Event>> {
     match event {
       Event::Key(key, _) => {
         match key {
@@ -152,11 +180,13 @@ impl Handleable<Event> for TermUi {
   }
 
   /// Handle a custom event.
-  fn handle_custom(&mut self,
-                   event: Box<dyn Any>,
-                   _cap: &mut dyn MutCap<Event>) -> Option<UiEvents<Event>> {
+  fn handle_custom(
+    &self,
+    cap: &mut dyn MutCap<Event>,
+    event: Box<dyn Any>,
+  ) -> Option<UiEvents<Event>> {
     match event.downcast::<Message>() {
-      Ok(e) => self.handle_custom_event(e),
+      Ok(e) => self.handle_custom_event(e, cap),
       Err(e) => panic!("Received unexpected custom event: {:?}", e),
     }
   }
@@ -283,22 +313,29 @@ mod tests {
     /// created by `default_tasks_and_tags`.
     fn with_default_tasks_and_tags() -> TestUiBuilder {
       let (task_state, ui_state) = default_tasks_and_tags();
-      TestUiBuilder { task_state, ui_state }
+      TestUiBuilder {
+        task_state,
+        ui_state,
+      }
     }
 
     /// Build the actual UI object that we can test with.
     fn build(self) -> TestUi {
-      let mut task_state = Some(self.task_state);
-      let mut ui_state = Some(self.ui_state);
       let task_file = NamedTempFile::new();
       let ui_file = NamedTempFile::new();
+      let state = State::with_serde(
+        self.task_state,
+        task_file.path(),
+        self.ui_state,
+        ui_file.path(),
+      );
+      let State(task_state, ui_state) = state.unwrap();
+      let path = ui_state.path.clone();
 
-      let (ui, _) = Ui::new(&mut |id, cap| {
-        let task_state = task_state.take().unwrap();
-        let ui_state = ui_state.take().unwrap();
-        let state = State::with_serde(task_state, task_file.path(), ui_state, ui_file.path());
-        Box::new(TermUi::new(id, cap, state.unwrap()))
-      });
+      let (ui, _) = Ui::new(
+        || Box::new(TermUiData::new(task_state, path)),
+        |id, cap| Box::new(TermUi::new(id, cap, ui_state)),
+      );
 
       TestUi {
         task_file,
