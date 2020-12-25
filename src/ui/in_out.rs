@@ -21,6 +21,8 @@ use std::any::Any;
 #[cfg(feature = "readline")]
 use std::ffi::CString;
 
+use async_trait::async_trait;
+
 use gui::Cap;
 use gui::ChainEvent;
 use gui::derive::Widget;
@@ -169,14 +171,14 @@ impl InOutAreaData {
 
 /// A widget representing an input/output and status area.
 #[derive(Debug, Widget)]
-#[gui(Event = Event)]
+#[gui(Event = Event, Message = Message)]
 pub struct InOutArea {
   id: Id,
 }
 
 impl InOutArea {
   /// Create a new input/output area object.
-  pub fn new(id: Id, cap: &mut dyn MutCap<Event>) -> Self {
+  pub fn new(id: Id, cap: &mut dyn MutCap<Event, Message>) -> Self {
     // Install a hook to be able to reset the input/output area into
     // "clear" state on every key press.
     let _ = cap.hook_events(id, Some(&InOutArea::handle_hooked_event));
@@ -185,8 +187,8 @@ impl InOutArea {
 
   /// Handle a hooked event.
   fn handle_hooked_event(
-    widget: &dyn Widget<Event>,
-    cap: &mut dyn MutCap<Event>,
+    widget: &dyn Widget<Event, Message>,
+    cap: &mut dyn MutCap<Event, Message>,
     event: &Event,
   ) -> Option<UiEvents<Event>> {
     let in_out = widget.downcast_ref::<InOutArea>();
@@ -211,8 +213,8 @@ impl InOutArea {
   /// Handle a custom event.
   fn handle_custom_event(
     &self,
+    cap: &mut dyn MutCap<Event, Message>,
     event: Box<Message>,
-    cap: &mut dyn MutCap<Event>,
   ) -> Option<UiEvents<Event>> {
     let data = self.data_mut::<InOutAreaData>(cap);
     match *event {
@@ -260,7 +262,7 @@ impl InOutArea {
   /// Finish text input by changing the internal state and emitting an event.
   fn finish_input(
     &self,
-    cap: &mut dyn MutCap<Event>,
+    cap: &mut dyn MutCap<Event, Message>,
     string: Option<String>,
   ) -> Option<UiEvents<Event>> {
     let data = self.data_mut::<InOutAreaData>(cap);
@@ -280,7 +282,7 @@ impl InOutArea {
   #[cfg(not(feature = "readline"))]
   fn handle_key(
     &self,
-    cap: &mut dyn MutCap<Event>,
+    cap: &mut dyn MutCap<Event, Message>,
     mut s: String,
     mut idx: usize,
     key: Key,
@@ -356,7 +358,7 @@ impl InOutArea {
   #[cfg(feature = "readline")]
   fn handle_key(
     &self,
-    cap: &mut dyn MutCap<Event>,
+    cap: &mut dyn MutCap<Event, Message>,
     _s: String,
     idx: usize,
     key: Key,
@@ -398,7 +400,7 @@ impl InOutArea {
   }
 
   /// Focus the previously focused widget or the parent.
-  fn restore_focus(&self, cap: &mut dyn MutCap<Event>) -> Id {
+  fn restore_focus(&self, cap: &mut dyn MutCap<Event, Message>) -> Id {
     let data = self.data::<InOutAreaData>(cap);
     match data.prev_focused {
       Some(to_focus) => {
@@ -418,9 +420,14 @@ impl InOutArea {
   }
 }
 
-impl Handleable<Event> for InOutArea {
+#[async_trait(?Send)]
+impl Handleable<Event, Message> for InOutArea {
   /// Handle an event.
-  fn handle(&self, cap: &mut dyn MutCap<Event>, event: Event) -> Option<UiEvents<Event>> {
+  async fn handle(
+    &self,
+    cap: &mut dyn MutCap<Event, Message>,
+    event: Event,
+  ) -> Option<UiEvents<Event>> {
     match event {
       Event::Key(key, raw) => {
         let data = self.data::<InOutAreaData>(cap);
@@ -436,13 +443,13 @@ impl Handleable<Event> for InOutArea {
   }
 
   /// Handle a custom event.
-  fn handle_custom(
+  async fn handle_custom(
     &self,
-    cap: &mut dyn MutCap<Event>,
+    cap: &mut dyn MutCap<Event, Message>,
     event: Box<dyn Any>,
   ) -> Option<UiEvents<Event>> {
     match event.downcast::<Message>() {
-      Ok(e) => self.handle_custom_event(e, cap),
+      Ok(e) => self.handle_custom_event(cap, e),
       Err(e) => panic!("Received unexpected custom event: {:?}", e),
     }
   }

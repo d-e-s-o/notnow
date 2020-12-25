@@ -24,6 +24,8 @@ use std::isize;
 use std::mem::replace;
 use std::rc::Rc;
 
+use async_trait::async_trait;
+
 use cell::RefCell;
 
 use gui::Cap;
@@ -199,7 +201,7 @@ impl TabBarData {
 
 /// A widget representing a tabbed container for other widgets.
 #[derive(Debug, Widget)]
-#[gui(Event = Event)]
+#[gui(Event = Event, Message = Message)]
 pub struct TabBar {
   id: Id,
 }
@@ -208,7 +210,7 @@ impl TabBar {
   /// Create a new `TabBar` widget.
   pub fn new(
     id: Id,
-    cap: &mut dyn MutCap<Event>,
+    cap: &mut dyn MutCap<Event, Message>,
     tasks: Rc<RefCell<Tasks>>,
     queries: Vec<(Query, Option<usize>)>,
     selected: Option<usize>,
@@ -251,7 +253,7 @@ impl TabBar {
   /// Handle a `Message::SearchTask` event.
   fn handle_search_task(
     &self,
-    cap: &mut dyn MutCap<Event>,
+    cap: &mut dyn MutCap<Event, Message>,
     string: String,
     search_state: SearchState,
     mut iter_state: IterationState,
@@ -300,8 +302,8 @@ impl TabBar {
   /// Handle a custom event.
   fn handle_custom_event(
     &self,
+    cap: &mut dyn MutCap<Event, Message>,
     mut event: Box<Message>,
-    cap: &mut dyn MutCap<Event>,
   ) -> Option<UiEvents<Event>> {
     match *event {
       Message::SelectTask(_, ref mut state) => {
@@ -405,7 +407,7 @@ impl TabBar {
   }
 
   /// Change the currently selected tab.
-  fn set_select(&self, cap: &mut dyn MutCap<Event>, selection: isize) -> bool {
+  fn set_select(&self, cap: &mut dyn MutCap<Event, Message>, selection: isize) -> bool {
     let data = self.data::<TabBarData>(cap);
     let count = data.tabs.iter().len();
     let old_selection = sanitize_selection(data.selection, count);
@@ -428,7 +430,7 @@ impl TabBar {
   }
 
   /// Change the currently selected tab.
-  fn select(&self, cap: &mut dyn MutCap<Event>, change: isize) -> bool {
+  fn select(&self, cap: &mut dyn MutCap<Event, Message>, change: isize) -> bool {
     let data = self.data::<TabBarData>(cap);
     let count = data.tabs.iter().len();
     let selection = sanitize_selection(data.selection, count);
@@ -437,14 +439,14 @@ impl TabBar {
   }
 
   /// Select the previously selected tab.
-  fn select_previous(&self, cap: &mut dyn MutCap<Event>) -> bool {
+  fn select_previous(&self, cap: &mut dyn MutCap<Event, Message>) -> bool {
     let data = self.data::<TabBarData>(cap);
     let selection = data.prev_selection;
     self.set_select(cap, selection)
   }
 
   /// Swap the currently selected tab with the one to its left or right.
-  fn swap(&self, cap: &mut dyn MutCap<Event>, left: bool) -> bool {
+  fn swap(&self, cap: &mut dyn MutCap<Event, Message>, left: bool) -> bool {
     let data = self.data_mut::<TabBarData>(cap);
     let count = data.tabs.iter().len();
     let old_selection = sanitize_selection(data.selection, count);
@@ -461,9 +463,14 @@ impl TabBar {
   }
 }
 
-impl Handleable<Event> for TabBar {
+#[async_trait(?Send)]
+impl Handleable<Event, Message> for TabBar {
   /// Check for new input and react to it.
-  fn handle(&self, cap: &mut dyn MutCap<Event>, event: Event) -> Option<UiEvents<Event>> {
+  async fn handle(
+    &self,
+    cap: &mut dyn MutCap<Event, Message>,
+    event: Event,
+  ) -> Option<UiEvents<Event>> {
     let data = self.data_mut::<TabBarData>(cap);
     match event {
       Event::Key(key, _) => {
@@ -529,13 +536,13 @@ impl Handleable<Event> for TabBar {
   }
 
   /// Handle a custom event.
-  fn handle_custom(
+  async fn handle_custom(
     &self,
-    cap: &mut dyn MutCap<Event>,
+    cap: &mut dyn MutCap<Event, Message>,
     event: Box<dyn Any>,
   ) -> Option<UiEvents<Event>> {
     match event.downcast::<Message>() {
-      Ok(e) => self.handle_custom_event(e, cap),
+      Ok(e) => self.handle_custom_event(cap, e),
       Err(e) => panic!("Received unexpected custom event: {:?}", e),
     }
   }

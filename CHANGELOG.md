@@ -1,6 +1,8 @@
 Unreleased
 ----------
-- Bumped `gui` dependency to `0.6.0-alpha.0`
+- Bumped `gui` dependency to `0.6.0-alpha.1`
+- Added `async-trait` dependency in version `0.1`
+- Added `tokio` dependency in version `0.3`
 
 
 0.2.3

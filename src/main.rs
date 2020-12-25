@@ -112,6 +112,8 @@ use termion::input::TermReadEventsAndRaw;
 use termion::raw::IntoRawMode;
 use termion::screen::AlternateScreen;
 
+use tokio::runtime::Builder;
+
 use gui::ChainEvent;
 use gui::Renderer;
 use gui::Ui;
@@ -214,9 +216,11 @@ fn receive_keys(send_event: Sender<Result<Event>>) {
 }
 
 /// Handle events in a loop.
-fn run_loop<R>(mut ui: Ui<UiEvent>,
-               renderer: &R,
-               recv_event: &Receiver<Result<Event>>) -> Result<()>
+async fn run_loop<R>(
+  mut ui: Ui<UiEvent, Message>,
+  renderer: &R,
+  recv_event: &Receiver<Result<Event>>,
+) -> Result<()>
 where
   R: Renderer,
 {
@@ -241,7 +245,7 @@ where
           #[cfg(feature = "readline")]
           let event = UiEvent::Key(key, raw);
 
-          if let Some(event) = ui.handle(event) {
+          if let Some(event) = ui.handle(event).await {
             match handle_unhandled_events(event) {
               Some(update) => render = update || render,
               None => break 'handler,
@@ -264,6 +268,7 @@ fn run_prog<W>(out: W) -> Result<()>
 where
   W: Write,
 {
+  let rt = Builder::new_current_thread().build()?;
   let task_path = task_config()?;
   let ui_path = ui_config()?;
 
@@ -286,8 +291,7 @@ where
   // Initially we need to trigger a render in order to have the most
   // recent data presented.
   ui.render(&renderer);
-
-  run_loop(ui, &renderer, &recv_event)
+  rt.block_on(run_loop(ui, &renderer, &recv_event))
 }
 
 /// Parse the arguments and run the program.

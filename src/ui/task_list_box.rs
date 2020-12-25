@@ -23,6 +23,8 @@ use std::cmp::min;
 use std::isize;
 use std::rc::Rc;
 
+use async_trait::async_trait;
+
 use cell::RefCell;
 
 use gui::Cap;
@@ -135,14 +137,14 @@ impl TaskListBoxData {
 
 /// A widget representing a list of `Task` objects.
 #[derive(Debug, Widget)]
-#[gui(Event = Event)]
+#[gui(Event = Event, Message = Message)]
 pub struct TaskListBox {
   id: Id,
 }
 
 impl TaskListBox {
   /// Create a new `TaskListBox` widget.
-  pub fn new(id: Id, cap: &mut dyn MutCap<Event>, selected: Option<usize>) -> Self {
+  pub fn new(id: Id, cap: &mut dyn MutCap<Event, Message>, selected: Option<usize>) -> Self {
     let task_list_box = Self { id };
     let data = task_list_box.data_mut::<TaskListBoxData>(cap);
 
@@ -170,7 +172,7 @@ impl TaskListBox {
   /// those cases is left to clients.
   fn handle_select_task(
     &self,
-    cap: &mut dyn MutCap<Event>,
+    cap: &mut dyn MutCap<Event, Message>,
     task_id: TaskId,
     mut state: IterationState,
   ) -> Option<UiEvents<Event>> {
@@ -198,7 +200,7 @@ impl TaskListBox {
   /// Start the selection of a task.
   fn handle_select_task_start(
     &self,
-    cap: &mut dyn MutCap<Event>,
+    cap: &mut dyn MutCap<Event, Message>,
     task_id: TaskId,
   ) -> Option<UiEvents<Event>> {
     let state = IterationState::new(self.id);
@@ -266,7 +268,7 @@ impl TaskListBox {
   /// Handle a `Message::SearchTask` event.
   fn handle_search_task(
     &self,
-    cap: &mut dyn MutCap<Event>,
+    cap: &mut dyn MutCap<Event, Message>,
     string: &str,
     search_state: &mut SearchState,
     iter_state: &mut IterationState,
@@ -291,8 +293,8 @@ impl TaskListBox {
   /// Handle a custom event.
   fn handle_custom_event(
     &self,
+    cap: &mut dyn MutCap<Event, Message>,
     event: Box<Message>,
-    cap: &mut dyn MutCap<Event>,
   ) -> Option<UiEvents<Event>> {
     let data = self.data_mut::<TaskListBoxData>(cap);
     match *event {
@@ -356,7 +358,7 @@ impl TaskListBox {
   fn handle_custom_event_ref(
     &self,
     event: &mut Message,
-    cap: &mut dyn MutCap<Event>,
+    cap: &mut dyn MutCap<Event, Message>,
   ) -> Option<UiEvents<Event>> {
     match event {
       Message::SearchTask(string, search_state, iter_state) => {
@@ -390,9 +392,14 @@ impl TaskListBox {
   }
 }
 
-impl Handleable<Event> for TaskListBox {
+#[async_trait(?Send)]
+impl Handleable<Event, Message> for TaskListBox {
   /// Check for new input and react to it.
-  fn handle(&self, cap: &mut dyn MutCap<Event>, event: Event) -> Option<UiEvents<Event>> {
+  async fn handle(
+    &self,
+    cap: &mut dyn MutCap<Event, Message>,
+    event: Event,
+  ) -> Option<UiEvents<Event>> {
     let data = self.data_mut::<TaskListBoxData>(cap);
     match event {
       Event::Key(key, _) => {
@@ -475,21 +482,21 @@ impl Handleable<Event> for TaskListBox {
   }
 
   /// Handle a custom event.
-  fn handle_custom(
+  async fn handle_custom(
     &self,
-    cap: &mut dyn MutCap<Event>,
+    cap: &mut dyn MutCap<Event, Message>,
     event: Box<dyn Any>,
   ) -> Option<UiEvents<Event>> {
     match event.downcast::<Message>() {
-      Ok(e) => self.handle_custom_event(e, cap),
+      Ok(e) => self.handle_custom_event(cap, e),
       Err(e) => panic!("Received unexpected custom event: {:?}", e),
     }
   }
 
   /// Handle a custom event.
-  fn handle_custom_ref(
+  async fn handle_custom_ref(
     &self,
-    cap: &mut dyn MutCap<Event>,
+    cap: &mut dyn MutCap<Event, Message>,
     event: &mut dyn Any,
   ) -> Option<UiEvents<Event>> {
     match event.downcast_mut::<Message>() {

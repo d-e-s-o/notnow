@@ -21,6 +21,8 @@ use std::any::Any;
 use std::io::Result;
 use std::path::PathBuf;
 
+use async_trait::async_trait;
+
 use gui::derive::Widget;
 use gui::Handleable;
 use gui::Id;
@@ -62,7 +64,7 @@ impl TermUiData {
 
 /// An implementation of a terminal based view.
 #[derive(Debug, Widget)]
-#[gui(Event = Event)]
+#[gui(Event = Event, Message = Message)]
 pub struct TermUi {
   id: Id,
   in_out: Id,
@@ -72,7 +74,7 @@ pub struct TermUi {
 
 impl TermUi {
   /// Create a new view associated with the given `State` object.
-  pub fn new(id: Id, cap: &mut dyn MutCap<Event>, state: UiState) -> Self {
+  pub fn new(id: Id, cap: &mut dyn MutCap<Event, Message>, state: UiState) -> Self {
     let termui_id = id;
     let UiState {
       queries, selected, ..
@@ -128,8 +130,8 @@ impl TermUi {
   /// Handle a custom event.
   fn handle_custom_event(
     &self,
+    cap: &mut dyn MutCap<Event, Message>,
     event: Box<Message>,
-    cap: &mut dyn MutCap<Event>,
   ) -> Option<UiEvents<Event>> {
     let data = self.data_mut::<TermUiData>(cap);
 
@@ -165,9 +167,14 @@ impl TermUi {
   }
 }
 
-impl Handleable<Event> for TermUi {
+#[async_trait(?Send)]
+impl Handleable<Event, Message> for TermUi {
   /// Check for new input and react to it.
-  fn handle(&self, _cap: &mut dyn MutCap<Event>, event: Event) -> Option<UiEvents<Event>> {
+  async fn handle(
+    &self,
+    _cap: &mut dyn MutCap<Event, Message>,
+    event: Event,
+  ) -> Option<UiEvents<Event>> {
     match event {
       Event::Key(key, _) => {
         match key {
@@ -180,13 +187,13 @@ impl Handleable<Event> for TermUi {
   }
 
   /// Handle a custom event.
-  fn handle_custom(
+  async fn handle_custom(
     &self,
-    cap: &mut dyn MutCap<Event>,
+    cap: &mut dyn MutCap<Event, Message>,
     event: Box<dyn Any>,
   ) -> Option<UiEvents<Event>> {
     match event.downcast::<Message>() {
-      Ok(e) => self.handle_custom_event(e, cap),
+      Ok(e) => self.handle_custom_event(cap, e),
       Err(e) => panic!("Received unexpected custom event: {:?}", e),
     }
   }
@@ -204,6 +211,8 @@ mod tests {
   use gui::Ui;
   use gui::UnhandledEvent;
   use gui::UnhandledEvents;
+
+  use tokio::test;
 
   use crate::ser::query::Query as SerQuery;
   use crate::ser::query::TagLit as SerTagLit;
@@ -351,26 +360,27 @@ mod tests {
   struct TestUi {
     task_file: NamedTempFile,
     ui_file: NamedTempFile,
-    ui: Ui<Event>,
+    ui: Ui<Event, Message>,
   }
 
   impl TestUi {
     /// Handle a single event and directly return the result.
-    fn evaluate<E>(&mut self, event: E) -> Option<UnhandledEvents<Event>>
+    async fn evaluate<E>(&mut self, event: E) -> Option<UnhandledEvents<Event>>
     where
       E: Into<UiEvent<Event>>,
     {
-      self.ui.handle(event)
+      self.ui.handle(event).await
     }
 
     /// Send the given list of events to the UI.
-    fn handle<E, I>(&mut self, events: I) -> &mut Self
+    #[allow(unused_lifetimes)]
+    async fn handle<E, I>(&mut self, events: I) -> &mut Self
     where
       E: Into<UiEvent<Event>>,
       I: IntoIterator<Item=E>,
     {
       for event in events.into_iter() {
-        if let Some(event) = self.ui.handle(event) {
+        if let Some(event) = self.ui.handle(event).await {
           if let UnhandledEvent::Quit = event.into_last() {
             break
           }
@@ -380,11 +390,12 @@ mod tests {
     }
 
     /// Retrieve the current `InOutArea` state.
-    fn in_out(&mut self) -> InOut {
+    async fn in_out(&mut self) -> InOut {
       let event = UiEvent::Custom(Box::new(Message::GetInOut));
       let resp = self
         .ui
         .handle(event)
+        .await
         .unwrap()
         .unwrap_custom::<Message>();
 
@@ -396,11 +407,12 @@ mod tests {
     }
 
     /// Retrieve the names of all tabs.
-    fn queries(&mut self) -> Vec<String> {
+    async fn queries(&mut self) -> Vec<String> {
       let event = UiEvent::Custom(Box::new(Message::CollectState(false)));
       let resp = self
         .ui
         .handle(event)
+        .await
         .unwrap()
         .unwrap_custom::<Message>();
 
@@ -412,11 +424,12 @@ mod tests {
     }
 
     /// Retrieve the current set of tasks from the UI.
-    fn tasks(&mut self) -> Vec<Task> {
+    async fn tasks(&mut self) -> Vec<Task> {
       let event = UiEvent::Custom(Box::new(Message::GetTasks));
       let resp = self
         .ui
         .handle(event)
+        .await
         .unwrap()
         .unwrap_custom::<Message>();
 
@@ -428,8 +441,8 @@ mod tests {
     }
 
     /// Retrieve the current set of tasks in the form of `SerTask` objects from the UI.
-    fn ser_tasks(&mut self) -> Vec<SerTask> {
-      self.tasks().iter().map(|x| x.to_serde()).collect()
+    async fn ser_tasks(&mut self) -> Vec<SerTask> {
+      self.tasks().await.iter().map(|x| x.to_serde()).collect()
     }
 
     /// Load the UI's state from a file. Note that unless the state has
@@ -440,7 +453,7 @@ mod tests {
   }
 
   #[test]
-  fn exit_on_quit() {
+  async fn exit_on_quit() {
     let events = vec![
       Event::from('q'),
       Event::from('a'),
@@ -451,13 +464,15 @@ mod tests {
     let tasks = TestUiBuilder::new()
       .build()
       .handle(events)
-      .ser_tasks();
+      .await
+      .ser_tasks()
+      .await;
 
     assert_eq!(tasks, make_tasks(0))
   }
 
   #[test]
-  fn remove_no_task() {
+  async fn remove_no_task() {
     let events = vec![
       Event::from('d'),
     ];
@@ -465,13 +480,15 @@ mod tests {
     let tasks = TestUiBuilder::new()
       .build()
       .handle(events)
-      .ser_tasks();
+      .await
+      .ser_tasks()
+      .await;
 
     assert_eq!(tasks, make_tasks(0))
   }
 
   #[test]
-  fn remove_only_task() {
+  async fn remove_only_task() {
     let tasks = make_tasks(1);
     let events = vec![
       Event::from('d'),
@@ -480,13 +497,15 @@ mod tests {
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
       .handle(events)
-      .ser_tasks();
+      .await
+      .ser_tasks()
+      .await;
 
     assert_eq!(tasks, make_tasks(0))
   }
 
   #[test]
-  fn remove_task_after_down_select() {
+  async fn remove_task_after_down_select() {
     let tasks = make_tasks(2);
     let events = vec![
       Event::from('j'),
@@ -500,13 +519,15 @@ mod tests {
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
       .handle(events)
-      .ser_tasks();
+      .await
+      .ser_tasks()
+      .await;
 
     assert_eq!(tasks, make_tasks(1))
   }
 
   #[test]
-  fn remove_task_after_up_select() {
+  async fn remove_task_after_up_select() {
     let tasks = make_tasks(3);
     let events = vec![
       Event::from('j'),
@@ -518,7 +539,9 @@ mod tests {
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
       .handle(events)
-      .ser_tasks();
+      .await
+      .ser_tasks()
+      .await;
 
     let mut expected = make_tasks(3);
     expected.remove(1);
@@ -526,7 +549,7 @@ mod tests {
   }
 
   #[test]
-  fn remove_last_task() {
+  async fn remove_last_task() {
     let tasks = make_tasks(3);
     let events = vec![
       Event::from('j'),
@@ -539,7 +562,9 @@ mod tests {
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
       .handle(events)
-      .ser_tasks();
+      .await
+      .ser_tasks()
+      .await;
 
     let mut expected = make_tasks(3);
     expected.remove(0);
@@ -548,7 +573,7 @@ mod tests {
   }
 
   #[test]
-  fn remove_second_to_last_task() {
+  async fn remove_second_to_last_task() {
     let tasks = make_tasks(5);
     let events = vec![
       Event::from('G'),
@@ -559,7 +584,9 @@ mod tests {
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
       .handle(events)
-      .ser_tasks();
+      .await
+      .ser_tasks()
+      .await;
 
     let mut expected = make_tasks(5);
     expected.remove(3);
@@ -567,7 +594,7 @@ mod tests {
   }
 
   #[test]
-  fn remove_second_task_after_up_select() {
+  async fn remove_second_task_after_up_select() {
     let tasks = make_tasks(3);
     let events = vec![
       Event::from('k'),
@@ -583,7 +610,9 @@ mod tests {
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
       .handle(events)
-      .ser_tasks();
+      .await
+      .ser_tasks()
+      .await;
 
     let mut expected = make_tasks(3);
     expected.remove(1);
@@ -591,7 +620,7 @@ mod tests {
   }
 
   #[test]
-  fn selection_after_removal() {
+  async fn selection_after_removal() {
     let tasks = make_tasks(5);
     let events = vec![
       Event::from('G'),
@@ -605,7 +634,9 @@ mod tests {
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
       .handle(events)
-      .ser_tasks();
+      .await
+      .ser_tasks()
+      .await;
 
     let mut expected = make_tasks(4);
     expected[3].summary = "o".to_string();
@@ -613,7 +644,7 @@ mod tests {
   }
 
   #[test]
-  fn add_task() {
+  async fn add_task() {
     let events = vec![
       Event::from('a'),
       Event::from('f'),
@@ -628,7 +659,9 @@ mod tests {
     let tasks = TestUiBuilder::new()
       .build()
       .handle(events)
-      .ser_tasks();
+      .await
+      .ser_tasks()
+      .await;
 
     let mut expected = make_tasks(1);
     expected[0].summary = "foobar".to_string();
@@ -637,7 +670,7 @@ mod tests {
   }
 
   #[test]
-  fn add_and_remove_tasks() {
+  async fn add_and_remove_tasks() {
     let events = vec![
       Event::from('a'),
       Event::from('f'),
@@ -656,13 +689,15 @@ mod tests {
     let tasks = TestUiBuilder::new()
       .build()
       .handle(events)
-      .ser_tasks();
+      .await
+      .ser_tasks()
+      .await;
 
     assert_eq!(tasks, make_tasks(0))
   }
 
   #[test]
-  fn add_task_cancel() {
+  async fn add_task_cancel() {
     let events = vec![
       Event::from('a'),
       Event::from('f'),
@@ -677,13 +712,15 @@ mod tests {
     let tasks = TestUiBuilder::new()
       .build()
       .handle(events)
-      .ser_tasks();
+      .await
+      .ser_tasks()
+      .await;
 
     assert_eq!(tasks, make_tasks(0))
   }
 
   #[test]
-  fn add_task_with_character_removal() {
+  async fn add_task_with_character_removal() {
     let tasks = make_tasks(1);
     let events = vec![
       Event::from('a'),
@@ -702,7 +739,9 @@ mod tests {
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
       .handle(events)
-      .ser_tasks();
+      .await
+      .ser_tasks()
+      .await;
 
     let mut expected = make_tasks(2);
     expected[1].summary = "baz".to_string();
@@ -711,7 +750,7 @@ mod tests {
   }
 
   #[test]
-  fn add_task_with_cursor_movement() {
+  async fn add_task_with_cursor_movement() {
     let tasks = make_tasks(1);
     let events = vec![
       Event::from('a'),
@@ -734,7 +773,9 @@ mod tests {
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
       .handle(events)
-      .ser_tasks();
+      .await
+      .ser_tasks()
+      .await;
 
     let mut expected = make_tasks(2);
     expected[1].summary = "test42".to_string();
@@ -743,7 +784,7 @@ mod tests {
   }
 
   #[test]
-  fn add_empty_task() {
+  async fn add_empty_task() {
     let tasks = make_tasks(1);
     let events = vec![
       Event::from('a'),
@@ -753,13 +794,15 @@ mod tests {
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
       .handle(events)
-      .ser_tasks();
+      .await
+      .ser_tasks()
+      .await;
 
     assert_eq!(tasks, make_tasks(1))
   }
 
   #[test]
-  fn add_task_from_completed_one() {
+  async fn add_task_from_completed_one() {
     let events = vec![
       Event::from('l'),
       Event::from('a'),
@@ -780,7 +823,9 @@ mod tests {
     let tasks = TestUiBuilder::with_default_tasks_and_tags()
       .build()
       .handle(events)
-      .tasks();
+      .await
+      .tasks()
+      .await;
 
     assert_eq!(tasks[15].summary, "test");
 
@@ -802,7 +847,7 @@ mod tests {
   }
 
   #[test]
-  fn add_task_with_tags() {
+  async fn add_task_with_tags() {
     let events = vec![
       Event::from('l'),
       Event::from('l'),
@@ -817,7 +862,9 @@ mod tests {
     let tasks = TestUiBuilder::with_default_tasks_and_tags()
       .build()
       .handle(events)
-      .tasks();
+      .await
+      .tasks()
+      .await;
 
     assert_eq!(tasks[15].summary, "foo");
 
@@ -834,7 +881,7 @@ mod tests {
   }
 
   #[test]
-  fn complete_task() {
+  async fn complete_task() {
     let tasks = make_tasks(3);
     let events = vec![
       Event::from('j'),
@@ -847,7 +894,9 @@ mod tests {
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
       .handle(events)
-      .tasks();
+      .await
+      .tasks()
+      .await;
 
     assert!(!tasks[0].is_complete());
     assert!(tasks[1].is_complete());
@@ -855,7 +904,7 @@ mod tests {
   }
 
   #[test]
-  fn edit_task() {
+  async fn edit_task() {
     let tasks = make_tasks(3);
     let events = vec![
       Event::from('j'),
@@ -872,7 +921,9 @@ mod tests {
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
       .handle(events)
-      .ser_tasks();
+      .await
+      .ser_tasks()
+      .await;
 
     let mut expected = make_tasks(3);
     expected[1].summary = "amend".to_string();
@@ -881,7 +932,7 @@ mod tests {
   }
 
   #[test]
-  fn edit_task_cancel() {
+  async fn edit_task_cancel() {
     let tasks = make_tasks(3);
     let events = vec![
       Event::from('j'),
@@ -897,7 +948,9 @@ mod tests {
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
       .handle(events)
-      .ser_tasks();
+      .await
+      .ser_tasks()
+      .await;
 
     let mut expected = make_tasks(4);
     expected[3].summary = "foo".to_string();
@@ -906,7 +959,7 @@ mod tests {
   }
 
   #[test]
-  fn edit_task_to_empty() {
+  async fn edit_task_to_empty() {
     let tasks = make_tasks(3);
     let events = vec![
       Event::from('j'),
@@ -918,7 +971,9 @@ mod tests {
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
       .handle(events)
-      .ser_tasks();
+      .await
+      .ser_tasks()
+      .await;
 
     let mut expected = make_tasks(3);
     expected.remove(1);
@@ -927,7 +982,7 @@ mod tests {
   }
 
   #[test]
-  fn edit_task_multi_byte_char() {
+  async fn edit_task_multi_byte_char() {
     let tasks = make_tasks(1);
     let events = vec![
       Event::from('e'),
@@ -939,7 +994,9 @@ mod tests {
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
       .handle(events)
-      .ser_tasks();
+      .await
+      .ser_tasks()
+      .await;
 
     let mut expected = make_tasks(1);
     expected[0].summary = "1äö".to_string();
@@ -948,7 +1005,7 @@ mod tests {
   }
 
   #[test]
-  fn edit_task_with_cursor_movement() {
+  async fn edit_task_with_cursor_movement() {
     let tasks = make_tasks(3);
     let events = vec![
       Event::from('j'),
@@ -974,7 +1031,9 @@ mod tests {
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
       .handle(events)
-      .ser_tasks();
+      .await
+      .ser_tasks()
+      .await;
 
     let mut expected = make_tasks(3);
     expected[2].summary = "test".to_string();
@@ -983,7 +1042,7 @@ mod tests {
   }
 
   #[test]
-  fn edit_multiple_tasks() {
+  async fn edit_multiple_tasks() {
     let events = vec![
       Event::from('3'),
       Event::from('e'),
@@ -997,7 +1056,9 @@ mod tests {
     let tasks = TestUiBuilder::with_default_tasks_and_tags()
       .build()
       .handle(events)
+      .await
       .tasks()
+      .await
       .into_iter()
       .map(|x| x.summary)
       .collect::<Vec<_>>();
@@ -1010,7 +1071,7 @@ mod tests {
   }
 
   #[test]
-  fn remove_before_multi_byte_characters() {
+  async fn remove_before_multi_byte_characters() {
     let tasks = make_tasks(1);
     let events = vec![
       Event::from('e'),
@@ -1026,7 +1087,9 @@ mod tests {
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
       .handle(events)
-      .ser_tasks();
+      .await
+      .ser_tasks()
+      .await;
 
     let mut expected = make_tasks(1);
     expected[0].summary = "1äb".to_string();
@@ -1035,7 +1098,7 @@ mod tests {
   }
 
   #[test]
-  fn remove_multi_byte_characters() {
+  async fn remove_multi_byte_characters() {
     let tasks = make_tasks(1);
     let events = vec![
       Event::from('e'),
@@ -1051,7 +1114,9 @@ mod tests {
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
       .handle(events)
-      .ser_tasks();
+      .await
+      .ser_tasks()
+      .await;
 
     let mut expected = make_tasks(1);
     expected[0].summary = "1bb".to_string();
@@ -1060,8 +1125,8 @@ mod tests {
   }
 
   #[test]
-  fn move_no_or_one_task_up_or_down() {
-    fn test_tasks(count: usize, key: char) {
+  async fn move_no_or_one_task_up_or_down() {
+    async fn test_tasks(count: usize, key: char) {
       let tasks = make_tasks(count);
       let events = vec![
         Event::from(key),
@@ -1070,19 +1135,21 @@ mod tests {
       let tasks = TestUiBuilder::with_ser_tasks(tasks)
         .build()
         .handle(events)
-        .ser_tasks();
+        .await
+        .ser_tasks()
+        .await;
 
       assert_eq!(tasks, make_tasks(count));
     }
 
-    test_tasks(0, 'J');
-    test_tasks(1, 'J');
-    test_tasks(0, 'K');
-    test_tasks(1, 'K');
+    test_tasks(0, 'J').await;
+    test_tasks(1, 'J').await;
+    test_tasks(0, 'K').await;
+    test_tasks(1, 'K').await;
   }
 
   #[test]
-  fn move_task_down() {
+  async fn move_task_down() {
     let tasks = make_tasks(3);
     let events = vec![
       Event::from('J'),
@@ -1091,7 +1158,9 @@ mod tests {
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
       .handle(events)
-      .ser_tasks();
+      .await
+      .ser_tasks()
+      .await;
 
     let mut expected = make_tasks(3);
     expected.swap(0, 1);
@@ -1100,7 +1169,7 @@ mod tests {
   }
 
   #[test]
-  fn move_task_up() {
+  async fn move_task_up() {
     let tasks = make_tasks(3);
     let events = vec![
       Event::from('G'),
@@ -1110,7 +1179,9 @@ mod tests {
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
       .handle(events)
-      .ser_tasks();
+      .await
+      .ser_tasks()
+      .await;
 
     let mut expected = make_tasks(3);
     expected.swap(2, 1);
@@ -1119,7 +1190,7 @@ mod tests {
   }
 
   #[test]
-  fn move_second_task_down() {
+  async fn move_second_task_down() {
     let tasks = make_tasks(4);
     let events = vec![
       Event::from('j'),
@@ -1129,7 +1200,9 @@ mod tests {
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
       .handle(events)
-      .ser_tasks();
+      .await
+      .ser_tasks()
+      .await;
 
     let mut expected = make_tasks(4);
     expected.swap(1, 2);
@@ -1138,7 +1211,7 @@ mod tests {
   }
 
   #[test]
-  fn move_second_task_up() {
+  async fn move_second_task_up() {
     let tasks = make_tasks(4);
     let events = vec![
       Event::from('j'),
@@ -1148,7 +1221,9 @@ mod tests {
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
       .handle(events)
-      .ser_tasks();
+      .await
+      .ser_tasks()
+      .await;
 
     let mut expected = make_tasks(4);
     expected.swap(1, 0);
@@ -1157,7 +1232,7 @@ mod tests {
   }
 
   #[test]
-  fn transparent_task_removal_down_to_empty_query() {
+  async fn transparent_task_removal_down_to_empty_query() {
     let events = vec![
       Event::from('l'),
       Event::from('l'),
@@ -1179,13 +1254,15 @@ mod tests {
     let tasks = TestUiBuilder::with_default_tasks_and_tags()
       .build()
       .handle(events)
-      .tasks();
+      .await
+      .tasks()
+      .await;
 
     assert_eq!(tasks.len(), 14);
   }
 
   #[test]
-  fn tab_selection_by_number() {
+  async fn tab_selection_by_number() {
     let events = vec![
       Event::from('4'),
       Event::from('e'),
@@ -1196,7 +1273,9 @@ mod tests {
     let tasks = TestUiBuilder::with_default_tasks_and_tags()
       .build()
       .handle(events)
+      .await
       .tasks()
+      .await
       .into_iter()
       .map(|x| x.summary)
       .collect::<Vec<_>>();
@@ -1212,7 +1291,7 @@ mod tests {
   }
 
   #[test]
-  fn select_previous_tab() {
+  async fn select_previous_tab() {
     let events = vec![
       Event::from('2'),
       Event::from('e'),
@@ -1232,7 +1311,9 @@ mod tests {
     let tasks = TestUiBuilder::with_default_tasks_and_tags()
       .build()
       .handle(events)
+      .await
       .tasks()
+      .await
       .into_iter()
       .map(|x| x.summary)
       .collect::<Vec<_>>();
@@ -1250,7 +1331,7 @@ mod tests {
   }
 
   #[test]
-  fn select_last_tab_plus_one() {
+  async fn select_last_tab_plus_one() {
     let events = vec![
       Event::from('0'),
       Event::from('l'),
@@ -1260,7 +1341,9 @@ mod tests {
     let tasks = TestUiBuilder::with_default_tasks_and_tags()
       .build()
       .handle(events)
+      .await
       .tasks()
+      .await
       .into_iter()
       .map(|x| x.summary)
       .collect::<Vec<_>>();
@@ -1276,7 +1359,7 @@ mod tests {
   }
 
   #[test]
-  fn move_tab_left() {
+  async fn move_tab_left() {
     let events = vec![
       Event::from('2'),
       Event::from('H'),
@@ -1285,7 +1368,9 @@ mod tests {
     let mut ui = TestUiBuilder::with_default_tasks_and_tags().build();
     let queries = ui
       .handle(events)
-      .queries();
+      .await
+      .queries()
+      .await;
 
     let expected = vec![
       "tag complete",
@@ -1302,12 +1387,14 @@ mod tests {
     ];
     let queries = ui
       .handle(events)
-      .queries();
+      .await
+      .queries()
+      .await;
     assert_eq!(queries, expected);
   }
 
   #[test]
-  fn move_tab_right() {
+  async fn move_tab_right() {
     let events = vec![
       Event::from('3'),
       Event::from('L'),
@@ -1316,7 +1403,9 @@ mod tests {
     let mut ui = TestUiBuilder::with_default_tasks_and_tags().build();
     let queries = ui
       .handle(events)
-      .queries();
+      .await
+      .queries()
+      .await;
 
     let expected = vec![
       "all",
@@ -1331,12 +1420,14 @@ mod tests {
     ];
     let queries = ui
       .handle(events)
-      .queries();
+      .await
+      .queries()
+      .await;
     assert_eq!(queries, expected);
   }
 
   #[test]
-  fn in_out_state_after_write() {
+  async fn in_out_state_after_write() {
     let tasks = make_tasks(2);
     let events = vec![
       Event::from('w'),
@@ -1345,14 +1436,16 @@ mod tests {
     let state = TestUiBuilder::with_ser_tasks(tasks)
       .build()
       .handle(events)
-      .in_out();
+      .await
+      .in_out()
+      .await;
 
     assert_eq!(state, InOut::Saved);
   }
 
   #[test]
-  fn in_out_state_after_write_and_key_press() {
-    fn with_key(key: impl Into<Event>) -> InOut {
+  async fn in_out_state_after_write_and_key_press() {
+    async fn with_key(key: impl Into<Event>) -> InOut {
       let tasks = make_tasks(2);
       let events = vec![
         Event::from('w'),
@@ -1362,25 +1455,27 @@ mod tests {
       TestUiBuilder::with_ser_tasks(tasks)
         .build()
         .handle(events)
+        .await
         .in_out()
+        .await
     }
 
     // We test all ASCII chars.
     for c in 0u8..127u8 {
       let c = c as char;
       if c != 'a' && c != 'e' && c != 'n' && c != 'N' && c != 'w' && c != '/' && c != '?' {
-        assert_eq!(with_key(c), InOut::Clear, "char: {} ({})", c, c as u8);
+        assert_eq!(with_key(c).await, InOut::Clear, "char: {} ({})", c, c as u8);
       }
     }
 
-    assert_eq!(with_key(Key::Esc), InOut::Clear);
-    assert_eq!(with_key('\n'), InOut::Clear);
-    assert_eq!(with_key(Key::PageDown), InOut::Clear);
+    assert_eq!(with_key(Key::Esc).await, InOut::Clear);
+    assert_eq!(with_key('\n').await, InOut::Clear);
+    assert_eq!(with_key(Key::PageDown).await, InOut::Clear);
   }
 
   #[test]
-  fn in_out_state_on_edit() {
-    fn with_key(key: impl Into<Event>) -> InOut {
+  async fn in_out_state_on_edit() {
+    async fn with_key(key: impl Into<Event>) -> InOut {
       let tasks = make_tasks(4);
       let events = vec![
         Event::from('a'),
@@ -1390,7 +1485,9 @@ mod tests {
       TestUiBuilder::with_ser_tasks(tasks)
         .build()
         .handle(events)
+        .await
         .in_out()
+        .await
     }
 
     for c in 0u8..127u8 {
@@ -1398,20 +1495,20 @@ mod tests {
         continue
       }
 
-      let state = with_key(c);
+      let state = with_key(c).await;
       match state {
         InOut::Input(_, _) => (),
         _ => assert!(false, "Unexpected state {:?} for char {}", state, c),
       }
     }
 
-    assert_eq!(with_key(Key::Esc), InOut::Clear);
-    assert_eq!(with_key('\n'), InOut::Clear);
+    assert_eq!(with_key(Key::Esc).await, InOut::Clear);
+    assert_eq!(with_key('\n').await, InOut::Clear);
   }
 
   #[test]
-  fn search_abort() {
-    fn test(c: char) {
+  async fn search_abort() {
+    async fn test(c: char) {
       let tasks = make_tasks(4);
       let events = vec![
         Event::from(c),
@@ -1422,18 +1519,20 @@ mod tests {
       let state = TestUiBuilder::with_ser_tasks(tasks)
         .build()
         .handle(events)
-        .in_out();
+        .await
+        .in_out()
+        .await;
 
       assert_eq!(state, InOut::Clear);
     }
 
-    test('/');
-    test('?');
+    test('/').await;
+    test('?').await;
   }
 
   #[test]
-  fn search_tasks_not_found() {
-    fn test(c: char) {
+  async fn search_tasks_not_found() {
+    async fn test(c: char) {
       let tasks = make_tasks(8);
       let events = vec![
         Event::from(c),
@@ -1446,19 +1545,21 @@ mod tests {
       let state = TestUiBuilder::with_ser_tasks(tasks)
         .build()
         .handle(events)
-        .in_out();
+        .await
+        .in_out()
+        .await;
 
       let expected = InOut::Error("Text 'foo' not found".to_string());
       assert_eq!(state, expected);
     }
 
-    test('/');
-    test('?');
+    test('/').await;
+    test('?').await;
   }
 
   #[test]
-  fn search_multiple_tabs_not_found() {
-    fn test(c: char) {
+  async fn search_multiple_tabs_not_found() {
+    async fn test(c: char) {
       let events = vec![
         Event::from(c),
         Event::from('f'),
@@ -1470,19 +1571,21 @@ mod tests {
       let state = TestUiBuilder::with_default_tasks_and_tags()
         .build()
         .handle(events)
-        .in_out();
+        .await
+        .in_out()
+        .await;
 
       let expected = InOut::Error("Text 'foo' not found".to_string());
       assert_eq!(state, expected);
     }
 
-    test('/');
-    test('?');
+    test('/').await;
+    test('?').await;
   }
 
   #[test]
-  fn search_continue_without_start() {
-    fn test(c: char) {
+  async fn search_continue_without_start() {
+    async fn test(c: char) {
       let tasks = make_tasks(4);
       let events = vec![
         Event::from(c),
@@ -1493,19 +1596,21 @@ mod tests {
       let state = TestUiBuilder::with_ser_tasks(tasks)
         .build()
         .handle(events)
-        .in_out();
+        .await
+        .in_out()
+        .await;
 
       let expected = InOut::Error("Nothing to search for".to_string());
       assert_eq!(state, expected);
     }
 
-    test('n');
-    test('N');
+    test('n').await;
+    test('N').await;
   }
 
   #[test]
-  fn search_tasks_repeatedly_not_found() {
-    fn test(c: char) {
+  async fn search_tasks_repeatedly_not_found() {
+    async fn test(c: char) {
       let tasks = make_tasks(8);
       let events = vec![
         Event::from('/'),
@@ -1517,18 +1622,20 @@ mod tests {
       let state = TestUiBuilder::with_ser_tasks(tasks)
         .build()
         .handle(events)
-        .in_out();
+        .await
+        .in_out()
+        .await;
 
       let expected = InOut::Error("Text 'z' not found".to_string());
       assert_eq!(state, expected);
     }
 
-    test('n');
-    test('N');
+    test('n').await;
+    test('N').await;
   }
 
   #[test]
-  fn search_tasks() {
+  async fn search_tasks() {
     let tasks = make_tasks(12);
     let events = vec![
       Event::from('/'),
@@ -1542,7 +1649,9 @@ mod tests {
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
       .handle(events)
-      .ser_tasks();
+      .await
+      .ser_tasks()
+      .await;
 
     let mut expected = make_tasks(12);
     expected.remove(11);
@@ -1552,7 +1661,7 @@ mod tests {
   }
 
   #[test]
-  fn search_reverse() {
+  async fn search_reverse() {
     let tasks = make_tasks(12);
     let events = vec![
       Event::from('?'),
@@ -1564,7 +1673,9 @@ mod tests {
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
       .handle(events)
-      .ser_tasks();
+      .await
+      .ser_tasks()
+      .await;
 
     let mut expected = make_tasks(12);
     expected.remove(11);
@@ -1573,8 +1684,8 @@ mod tests {
   }
 
   #[test]
-  fn search_case_insensitive() {
-    fn test(c: char) {
+  async fn search_case_insensitive() {
+    async fn test(c: char) {
       let tasks = vec![
         SerTask {
           summary: "First".to_string(),
@@ -1598,7 +1709,9 @@ mod tests {
       let tasks = TestUiBuilder::with_ser_tasks(tasks)
         .build()
         .handle(events)
-        .ser_tasks();
+        .await
+        .ser_tasks()
+        .await;
 
       let expected = vec![
         SerTask {
@@ -1609,12 +1722,12 @@ mod tests {
       assert_eq!(tasks, expected);
     }
 
-    test('/');
-    test('?');
+    test('/').await;
+    test('?').await;
   }
 
   #[test]
-  fn search_starting_at_selection() {
+  async fn search_starting_at_selection() {
     let tasks = make_tasks(15);
     let events = vec![
       Event::from('j'),
@@ -1631,7 +1744,9 @@ mod tests {
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
       .handle(events)
-      .ser_tasks();
+      .await
+      .ser_tasks()
+      .await;
 
     let mut expected = make_tasks(15);
     expected.remove(9);
@@ -1640,7 +1755,7 @@ mod tests {
   }
 
   #[test]
-  fn search_overlapping() {
+  async fn search_overlapping() {
     let tasks = make_tasks(5);
     let events = vec![
       Event::from('G'),
@@ -1653,7 +1768,9 @@ mod tests {
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
       .handle(events)
-      .ser_tasks();
+      .await
+      .ser_tasks()
+      .await;
 
     let mut expected = make_tasks(5);
     expected.remove(1);
@@ -1662,8 +1779,8 @@ mod tests {
   }
 
   #[test]
-  fn search_tasks_on_multiple_tabs() {
-    fn test(c1: char, c2: char) {
+  async fn search_tasks_on_multiple_tabs() {
+    async fn test(c1: char, c2: char) {
       let events = vec![
         // Switch to tag2 || tag3 tab.
         Event::from('l'),
@@ -1682,7 +1799,9 @@ mod tests {
       let tasks = TestUiBuilder::with_default_tasks_and_tags()
         .build()
         .handle(events)
+        .await
         .tasks()
+        .await
         .into_iter()
         .map(|x| x.summary)
         .collect::<Vec<_>>();
@@ -1695,14 +1814,14 @@ mod tests {
       assert_eq!(tasks, expected);
     }
 
-    test('/', 'n');
-    test('/', 'N');
-    test('?', 'n');
-    test('?', 'N');
+    test('/', 'n').await;
+    test('/', 'N').await;
+    test('?', 'n').await;
+    test('?', 'N').await;
   }
 
   #[test]
-  fn search_wrap_around() {
+  async fn search_wrap_around() {
     let events = vec![
       Event::from('/'),
       Event::from('2'),
@@ -1727,7 +1846,9 @@ mod tests {
     let tasks = TestUiBuilder::with_default_tasks_and_tags()
       .build()
       .handle(events)
+      .await
       .tasks()
+      .await
       .into_iter()
       .map(|x| x.summary)
       .collect::<Vec<_>>();
@@ -1741,7 +1862,7 @@ mod tests {
   }
 
   #[test]
-  fn search_term_entry_aborted() {
+  async fn search_term_entry_aborted() {
     let tasks = make_tasks(5);
     let events = vec![
       Event::from('j'),
@@ -1754,12 +1875,15 @@ mod tests {
     ];
 
     let mut ui = TestUiBuilder::with_ser_tasks(tasks).build();
-    ui.handle(events);
+    ui.handle(events).await;
 
-    assert_eq!(ui.in_out(), InOut::Error("Nothing to search for".to_string()));
+    assert_eq!(
+      ui.in_out().await,
+      InOut::Error("Nothing to search for".to_string())
+    );
 
-    ui.handle(vec![Event::from('d')]);
-    let tasks = ui.ser_tasks();
+    ui.handle(vec![Event::from('d')]).await;
+    let tasks = ui.ser_tasks().await;
     let mut expected = make_tasks(5);
     expected.remove(1);
 
@@ -1767,11 +1891,12 @@ mod tests {
   }
 
   #[test]
-  fn valid_update_events() {
+  async fn valid_update_events() {
     for c in 0u8..127u8 {
       let mut ui = TestUiBuilder::new().build();
       let updated = ui
         .evaluate(Event::from(c))
+        .await
         .map_or(false, |x| x.is_updated());
 
       let c = c as char;
@@ -1781,23 +1906,25 @@ mod tests {
   }
 
   #[test]
-  fn search_no_update_without_change() {
+  async fn search_no_update_without_change() {
     let mut ui = TestUiBuilder::new().build();
     let updated = ui
       .evaluate(Event::from('n'))
+      .await
       .map_or(false, |x| x.is_updated());
 
     assert!(updated);
 
     let updated = ui
       .evaluate(Event::from('n'))
+      .await
       .map_or(false, |x| x.is_updated());
 
     assert!(!updated);
   }
 
   #[test]
-  fn save_ui_state_single_tab() {
+  async fn save_ui_state_single_tab() {
     let tasks = make_tasks(1);
     let events = vec![
       Event::from('w'),
@@ -1805,6 +1932,7 @@ mod tests {
     let state = TestUiBuilder::with_ser_tasks(tasks)
       .build()
       .handle(events)
+      .await
       .load_state()
       .unwrap()
       .1
@@ -1824,7 +1952,7 @@ mod tests {
   }
 
   #[test]
-  fn save_ui_state_single_tab_different_task() {
+  async fn save_ui_state_single_tab_different_task() {
     let tasks = make_tasks(5);
     let events = vec![
       Event::from('j'),
@@ -1834,6 +1962,7 @@ mod tests {
     let state = TestUiBuilder::with_ser_tasks(tasks)
       .build()
       .handle(events)
+      .await
       .load_state()
       .unwrap()
       .1
@@ -1853,13 +1982,14 @@ mod tests {
   }
 
   #[test]
-  fn save_ui_state_multiple_tabs() {
+  async fn save_ui_state_multiple_tabs() {
     let events = vec![
       Event::from('w'),
     ];
     let state = TestUiBuilder::with_default_tasks_and_tags()
       .build()
       .handle(events)
+      .await
       .load_state()
       .unwrap()
       .1
@@ -1876,7 +2006,7 @@ mod tests {
   }
 
   #[test]
-  fn save_ui_state_after_various_changes() {
+  async fn save_ui_state_after_various_changes() {
     let events = vec![
       Event::from('j'),
       Event::from('l'),
@@ -1892,6 +2022,7 @@ mod tests {
     let state = TestUiBuilder::with_default_tasks_and_tags()
       .build()
       .handle(events)
+      .await
       .load_state()
       .unwrap()
       .1
