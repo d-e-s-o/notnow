@@ -149,19 +149,6 @@ impl TermUi {
       Message::SetInOut(_) => {
         Some(UiEvent::Directed(self.in_out, event).into())
       },
-      #[cfg(all(test, not(feature = "readline")))]
-      Message::GetTasks => {
-        let tasks = data.task_state.tasks();
-        let tasks = tasks.borrow().iter().cloned().collect();
-        let resp = Message::GotTasks(tasks);
-        Some(UiEvent::Custom(Box::new(resp)).into())
-      },
-      #[cfg(all(test, not(feature = "readline")))]
-      Message::GetInOut => {
-        // We merely relay this event to the InOutArea widget, which is
-        // the only entity able to satisfy the request.
-        Some(UiEvent::Directed(self.in_out, event).into())
-      },
       _ => Some(UiEvent::Custom(event).into()),
     }
   }
@@ -197,6 +184,27 @@ impl Handleable<Event, Message> for TermUi {
       Err(e) => panic!("Received unexpected custom event: {:?}", e),
     }
   }
+
+  /// React to a message.
+  #[allow(unused)]
+  async fn react(&self, message: Message, cap: &mut dyn MutCap<Event, Message>) -> Option<Message> {
+    match message {
+      #[cfg(all(test, not(feature = "readline")))]
+      Message::GetTasks => {
+        let data = self.data::<TermUiData>(cap);
+        let tasks = data.task_state.tasks();
+        let tasks = tasks.borrow().iter().cloned().collect();
+        Some(Message::GotTasks(tasks))
+      },
+      #[cfg(all(test, not(feature = "readline")))]
+      Message::GetInOut => {
+        // We merely relay this event to the InOutArea widget, which is
+        // the only entity able to satisfy the request.
+        cap.send(self.in_out, message).await
+      },
+      m => panic!("Received unexpected message: {:?}", m),
+    }
+  }
 }
 
 
@@ -208,6 +216,7 @@ impl Handleable<Event, Message> for TermUi {
 mod tests {
   use super::*;
 
+  use gui::Cap;
   use gui::Ui;
   use gui::UnhandledEvent;
   use gui::UnhandledEvents;
@@ -391,14 +400,8 @@ mod tests {
 
     /// Retrieve the current `InOutArea` state.
     async fn in_out(&mut self) -> InOut {
-      let event = UiEvent::Custom(Box::new(Message::GetInOut));
-      let resp = self
-        .ui
-        .handle(event)
-        .await
-        .unwrap()
-        .unwrap_custom::<Message>();
-
+      let root = self.ui.root_id();
+      let resp = self.ui.send(root, Message::GetInOut).await.unwrap();
       if let Message::GotInOut(in_out) = resp {
         in_out
       } else {
@@ -425,14 +428,8 @@ mod tests {
 
     /// Retrieve the current set of tasks from the UI.
     async fn tasks(&mut self) -> Vec<Task> {
-      let event = UiEvent::Custom(Box::new(Message::GetTasks));
-      let resp = self
-        .ui
-        .handle(event)
-        .await
-        .unwrap()
-        .unwrap_custom::<Message>();
-
+      let root = self.ui.root_id();
+      let resp = self.ui.send(root, Message::GetTasks).await.unwrap();
       if let Message::GotTasks(tasks) = resp {
         tasks
       } else {

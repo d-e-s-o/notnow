@@ -250,11 +250,6 @@ impl InOutArea {
           None
         }
       },
-      #[cfg(all(test, not(feature = "readline")))]
-      Message::GetInOut => {
-        let resp = Message::GotInOut(data.in_out.get().clone());
-        Some(UiEvent::Custom(Box::new(resp)).into())
-      },
       _ => Some(UiEvent::Custom(event).into()),
     }
   }
@@ -451,6 +446,19 @@ impl Handleable<Event, Message> for InOutArea {
     match event.downcast::<Message>() {
       Ok(e) => self.handle_custom_event(cap, e),
       Err(e) => panic!("Received unexpected custom event: {:?}", e),
+    }
+  }
+
+  /// React to a message.
+  #[allow(unused)]
+  async fn react(&self, message: Message, cap: &mut dyn MutCap<Event, Message>) -> Option<Message> {
+    match message {
+      #[cfg(all(test, not(feature = "readline")))]
+      Message::GetInOut => {
+        let data = self.data::<InOutAreaData>(cap);
+        Some(Message::GotInOut(data.in_out.get().clone()))
+      },
+      m => panic!("Received unexpected message: {:?}", m),
     }
   }
 }
