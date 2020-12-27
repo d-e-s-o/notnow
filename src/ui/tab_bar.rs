@@ -140,17 +140,6 @@ pub struct TabState {
   pub queries: Vec<(Query, Option<usize>)>,
   /// The currently selected query.
   pub selected: Option<usize>,
-  /// Flag indicating whether we retrieve the state for a save operation
-  /// or not.
-  // TODO: That feels more like a hack than anything else. The problem
-  //       we are trying to solve is that the TermUi but also tests use
-  //       an event containing this struct. The TermUi uses it as part
-  //       of the save-to-file functionality and will handle the
-  //       corresponding event. However, for tests we need a dedicated
-  //       way to retrieve the same information without the UI
-  //       intercepting and handling the event on its own (as it did not
-  //       issue it).
-  pub for_save: bool,
 }
 
 
@@ -347,46 +336,6 @@ impl TabBar {
         }
       },
       Message::InputCanceled => None,
-      Message::CollectState(for_save) => {
-        let data = self.data::<TabBarData>(cap);
-        if let Some((_, tab)) = data.tabs.first() {
-          let tab_state = TabState{
-            queries: Vec::new(),
-            selected: Some(self.selection(cap)),
-            for_save,
-          };
-          let iter_state = IterationState::new(*tab);
-          let event = Message::GetTabState(tab_state, iter_state);
-          Some(UiEvent::Returnable(self.id, *tab, Box::new(event)).into())
-        } else {
-          // If there are no tabs there are no queries -- respond
-          // directly.
-          let tab_state = TabState{
-            queries: Vec::new(),
-            selected: None,
-            for_save,
-          };
-          let event = Message::CollectedState(tab_state);
-          Some(UiEvent::Custom(Box::new(event)).into())
-        }
-      },
-      Message::GetTabState(tab_state, mut iter_state) => {
-        debug_assert!(iter_state.has_advanced());
-
-        let data = self.data::<TabBarData>(cap);
-        // If we have covered all tabs then send back the queries.
-        if iter_state.is_last(data.tabs.iter().len()) {
-          let event = Message::CollectedState(tab_state);
-          Some(UiEvent::Custom(Box::new(event)).into())
-        } else {
-          let iter = data.tabs.iter().map(|x| x.1);
-          let new_idx = iter_state.normalize(iter);
-          let tab = data.tabs[new_idx].1;
-
-          let event = Message::GetTabState(tab_state, iter_state);
-          Some(UiEvent::Returnable(self.id, tab, Box::new(event)).into())
-        }
-      },
       Message::SearchTask(string, search_state, iter_state) => {
         self.handle_search_task(cap, string, search_state, iter_state)
       },
@@ -544,6 +493,44 @@ impl Handleable<Event, Message> for TabBar {
     match event.downcast::<Message>() {
       Ok(e) => self.handle_custom_event(cap, e),
       Err(e) => panic!("Received unexpected custom event: {:?}", e),
+    }
+  }
+
+  /// React to a message.
+  async fn react(&self, message: Message, cap: &mut dyn MutCap<Event, Message>) -> Option<Message> {
+    match message {
+      Message::CollectState => {
+        let tab_state = TabState {
+          queries: Vec::new(),
+          selected: Some(self.selection(cap)),
+        };
+        let mut message = Message::GetTabState(tab_state);
+        let data = self.data::<TabBarData>(cap);
+
+        // We circumvent any issues with tabs being added/removed behind
+        // our back (not that this should happen...) by taking a
+        // snapshot of the current set -- that mostly works because
+        // right now widgets cannot be removed from the UI.
+        let tabs = data
+          .tabs
+          .iter()
+          .map(|(_, id)| id)
+          .copied()
+          .collect::<Vec<_>>();
+        for tab in tabs {
+          let _ = cap.call(tab, &mut message).await;
+        }
+
+        let tab_state = if let Message::GetTabState(tab_state) = message {
+          tab_state
+        } else {
+          unreachable!()
+        };
+
+        let message = Message::CollectedState(tab_state);
+        Some(message)
+      },
+      m => panic!("Received unexpected message: {:?}", m),
     }
   }
 }

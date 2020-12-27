@@ -38,9 +38,9 @@ use gui::Widget;
 use rline::Readline;
 
 use super::event::Event;
-use super::event::EventUpdate;
 use super::event::Key;
 use super::message::Message;
+use super::message::MessageExt as _;
 
 
 /// An object representing the in/out area within the TermUi.
@@ -140,7 +140,7 @@ impl InOutAreaData {
   }
 
   /// Conditionally change the `InOut` state of the widget.
-  fn change_state(&mut self, in_out: InOut) -> Option<UiEvents<Event>> {
+  fn change_state(&mut self, in_out: InOut) -> Option<Message> {
     // We received a request to change the state. Unconditionally bump
     // the generation it has, irrespective of whether we actually change
     // it (which we don't, if the new state is equal to what we already
@@ -161,7 +161,7 @@ impl InOutAreaData {
         }
       }
       self.in_out.set(in_out);
-      (None as Option<Event>).update()
+      Some(Message::Updated)
     } else {
       None
     }
@@ -232,7 +232,7 @@ impl InOutArea {
         };
 
         let data = self.data_mut::<InOutAreaData>(cap);
-        data.change_state(in_out)
+        data.change_state(in_out).into_event().map(UiEvents::from)
       },
       Message::ClearInOut(gen) => {
         // We only change our state to "Clear" if the generation number
@@ -242,7 +242,7 @@ impl InOutArea {
           match data.in_out.get() {
             InOut::Saved |
             InOut::Search(_) |
-            InOut::Error(_) => data.change_state(InOut::Clear),
+            InOut::Error(_) => data.change_state(InOut::Clear).into_event().map(UiEvents::from),
             InOut::Input(..) |
             InOut::Clear => None,
           }
@@ -261,7 +261,7 @@ impl InOutArea {
     string: Option<String>,
   ) -> Option<UiEvents<Event>> {
     let data = self.data_mut::<InOutAreaData>(cap);
-    let update = data.change_state(InOut::Clear);
+    let update = data.change_state(InOut::Clear).into_event();
     let widget = self.restore_focus(cap);
     let event = if let Some(s) = string {
       Box::new(Message::EnteredText(s))
@@ -296,7 +296,10 @@ impl InOutArea {
       // would allow us to circumvent this restriction).
       Key::Char(c) => {
         s.insert(idx, c);
-        data.change_state(InOut::Input(s, idx + c.len_utf8()))
+        data
+          .change_state(InOut::Input(s, idx + c.len_utf8()))
+          .into_event()
+          .map(UiEvents::from)
       },
       Key::Backspace => {
         if idx > 0 {
@@ -304,18 +307,27 @@ impl InOutArea {
           let _ = s.remove(i);
           idx = idx.saturating_sub(len);
         }
-        data.change_state(InOut::Input(s, idx))
+        data
+          .change_state(InOut::Input(s, idx))
+          .into_event()
+          .map(UiEvents::from)
       },
       Key::Delete => {
         if idx < s.len() {
           let _ = s.remove(idx);
         }
-        data.change_state(InOut::Input(s, idx))
+        data
+          .change_state(InOut::Input(s, idx))
+          .into_event()
+          .map(UiEvents::from)
       },
       Key::Left => {
         if idx > 0 {
           idx = str_char(&s, idx - 1).0;
-          data.change_state(InOut::Input(s, idx))
+          data
+            .change_state(InOut::Input(s, idx))
+            .into_event()
+            .map(UiEvents::from)
         } else {
           None
         }
@@ -324,14 +336,20 @@ impl InOutArea {
         if idx < s.len() {
           let (idx, len) = str_char(&s, idx);
           debug_assert!(idx + len <= s.len());
-          data.change_state(InOut::Input(s, idx + len))
+          data
+            .change_state(InOut::Input(s, idx + len))
+            .into_event()
+            .map(UiEvents::from)
         } else {
           None
         }
       },
       Key::Home => {
         if idx != 0 {
-          data.change_state(InOut::Input(s, 0))
+          data
+            .change_state(InOut::Input(s, 0))
+            .into_event()
+            .map(UiEvents::from)
         } else {
           None
         }
@@ -339,7 +357,10 @@ impl InOutArea {
       Key::End => {
         let length = s.len();
         if idx != length {
-          data.change_state(InOut::Input(s, length))
+          data
+            .change_state(InOut::Input(s, length))
+            .into_event()
+            .map(UiEvents::from)
         } else {
           None
         }
@@ -388,7 +409,10 @@ impl InOutArea {
           data.readline = Readline::new();
           self.finish_input(cap, None)
         } else {
-          data.change_state(InOut::Input(s_.into_string().unwrap(), idx_))
+          data
+            .change_state(InOut::Input(s_.into_string().unwrap(), idx_))
+            .into_event()
+            .map(UiEvents::from)
         }
       },
     }
@@ -450,9 +474,24 @@ impl Handleable<Event, Message> for InOutArea {
   }
 
   /// React to a message.
-  #[allow(unused)]
   async fn react(&self, message: Message, cap: &mut dyn MutCap<Event, Message>) -> Option<Message> {
     match message {
+      Message::SetInOut(in_out) => {
+        if let InOut::Input(ref s, idx) = in_out {
+          // TODO: It is not nice that we allow clients to provide
+          //       potentially unsanitized inputs.
+          debug_assert!(idx <= s.len());
+
+          let focused = cap.focused();
+          cap.focus(self.id);
+
+          let data = self.data_mut::<InOutAreaData>(cap);
+          data.prev_focused = focused;
+        };
+
+        let data = self.data_mut::<InOutAreaData>(cap);
+        data.change_state(in_out)
+      },
       #[cfg(all(test, not(feature = "readline")))]
       Message::GetInOut => {
         let data = self.data::<InOutAreaData>(cap);

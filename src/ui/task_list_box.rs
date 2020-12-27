@@ -364,15 +364,6 @@ impl TaskListBox {
       Message::SearchTask(string, search_state, iter_state) => {
         self.handle_search_task(cap, string, search_state, iter_state)
       },
-      Message::GetTabState(ref mut tab_state, ref mut iter_state) => {
-        let TabState{ref mut queries, ..} = tab_state;
-        let data = self.data::<TaskListBoxData>(cap);
-        let selected = Some(data.selection(0));
-
-        queries.push((self.query(cap), selected));
-        iter_state.advance();
-        None
-      },
       _ => None,
     }
   }
@@ -502,6 +493,27 @@ impl Handleable<Event, Message> for TaskListBox {
     match event.downcast_mut::<Message>() {
       Some(e) => self.handle_custom_event_ref(e, cap),
       None => panic!("Received unexpected custom event"),
+    }
+  }
+
+  /// Respond to a message.
+  async fn respond(
+    &self,
+    message: &mut Message,
+    cap: &mut dyn MutCap<Event, Message>,
+  ) -> Option<Message> {
+    match message {
+      Message::GetTabState(ref mut tab_state) => {
+        let TabState {
+          ref mut queries, ..
+        } = tab_state;
+        let data = self.data::<TaskListBoxData>(cap);
+        let selected = Some(data.selection(0));
+
+        queries.push((self.query(cap), selected));
+        None
+      },
+      m => panic!("Received unexpected message: {:?}", m),
     }
   }
 }

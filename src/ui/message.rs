@@ -18,11 +18,13 @@
 // *************************************************************************
 
 use gui::Id;
+use gui::UiEvent;
 
 use crate::tasks::Id as TaskId;
 #[cfg(all(test, not(feature = "readline")))]
 use crate::tasks::Task;
 
+use super::event::Event;
 use super::in_out::InOut;
 use super::tab_bar::IterationState;
 use super::tab_bar::SearchState;
@@ -52,15 +54,12 @@ pub enum Message {
   EnteredText(String),
   /// Text input has been canceled.
   InputCanceled,
-  /// A message used to collect the state from the `TabBar`. The flag
-  /// indicates whether the `TermUi` issued the message as part of a
-  /// "save" operation. If it is false, the UI will just ignore the
-  /// response to this message and let it bubble up.
-  CollectState(bool),
+  /// A message used to collect the state from the `TabBar`.
+  CollectState,
   /// The response to the `CollectState` message.
   CollectedState(TabState),
   /// A message used to collect the state of all tabs.
-  GetTabState(TabState, IterationState),
+  GetTabState(TabState),
   /// A indication that some component changed and that we should
   /// re-render everything.
   Updated,
@@ -85,6 +84,22 @@ impl Message {
       true
     } else {
       false
+    }
+  }
+}
+
+/// A trait for converting something into an `Option<UiEvent<Event>>`.
+pub trait MessageExt {
+  /// Convert an optional message into an optional event.
+  fn into_event(self) -> Option<UiEvent<Event>>;
+}
+
+impl MessageExt for Option<Message> {
+  fn into_event(self) -> Option<UiEvent<Event>> {
+    match self {
+      Some(m @ Message::Updated) => Some(UiEvent::Custom(Box::new(m))),
+      None => None,
+      m => panic!("Message cannot be converted to event: {:?}", m),
     }
   }
 }

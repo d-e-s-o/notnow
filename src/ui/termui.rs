@@ -42,6 +42,7 @@ use super::in_out::InOut;
 use super::in_out::InOutArea;
 use super::in_out::InOutAreaData;
 use super::message::Message;
+use super::message::MessageExt as _;
 use super::tab_bar::TabBar;
 use super::tab_bar::TabBarData;
 use super::tab_bar::TabState;
@@ -112,40 +113,50 @@ impl TermUi {
   }
 
   /// Save the current state.
-  fn save_and_report(&self, task_state: &TaskState, ui_state: &UiState) -> UiEvents<Event> {
-    let in_out = match self.save_all(task_state, ui_state) {
+  async fn save_and_report(
+    &self,
+    cap: &mut dyn MutCap<Event, Message>,
+    ui_state: &UiState,
+  ) -> Option<Message> {
+    let data = self.data::<TermUiData>(cap);
+    let in_out = match self.save_all(&data.task_state, ui_state) {
       Ok(_) => InOut::Saved,
       Err(err) => InOut::Error(format!("{}", err)),
     };
-    let event = Message::SetInOut(in_out);
-    UiEvent::Directed(self.in_out, Box::new(event)).into()
+
+    let message = Message::SetInOut(in_out);
+    cap.send(self.in_out, message).await
   }
 
   /// Emit an event that will eventually cause the state to be saved.
-  fn save(&self) -> UiEvents<Event> {
-    let event = Message::CollectState(true);
-    UiEvent::Directed(self.tab_bar, Box::new(event)).into()
+  async fn save(&self, cap: &mut dyn MutCap<Event, Message>) -> Option<Message> {
+    let message = Message::CollectState;
+    let state = cap.send(self.id, message).await.unwrap();
+
+    let state = if let Message::CollectedState(state) = state {
+      state
+    } else {
+      unreachable!()
+    };
+
+    let data = self.data::<TermUiData>(cap);
+    let TabState{queries, selected, ..} = state;
+    let ui_state = UiState {
+      path: data.ui_state_path.clone(),
+      queries,
+      selected,
+      colors: Default::default(),
+    };
+    self.save_and_report(cap, &ui_state).await
   }
 
   /// Handle a custom event.
   fn handle_custom_event(
     &self,
-    cap: &mut dyn MutCap<Event, Message>,
+    _cap: &mut dyn MutCap<Event, Message>,
     event: Box<Message>,
   ) -> Option<UiEvents<Event>> {
-    let data = self.data_mut::<TermUiData>(cap);
-
     match *event {
-      Message::CollectedState(state) if state.for_save => {
-        let TabState{queries, selected, ..} = state;
-        let ui_state = UiState {
-          path: data.ui_state_path.clone(),
-          queries,
-          selected,
-          colors: Default::default(),
-        };
-        Some(self.save_and_report(&data.task_state, &ui_state))
-      },
       Message::SetInOut(_) => {
         Some(UiEvent::Directed(self.in_out, event).into())
       },
@@ -159,16 +170,14 @@ impl Handleable<Event, Message> for TermUi {
   /// Check for new input and react to it.
   async fn handle(
     &self,
-    _cap: &mut dyn MutCap<Event, Message>,
+    cap: &mut dyn MutCap<Event, Message>,
     event: Event,
   ) -> Option<UiEvents<Event>> {
     match event {
-      Event::Key(key, _) => {
-        match key {
-          Key::Char('q') => Some(UiEvent::Quit.into()),
-          Key::Char('w') => Some(self.save()),
-          _ => Some(event.into()),
-        }
+      Event::Key(key, _) => match key {
+        Key::Char('q') => Some(UiEvent::Quit.into()),
+        Key::Char('w') => self.save(cap).await.into_event().map(UiEvents::from),
+        _ => Some(event.into()),
       },
     }
   }
@@ -186,9 +195,12 @@ impl Handleable<Event, Message> for TermUi {
   }
 
   /// React to a message.
-  #[allow(unused)]
   async fn react(&self, message: Message, cap: &mut dyn MutCap<Event, Message>) -> Option<Message> {
     match message {
+      Message::CollectState => {
+        // We just forward the event to the TabBar.
+        cap.send(self.tab_bar, message).await
+      },
       #[cfg(all(test, not(feature = "readline")))]
       Message::GetTasks => {
         let data = self.data::<TermUiData>(cap);
@@ -236,7 +248,6 @@ mod tests {
   use crate::test::make_tasks_with_tags;
   use crate::test::NamedTempFile;
   use crate::ui::event::EventUpdated;
-  use crate::ui::event::tests::CustomEvent;
 
 
   impl From<Key> for Event {
@@ -411,13 +422,8 @@ mod tests {
 
     /// Retrieve the names of all tabs.
     async fn queries(&mut self) -> Vec<String> {
-      let event = UiEvent::Custom(Box::new(Message::CollectState(false)));
-      let resp = self
-        .ui
-        .handle(event)
-        .await
-        .unwrap()
-        .unwrap_custom::<Message>();
+      let root = self.ui.root_id();
+      let resp = self.ui.send(root, Message::CollectState).await.unwrap();
 
       if let Message::CollectedState(tab_state) = resp {
         tab_state.queries.into_iter().map(|(query, _)| query.name().to_string()).collect()
