@@ -17,7 +17,6 @@
 // * along with this program.  If not, see <http://www.gnu.org/licenses/>. *
 // *************************************************************************
 
-use std::any::Any;
 use std::io::Result;
 use std::path::PathBuf;
 
@@ -92,7 +91,7 @@ impl TermUi {
       Box::new(move |id, cap| {
         let data = cap.data(termui_id).downcast_ref::<TermUiData>().unwrap();
         let tasks = data.task_state.tasks();
-        Box::new(TabBar::new(id, cap, tasks, queries, selected))
+        Box::new(TabBar::new(id, cap, in_out, tasks, queries, selected))
       }),
     );
 
@@ -149,20 +148,6 @@ impl TermUi {
     };
     self.save_and_report(cap, &ui_state).await
   }
-
-  /// Handle a custom event.
-  fn handle_custom_event(
-    &self,
-    _cap: &mut dyn MutCap<Event, Message>,
-    event: Box<Message>,
-  ) -> Option<UiEvents<Event>> {
-    match *event {
-      Message::SetInOut(_) => {
-        Some(UiEvent::Directed(self.in_out, event).into())
-      },
-      _ => Some(UiEvent::Custom(event).into()),
-    }
-  }
 }
 
 #[async_trait(?Send)]
@@ -179,18 +164,6 @@ impl Handleable<Event, Message> for TermUi {
         Key::Char('w') => self.save(cap).await.into_event().map(UiEvents::from),
         _ => Some(event.into()),
       },
-    }
-  }
-
-  /// Handle a custom event.
-  async fn handle_custom(
-    &self,
-    cap: &mut dyn MutCap<Event, Message>,
-    event: Box<dyn Any>,
-  ) -> Option<UiEvents<Event>> {
-    match event.downcast::<Message>() {
-      Ok(e) => self.handle_custom_event(cap, e),
-      Err(e) => panic!("Received unexpected custom event: {:?}", e),
     }
   }
 

@@ -218,22 +218,6 @@ impl InOutArea {
   ) -> Option<UiEvents<Event>> {
     let data = self.data_mut::<InOutAreaData>(cap);
     match *event {
-      Message::SetInOut(in_out) => {
-        if let InOut::Input(ref s, idx) = in_out {
-          // TODO: It is not nice that we allow clients to provide
-          //       potentially unsanitized inputs.
-          debug_assert!(idx <= s.len());
-
-          let focused = cap.focused();
-          cap.focus(self.id);
-
-          let data = self.data_mut::<InOutAreaData>(cap);
-          data.prev_focused = focused;
-        };
-
-        let data = self.data_mut::<InOutAreaData>(cap);
-        data.change_state(in_out).into_event().map(UiEvents::from)
-      },
       Message::ClearInOut(gen) => {
         // We only change our state to "Clear" if the generation number
         // is still the same, meaning that we did not change our state

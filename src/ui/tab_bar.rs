@@ -31,10 +31,10 @@ use cell::RefCell;
 use gui::Cap;
 use gui::ChainEvent;
 use gui::derive::Widget;
-use gui::EventChain;
 use gui::Handleable;
 use gui::Id;
 use gui::MutCap;
+use gui::OptionChain;
 use gui::UiEvent;
 use gui::UiEvents;
 use gui::Widget;
@@ -47,6 +47,7 @@ use super::event::Key;
 use super::in_out::InOut;
 use super::iteration::IterationState as IterationStateT;
 use super::message::Message;
+use super::message::MessageExt as _;
 use crate::tasks::Tasks;
 use super::task_list_box::TaskListBox;
 use super::task_list_box::TaskListBoxData;
@@ -193,6 +194,7 @@ impl TabBarData {
 #[gui(Event = Event, Message = Message)]
 pub struct TabBar {
   id: Id,
+  in_out: Id,
 }
 
 impl TabBar {
@@ -200,6 +202,7 @@ impl TabBar {
   pub fn new(
     id: Id,
     cap: &mut dyn MutCap<Event, Message>,
+    in_out: Id,
     tasks: Rc<RefCell<Tasks>>,
     queries: Vec<(Query, Option<usize>)>,
     selected: Option<usize>,
@@ -219,7 +222,7 @@ impl TabBar {
         let task_list = cap.add_widget(
           id,
           Box::new(|| Box::new(TaskListBoxData::new(tasks, query))),
-          Box::new(move |id, cap| Box::new(TaskListBox::new(id, cap, task))),
+          Box::new(move |id, cap| Box::new(TaskListBox::new(id, cap, in_out, task))),
         );
 
         if i == selected {
@@ -230,7 +233,7 @@ impl TabBar {
         (name, task_list)
       }).collect();
 
-    let tab_bar = Self { id };
+    let tab_bar = Self { id, in_out };
     let data = tab_bar.data_mut::<TabBarData>(cap);
     data.tabs = tabs;
     data.selection = selected as isize;
@@ -240,7 +243,7 @@ impl TabBar {
   }
 
   /// Handle a `Message::SearchTask` event.
-  fn handle_search_task(
+  async fn handle_search_task(
     &self,
     cap: &mut dyn MutCap<Event, Message>,
     string: String,
@@ -264,8 +267,12 @@ impl TabBar {
           data.search = SearchT::State(string.clone(), search_state, iter_state);
 
           let error = format!("Text '{}' not found", string);
-          let event = Message::SetInOut(InOut::Error(error));
-          Some(UiEvent::Custom(Box::new(event)).into())
+          let message = Message::SetInOut(InOut::Error(error));
+          cap
+            .send(self.in_out, message)
+            .await
+            .into_event()
+            .map(UiEvents::from)
         } else if iter_state.has_advanced() {
           debug_assert!(search_state.is_first());
 
@@ -289,7 +296,7 @@ impl TabBar {
   }
 
   /// Handle a custom event.
-  fn handle_custom_event(
+  async fn handle_custom_event(
     &self,
     cap: &mut dyn MutCap<Event, Message>,
     mut event: Box<Message>,
@@ -324,20 +331,26 @@ impl TabBar {
           let mut state = IterationState::new(tab);
           state.reverse(reverse);
 
-          let event1 = Message::SetInOut(InOut::Search(string.clone()));
-          let event1 = UiEvent::Custom(Box::new(event1));
+          let message = Message::SetInOut(InOut::Search(string.clone()));
+          let event1 = cap
+            .send(self.in_out, message)
+            .await
+            .into_event()
+            .map(UiEvents::from);
 
           let event2 = Message::SearchTask(string, SearchState::Current, state);
           let event2 = UiEvent::Returnable(self.id, tab, Box::new(event2));
 
-          Some(UiEvents::from(event1).chain(event2)).update()
+          Some(event1.update().opt_chain(event2))
         } else {
           None
         }
       },
       Message::InputCanceled => None,
       Message::SearchTask(string, search_state, iter_state) => {
-        self.handle_search_task(cap, string, search_state, iter_state)
+        self
+          .handle_search_task(cap, string, search_state, iter_state)
+          .await
       },
       _ => Some(UiEvent::Custom(event).into()),
     }
@@ -447,8 +460,12 @@ impl Handleable<Event, Message> for TabBar {
                 data.search = SearchT::Unset;
 
                 let error = InOut::Error("Nothing to search for".to_string());
-                let event = Message::SetInOut(error);
-                UiEvent::Custom(Box::new(event)).into()
+                let message = Message::SetInOut(error);
+                cap
+                  .send(self.in_out, message)
+                  .await
+                  .into_event()
+                  .map(UiEvents::from)
               },
               SearchT::Taken => panic!("invalid search state"),
               SearchT::State(string, search_state, mut iter_state) => {
@@ -458,25 +475,32 @@ impl Handleable<Event, Message> for TabBar {
                 let reverse = key == Key::Char('N');
                 iter_state.reverse(reverse);
 
-                let event1 = Message::SetInOut(InOut::Search(string.clone()));
-                let event1 = UiEvent::Custom(Box::new(event1));
+                let message = Message::SetInOut(InOut::Search(string.clone()));
+                let event1 = cap
+                  .send(self.in_out, message)
+                  .await
+                  .into_event()
+                  .map(UiEvents::from);
 
                 let event2 = Message::SearchTask(string, search_state, iter_state);
                 let event2 = UiEvent::Returnable(self.id, tab, Box::new(event2));
 
-                UiEvents::from(event1).chain(event2)
+                Some(event1.opt_chain(event2))
               },
             };
-            Some(event)
+            event
           },
           Key::Char('/') |
           Key::Char('?') => {
             let reverse = key == Key::Char('?');
             data.search = SearchT::Preparing(reverse);
 
-            let event = Message::SetInOut(InOut::Input("".to_string(), 0));
-            let event = UiEvent::Custom(Box::new(event));
-            Some(event.into())
+            let message = Message::SetInOut(InOut::Input("".to_string(), 0));
+            cap
+              .send(self.in_out, message)
+              .await
+              .into_event()
+              .map(UiEvents::from)
           },
           _ => Some(event.into()),
         }
@@ -491,7 +515,7 @@ impl Handleable<Event, Message> for TabBar {
     event: Box<dyn Any>,
   ) -> Option<UiEvents<Event>> {
     match event.downcast::<Message>() {
-      Ok(e) => self.handle_custom_event(cap, e),
+      Ok(e) => self.handle_custom_event(cap, e).await,
       Err(e) => panic!("Received unexpected custom event: {:?}", e),
     }
   }

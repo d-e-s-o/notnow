@@ -46,6 +46,7 @@ use super::event::EventUpdate;
 use super::event::Key;
 use super::in_out::InOut;
 use super::message::Message;
+use super::message::MessageExt as _;
 use super::tab_bar::IterationState;
 use super::tab_bar::SearchState;
 use super::tab_bar::TabState;
@@ -140,12 +141,18 @@ impl TaskListBoxData {
 #[gui(Event = Event, Message = Message)]
 pub struct TaskListBox {
   id: Id,
+  in_out: Id,
 }
 
 impl TaskListBox {
   /// Create a new `TaskListBox` widget.
-  pub fn new(id: Id, cap: &mut dyn MutCap<Event, Message>, selected: Option<usize>) -> Self {
-    let task_list_box = Self { id };
+  pub fn new(
+    id: Id,
+    cap: &mut dyn MutCap<Event, Message>,
+    in_out: Id,
+    selected: Option<usize>,
+  ) -> Self {
+    let task_list_box = Self { id, in_out };
     let data = task_list_box.data_mut::<TaskListBoxData>(cap);
 
     let count = data.query.iter().clone().count();
@@ -407,10 +414,9 @@ impl Handleable<Event, Message> for TaskListBox {
             }
           },
           Key::Char('a') => {
-            let event = Message::SetInOut(InOut::Input("".to_string(), 0));
-            let event = UiEvent::Custom(Box::new(event));
             data.state = Some(State::Add);
-            Some(event.into())
+            let message = Message::SetInOut(InOut::Input("".to_string(), 0));
+            cap.send(self.in_out, message).await.into_event().map(UiEvents::from)
           },
           Key::Char('d') => {
             if !data.query.is_empty() {
@@ -426,10 +432,10 @@ impl Handleable<Event, Message> for TaskListBox {
               let task = data.selected_task();
               let string = task.summary.clone();
               let idx = string.len();
-              let event = Message::SetInOut(InOut::Input(string, idx));
-              let event = UiEvent::Custom(Box::new(event));
               data.state = Some(State::Edit(task));
-              Some(event.into())
+
+              let message = Message::SetInOut(InOut::Input(string, idx));
+              cap.send(self.in_out, message).await.into_event().map(UiEvents::from)
             } else {
               None
             }
