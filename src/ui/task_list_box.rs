@@ -217,8 +217,8 @@ impl TaskListBox {
     &self,
     cap: &dyn Cap,
     string: &str,
-    search_state: &mut SearchState,
-    iter_state: &mut IterationState,
+    search_state: &SearchState,
+    reverse: bool,
   ) -> Option<usize> {
     let data = self.data::<TaskListBoxData>(cap);
     // Note that because we use the count for index calculation
@@ -229,28 +229,28 @@ impl TaskListBox {
     // the first couple of tasks matching the given string and we should
     // skip those.
     let start_idx = match search_state {
-      SearchState::Current => {
-        if iter_state.is_reversed() {
-          (count - 1) - data.selection(0)
+      SearchState::Current | SearchState::AfterCurrent => {
+        let offset = if let SearchState::AfterCurrent = search_state {
+          1
         } else {
-          data.selection(0)
+          0
+        };
+
+        if reverse {
+          count.saturating_sub(1).saturating_sub(data.selection(-offset))
+        } else {
+          data.selection(offset)
         }
       },
       SearchState::First => 0,
-      SearchState::Task(idx) => {
-        if iter_state.is_reversed() {
-          (count - 1) - *idx + 1
-        } else {
-          *idx + 1
-        }
-      },
+      SearchState::Done => unreachable!(),
     };
 
     // Note that a simpler version of this find magic would just use
     // the `enumerate` functionality. However, for some reason that
     // would require us to work with an `ExactSizeIterator`, which is
     // not something that we can provide.
-    if iter_state.is_reversed() {
+    if reverse {
       data
         .query
         .iter()
@@ -276,22 +276,19 @@ impl TaskListBox {
     cap: &mut dyn MutCap<Event, Message>,
     string: &str,
     search_state: &mut SearchState,
-    iter_state: &mut IterationState,
-  ) -> Option<UiEvents<Event>> {
+    reverse: bool,
+  ) -> Option<Message> {
     debug_assert_eq!(string, &string.to_ascii_lowercase());
 
-    let idx = self.search_task_index(cap, string, search_state, iter_state);
+    let idx = self.search_task_index(cap, string, search_state, reverse);
     if let Some(idx) = idx {
-      *search_state = SearchState::Task(idx);
+      *search_state = SearchState::Done;
 
       let data = self.data_mut::<TaskListBoxData>(cap);
       let update = data.set_select(idx as isize);
       let message = Message::SelectedTask(self.id);
-      let _ = cap.send(self.tab_bar, message).await;
-      (None as Option<Event>).maybe_update(update)
+      cap.send(self.tab_bar, message).await.maybe_update(update)
     } else {
-      iter_state.advance();
-      *search_state = SearchState::First;
       None
     }
   }
@@ -363,22 +360,6 @@ impl TaskListBox {
         }
       },
       _ => Some(UiEvent::Custom(event).into()),
-    }
-  }
-
-  /// Handle a "returnable" custom event.
-  async fn handle_custom_event_ref(
-    &self,
-    event: &mut Message,
-    cap: &mut dyn MutCap<Event, Message>,
-  ) -> Option<UiEvents<Event>> {
-    match event {
-      Message::SearchTask(string, search_state, iter_state) => {
-        self
-          .handle_search_task(cap, string, search_state, iter_state)
-          .await
-      },
-      _ => None,
     }
   }
 
@@ -502,19 +483,6 @@ impl Handleable<Event, Message> for TaskListBox {
     }
   }
 
-  /// Handle a custom event.
-  async fn handle_custom_ref(
-    &self,
-    cap: &mut dyn MutCap<Event, Message>,
-    event: &mut dyn Any,
-  ) -> Option<UiEvents<Event>> {
-    match event.downcast_mut::<Message>() {
-      Some(e) => self.handle_custom_event_ref(e, cap).await,
-      None => panic!("Received unexpected custom event"),
-    }
-  }
-
-
   /// React to a message.
   async fn react(&self, message: Message, cap: &mut dyn MutCap<Event, Message>) -> Option<Message> {
     match message {
@@ -530,6 +498,11 @@ impl Handleable<Event, Message> for TaskListBox {
     cap: &mut dyn MutCap<Event, Message>,
   ) -> Option<Message> {
     match message {
+      Message::SearchTask(string, search_state, reverse) => {
+        self
+          .handle_search_task(cap, string, search_state, *reverse)
+          .await
+      },
       Message::GetTabState(ref mut tab_state) => {
         let TabState {
           ref mut queries, ..

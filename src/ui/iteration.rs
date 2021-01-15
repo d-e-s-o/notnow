@@ -75,7 +75,6 @@ where
   T: Copy + PartialEq,
 {
   iteration: Iteration<T>,
-  reversed: bool,
   advanced: isize,
   total: isize,
 }
@@ -88,37 +87,15 @@ where
   pub fn new(current: T) -> Self {
     Self {
       iteration: Iteration::Start(current),
-      reversed: false,
       advanced: 0,
       total: 0,
     }
   }
 
-  /// Reverse the iteration, i.e., select in a counter clock-wise fashion.
-  pub fn reverse(&mut self, reverse: bool) {
-    self.reversed = reverse
-  }
-
-  /// Check if the iteration is happening in counter clock-wise fashion or not.
-  pub fn is_reversed(&self) -> bool {
-    self.reversed
-  }
-
   /// Advance the iteration by one.
   pub fn advance(&mut self) {
-    let change = if self.reversed { -1 } else { 1 };
-    self.advanced += change;
-    self.total += change;
-  }
-
-  /// Check if the iteration got advanced.
-  pub fn has_advanced(&self) -> bool {
-    self.advanced != 0
-  }
-
-  /// Reset the cycle state of the iteration.
-  pub fn reset_cycled(&mut self) {
-    self.total = 0
+    self.advanced += 1;
+    self.total += 1;
   }
 
   /// Check whether the iteration has cycled through all widgets once.
@@ -201,84 +178,5 @@ mod tests {
       let _ = state.normalize(iter.clone());
       assert!(state.has_cycled(iter.len()));
     }
-  }
-
-  #[test]
-  fn iteration_state_reset_cycled() {
-    let mut state = TestIterationState::new(4);
-    let iter = [3, 9, 4].iter().cloned();
-
-    state.advance();
-    state.advance();
-    state.advance();
-    state.advance();
-    assert_eq!(state.normalize(iter.clone()), 0);
-    assert!(state.has_cycled(iter.len()));
-
-    state.advance();
-    assert_eq!(state.normalize(iter.clone()), 1);
-    state.reset_cycled();
-
-    state.advance();
-    assert_eq!(state.normalize(iter.clone()), 2);
-    assert!(!state.has_cycled(iter.len()));
-
-    state.advance();
-    assert_eq!(state.normalize(iter.clone()), 0);
-    assert!(!state.has_cycled(iter.len()));
-
-    state.advance();
-    assert_eq!(state.normalize(iter.clone()), 1);
-    assert!(!state.has_cycled(iter.len()));
-
-    state.advance();
-    assert_eq!(state.normalize(iter.clone()), 2);
-    assert!(state.has_cycled(iter.len()));
-  }
-
-  #[test]
-  fn reverse_iteration() {
-    let mut state = TestIterationState::new(1);
-    let iter = [2, 1, 3].iter().cloned();
-
-    state.reverse(true);
-    assert!(!state.has_cycled(iter.len()));
-    assert!(!state.has_advanced());
-
-    state.advance();
-    assert!(state.has_advanced());
-    assert_eq!(state.normalize(iter.clone()), 0);
-    assert!(!state.has_cycled(iter.len()));
-    assert!(!state.has_advanced());
-
-    state.advance();
-    assert!(state.has_advanced());
-    assert_eq!(state.normalize(iter.clone()), 2);
-    assert!(!state.has_cycled(iter.len()));
-    assert!(!state.has_advanced());
-
-    state.advance();
-    assert!(state.has_advanced());
-    assert_eq!(state.normalize(iter.clone()), 1);
-    assert!(!state.has_cycled(iter.len()));
-    assert!(!state.has_advanced());
-
-    state.reverse(false);
-    assert!(!state.has_advanced());
-    assert_eq!(state.normalize(iter.clone()), 1);
-    assert!(!state.has_cycled(iter.len()));
-    assert!(!state.has_advanced());
-
-    state.advance();
-    assert!(state.has_advanced());
-    assert_eq!(state.normalize(iter.clone()), 2);
-    assert!(!state.has_cycled(iter.len()));
-    assert!(!state.has_advanced());
-
-    state.advance();
-    assert!(state.has_advanced());
-    assert_eq!(state.normalize(iter.clone()), 0);
-    assert!(!state.has_cycled(iter.len()));
-    assert!(!state.has_advanced());
   }
 }

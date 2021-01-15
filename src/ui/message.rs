@@ -38,8 +38,9 @@ pub enum Message {
   /// `TaskId`.
   SelectTask(TaskId, IterationState),
   /// Search for a task containing the given string in its summary and
-  /// select it.
-  SearchTask(String, SearchState, IterationState),
+  /// select it. The last argument indicates whether we search in
+  /// reverse order (true) or not (false).
+  SearchTask(String, SearchState, bool),
   /// The tab with the given `Id` has selected the task as indicated by
   /// `SelectTask` or `SearchTask`.
   SelectedTask(Id),

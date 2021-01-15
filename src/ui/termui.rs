@@ -1483,6 +1483,55 @@ mod tests {
   }
 
   #[test]
+  async fn search_empty_tab() {
+    async fn test(c: char) {
+      let events = vec![
+        Event::from(c),
+        Event::from('f'),
+        Event::from('\n'),
+      ];
+
+      let state = TestUiBuilder::with_ser_tasks(Vec::new())
+        .build()
+        .handle(events)
+        .await
+        .in_out()
+        .await;
+
+      let expected = InOut::Error("Text 'f' not found".to_string());
+      assert_eq!(state, expected);
+    }
+
+    test('/').await;
+    test('?').await;
+  }
+
+  #[test]
+  async fn search_single_task() {
+    async fn test(c: char) {
+      let tasks = make_tasks(1);
+      let events = vec![
+        Event::from(c),
+        Event::from('1'),
+        Event::from('\n'),
+      ];
+
+      let state = TestUiBuilder::with_ser_tasks(tasks)
+        .build()
+        .handle(events)
+        .await
+        .in_out()
+        .await;
+
+      let expected = InOut::Search("1".to_string());
+      assert_eq!(state, expected);
+    }
+
+    test('/').await;
+    test('?').await;
+  }
+
+  #[test]
   async fn search_abort() {
     async fn test(c: char) {
       let tasks = make_tasks(4);

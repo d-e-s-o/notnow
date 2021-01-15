@@ -29,7 +29,6 @@ use async_trait::async_trait;
 use cell::RefCell;
 
 use gui::Cap;
-use gui::ChainEvent;
 use gui::derive::Widget;
 use gui::Handleable;
 use gui::Id;
@@ -59,10 +58,7 @@ pub type IterationState = IterationStateT<Id>;
 
 /// An enum representing the states a search can be in.
 #[derive(Debug, PartialEq)]
-enum SearchT<T>
-where
-  T: PartialEq,
-{
+enum Search {
   /// No search is currently in progress.
   Unset,
   /// The input/output widget has been asked for the string to search
@@ -75,39 +71,29 @@ where
   // case, but we would like to assert different invariants when the
   // state is taken versus when it was never actually set.
   Taken,
-  /// The full state of a search. The first value is the (lowercased)
-  /// text to search for, the second one represents the task that was
-  /// selected last, and the third one represents the iteration state.
-  State(String, SearchState, T),
+  /// The (lowercased) text to search for.
+  State(String),
 }
 
-impl<T> SearchT<T>
-where
-  T: PartialEq,
-{
+impl Search {
   /// Take the value, leave the `Taken` variant in its place.
-  fn take(&mut self) -> SearchT<T> {
-    replace(self, SearchT::Taken)
+  fn take(&mut self) -> Self {
+    replace(self, Search::Taken)
   }
 
   /// Check whether the search is meant to be a reverse one or not.
   ///
   /// # Panics
   ///
-  /// Panics if the search is in anything but the `SearchT::Preparing`
+  /// Panics if the search is in anything but the `Search::Preparing`
   /// state.
   fn is_reverse(&self) -> bool {
     match *self {
-      SearchT::Preparing(reverse) => reverse,
-      SearchT::Unset |
-      SearchT::Taken |
-      SearchT::State(..) => panic!("invalid search state"),
+      Search::Preparing(reverse) => reverse,
+      Search::Unset | Search::Taken | Search::State(..) => panic!("invalid search state"),
     }
   }
 }
-
-/// A search as used by a `TabBar`.
-type Search = SearchT<IterationState>;
 
 
 /// An enum capturing the search behavior on an individual tab.
@@ -115,20 +101,12 @@ type Search = SearchT<IterationState>;
 pub enum SearchState {
   /// Start the search at the currently selected task.
   Current,
+  /// Start right after the currently selected task.
+  AfterCurrent,
   /// Start the search at the first task in the query being displayed.
   First,
-  /// Start the search at the task with the given index.
-  Task(usize),
-}
-
-impl SearchState {
-  /// Check if the state has the `First` variant active.
-  fn is_first(&self) -> bool {
-    match self {
-      SearchState::First => true,
-      _ => false,
-    }
-  }
+  /// The search is done.
+  Done,
 }
 
 
@@ -153,6 +131,35 @@ fn sanitize_selection(selection: isize, count: usize) -> usize {
   }
 }
 
+/// Provide a snapshot ready for a search, assuming the element at index
+/// `selected` is selected and should be visited first.
+fn search_snapshot<I, T>(iter: I, selected: usize, reverse: bool) -> Vec<T>
+where
+  I: Iterator<Item = T>,
+  T: Copy,
+{
+  let mut snapshot = iter.collect::<Vec<_>>();
+
+  let selected = if reverse {
+    snapshot.reverse();
+    // We need to adjust our selection index now that the elements got
+    // reordered.
+    snapshot.len() - 1 - selected
+  } else {
+    selected
+  };
+  snapshot.rotate_left(selected);
+
+  // A search begins on the selected tab, but it may do so on a task
+  // somewhere in the middle. Hence, once we visited all other tabs we
+  // should return back to the initially selected one to cover the
+  // remaining tasks.
+  if let Some(first) = snapshot.first().copied() {
+    snapshot.push(first);
+  }
+  snapshot
+}
+
 
 /// The data associated with a `TabBar`.
 pub struct TabBarData {
@@ -173,7 +180,7 @@ impl TabBarData {
       tabs: Default::default(),
       selection: 0,
       prev_selection: 0,
-      search: SearchT::Unset,
+      search: Search::Unset,
     }
   }
 
@@ -186,6 +193,14 @@ impl TabBarData {
   /// Retrieve the `Id` of the selected tab.
   pub fn selected_tab(&self) -> Id {
     self.tabs[self.selection()].1
+  }
+
+  /// Provide a snapshot of the tabs, ready for a search starting with
+  /// the selected one.
+  pub fn search_snapshot(&self, reverse: bool) -> Vec<Id> {
+    let tabs = self.tabs.iter().map(|(_, id)| id).copied();
+    let selected = self.selection();
+    search_snapshot(tabs, selected, reverse)
   }
 }
 
@@ -244,56 +259,47 @@ impl TabBar {
   }
 
   /// Handle a `Message::SearchTask` event.
-  async fn handle_search_task(
+  async fn search_task(
     &self,
     cap: &mut dyn MutCap<Event, Message>,
     string: String,
     search_state: SearchState,
-    mut iter_state: IterationState,
-  ) -> Option<UiEvents<Event>> {
+    reverse: bool,
+  ) -> Option<Message> {
     let data = self.data_mut::<TabBarData>(cap);
-    match data.search {
-      SearchT::Taken => {
-        // We have to distinguish three cases here, in order:
-        // 1) No matching task was to be found on all tabs, i.e., we
-        //    wrapped around already. In this case we should display an
-        //    error.
-        // 2) No task matching the search string was found on the tab we
-        //    just issued the search to, in which case we need to try
-        //    the next tab.
-        // 3) The next task in line was found and selected, in which
-        //    case we just store the search state and wait for
-        //    additional user input to select the next one or similar.
-        if iter_state.has_cycled(data.tabs.iter().len()) {
-          data.search = SearchT::State(string.clone(), search_state, iter_state);
+    let tabs = data.search_snapshot(reverse);
+    let mut message = Message::SearchTask(string.clone(), search_state, reverse);
+    let mut found = false;
 
-          let error = format!("Text '{}' not found", string);
-          let message = Message::SetInOut(InOut::Error(error));
-          cap
-            .send(self.in_out, message)
-            .await
-            .into_event()
-            .map(UiEvents::from)
-        } else if iter_state.has_advanced() {
-          debug_assert!(search_state.is_first());
+    for tab in tabs {
+      // TODO: We may want to use the result?
+      let _ = cap.call(tab, &mut message).await;
 
-          let iter = data.tabs.iter().map(|x| x.1);
-          let new_idx = iter_state.normalize(iter);
-          let tab = data.tabs[new_idx].1;
-
-          let event = Message::SearchTask(string, SearchState::First, iter_state);
-          let event = UiEvent::Returnable(self.id, tab, Box::new(event));
-          Some(ChainEvent::Event(event))
-        } else {
-          iter_state.reset_cycled();
-          data.search = SearchT::State(string, search_state, iter_state);
-          None
+      if let Message::SearchTask(_, search_state, _) = &mut message {
+        if let SearchState::Done = search_state {
+          found = true;
+          break
         }
-      },
-      SearchT::Unset |
-      SearchT::Preparing(..) |
-      SearchT::State(..) => panic!("invalid search state"),
+
+        // After the first call (which started on the currently selected
+        // task on the currently selected tab) we always continue with the
+        // first task on any subsequent tab.
+        *search_state = SearchState::First;
+      } else {
+        panic!("Received unexpected message: {:?}", message)
+      }
     }
+
+    if !found {
+      let error = format!("Text '{}' not found", string);
+      let message = Message::SetInOut(InOut::Error(error));
+      let _ = cap.send(self.in_out, message).await;
+    }
+
+    let data = self.data_mut::<TabBarData>(cap);
+    data.search = Search::State(string);
+    // TODO: May need to return Updated?
+    Some(Message::Updated)
   }
 
   /// Handle a custom event.
@@ -309,10 +315,6 @@ impl TabBar {
           string.make_ascii_lowercase();
 
           let reverse = data.search.take().is_reverse();
-          let tab = data.selected_tab();
-          let mut state = IterationState::new(tab);
-          state.reverse(reverse);
-
           let message = Message::SetInOut(InOut::Search(string.clone()));
           let event1 = cap
             .send(self.in_out, message)
@@ -320,20 +322,19 @@ impl TabBar {
             .into_event()
             .map(UiEvents::from);
 
-          let event2 = Message::SearchTask(string, SearchState::Current, state);
-          let event2 = UiEvent::Returnable(self.id, tab, Box::new(event2));
+          let search_state = SearchState::Current;
+          let event2 = self
+            .search_task(cap, string, search_state, reverse)
+            .await
+            .into_event()
+            .map(UiEvents::from);
 
-          Some(event1.update().opt_chain(event2))
+          event1.update().chain(event2)
         } else {
           None
         }
       },
       Message::InputCanceled => None,
-      Message::SearchTask(string, search_state, iter_state) => {
-        self
-          .handle_search_task(cap, string, search_state, iter_state)
-          .await
-      },
       _ => Some(UiEvent::Custom(event).into()),
     }
   }
@@ -437,9 +438,9 @@ impl Handleable<Event, Message> for TabBar {
           Key::Char('n') |
           Key::Char('N') => {
             let event = match data.search.take() {
-              SearchT::Preparing(..) |
-              SearchT::Unset => {
-                data.search = SearchT::Unset;
+              Search::Preparing(..) |
+              Search::Unset => {
+                data.search = Search::Unset;
 
                 let error = InOut::Error("Nothing to search for".to_string());
                 let message = Message::SetInOut(error);
@@ -449,14 +450,9 @@ impl Handleable<Event, Message> for TabBar {
                   .into_event()
                   .map(UiEvents::from)
               },
-              SearchT::Taken => panic!("invalid search state"),
-              SearchT::State(string, search_state, mut iter_state) => {
-                let iter = data.tabs.iter().map(|x| x.1);
-                let new_idx = iter_state.normalize(iter);
-                let tab = data.tabs[new_idx].1;
+              Search::Taken => panic!("invalid search state"),
+              Search::State(string) => {
                 let reverse = key == Key::Char('N');
-                iter_state.reverse(reverse);
-
                 let message = Message::SetInOut(InOut::Search(string.clone()));
                 let event1 = cap
                   .send(self.in_out, message)
@@ -464,10 +460,14 @@ impl Handleable<Event, Message> for TabBar {
                   .into_event()
                   .map(UiEvents::from);
 
-                let event2 = Message::SearchTask(string, search_state, iter_state);
-                let event2 = UiEvent::Returnable(self.id, tab, Box::new(event2));
+                let search_state = SearchState::AfterCurrent;
+                let event2 = self
+                  .search_task(cap, string, search_state, reverse)
+                  .await
+                  .into_event()
+                  .map(UiEvents::from);
 
-                Some(event1.opt_chain(event2))
+                event1.chain(event2)
               },
             };
             event
@@ -475,7 +475,7 @@ impl Handleable<Event, Message> for TabBar {
           Key::Char('/') |
           Key::Char('?') => {
             let reverse = key == Key::Char('?');
-            data.search = SearchT::Preparing(reverse);
+            data.search = Search::Preparing(reverse);
 
             let message = Message::SetInOut(InOut::Input("".to_string(), 0));
             cap
@@ -568,30 +568,61 @@ impl Handleable<Event, Message> for TabBar {
 mod tests {
   use super::*;
 
-  type TestIterationState = IterationStateT<u16>;
-
 
   #[test]
   fn search_take() {
-    let mut search = SearchT::Unset::<u16>;
-    assert_eq!(search.take(), SearchT::Unset);
-    assert_eq!(search, SearchT::Taken);
+    let mut search = Search::Unset;
+    assert_eq!(search.take(), Search::Unset);
+    assert_eq!(search, Search::Taken);
 
-    let mut search = SearchT::Taken::<u16>;
-    assert_eq!(search.take(), SearchT::Taken);
-    assert_eq!(search, SearchT::Taken);
+    let mut search = Search::Taken;
+    assert_eq!(search.take(), Search::Taken);
+    assert_eq!(search, Search::Taken);
 
-    let iter_state = TestIterationState::new(42);
-    let mut search = SearchT::State("test".to_string(), SearchState::First, iter_state);
-
+    let mut search = Search::State("test".to_string());
     match search.take() {
-      SearchT::State(string, search_state, iter_state) => {
-        assert_eq!(string, "test");
-        assert_eq!(search_state, SearchState::First);
-        assert_eq!(iter_state, TestIterationState::new(42));
-      },
+      Search::State(string) => assert_eq!(string, "test"),
       _ => panic!(),
     }
-    assert_eq!(search, SearchT::Taken);
+    assert_eq!(search, Search::Taken);
+  }
+
+  #[test]
+  fn search_tabs() {
+    let tabs = vec![1, 2, 3];
+    let selected = 0;
+    let reverse = false;
+    let snapshot = search_snapshot(tabs.iter().copied(), selected, reverse);
+    assert_eq!(snapshot, vec![1, 2, 3, 1]);
+
+    let tabs = vec![1, 2, 3, 4];
+    let selected = 1;
+    let reverse = false;
+    let snapshot = search_snapshot(tabs.iter().copied(), selected, reverse);
+    assert_eq!(snapshot, vec![2, 3, 4, 1, 2]);
+
+    let tabs = vec![1, 2, 3];
+    let selected = 2;
+    let reverse = false;
+    let snapshot = search_snapshot(tabs.iter().copied(), selected, reverse);
+    assert_eq!(snapshot, vec![3, 1, 2, 3]);
+
+    let tabs = vec![1, 2, 3];
+    let selected = 0;
+    let reverse = true;
+    let snapshot = search_snapshot(tabs.iter().copied(), selected, reverse);
+    assert_eq!(snapshot, vec![1, 3, 2, 1]);
+
+    let tabs = vec![1, 2, 3, 4, 5];
+    let selected = 1;
+    let reverse = true;
+    let snapshot = search_snapshot(tabs.iter().copied(), selected, reverse);
+    assert_eq!(snapshot, vec![2, 1, 5, 4, 3, 2]);
+
+    let tabs = vec![1, 2, 3];
+    let selected = 2;
+    let reverse = true;
+    let snapshot = search_snapshot(tabs.iter().copied(), selected, reverse);
+    assert_eq!(snapshot, vec![3, 2, 1, 3]);
   }
 }
