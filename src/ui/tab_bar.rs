@@ -44,16 +44,11 @@ use super::event::Event;
 use super::event::EventUpdate;
 use super::event::Key;
 use super::in_out::InOut;
-use super::iteration::IterationState as IterationStateT;
 use super::message::Message;
 use super::message::MessageExt;
 use crate::tasks::Tasks;
 use super::task_list_box::TaskListBox;
 use super::task_list_box::TaskListBoxData;
-
-
-/// The iteration state as used by a `TabBar`.
-pub type IterationState = IterationStateT<Id>;
 
 
 /// An enum representing the states a search can be in.
@@ -197,8 +192,8 @@ impl TabBarData {
 
   /// Provide a snapshot of the tabs, ready for a search starting with
   /// the selected one.
-  pub fn search_snapshot(&self, reverse: bool) -> Vec<Id> {
-    let tabs = self.tabs.iter().map(|(_, id)| id).copied();
+  pub fn search_snapshot(&self, reverse: bool) -> Vec<(usize, Id)> {
+    let tabs = self.tabs.iter().map(|(_, id)| id).copied().enumerate();
     let selected = self.selection();
     search_snapshot(tabs, selected, reverse)
   }
@@ -266,17 +261,24 @@ impl TabBar {
     search_state: SearchState,
     reverse: bool,
   ) -> Option<Message> {
+    let mut result = None;
     let data = self.data_mut::<TabBarData>(cap);
     let tabs = data.search_snapshot(reverse);
     let mut message = Message::SearchTask(string.clone(), search_state, reverse);
     let mut found = false;
 
-    for tab in tabs {
-      // TODO: We may want to use the result?
-      let _ = cap.call(tab, &mut message).await;
+    for (idx, tab) in tabs {
+      let update = cap
+        .call(tab, &mut message)
+        .await
+        .map(|m| m.is_updated())
+        .unwrap_or(false);
+      result = MessageExt::maybe_update(result, update);
 
       if let Message::SearchTask(_, search_state, _) = &mut message {
         if let SearchState::Done = search_state {
+          let update = self.set_select(cap, idx as isize);
+          result = MessageExt::maybe_update(result, update);
           found = true;
           break
         }
@@ -293,13 +295,17 @@ impl TabBar {
     if !found {
       let error = format!("Text '{}' not found", string);
       let message = Message::SetInOut(InOut::Error(error));
-      let _ = cap.send(self.in_out, message).await;
+      let update = cap
+        .send(self.in_out, message)
+        .await
+        .map(|m| m.is_updated())
+        .unwrap_or(false);
+      result = MessageExt::maybe_update(result, update);
     }
 
     let data = self.data_mut::<TabBarData>(cap);
     data.search = Search::State(string);
-    // TODO: May need to return Updated?
-    Some(Message::Updated)
+    result
   }
 
   /// Handle a custom event.
@@ -503,11 +509,7 @@ impl Handleable<Event, Message> for TabBar {
   }
 
   /// React to a message.
-  async fn react(
-    &self,
-    mut message: Message,
-    cap: &mut dyn MutCap<Event, Message>,
-  ) -> Option<Message> {
+  async fn react(&self, message: Message, cap: &mut dyn MutCap<Event, Message>) -> Option<Message> {
     match message {
       Message::CollectState => {
         let tab_state = TabState {
@@ -540,23 +542,32 @@ impl Handleable<Event, Message> for TabBar {
         let message = Message::CollectedState(tab_state);
         Some(message)
       },
-      Message::SelectTask(_, ref mut state) => {
+      Message::SelectTask(task_id, ..) => {
         let data = self.data::<TabBarData>(cap);
-        let iter = data.tabs.iter().map(|x| x.1);
-        let new_idx = state.normalize(iter.clone());
+        let mut message = Message::SelectTask(task_id, false);
+        let mut result = None;
 
-        if !state.has_cycled(iter.len()) {
-          let tab = data.tabs[new_idx].1;
-          cap.send(tab, message).await
-        } else {
-          None
+        let tabs = data
+          .tabs
+          .iter()
+          .map(|(_, id)| id)
+          .copied()
+          .enumerate()
+          .collect::<Vec<_>>();
+
+        for (idx, tab) in tabs {
+          let _ = cap.call(tab, &mut message).await;
+          if let Message::SelectTask(_, done) = message {
+            if done {
+              let update = self.set_select(cap, idx as isize);
+              result = MessageExt::maybe_update(result, update);
+              break
+            }
+          } else {
+            panic!("Received unexpected message: {:?}", message)
+          }
         }
-      },
-      Message::SelectedTask(widget_id) => {
-        let data = self.data::<TabBarData>(cap);
-        let select = data.tabs.iter().position(|x| x.1 == widget_id).unwrap();
-        let update = self.set_select(cap, select as isize);
-        MessageExt::maybe_update(None, update)
+        result
       },
       m => panic!("Received unexpected message: {:?}", m),
     }

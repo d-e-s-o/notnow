@@ -46,8 +46,7 @@ use super::event::EventUpdate;
 use super::event::Key;
 use super::in_out::InOut;
 use super::message::Message;
-use super::message::MessageExt as _;
-use super::tab_bar::IterationState;
+use super::message::MessageExt;
 use super::tab_bar::SearchState;
 use super::tab_bar::TabState;
 
@@ -181,35 +180,38 @@ impl TaskListBox {
     &self,
     cap: &mut dyn MutCap<Event, Message>,
     task_id: TaskId,
-    mut state: IterationState,
+    done: Option<&mut bool>,
   ) -> Option<Message> {
     let data = self.data_mut::<TaskListBoxData>(cap);
     let idx = data.query.iter().position(|x| x.id() == task_id);
 
     if let Some(idx) = idx {
       let update = data.set_select(idx as isize);
-      // Indicate to the TabBar that we selected the task in question
-      // successfully. It should make sure to focus us subsequently.
-      let message = Message::SelectedTask(self.id);
-      cap.send(self.tab_bar, message).await.maybe_update(update)
+      if let Some(done) = done {
+        *done = true
+      }
+      MessageExt::maybe_update(None, update)
     } else {
-      // We don't have a task that should get selected. Bounce the event
-      // back to the TabBar to let it check with the next widget.
-      state.advance();
-
-      let message = Message::SelectTask(task_id, state);
-      cap.send(self.tab_bar, message).await
+      // If there is no `done` we were called directly from within the
+      // widget and not in response to a message from the TabBar. In
+      // that case, given that we have not found the task in our own
+      // query, reach out to the TabBar.
+      if done.is_none() {
+        let message = Message::SelectTask(task_id, false);
+        cap.send(self.tab_bar, message).await
+      } else {
+        None
+      }
     }
   }
 
   /// Start the selection of a task.
-  async fn handle_select_task_start(
+  async fn select_task(
     &self,
     cap: &mut dyn MutCap<Event, Message>,
     task_id: TaskId,
   ) -> Option<Message> {
-    let state = IterationState::new(self.id);
-    self.handle_select_task(cap, task_id, state).await
+    self.handle_select_task(cap, task_id, None).await
   }
 
   /// Search for a task containing the given string.
@@ -286,8 +288,7 @@ impl TaskListBox {
 
       let data = self.data_mut::<TaskListBoxData>(cap);
       let update = data.set_select(idx as isize);
-      let message = Message::SelectedTask(self.id);
-      cap.send(self.tab_bar, message).await.maybe_update(update)
+      MessageExt::maybe_update(None, update)
     } else {
       None
     }
@@ -319,7 +320,7 @@ impl TaskListBox {
 
                 let id = data.tasks.borrow_mut().add(text.clone(), tags);
                 self
-                  .handle_select_task_start(cap, id)
+                  .select_task(cap, id)
                   .await
                   .into_event()
                   .map(UiEvents::from)
@@ -336,7 +337,7 @@ impl TaskListBox {
                 task.summary = text.clone();
                 data.tasks.borrow_mut().update(task);
                 self
-                  .handle_select_task_start(cap, id)
+                  .select_task(cap, id)
                   .await
                   .into_event()
                   .map(UiEvents::from)
@@ -397,7 +398,7 @@ impl Handleable<Event, Message> for TaskListBox {
               task.toggle_complete();
               data.tasks.borrow_mut().update(task);
               self
-                .handle_select_task_start(cap, id)
+                .select_task(cap, id)
                 .await
                 .into_event()
                 .map(UiEvents::from)
@@ -483,14 +484,6 @@ impl Handleable<Event, Message> for TaskListBox {
     }
   }
 
-  /// React to a message.
-  async fn react(&self, message: Message, cap: &mut dyn MutCap<Event, Message>) -> Option<Message> {
-    match message {
-      Message::SelectTask(task_id, state) => self.handle_select_task(cap, task_id, state).await,
-      m => panic!("Received unexpected message: {:?}", m),
-    }
-  }
-
   /// Respond to a message.
   async fn respond(
     &self,
@@ -498,6 +491,9 @@ impl Handleable<Event, Message> for TaskListBox {
     cap: &mut dyn MutCap<Event, Message>,
   ) -> Option<Message> {
     match message {
+      Message::SelectTask(task_id, done) => {
+        self.handle_select_task(cap, *task_id, Some(done)).await
+      },
       Message::SearchTask(string, search_state, reverse) => {
         self
           .handle_search_task(cap, string, search_state, *reverse)

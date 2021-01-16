@@ -17,7 +17,6 @@
 // * along with this program.  If not, see <http://www.gnu.org/licenses/>. *
 // *************************************************************************
 
-use gui::Id;
 use gui::UiEvent;
 
 use crate::tasks::Id as TaskId;
@@ -26,7 +25,6 @@ use crate::tasks::Task;
 
 use super::event::Event;
 use super::in_out::InOut;
-use super::tab_bar::IterationState;
 use super::tab_bar::SearchState;
 use super::tab_bar::TabState;
 
@@ -35,15 +33,13 @@ use super::tab_bar::TabState;
 #[derive(Debug)]
 pub enum Message {
   /// A message to ask a widget to select the task with the given
-  /// `TaskId`.
-  SelectTask(TaskId, IterationState),
+  /// `TaskId`. The last argument is used to indicate that a task with
+  /// the given ID has been selected.
+  SelectTask(TaskId, bool),
   /// Search for a task containing the given string in its summary and
   /// select it. The last argument indicates whether we search in
   /// reverse order (true) or not (false).
   SearchTask(String, SearchState, bool),
-  /// The tab with the given `Id` has selected the task as indicated by
-  /// `SelectTask` or `SearchTask`.
-  SelectedTask(Id),
   /// Set the state of the input/output area.
   SetInOut(InOut),
   /// Change the state of the input/output area to Clear, unless the
