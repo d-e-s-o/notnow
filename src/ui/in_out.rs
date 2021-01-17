@@ -24,12 +24,10 @@ use std::ffi::CString;
 use async_trait::async_trait;
 
 use gui::Cap;
-use gui::ChainEvent;
 use gui::derive::Widget;
 use gui::Handleable;
 use gui::Id;
 use gui::MutCap;
-use gui::OptionChain;
 use gui::UiEvent;
 use gui::UiEvents;
 use gui::Widget;
@@ -40,7 +38,7 @@ use rline::Readline;
 use super::event::Event;
 use super::event::Key;
 use super::message::Message;
-use super::message::MessageExt as _;
+use super::message::MessageExt;
 
 
 /// An object representing the in/out area within the TermUi.
@@ -239,40 +237,48 @@ impl InOutArea {
   }
 
   /// Finish text input by changing the internal state and emitting an event.
-  fn finish_input(
+  async fn finish_input(
     &self,
     cap: &mut dyn MutCap<Event, Message>,
     string: Option<String>,
-  ) -> Option<UiEvents<Event>> {
+  ) -> Option<Message> {
     let data = self.data_mut::<InOutAreaData>(cap);
-    let update = data.change_state(InOut::Clear).into_event();
+    let updated1 = data
+      .change_state(InOut::Clear)
+      .map(|m| m.is_updated())
+      .unwrap_or(false);
     let widget = self.restore_focus(cap);
-    let event = if let Some(s) = string {
-      Box::new(Message::EnteredText(s))
+    let message = if let Some(s) = string {
+      Message::EnteredText(s)
     } else {
-      Box::new(Message::InputCanceled)
+      Message::InputCanceled
     };
-    debug_assert!(update.is_some());
-    Some(ChainEvent::from(UiEvent::Directed(widget, event))).chain(update)
+
+    let updated2 = cap
+      .send(widget, message)
+      .await
+      .map(|m| m.is_updated())
+      .unwrap_or(false);
+    MessageExt::maybe_update(None, updated1 || updated2)
   }
 
   /// Handle a key press.
   #[allow(clippy::trivially_copy_pass_by_ref)]
   #[cfg(not(feature = "readline"))]
-  fn handle_key(
+  async fn handle_key(
     &self,
     cap: &mut dyn MutCap<Event, Message>,
     mut s: String,
     mut idx: usize,
     key: Key,
     _raw: &(),
-  ) -> Option<UiEvents<Event>> {
+  ) -> Option<Message> {
     let data = self.data_mut::<InOutAreaData>(cap);
     match key {
       Key::Esc |
       Key::Char('\n') => {
         let string = if key == Key::Char('\n') { Some(s) } else { None };
-        self.finish_input(cap, string)
+        self.finish_input(cap, string).await
       },
       // We cannot easily handle multi byte Unicode graphemes with
       // Rust's standard library, so just ignore everything that is
@@ -280,10 +286,7 @@ impl InOutArea {
       // would allow us to circumvent this restriction).
       Key::Char(c) => {
         s.insert(idx, c);
-        data
-          .change_state(InOut::Input(s, idx + c.len_utf8()))
-          .into_event()
-          .map(UiEvents::from)
+        data.change_state(InOut::Input(s, idx + c.len_utf8()))
       },
       Key::Backspace => {
         if idx > 0 {
@@ -291,27 +294,18 @@ impl InOutArea {
           let _ = s.remove(i);
           idx = idx.saturating_sub(len);
         }
-        data
-          .change_state(InOut::Input(s, idx))
-          .into_event()
-          .map(UiEvents::from)
+        data.change_state(InOut::Input(s, idx))
       },
       Key::Delete => {
         if idx < s.len() {
           let _ = s.remove(idx);
         }
-        data
-          .change_state(InOut::Input(s, idx))
-          .into_event()
-          .map(UiEvents::from)
+        data.change_state(InOut::Input(s, idx))
       },
       Key::Left => {
         if idx > 0 {
           idx = str_char(&s, idx - 1).0;
-          data
-            .change_state(InOut::Input(s, idx))
-            .into_event()
-            .map(UiEvents::from)
+          data.change_state(InOut::Input(s, idx))
         } else {
           None
         }
@@ -320,20 +314,14 @@ impl InOutArea {
         if idx < s.len() {
           let (idx, len) = str_char(&s, idx);
           debug_assert!(idx + len <= s.len());
-          data
-            .change_state(InOut::Input(s, idx + len))
-            .into_event()
-            .map(UiEvents::from)
+          data.change_state(InOut::Input(s, idx + len))
         } else {
           None
         }
       },
       Key::Home => {
         if idx != 0 {
-          data
-            .change_state(InOut::Input(s, 0))
-            .into_event()
-            .map(UiEvents::from)
+          data.change_state(InOut::Input(s, 0))
         } else {
           None
         }
@@ -341,10 +329,7 @@ impl InOutArea {
       Key::End => {
         let length = s.len();
         if idx != length {
-          data
-            .change_state(InOut::Input(s, length))
-            .into_event()
-            .map(UiEvents::from)
+          data.change_state(InOut::Input(s, length))
         } else {
           None
         }
@@ -356,17 +341,21 @@ impl InOutArea {
   /// Handle a key press.
   #[allow(clippy::needless_pass_by_value)]
   #[cfg(feature = "readline")]
-  fn handle_key(
+  async fn handle_key(
     &self,
     cap: &mut dyn MutCap<Event, Message>,
     _s: String,
     idx: usize,
     key: Key,
     raw: &[u8],
-  ) -> Option<UiEvents<Event>> {
+  ) -> Option<Message> {
     let data = self.data_mut::<InOutAreaData>(cap);
     match data.readline.feed(raw) {
-      Some(line) => self.finish_input(cap, Some(line.into_string().unwrap())),
+      Some(line) => {
+        self
+          .finish_input(cap, Some(line.into_string().unwrap()))
+          .await
+      },
       None => {
         let (s_, idx_) = data.readline.peek(|s, pos| (s.to_owned(), pos));
         // We treat Esc a little specially. In a vi-mode enabled
@@ -391,12 +380,9 @@ impl InOutArea {
           //       care of resetting things to the default (which is
           //       input mode).
           data.readline = Readline::new();
-          self.finish_input(cap, None)
+          self.finish_input(cap, None).await
         } else {
-          data
-            .change_state(InOut::Input(s_.into_string().unwrap(), idx_))
-            .into_event()
-            .map(UiEvents::from)
+          data.change_state(InOut::Input(s_.into_string().unwrap(), idx_))
         }
       },
     }
@@ -440,7 +426,11 @@ impl Handleable<Event, Message> for InOutArea {
           panic!("In/out area not used for input.");
         };
 
-        self.handle_key(cap, s, idx, key, &raw)
+        self
+          .handle_key(cap, s, idx, key, &raw)
+          .await
+          .into_event()
+          .map(UiEvents::from)
       },
     }
   }

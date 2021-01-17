@@ -17,7 +17,6 @@
 // * along with this program.  If not, see <http://www.gnu.org/licenses/>. *
 // *************************************************************************
 
-use std::any::Any;
 use std::cmp::max;
 use std::cmp::min;
 use std::isize;
@@ -31,7 +30,6 @@ use gui::Cap;
 use gui::Handleable;
 use gui::Id;
 use gui::MutCap;
-use gui::UiEvent;
 use gui::UiEvents;
 use gui::Widget;
 use gui::derive::Widget;
@@ -294,76 +292,6 @@ impl TaskListBox {
     }
   }
 
-  /// Handle a custom event.
-  async fn handle_custom_event(
-    &self,
-    cap: &mut dyn MutCap<Event, Message>,
-    event: Box<Message>,
-  ) -> Option<UiEvents<Event>> {
-    let data = self.data_mut::<TaskListBoxData>(cap);
-    match *event {
-      Message::EnteredText(ref text) => {
-        if let Some(state) = data.state.take() {
-          match state {
-            State::Add => {
-              if !text.is_empty() {
-                let tags = if !data.query.is_empty() {
-                  let mut task = data.selected_task();
-                  if task.is_complete() {
-                    task.toggle_complete()
-                  }
-                  let tags = task.tags().cloned().collect();
-                  tags
-                } else {
-                  Default::default()
-                };
-
-                let id = data.tasks.borrow_mut().add(text.clone(), tags);
-                self
-                  .select_task(cap, id)
-                  .await
-                  .into_event()
-                  .map(UiEvents::from)
-              } else {
-                None
-              }
-            },
-            State::Edit(mut task) => {
-              let id = task.id();
-
-              // Editing a task to empty just removes the task
-              // altogether.
-              if !text.is_empty() {
-                task.summary = text.clone();
-                data.tasks.borrow_mut().update(task);
-                self
-                  .select_task(cap, id)
-                  .await
-                  .into_event()
-                  .map(UiEvents::from)
-                  .update()
-              } else {
-                data.tasks.borrow_mut().remove(id);
-                (None as Option<Event>).update()
-              }
-            },
-          }
-        } else {
-          Some(UiEvent::Custom(event).into())
-        }
-      },
-      #[cfg(not(feature = "readline"))]
-      Message::InputCanceled => {
-        if data.state.take().is_some() {
-          (None as Option<Event>).update()
-        } else {
-          Some(UiEvent::Custom(Box::new(Message::InputCanceled)).into())
-        }
-      },
-      _ => Some(UiEvent::Custom(event).into()),
-    }
-  }
-
   /// Retrieve the query associated with this widget.
   pub fn query(&self, cap: &dyn Cap) -> Query {
     let data = self.data::<TaskListBoxData>(cap);
@@ -472,15 +400,62 @@ impl Handleable<Event, Message> for TaskListBox {
     }
   }
 
-  /// Handle a custom event.
-  async fn handle_custom(
-    &self,
-    cap: &mut dyn MutCap<Event, Message>,
-    event: Box<dyn Any>,
-  ) -> Option<UiEvents<Event>> {
-    match event.downcast::<Message>() {
-      Ok(e) => self.handle_custom_event(cap, e).await,
-      Err(e) => panic!("Received unexpected custom event: {:?}", e),
+  /// React to a message.
+  async fn react(&self, message: Message, cap: &mut dyn MutCap<Event, Message>) -> Option<Message> {
+    let data = self.data_mut::<TaskListBoxData>(cap);
+    match message {
+      Message::EnteredText(ref text) => {
+        if let Some(state) = data.state.take() {
+          match state {
+            State::Add => {
+              if !text.is_empty() {
+                let tags = if !data.query.is_empty() {
+                  let mut task = data.selected_task();
+                  if task.is_complete() {
+                    task.toggle_complete()
+                  }
+                  let tags = task.tags().cloned().collect();
+                  tags
+                } else {
+                  Default::default()
+                };
+
+                let id = data.tasks.borrow_mut().add(text.clone(), tags);
+                self.select_task(cap, id).await
+              } else {
+                None
+              }
+            },
+            State::Edit(mut task) => {
+              let id = task.id();
+
+              // Editing a task to empty just removes the task
+              // altogether.
+              if !text.is_empty() {
+                task.summary = text.clone();
+                data.tasks.borrow_mut().update(task);
+                self.select_task(cap, id).await.maybe_update(true)
+              } else {
+                data.tasks.borrow_mut().remove(id);
+                Some(Message::Updated)
+              }
+            },
+          }
+        } else {
+          cap.send(self.tab_bar, message).await
+        }
+      },
+      #[cfg(not(feature = "readline"))]
+      Message::InputCanceled => {
+        if data.state.take().is_some() {
+          Some(Message::Updated)
+        } else {
+          None
+        }
+      },
+      #[cfg(feature = "readline")]
+      Message::InputCanceled => None,
+      m => panic!("Received unexpected message: {:?}", m),
     }
   }
 

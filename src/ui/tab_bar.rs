@@ -17,7 +17,6 @@
 // * along with this program.  If not, see <http://www.gnu.org/licenses/>. *
 // *************************************************************************
 
-use std::any::Any;
 use std::cmp::max;
 use std::cmp::min;
 use std::isize;
@@ -34,11 +33,11 @@ use gui::Handleable;
 use gui::Id;
 use gui::MutCap;
 use gui::OptionChain;
-use gui::UiEvent;
 use gui::UiEvents;
 use gui::Widget;
 
 use crate::query::Query;
+use crate::tasks::Tasks;
 
 use super::event::Event;
 use super::event::EventUpdate;
@@ -46,7 +45,6 @@ use super::event::Key;
 use super::in_out::InOut;
 use super::message::Message;
 use super::message::MessageExt;
-use crate::tasks::Tasks;
 use super::task_list_box::TaskListBox;
 use super::task_list_box::TaskListBoxData;
 
@@ -308,43 +306,6 @@ impl TabBar {
     result
   }
 
-  /// Handle a custom event.
-  async fn handle_custom_event(
-    &self,
-    cap: &mut dyn MutCap<Event, Message>,
-    event: Box<Message>,
-  ) -> Option<UiEvents<Event>> {
-    match *event {
-      Message::EnteredText(mut string) => {
-        let data = self.data_mut::<TabBarData>(cap);
-        if !string.is_empty() && !data.tabs.is_empty() {
-          string.make_ascii_lowercase();
-
-          let reverse = data.search.take().is_reverse();
-          let message = Message::SetInOut(InOut::Search(string.clone()));
-          let event1 = cap
-            .send(self.in_out, message)
-            .await
-            .into_event()
-            .map(UiEvents::from);
-
-          let search_state = SearchState::Current;
-          let event2 = self
-            .search_task(cap, string, search_state, reverse)
-            .await
-            .into_event()
-            .map(UiEvents::from);
-
-          event1.update().chain(event2)
-        } else {
-          None
-        }
-      },
-      Message::InputCanceled => None,
-      _ => Some(UiEvent::Custom(event).into()),
-    }
-  }
-
   /// Retrieve an iterator over the names of all the tabs.
   pub fn iter<'slf>(&'slf self, cap: &'slf dyn Cap) -> impl ExactSizeIterator<Item=&'slf String> {
     let data = self.data::<TabBarData>(cap);
@@ -496,18 +457,6 @@ impl Handleable<Event, Message> for TabBar {
     }
   }
 
-  /// Handle a custom event.
-  async fn handle_custom(
-    &self,
-    cap: &mut dyn MutCap<Event, Message>,
-    event: Box<dyn Any>,
-  ) -> Option<UiEvents<Event>> {
-    match event.downcast::<Message>() {
-      Ok(e) => self.handle_custom_event(cap, e).await,
-      Err(e) => panic!("Received unexpected custom event: {:?}", e),
-    }
-  }
-
   /// React to a message.
   async fn react(&self, message: Message, cap: &mut dyn MutCap<Event, Message>) -> Option<Message> {
     match message {
@@ -568,6 +517,31 @@ impl Handleable<Event, Message> for TabBar {
           }
         }
         result
+      },
+      Message::EnteredText(mut string) => {
+        let data = self.data_mut::<TabBarData>(cap);
+        if !string.is_empty() && !data.tabs.is_empty() {
+          string.make_ascii_lowercase();
+
+          let reverse = data.search.take().is_reverse();
+          let message = Message::SetInOut(InOut::Search(string.clone()));
+          let updated1 = cap
+            .send(self.in_out, message)
+            .await
+            .map(|m| m.is_updated())
+            .unwrap_or(false);
+
+          let search_state = SearchState::Current;
+          let updated2 = self
+            .search_task(cap, string, search_state, reverse)
+            .await
+            .map(|m| m.is_updated())
+            .unwrap_or(false);
+
+          MessageExt::maybe_update(None, updated1 || updated2)
+        } else {
+          None
+        }
       },
       m => panic!("Received unexpected message: {:?}", m),
     }
