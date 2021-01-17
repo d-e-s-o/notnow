@@ -43,7 +43,7 @@ optional = true
 version = "2.0"
 
 [dependencies.gui]
-version = "=0.6.0-alpha.1"
+version = "=0.6.0-alpha.2"
 features = ["derive"]
 
 [dependencies.libc]

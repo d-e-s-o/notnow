@@ -454,6 +454,7 @@ impl Handleable<Event, Message> for TabBar {
           _ => Some(event.into()),
         }
       },
+      _ => Some(event.into()),
     }
   }
 

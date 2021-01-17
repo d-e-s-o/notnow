@@ -164,6 +164,7 @@ impl Handleable<Event, Message> for TermUi {
         Key::Char('w') => self.save(cap).await.into_event().map(UiEvents::from),
         _ => Some(event.into()),
       },
+      _ => Some(event.into()),
     }
   }
 
@@ -1447,6 +1448,20 @@ mod tests {
     assert_eq!(with_key(Key::Esc).await, InOut::Clear);
     assert_eq!(with_key('\n').await, InOut::Clear);
     assert_eq!(with_key(Key::PageDown).await, InOut::Clear);
+  }
+
+  #[test]
+  async fn updated_event_after_write_and_key_press() {
+    let tasks = make_tasks(2);
+    let updated = TestUiBuilder::with_ser_tasks(tasks)
+      .build()
+      .handle(Some(Event::from('w')))
+      .await
+      .evaluate(Event::from('y'))
+      .await
+      .map_or(false, |x| x.is_updated());
+
+    assert!(updated);
   }
 
   #[test]

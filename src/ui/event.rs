@@ -19,6 +19,7 @@
 
 use gui::ChainEvent;
 use gui::EventChain;
+use gui::Mergeable;
 use gui::UiEvent;
 use gui::UiEvents;
 use gui::UnhandledEvent;
@@ -34,6 +35,10 @@ pub use termion::event::Key;
 /// An event as used by the UI.
 #[derive(Clone, Debug)]
 pub enum Event {
+  /// An indication that some component changed and that we should
+  /// re-render everything.
+  Updated,
+  /// A key press.
   #[cfg(not(feature = "readline"))]
   Key(Key, ()),
   #[cfg(feature = "readline")]
@@ -49,6 +54,18 @@ impl From<u8> for Event {
   }
 }
 
+impl Mergeable for Event {
+  fn merge_with(self, other: Self) -> Self {
+    match (&self, &other) {
+      (Self::Key(..), _) | (_, Self::Key(..)) => panic!(
+        "Attempting to merge incompatible events: {:?} & {:?}",
+        self, other
+      ),
+      (Self::Updated, Self::Updated) => self,
+    }
+  }
+}
+
 
 pub trait EventUpdated {
   /// Check whether the event has been updated.
@@ -58,6 +75,7 @@ pub trait EventUpdated {
 impl EventUpdated for UiEvent<Event> {
   fn is_updated(&self) -> bool {
     match self {
+      UiEvent::Event(Event::Updated) => true,
       UiEvent::Custom(data) |
       UiEvent::Directed(_, data) |
       UiEvent::Returnable(_, _, data) => {
@@ -91,6 +109,7 @@ impl EventUpdated for UnhandledEvent<Event> {
           false
         }
       },
+      UnhandledEvent::Event(Event::Updated) => true,
       UnhandledEvent::Event(_) |
       UnhandledEvent::Quit => false,
     }

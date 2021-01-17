@@ -185,6 +185,7 @@ fn handle_unhandled_event(event: UnhandledEvent<UiEvent>) -> Continue {
         Err(event) => panic!("Received unexpected custom event: {:?}", event),
       }
     },
+    UnhandledEvent::Event(UiEvent::Updated) => Some(true),
     _ => Some(false),
   }
 }

@@ -42,11 +42,6 @@ pub enum Message {
   SearchTask(String, SearchState, bool),
   /// Set the state of the input/output area.
   SetInOut(InOut),
-  /// Change the state of the input/output area to Clear, unless the
-  /// generation ID supplied does not match the current generation ID.
-  /// This message is internal to the InOutArea, there is no need for
-  /// other clients to use it.
-  ClearInOut(usize),
   /// Text has been entered.
   EnteredText(String),
   /// Text input has been canceled.

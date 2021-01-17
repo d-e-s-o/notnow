@@ -397,6 +397,7 @@ impl Handleable<Event, Message> for TaskListBox {
           _ => Some(event.into()),
         }
       },
+      _ => Some(event.into()),
     }
   }
 

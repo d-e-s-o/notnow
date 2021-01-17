@@ -17,9 +17,10 @@
 // * along with this program.  If not, see <http://www.gnu.org/licenses/>. *
 // *************************************************************************
 
-use std::any::Any;
 #[cfg(feature = "readline")]
 use std::ffi::CString;
+use std::future::Future;
+use std::pin::Pin;
 
 use async_trait::async_trait;
 
@@ -28,7 +29,6 @@ use gui::derive::Widget;
 use gui::Handleable;
 use gui::Id;
 use gui::MutCap;
-use gui::UiEvent;
 use gui::UiEvents;
 use gui::Widget;
 
@@ -119,6 +119,8 @@ pub struct InOutAreaData {
   /// The ID of the widget that was focused before the input/output area
   /// received the input focus.
   prev_focused: Option<Id>,
+  /// The generation number at which to clear the state.
+  clear_gen: Option<usize>,
   /// The state of the area.
   in_out: InOutState,
   /// A readline object used for input.
@@ -131,6 +133,7 @@ impl InOutAreaData {
   pub fn new() -> Self {
     Self {
       prev_focused: None,
+      clear_gen: None,
       in_out: Default::default(),
       #[cfg(feature = "readline")]
       readline: Readline::new(),
@@ -184,56 +187,43 @@ impl InOutArea {
   }
 
   /// Handle a hooked event.
-  fn handle_hooked_event(
-    widget: &dyn Widget<Event, Message>,
-    cap: &mut dyn MutCap<Event, Message>,
-    event: &Event,
-  ) -> Option<UiEvents<Event>> {
-    let in_out = widget.downcast_ref::<InOutArea>();
-    if let Some(in_out) = in_out {
-      // We basically schedule a "callback" by virtue of sending an
-      // event to ourselves. This event will be received only after we
-      // handled any other key events, meaning we have full information
-      // about what happened and can determine whether we ultimately
-      // want to set our state to "Clear" or not.
-      match event {
-        Event::Key(..) => {
-          let data = in_out.data::<InOutAreaData>(cap);
-          let event = Box::new(Message::ClearInOut(data.in_out.gen));
-          Some(UiEvent::Directed(in_out.id, event).into())
-        },
-      }
-    } else {
-      panic!("Widget {:?} is unexpected", in_out)
-    }
-  }
-
-  /// Handle a custom event.
-  fn handle_custom_event(
-    &self,
-    cap: &mut dyn MutCap<Event, Message>,
-    event: Box<Message>,
-  ) -> Option<UiEvents<Event>> {
-    let data = self.data_mut::<InOutAreaData>(cap);
-    match *event {
-      Message::ClearInOut(gen) => {
+  fn handle_hooked_event<'f>(
+    widget: &'f dyn Widget<Event, Message>,
+    cap: &'f mut dyn MutCap<Event, Message>,
+    event: Option<&'f Event>,
+  ) -> Pin<Box<dyn Future<Output = Option<Event>> + 'f>> {
+    Box::pin(async move {
+      let data = cap
+        .data_mut(widget.id())
+        .downcast_mut::<InOutAreaData>()
+        .unwrap();
+      if let Some(event) = event {
+        // We remember the generation number we had when we entered the
+        // pre-hook such that we can decided whether to set our state to
+        // "Clear" or not on the post-hook path.
+        match event {
+          Event::Key(..) => {
+            data.clear_gen = Some(data.in_out.gen);
+            None
+          },
+          Event::Updated => None,
+        }
+      } else {
         // We only change our state to "Clear" if the generation number
         // is still the same, meaning that we did not change our state
-        // between receiving the event hook and retrieving this event.
-        if data.in_out.gen == gen {
+        // between pre- and post-hook.
+        if data.clear_gen.take() == Some(data.in_out.gen) {
           match data.in_out.get() {
-            InOut::Saved |
-            InOut::Search(_) |
-            InOut::Error(_) => data.change_state(InOut::Clear).into_event().map(UiEvents::from),
-            InOut::Input(..) |
-            InOut::Clear => None,
+            InOut::Saved | InOut::Search(_) | InOut::Error(_) => {
+              data.change_state(InOut::Clear).map(|_| Event::Updated)
+            },
+            InOut::Input(..) | InOut::Clear => None,
           }
         } else {
           None
         }
-      },
-      _ => Some(UiEvent::Custom(event).into()),
-    }
+      }
+    })
   }
 
   /// Finish text input by changing the internal state and emitting an event.
@@ -432,18 +422,7 @@ impl Handleable<Event, Message> for InOutArea {
           .into_event()
           .map(UiEvents::from)
       },
-    }
-  }
-
-  /// Handle a custom event.
-  async fn handle_custom(
-    &self,
-    cap: &mut dyn MutCap<Event, Message>,
-    event: Box<dyn Any>,
-  ) -> Option<UiEvents<Event>> {
-    match event.downcast::<Message>() {
-      Ok(e) => self.handle_custom_event(cap, e),
-      Err(e) => panic!("Received unexpected custom event: {:?}", e),
+      _ => Some(event.into()),
     }
   }
 
