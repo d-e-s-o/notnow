@@ -30,7 +30,6 @@ use gui::Cap;
 use gui::Handleable;
 use gui::Id;
 use gui::MutCap;
-use gui::UiEvents;
 use gui::Widget;
 use gui::derive::Widget;
 
@@ -40,7 +39,6 @@ use crate::tasks::Task;
 use crate::tasks::Tasks;
 
 use super::event::Event;
-use super::event::EventUpdate;
 use super::event::Key;
 use super::in_out::InOut;
 use super::message::Message;
@@ -314,7 +312,7 @@ impl Handleable<Event, Message> for TaskListBox {
     &self,
     cap: &mut dyn MutCap<Event, Message>,
     event: Event,
-  ) -> Option<UiEvents<Event>> {
+  ) -> Option<Event> {
     let data = self.data_mut::<TaskListBoxData>(cap);
     match event {
       Event::Key(key, _) => {
@@ -328,9 +326,8 @@ impl Handleable<Event, Message> for TaskListBox {
               self
                 .select_task(cap, id)
                 .await
+                .maybe_update(true)
                 .into_event()
-                .map(UiEvents::from)
-                .update()
             } else {
               None
             }
@@ -338,13 +335,13 @@ impl Handleable<Event, Message> for TaskListBox {
           Key::Char('a') => {
             data.state = Some(State::Add);
             let message = Message::SetInOut(InOut::Input("".to_string(), 0));
-            cap.send(self.in_out, message).await.into_event().map(UiEvents::from)
+            cap.send(self.in_out, message).await.into_event()
           },
           Key::Char('d') => {
             if !data.query.is_empty() {
               let id = data.selected_task().id();
               data.tasks.borrow_mut().remove(id);
-              (None as Option<Event>).update()
+              MessageExt::maybe_update(None, true).into_event()
             } else {
               None
             }
@@ -357,7 +354,7 @@ impl Handleable<Event, Message> for TaskListBox {
               data.state = Some(State::Edit(task));
 
               let message = Message::SetInOut(InOut::Input(string, idx));
-              cap.send(self.in_out, message).await.into_event().map(UiEvents::from)
+              cap.send(self.in_out, message).await.into_event()
             } else {
               None
             }
@@ -368,7 +365,7 @@ impl Handleable<Event, Message> for TaskListBox {
               let other = data.query.iter().nth(data.selection(1));
               if let Some(other) = other {
                 data.tasks.borrow_mut().move_after(to_move.id(), other.id());
-                (None as Option<Event>).maybe_update(data.select(1))
+                MessageExt::maybe_update(None, data.select(1)).into_event()
               } else {
                 None
               }
@@ -382,7 +379,7 @@ impl Handleable<Event, Message> for TaskListBox {
               let other = data.query.iter().nth(data.selection(-1));
               if let Some(other) = other {
                 data.tasks.borrow_mut().move_before(to_move.id(), other.id());
-                (None as Option<Event>).maybe_update(data.select(-1))
+                MessageExt::maybe_update(None, data.select(-1)).into_event()
               } else {
                 None
               }
@@ -390,14 +387,14 @@ impl Handleable<Event, Message> for TaskListBox {
               None
             }
           },
-          Key::Char('g') => (None as Option<Event>).maybe_update(data.set_select(0)),
-          Key::Char('G') => (None as Option<Event>).maybe_update(data.set_select(isize::MAX)),
-          Key::Char('j') => (None as Option<Event>).maybe_update(data.select(1)),
-          Key::Char('k') => (None as Option<Event>).maybe_update(data.select(-1)),
-          _ => Some(event.into()),
+          Key::Char('g') => MessageExt::maybe_update(None, data.set_select(0)).into_event(),
+          Key::Char('G') => MessageExt::maybe_update(None, data.set_select(isize::MAX)).into_event(),
+          Key::Char('j') => MessageExt::maybe_update(None, data.select(1)).into_event(),
+          Key::Char('k') => MessageExt::maybe_update(None, data.select(-1)).into_event(),
+          _ => Some(event),
         }
       },
-      _ => Some(event.into()),
+      _ => Some(event),
     }
   }
 

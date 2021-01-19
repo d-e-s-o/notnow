@@ -1,6 +1,7 @@
 Unreleased
 ----------
-- Bumped `gui` dependency to `0.6.0-alpha.2`
+- Reworked internal event handling logic to be `async`
+- Bumped `gui` dependency to `0.6`
 - Added `async-trait` dependency in version `0.1`
 - Added `tokio` dependency in version `0.3`
 

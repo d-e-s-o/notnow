@@ -32,15 +32,12 @@ use gui::derive::Widget;
 use gui::Handleable;
 use gui::Id;
 use gui::MutCap;
-use gui::OptionChain;
-use gui::UiEvents;
 use gui::Widget;
 
 use crate::query::Query;
 use crate::tasks::Tasks;
 
 use super::event::Event;
-use super::event::EventUpdate;
 use super::event::Key;
 use super::in_out::InOut;
 use super::message::Message;
@@ -382,26 +379,26 @@ impl Handleable<Event, Message> for TabBar {
     &self,
     cap: &mut dyn MutCap<Event, Message>,
     event: Event,
-  ) -> Option<UiEvents<Event>> {
+  ) -> Option<Event> {
     let data = self.data_mut::<TabBarData>(cap);
     match event {
       Event::Key(key, _) => {
         match key {
-          Key::Char('1') => (None as Option<Event>).maybe_update(self.set_select(cap, 0)),
-          Key::Char('2') => (None as Option<Event>).maybe_update(self.set_select(cap, 1)),
-          Key::Char('3') => (None as Option<Event>).maybe_update(self.set_select(cap, 2)),
-          Key::Char('4') => (None as Option<Event>).maybe_update(self.set_select(cap, 3)),
-          Key::Char('5') => (None as Option<Event>).maybe_update(self.set_select(cap, 4)),
-          Key::Char('6') => (None as Option<Event>).maybe_update(self.set_select(cap, 5)),
-          Key::Char('7') => (None as Option<Event>).maybe_update(self.set_select(cap, 6)),
-          Key::Char('8') => (None as Option<Event>).maybe_update(self.set_select(cap, 7)),
-          Key::Char('9') => (None as Option<Event>).maybe_update(self.set_select(cap, 8)),
-          Key::Char('0') => (None as Option<Event>).maybe_update(self.set_select(cap, isize::MAX)),
-          Key::Char('`') => (None as Option<Event>).maybe_update(self.select_previous(cap)),
-          Key::Char('h') => (None as Option<Event>).maybe_update(self.select(cap, -1)),
-          Key::Char('l') => (None as Option<Event>).maybe_update(self.select(cap, 1)),
-          Key::Char('H') => (None as Option<Event>).maybe_update(self.swap(cap, true)),
-          Key::Char('L') => (None as Option<Event>).maybe_update(self.swap(cap, false)),
+          Key::Char('1') => MessageExt::maybe_update(None, self.set_select(cap, 0)).into_event(),
+          Key::Char('2') => MessageExt::maybe_update(None, self.set_select(cap, 1)).into_event(),
+          Key::Char('3') => MessageExt::maybe_update(None, self.set_select(cap, 2)).into_event(),
+          Key::Char('4') => MessageExt::maybe_update(None, self.set_select(cap, 3)).into_event(),
+          Key::Char('5') => MessageExt::maybe_update(None, self.set_select(cap, 4)).into_event(),
+          Key::Char('6') => MessageExt::maybe_update(None, self.set_select(cap, 5)).into_event(),
+          Key::Char('7') => MessageExt::maybe_update(None, self.set_select(cap, 6)).into_event(),
+          Key::Char('8') => MessageExt::maybe_update(None, self.set_select(cap, 7)).into_event(),
+          Key::Char('9') => MessageExt::maybe_update(None, self.set_select(cap, 8)).into_event(),
+          Key::Char('0') => MessageExt::maybe_update(None, self.set_select(cap, isize::MAX)).into_event(),
+          Key::Char('`') => MessageExt::maybe_update(None, self.select_previous(cap)).into_event(),
+          Key::Char('h') => MessageExt::maybe_update(None, self.select(cap, -1)).into_event(),
+          Key::Char('l') => MessageExt::maybe_update(None, self.select(cap, 1)).into_event(),
+          Key::Char('H') => MessageExt::maybe_update(None, self.swap(cap, true)).into_event(),
+          Key::Char('L') => MessageExt::maybe_update(None, self.swap(cap, false)).into_event(),
           Key::Char('n') |
           Key::Char('N') => {
             let event = match data.search.take() {
@@ -415,26 +412,25 @@ impl Handleable<Event, Message> for TabBar {
                   .send(self.in_out, message)
                   .await
                   .into_event()
-                  .map(UiEvents::from)
               },
               Search::Taken => panic!("invalid search state"),
               Search::State(string) => {
                 let reverse = key == Key::Char('N');
                 let message = Message::SetInOut(InOut::Search(string.clone()));
-                let event1 = cap
+                let updated1 = cap
                   .send(self.in_out, message)
                   .await
-                  .into_event()
-                  .map(UiEvents::from);
+                  .map(|m| m.is_updated())
+                  .unwrap_or(false);
 
                 let search_state = SearchState::AfterCurrent;
-                let event2 = self
+                let updated2 = self
                   .search_task(cap, string, search_state, reverse)
                   .await
-                  .into_event()
-                  .map(UiEvents::from);
+                  .map(|m| m.is_updated())
+                  .unwrap_or(false);
 
-                event1.chain(event2)
+                MessageExt::maybe_update(None, updated1 || updated2).into_event()
               },
             };
             event
@@ -449,12 +445,11 @@ impl Handleable<Event, Message> for TabBar {
               .send(self.in_out, message)
               .await
               .into_event()
-              .map(UiEvents::from)
           },
-          _ => Some(event.into()),
+          _ => Some(event),
         }
       },
-      _ => Some(event.into()),
+      _ => Some(event),
     }
   }
 

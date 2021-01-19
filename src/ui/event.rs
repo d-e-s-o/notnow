@@ -17,15 +17,7 @@
 // * along with this program.  If not, see <http://www.gnu.org/licenses/>. *
 // *************************************************************************
 
-use gui::ChainEvent;
-use gui::EventChain;
 use gui::Mergeable;
-use gui::UiEvent;
-use gui::UiEvents;
-use gui::UnhandledEvent;
-use gui::UnhandledEvents;
-
-use super::message::Message;
 
 
 /// A key as used by the UI.
@@ -38,11 +30,23 @@ pub enum Event {
   /// An indication that some component changed and that we should
   /// re-render everything.
   Updated,
+  /// An indication that the application should quit.
+  Quit,
   /// A key press.
   #[cfg(not(feature = "readline"))]
   Key(Key, ()),
   #[cfg(feature = "readline")]
   Key(Key, Vec<u8>),
+}
+
+#[cfg(test)]
+impl Event {
+  pub fn is_updated(&self) -> bool {
+    match self {
+      Self::Updated => true,
+      _ => false,
+    }
+  }
 }
 
 impl From<u8> for Event {
@@ -62,217 +66,7 @@ impl Mergeable for Event {
         self, other
       ),
       (Self::Updated, Self::Updated) => self,
+      (Self::Quit, _) | (_, Self::Quit) => Self::Quit,
     }
-  }
-}
-
-
-pub trait EventUpdated {
-  /// Check whether the event has been updated.
-  fn is_updated(&self) -> bool;
-}
-
-impl EventUpdated for UiEvent<Event> {
-  fn is_updated(&self) -> bool {
-    match self {
-      UiEvent::Event(Event::Updated) => true,
-      UiEvent::Custom(data) |
-      UiEvent::Directed(_, data) |
-      UiEvent::Returnable(_, _, data) => {
-        if let Some(event) = data.downcast_ref::<Message>() {
-          event.is_updated()
-        } else {
-          false
-        }
-      },
-      _ => false,
-    }
-  }
-}
-
-impl EventUpdated for UiEvents<Event> {
-  fn is_updated(&self) -> bool {
-    match self {
-      ChainEvent::Event(event) => event.is_updated(),
-      ChainEvent::Chain(event, chain) => event.is_updated() || chain.is_updated(),
-    }
-  }
-}
-
-impl EventUpdated for UnhandledEvent<Event> {
-  fn is_updated(&self) -> bool {
-    match self {
-      UnhandledEvent::Custom(data) => {
-        if let Some(event) = data.downcast_ref::<Message>() {
-          event.is_updated()
-        } else {
-          false
-        }
-      },
-      UnhandledEvent::Event(Event::Updated) => true,
-      UnhandledEvent::Event(_) |
-      UnhandledEvent::Quit => false,
-    }
-  }
-}
-
-impl EventUpdated for UnhandledEvents<Event> {
-  fn is_updated(&self) -> bool {
-    match self {
-      ChainEvent::Event(event) => event.is_updated(),
-      ChainEvent::Chain(event, chain) => event.is_updated() || chain.is_updated(),
-    }
-  }
-}
-
-
-/// A trait to chain a `Message::Updated` event to an event.
-pub trait EventUpdate {
-  /// Chain an update event onto yourself.
-  fn update(self) -> Option<UiEvents<Event>>;
-
-  /// Potentially chain an update event onto yourself.
-  fn maybe_update(self, update: bool) -> Option<UiEvents<Event>>;
-}
-
-impl<E> EventUpdate for Option<E>
-where
-  E: Into<UiEvents<Event>>,
-{
-  fn update(self) -> Option<UiEvents<Event>> {
-    let updated = UiEvent::Custom(Box::new(Message::Updated));
-
-    Some(match self {
-      Some(event) => {
-        let event = event.into();
-        // Redrawing everything is expensive (and we do that for every
-        // `Updated` event we encounter), so make sure that we only ever
-        // have one.
-        if !event.is_updated() {
-          event.chain(updated)
-        } else {
-          event
-        }
-      },
-      None => updated.into(),
-    })
-  }
-
-  fn maybe_update(self, update: bool) -> Option<UiEvents<Event>> {
-    if update {
-      self.update()
-    } else {
-      self.map(Into::into)
-    }
-  }
-}
-
-
-#[allow(unused_results)]
-#[cfg(test)]
-pub mod tests {
-  use super::*;
-
-  use gui::ChainEvent;
-  use gui::UiEvent;
-  use gui::UnhandledEvent;
-  use gui::UnhandledEvents;
-
-
-  /// A trait for working with custom events.
-  pub trait CustomEvent {
-    /// Unwrap a custom event of type `T`.
-    fn unwrap_custom<T>(self) -> T
-    where
-      T: 'static;
-  }
-
-  impl CustomEvent for UnhandledEvent<Event> {
-    fn unwrap_custom<T>(self) -> T
-    where
-      T: 'static,
-    {
-      match self {
-        UnhandledEvent::Custom(event) => *event.downcast::<T>().unwrap(),
-        _ => panic!("Unexpected event: {:?}", self),
-      }
-    }
-  }
-
-  impl CustomEvent for UnhandledEvents<Event> {
-    fn unwrap_custom<T>(self) -> T
-    where
-      T: 'static,
-    {
-      match self {
-        ChainEvent::Event(event) => event.unwrap_custom(),
-        _ => panic!("Unexpected event: {:?}", self),
-      }
-    }
-  }
-
-
-  #[test]
-  fn update_none() {
-    let event = (None as Option<Event>).update().update();
-    match event.unwrap() {
-      ChainEvent::Event(event) => {
-        match event {
-          UiEvent::Custom(data) => {
-            let event = data.downcast::<Message>().unwrap();
-            assert!(event.is_updated())
-          },
-          _ => panic!(),
-        }
-      },
-      _ => panic!(),
-    }
-  }
-
-  #[test]
-  fn update_some_event() {
-    let event = Some(Event::from(b' ')).update().update();
-    match event.unwrap() {
-      ChainEvent::Chain(event, chain) => {
-        match event {
-          UiEvent::Event(Event::Key(key, _)) => {
-            assert_eq!(key, Key::Char(' '))
-          },
-          _ => panic!(),
-        };
-
-        match *chain {
-          ChainEvent::Event(event) => {
-            match event {
-              UiEvent::Custom(data) => {
-                let event = data.downcast::<Message>().unwrap();
-                assert!(event.is_updated())
-              },
-              _ => panic!(),
-            }
-          },
-          _ => panic!(),
-        };
-      },
-      _ => panic!(),
-    }
-  }
-
-  #[test]
-  fn unwrap_unhandled_event() {
-    let event = UnhandledEvent::Custom(Box::new(42u64));
-    let event = ChainEvent::Event(event);
-
-    assert_eq!(event.unwrap_custom::<u64>(), 42);
-  }
-
-  #[test]
-  #[should_panic(expected = "Unexpected event")]
-  fn unwrap_unhandled_event_of_wrong_type() {
-    let event = Event::from(b'x');
-    let event = UnhandledEvent::Event(event);
-    let event = ChainEvent::Event(event);
-
-    event.unwrap_custom::<u64>();
   }
 }

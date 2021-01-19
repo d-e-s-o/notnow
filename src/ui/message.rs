@@ -17,8 +17,6 @@
 // * along with this program.  If not, see <http://www.gnu.org/licenses/>. *
 // *************************************************************************
 
-use gui::UiEvent;
-
 use crate::tasks::Id as TaskId;
 #[cfg(all(test, not(feature = "readline")))]
 use crate::tasks::Task;
@@ -80,14 +78,14 @@ impl Message {
   }
 }
 
-/// A trait for converting something into an `Option<UiEvent<Event>>`.
+/// A trait for converting something into an `Option<Event>`.
 pub trait MessageExt {
   /// Potentially convert an optional `Message` into the
   /// `Message::Updated` variant.
   fn maybe_update(self, update: bool) -> Option<Message>;
 
   /// Convert an optional message into an optional event.
-  fn into_event(self) -> Option<UiEvent<Event>>;
+  fn into_event(self) -> Option<Event>;
 }
 
 impl MessageExt for Option<Message> {
@@ -105,9 +103,9 @@ impl MessageExt for Option<Message> {
     }
   }
 
-  fn into_event(self) -> Option<UiEvent<Event>> {
+  fn into_event(self) -> Option<Event> {
     match self {
-      Some(m @ Message::Updated) => Some(UiEvent::Custom(Box::new(m))),
+      Some(Message::Updated) => Some(Event::Updated),
       None => None,
       m => panic!("Message cannot be converted to event: {:?}", m),
     }

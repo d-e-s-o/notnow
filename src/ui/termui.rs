@@ -26,8 +26,6 @@ use gui::derive::Widget;
 use gui::Handleable;
 use gui::Id;
 use gui::MutCap;
-use gui::UiEvent;
-use gui::UiEvents;
 use gui::Widget;
 
 use crate::state::TaskState;
@@ -157,14 +155,16 @@ impl Handleable<Event, Message> for TermUi {
     &self,
     cap: &mut dyn MutCap<Event, Message>,
     event: Event,
-  ) -> Option<UiEvents<Event>> {
+  ) -> Option<Event> {
     match event {
       Event::Key(key, _) => match key {
-        Key::Char('q') => Some(UiEvent::Quit.into()),
-        Key::Char('w') => self.save(cap).await.into_event().map(UiEvents::from),
-        _ => Some(event.into()),
+        Key::Char('q') => Some(Event::Quit),
+        Key::Char('w') => self.save(cap).await.into_event(),
+        // All key events not handled at this point will just get
+        // swallowed.
+        _ => None,
       },
-      _ => Some(event.into()),
+      _ => Some(event),
     }
   }
 
@@ -204,8 +204,6 @@ mod tests {
 
   use gui::Cap;
   use gui::Ui;
-  use gui::UnhandledEvent;
-  use gui::UnhandledEvents;
 
   use tokio::test;
 
@@ -221,7 +219,6 @@ mod tests {
   use crate::test::make_tasks;
   use crate::test::make_tasks_with_tags;
   use crate::test::NamedTempFile;
-  use crate::ui::event::EventUpdated;
 
 
   impl From<Key> for Event {
@@ -359,10 +356,7 @@ mod tests {
 
   impl TestUi {
     /// Handle a single event and directly return the result.
-    async fn evaluate<E>(&mut self, event: E) -> Option<UnhandledEvents<Event>>
-    where
-      E: Into<UiEvent<Event>>,
-    {
+    async fn evaluate(&mut self, event: Event) -> Option<Event> {
       self.ui.handle(event).await
     }
 
@@ -370,12 +364,12 @@ mod tests {
     #[allow(unused_lifetimes)]
     async fn handle<E, I>(&mut self, events: I) -> &mut Self
     where
-      E: Into<UiEvent<Event>>,
+      E: Into<Event>,
       I: IntoIterator<Item=E>,
     {
       for event in events.into_iter() {
         if let Some(event) = self.ui.handle(event).await {
-          if let UnhandledEvent::Quit = event.into_last() {
+          if let Event::Quit = event {
             break
           }
         }
@@ -1426,7 +1420,7 @@ mod tests {
       let tasks = make_tasks(2);
       let events = vec![
         Event::from('w'),
-        key.into().into(),
+        key.into(),
       ];
 
       TestUiBuilder::with_ser_tasks(tasks)

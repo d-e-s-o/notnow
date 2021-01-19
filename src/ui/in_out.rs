@@ -29,7 +29,6 @@ use gui::derive::Widget;
 use gui::Handleable;
 use gui::Id;
 use gui::MutCap;
-use gui::UiEvents;
 use gui::Widget;
 
 #[cfg(feature = "readline")]
@@ -206,7 +205,7 @@ impl InOutArea {
             data.clear_gen = Some(data.in_out.gen);
             None
           },
-          Event::Updated => None,
+          Event::Updated | Event::Quit => None,
         }
       } else {
         // We only change our state to "Clear" if the generation number
@@ -406,7 +405,7 @@ impl Handleable<Event, Message> for InOutArea {
     &self,
     cap: &mut dyn MutCap<Event, Message>,
     event: Event,
-  ) -> Option<UiEvents<Event>> {
+  ) -> Option<Event> {
     match event {
       Event::Key(key, raw) => {
         let data = self.data::<InOutAreaData>(cap);
@@ -420,9 +419,8 @@ impl Handleable<Event, Message> for InOutArea {
           .handle_key(cap, s, idx, key, &raw)
           .await
           .into_event()
-          .map(UiEvents::from)
       },
-      _ => Some(event.into()),
+      _ => Some(event),
     }
   }
 

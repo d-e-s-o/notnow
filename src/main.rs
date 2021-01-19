@@ -114,11 +114,8 @@ use termion::screen::AlternateScreen;
 
 use tokio::runtime::Builder;
 
-use gui::ChainEvent;
 use gui::Renderer;
 use gui::Ui;
-use gui::UnhandledEvent;
-use gui::UnhandledEvents;
 
 use crate::resize::receive_window_resizes;
 use crate::state::State;
@@ -170,34 +167,12 @@ fn ui_config() -> Result<PathBuf> {
   )
 }
 
-/// Handle the given `UnhandledEvent`.
-fn handle_unhandled_event(event: UnhandledEvent<UiEvent>) -> Continue {
+/// Handle the given `UiEvent`.
+fn handle_unhandled_event(event: UiEvent) -> Continue {
   match event {
-    UnhandledEvent::Quit => None,
-    UnhandledEvent::Custom(data) => {
-      match data.downcast::<Message>() {
-        Ok(event) => {
-          match *event {
-            Message::Updated => Some(true),
-            _ => panic!("Unexpected Message variant escaped: {:?}", event),
-          }
-        },
-        Err(event) => panic!("Received unexpected custom event: {:?}", event),
-      }
-    },
-    UnhandledEvent::Event(UiEvent::Updated) => Some(true),
+    UiEvent::Quit => None,
+    UiEvent::Updated => Some(true),
     _ => Some(false),
-  }
-}
-
-/// Handle the given chain of `UnhandledEvent` objects.
-fn handle_unhandled_events(events: UnhandledEvents<UiEvent>) -> Continue {
-  match events {
-    ChainEvent::Event(event) => handle_unhandled_event(event),
-    ChainEvent::Chain(event, chain) => {
-      let _ = handle_unhandled_event(event)?;
-      handle_unhandled_events(*chain)
-    },
   }
 }
 
@@ -247,7 +222,7 @@ where
           let event = UiEvent::Key(key, raw);
 
           if let Some(event) = ui.handle(event).await {
-            match handle_unhandled_events(event) {
+            match handle_unhandled_event(event) {
               Some(update) => render = update || render,
               None => break 'handler,
             }
