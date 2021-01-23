@@ -38,10 +38,14 @@ lint:clippy:
   - cargo clippy --features=readline -- -A unknown_lints -D warnings
 
 coverage:kcov:
+  # Only executed on master because we keep artifacts around forever.
+  only:
+  - master
   stage: test
   dependencies:
     - build:cargo
   artifacts:
+    expire_in: never
     paths:
     - kcov/
   coverage: '/^Coverage+:\s(\d+(?:\.\d+)?)/'
