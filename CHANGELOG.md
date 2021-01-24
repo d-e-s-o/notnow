@@ -1,5 +1,5 @@
-Unreleased
-----------
+0.2.4
+-----
 - Reworked internal event handling logic to be `async`
 - Excluded unnecessary files from being contained in release bundle
 - Bumped `gui` dependency to `0.6`
