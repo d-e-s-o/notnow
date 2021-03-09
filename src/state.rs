@@ -1,7 +1,7 @@
 // state.rs
 
 // *************************************************************************
-// * Copyright (C) 2017-2020 Daniel Mueller (deso@posteo.net)              *
+// * Copyright (C) 2017-2021 Daniel Mueller (deso@posteo.net)              *
 // *                                                                       *
 // * This program is free software: you can redistribute it and/or modify  *
 // * it under the terms of the GNU General Public License as published by  *
@@ -316,8 +316,8 @@ pub mod tests {
       },
     ]);
     let task_state = SerTaskState {
-      templates: templates,
-      tasks: tasks,
+      templates,
+      tasks,
     };
     let task_path = PathBuf::default();
     let ui_state = Default::default();
@@ -352,10 +352,7 @@ pub mod tests {
           },
         ],
       },
-      SerTask {
-        summary: "an untagged task".to_string(),
-        tags: Default::default(),
-      },
+      SerTask::new("an untagged task"),
       SerTask {
         summary: "a tag1 task".to_string(),
         tags: vec![

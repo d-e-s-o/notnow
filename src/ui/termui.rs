@@ -1,7 +1,7 @@
 // termui.rs
 
 // *************************************************************************
-// * Copyright (C) 2017-2020 Daniel Mueller (deso@posteo.net)              *
+// * Copyright (C) 2017-2021 Daniel Mueller (deso@posteo.net)              *
 // *                                                                       *
 // * This program is free software: you can redistribute it and/or modify  *
 // * it under the terms of the GNU General Public License as published by  *
@@ -1721,14 +1721,8 @@ mod tests {
   async fn search_case_insensitive() {
     async fn test(c: char) {
       let tasks = vec![
-        SerTask {
-          summary: "First".to_string(),
-          tags: Default::default(),
-        },
-        SerTask {
-          summary: "SeCOnd".to_string(),
-          tags: Default::default(),
-        },
+        SerTask::new("First"),
+        SerTask::new("SeCOnd"),
       ];
       let events = vec![
         Event::from(c),
@@ -1748,10 +1742,7 @@ mod tests {
         .await;
 
       let expected = vec![
-        SerTask {
-          summary: "First".to_string(),
-          tags: Default::default(),
-        },
+        SerTask::new("First"),
       ];
       assert_eq!(tasks, expected);
     }
