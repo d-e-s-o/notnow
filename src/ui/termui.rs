@@ -785,6 +785,7 @@ mod tests {
       Event::from('l'),
       Event::from('l'),
       Event::from('g'),
+      Event::from('j'),
       Event::from('a'),
       Event::from('h'),
       Event::from('i'),
@@ -798,18 +799,26 @@ mod tests {
       .tasks()
       .await;
 
-    assert_eq!(tasks[15].summary, "test");
+    // We created a task on the second query, i.e., the one showing
+    // completed tasks (which is every other). So we expect the new task
+    // to show up past the second one in the list of all tests, at index
+    // 2.
+    assert_eq!(tasks[2].summary, "test");
 
-    let tags = tasks[15]
+    // Check that the 'complete' tag, which was present on the original
+    // task, has been cleared.
+    let tags = tasks[2]
       .tags()
       .map(|x| x.name())
       .collect::<Vec<_>>();
     let expected = Vec::<String>::new();
     assert_eq!(tags, expected);
 
-    assert_eq!(tasks[16].summary, "hi");
+    // The second task should have been created on the third query,
+    // which shows tasks with tag2 or tag3 present.
+    assert_eq!(tasks[11].summary, "hi");
 
-    let tags = tasks[16]
+    let tags = tasks[11]
       .tags()
       .map(|x| x.name())
       .collect::<Vec<_>>();
@@ -923,8 +932,8 @@ mod tests {
       .ser_tasks()
       .await;
 
-    let mut expected = make_tasks(4);
-    expected[3].summary = "foo".to_string();
+    let mut expected = make_tasks(3);
+    expected.insert(2, SerTask::new("foo"));
 
     assert_eq!(tasks, expected);
   }

@@ -1,7 +1,7 @@
 // task_list_box.rs
 
 // *************************************************************************
-// * Copyright (C) 2018-2020 Daniel Mueller (deso@posteo.net)              *
+// * Copyright (C) 2018-2021 Daniel Mueller (deso@posteo.net)              *
 // *                                                                       *
 // * This program is free software: you can redistribute it and/or modify  *
 // * it under the terms of the GNU General Public License as published by  *
@@ -419,6 +419,21 @@ impl Handleable<Event, Message> for TaskListBox {
                 };
 
                 let id = data.tasks.borrow_mut().add(text.clone(), tags);
+                // We want the new task to be displayed after the
+                // currently selected one.
+                if !data.query.is_empty() {
+                  let current = data.selected_task();
+                  // TODO: This movement may lead to a bit surprising
+                  //       placement for tasks that were previously
+                  //       tagged 'complete', because we move the new
+                  //       task just after this one, but given that we
+                  //       removed the tag it may end up being displayed
+                  //       on a different query altogether -- and at a
+                  //       rather random seeming location because of it.
+                  //       Eventually we may want to remove the special
+                  //       case logic for the 'complete' tag.
+                  data.tasks.borrow_mut().move_after(id, current.id());
+                }
                 self.select_task(cap, id).await
               } else {
                 None

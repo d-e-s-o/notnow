@@ -1,3 +1,9 @@
+Unreleased
+----------
+- Changed placement of newly created tasks to be after currently
+  selected one
+
+
 0.2.4
 -----
 - Reworked internal event handling logic to be `async`
