@@ -1,7 +1,7 @@
 // term_renderer.rs
 
 // *************************************************************************
-// * Copyright (C) 2018-2020 Daniel Mueller (deso@posteo.net)              *
+// * Copyright (C) 2018-2021 Daniel Mueller (deso@posteo.net)              *
 // *                                                                       *
 // * This program is free software: you can redistribute it and/or modify  *
 // * it under the terms of the GNU General Public License as published by  *
@@ -216,6 +216,18 @@ struct OffsetData {
 }
 
 
+/// Retrieve the number of tasks that fit in the given `BBox`.
+fn displayable_tasks(bbox: BBox) -> usize {
+  ((bbox.h - MAIN_MARGIN_Y) / TASK_SPACE) as usize
+}
+
+/// Retrieve the number of tabs that fit in the given `BBox`.
+fn displayable_tabs(width: u16) -> usize {
+  (width / TAB_TITLE_WIDTH) as usize
+}
+
+
+/// A renderer outputting to a terminal.
 pub struct TermRenderer<W>
 where
   W: Write,
@@ -247,16 +259,6 @@ where
     })
   }
 
-  /// Retrieve the number of tasks that fit in the given `BBox`.
-  fn displayable_tasks(&self, bbox: BBox) -> usize {
-    ((bbox.h - MAIN_MARGIN_Y) / TASK_SPACE) as usize
-  }
-
-  /// Retrieve the number of tabs that fit in the given `BBox`.
-  fn displayable_tabs(&self, width: u16) -> usize {
-    (width / TAB_TITLE_WIDTH) as usize
-  }
-
   /// Render a `TermUi`.
   fn render_term_ui(&self, _ui: &TermUi, bbox: BBox) -> Result<BBox> {
     Ok(bbox)
@@ -278,7 +280,7 @@ where
     //       the offset would need to be adjusted. Should/can this be
     //       fixed?
     let count = tab_bar.iter(cap).len();
-    let limit = self.displayable_tabs(w - 1);
+    let limit = displayable_tabs(w - 1);
     let selection = tab_bar.selection(cap);
     let offset = sanitize_offset(data.offset, selection, limit);
 
@@ -348,7 +350,7 @@ where
     let mut cursor = None;
 
     let query = task_list.query(cap);
-    let limit = self.displayable_tasks(bbox);
+    let limit = displayable_tasks(bbox);
     let selection = task_list.selection(cap);
     let offset = sanitize_offset(data.offset, selection, limit);
 
