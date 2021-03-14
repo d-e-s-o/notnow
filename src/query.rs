@@ -303,6 +303,7 @@ impl Query {
   }
 
   /// Check whether the query is empty or not.
+  #[cfg(test)]
   pub fn is_empty(&self) -> bool {
     self.iter().next().is_none()
   }

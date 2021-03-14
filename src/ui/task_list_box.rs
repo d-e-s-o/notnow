@@ -100,17 +100,10 @@ impl TaskListBoxData {
     self.set_select(new_selection)
   }
 
-  /// Retrieve a copy of the selected task.
-  ///
-  /// This method must only be called if tasks are available.
-  fn selected_task(&self) -> Task {
-    debug_assert!(!self.query.is_empty());
-
+  /// Retrieve a copy of the selected task, if any.
+  fn selected_task(&self) -> Option<Task> {
     let selection = self.selection(0);
-    // We maintain the invariant that the selection is always valid,
-    // which means that we should always expect a task to be found.
-    let task = self.query.iter().clone().cloned().nth(selection).unwrap();
-    task
+    self.query.iter().clone().cloned().nth(selection)
   }
 }
 
@@ -302,8 +295,7 @@ impl Handleable<Event, Message> for TaskListBox {
       Event::Key(key, _) => {
         match key {
           Key::Char(' ') => {
-            if !data.query.is_empty() {
-              let mut task = data.selected_task();
+            if let Some(mut task) = data.selected_task() {
               let id = task.id();
               task.toggle_complete();
               data.tasks.borrow_mut().update(task);
@@ -322,17 +314,15 @@ impl Handleable<Event, Message> for TaskListBox {
             cap.send(self.in_out, message).await.into_event()
           },
           Key::Char('d') => {
-            if !data.query.is_empty() {
-              let id = data.selected_task().id();
-              data.tasks.borrow_mut().remove(id);
+            if let Some(task) = data.selected_task() {
+              data.tasks.borrow_mut().remove(task.id());
               MessageExt::maybe_update(None, true).into_event()
             } else {
               None
             }
           },
           Key::Char('e') => {
-            if !data.query.is_empty() {
-              let task = data.selected_task();
+            if let Some(task) = data.selected_task() {
               let string = task.summary.clone();
               let idx = string.len();
               data.state = Some(State::Edit(task));
@@ -344,8 +334,7 @@ impl Handleable<Event, Message> for TaskListBox {
             }
           },
           Key::Char('J') => {
-            if !data.query.is_empty() {
-              let to_move = data.selected_task();
+            if let Some(to_move) = data.selected_task() {
               let other = data.query.iter().nth(data.selection(1));
               if let Some(other) = other {
                 data.tasks.borrow_mut().move_after(to_move.id(), other.id());
@@ -358,12 +347,15 @@ impl Handleable<Event, Message> for TaskListBox {
             }
           },
           Key::Char('K') => {
-            if !data.query.is_empty() && data.selection(0) > 0 {
-              let to_move = data.selected_task();
-              let other = data.query.iter().nth(data.selection(-1));
-              if let Some(other) = other {
-                data.tasks.borrow_mut().move_before(to_move.id(), other.id());
-                MessageExt::maybe_update(None, data.select(-1)).into_event()
+            if let Some(to_move) = data.selected_task() {
+              if data.selection(0) > 0 {
+                let other = data.query.iter().nth(data.selection(-1));
+                if let Some(other) = other {
+                  data.tasks.borrow_mut().move_before(to_move.id(), other.id());
+                  MessageExt::maybe_update(None, data.select(-1)).into_event()
+                } else {
+                  None
+                }
               } else {
                 None
               }
@@ -391,8 +383,7 @@ impl Handleable<Event, Message> for TaskListBox {
           match state {
             State::Add => {
               if !text.is_empty() {
-                let tags = if !data.query.is_empty() {
-                  let mut task = data.selected_task();
+                let tags = if let Some(mut task) = data.selected_task() {
                   if task.is_complete() {
                     task.toggle_complete()
                   }
@@ -405,8 +396,7 @@ impl Handleable<Event, Message> for TaskListBox {
                 let id = data.tasks.borrow_mut().add(text.clone(), tags);
                 // We want the new task to be displayed after the
                 // currently selected one.
-                if !data.query.is_empty() {
-                  let current = data.selected_task();
+                if let Some(current) = data.selected_task() {
                   // TODO: This movement may lead to a bit surprising
                   //       placement for tasks that were previously
                   //       tagged 'complete', because we move the new
