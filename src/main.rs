@@ -42,7 +42,6 @@
   unused_import_braces,
   unused_lifetimes,
   unused_qualifications,
-  unused_results,
   where_clauses_object_safety,
   while_true,
 )]
@@ -162,7 +161,7 @@ fn handle_unhandled_event(event: UiEvent) -> Continue {
 
 /// Instantiate a key receiver thread and have it send key events through the given channel.
 fn receive_keys(send_event: Sender<Result<Event>>) {
-  let _ = thread::spawn(move || {
+  thread::spawn(move || {
     let events = stdin().events_and_raw();
     for event in events {
       let result = match event {
@@ -196,14 +195,14 @@ where
     let event = recv_event.recv().unwrap();
     for event in Some(event).into_iter().chain(recv_event.try_iter()) {
       match event? {
-        Event::Key(key, raw) => {
+        Event::Key(key, _raw) => {
           // Attempt to convert the key. If we fail the reason could be that
           // the key is not supported. We just ignore the failure. The UI
           // could not possibly react to it anyway.
           #[cfg(not(feature = "readline"))]
-          let event = { let _ = raw; UiEvent::Key(key, ()) };
+          let event = UiEvent::Key(key, ());
           #[cfg(feature = "readline")]
-          let event = UiEvent::Key(key, raw);
+          let event = UiEvent::Key(key, _raw);
 
           if let Some(event) = ui.handle(event).await {
             match handle_unhandled_event(event) {

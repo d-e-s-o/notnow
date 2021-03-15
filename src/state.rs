@@ -237,11 +237,11 @@ pub mod tests {
     let base = temp_dir().join("dir1");
     let path = base.join("dir2").join("file");
 
-    let _ = save_state(&path, 42).unwrap();
+    save_state(&path, 42).unwrap();
     let mut file = File::open(path).unwrap();
     let mut content = Vec::new();
-    let _ = file.read_to_end(&mut content).unwrap();
-    let _ = remove_dir_all(&base).unwrap();
+    file.read_to_end(&mut content).unwrap();
+    remove_dir_all(&base).unwrap();
 
     assert_eq!(content, b"42")
   }

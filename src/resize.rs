@@ -86,7 +86,7 @@ pub fn receive_window_resizes(send_event: Sender<Result<Event>>) -> Result<()> {
   }
   let read_fd = fds[0];
 
-  let _ = thread::spawn(move || {
+  thread::spawn(move || {
     loop {
       let mut buffer = [0];
       let result = unsafe { read(read_fd, buffer.as_mut_ptr() as *mut c_void, 1) };

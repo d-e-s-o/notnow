@@ -459,7 +459,7 @@ impl Handleable<Event, Message> for TabBar {
           .copied()
           .collect::<Vec<_>>();
         for tab in tabs {
-          let _ = cap.call(tab, &mut message).await;
+          cap.call(tab, &mut message).await;
         }
 
         let tab_state = if let Message::GetTabState(tab_state) = message {
@@ -485,7 +485,7 @@ impl Handleable<Event, Message> for TabBar {
           .collect::<Vec<_>>();
 
         for (idx, tab) in tabs {
-          let _ = cap.call(tab, &mut message).await;
+          cap.call(tab, &mut message).await;
           if let Message::SelectTask(_, done) = message {
             if done {
               let update = self.set_select(cap, idx as isize);

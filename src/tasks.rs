@@ -63,7 +63,7 @@ impl Task {
         let error = format!("Encountered invalid tag Id {}", tag.id);
         Error::new(ErrorKind::InvalidInput, error)
       })?;
-      let _ = tags.insert(*id, templates.instantiate(*id));
+      tags.insert(*id, templates.instantiate(*id));
     }
 
     Ok(Self {
@@ -99,7 +99,7 @@ impl Task {
     // was not present).
     if self.tags.remove(&id).is_none() {
       let tag = self.templates.instantiate(id);
-      let _ = self.tags.insert(id, tag);
+      self.tags.insert(id, tag);
     }
   }
 }
@@ -181,7 +181,7 @@ impl Tasks {
 
   /// Remove a task.
   pub fn remove(&mut self, id: Id) {
-    let _ = self
+    self
       .tasks
       .iter()
       .position(|x| x.id() == id)
@@ -191,7 +191,7 @@ impl Tasks {
 
   /// Update a task.
   pub fn update(&mut self, task: Task) {
-    let _ = self
+    self
       .tasks
       .iter_mut()
       .position(|x| x.id() == task.id())
