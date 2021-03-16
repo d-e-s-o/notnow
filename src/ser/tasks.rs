@@ -59,14 +59,7 @@ mod tests {
 
   #[test]
   fn serialize_deserialize_task() {
-    let tags = vec![
-      Tag {
-        id: TagId::new(2),
-      },
-      Tag {
-        id: TagId::new(4),
-      },
-    ];
+    let tags = vec![Tag { id: TagId::new(2) }, Tag { id: TagId::new(4) }];
     let task = Task {
       summary: "this is a task".to_string(),
       tags: tags,
@@ -86,20 +79,11 @@ mod tests {
           Tag {
             id: TagId::new(10000),
           },
-          Tag {
-            id: TagId::new(5),
-          },
+          Tag { id: TagId::new(5) },
         ],
       },
       Task {
-        tags: vec![
-          Tag {
-            id: TagId::new(5),
-          },
-          Tag {
-            id: TagId::new(6),
-          },
-        ],
+        tags: vec![Tag { id: TagId::new(5) }, Tag { id: TagId::new(6) }],
         summary: "task 2".to_string(),
       },
     ];

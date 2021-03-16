@@ -43,7 +43,7 @@
   unused_lifetimes,
   unused_qualifications,
   where_clauses_object_safety,
-  while_true,
+  while_true
 )]
 #![allow(
   unreachable_pub,
@@ -51,7 +51,7 @@
   clippy::let_and_return,
   clippy::let_unit_value,
   clippy::new_ret_no_self,
-  clippy::redundant_field_names,
+  clippy::redundant_field_names
 )]
 
 //! A terminal based task management application.
@@ -71,11 +71,11 @@ mod ui;
 
 use std::env::args_os;
 use std::fs::OpenOptions;
+use std::io::stdin;
+use std::io::stdout;
 use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Result;
-use std::io::stdin;
-use std::io::stdout;
 use std::io::Write;
 use std::path::PathBuf;
 use std::process::exit;
@@ -130,9 +130,7 @@ pub enum Event {
 fn task_config() -> Result<PathBuf> {
   Ok(
     config_dir()
-      .ok_or_else(|| Error::new(
-        ErrorKind::NotFound, "Unable to determine config directory"
-      ))?
+      .ok_or_else(|| Error::new(ErrorKind::NotFound, "Unable to determine config directory"))?
       .join("notnow")
       .join("tasks.json"),
   )
@@ -142,9 +140,7 @@ fn task_config() -> Result<PathBuf> {
 fn ui_config() -> Result<PathBuf> {
   Ok(
     config_dir()
-      .ok_or_else(|| Error::new(
-        ErrorKind::NotFound, "Unable to determine config directory"
-      ))?
+      .ok_or_else(|| Error::new(ErrorKind::NotFound, "Unable to determine config directory"))?
       .join("notnow")
       .join("notnow.json"),
   )
@@ -167,7 +163,7 @@ fn receive_keys(send_event: Sender<Result<Event>>) {
       let result = match event {
         Ok((TermEvent::Key(key), data)) => Ok(Event::Key(key, data)),
         Ok(..) => continue,
-        Err(err) => Err(err)
+        Err(err) => Err(err),
       };
       send_event.send(result).unwrap();
     }
@@ -255,7 +251,8 @@ where
 
 /// Parse the arguments and run the program.
 fn run_with_args() -> Result<()> {
-  #[cfg(feature = "coredump")] {
+  #[cfg(feature = "coredump")]
+  {
     register_panic_handler()
       .map_err(|(ctx, err)| Error::new(ErrorKind::Other, format!("{}: {}", ctx, err)))?;
   }
@@ -268,7 +265,10 @@ fn run_with_args() -> Result<()> {
       let file = OpenOptions::new().read(false).write(true).open(path)?;
       run_prog(file)
     },
-    _ => Err(Error::new(ErrorKind::InvalidInput, "unsupported number of arguments")),
+    _ => Err(Error::new(
+      ErrorKind::InvalidInput,
+      "unsupported number of arguments",
+    )),
   }
 }
 

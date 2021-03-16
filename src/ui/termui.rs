@@ -121,7 +121,9 @@ impl TermUi {
     };
 
     let data = self.data::<TermUiData>(cap);
-    let TabState{queries, selected, ..} = state;
+    let TabState {
+      queries, selected, ..
+    } = state;
     let ui_state = UiState {
       path: data.ui_state_path.clone(),
       queries,
@@ -135,11 +137,7 @@ impl TermUi {
 #[async_trait(?Send)]
 impl Handleable<Event, Message> for TermUi {
   /// Check for new input and react to it.
-  async fn handle(
-    &self,
-    cap: &mut dyn MutCap<Event, Message>,
-    event: Event,
-  ) -> Option<Event> {
+  async fn handle(&self, cap: &mut dyn MutCap<Event, Message>, event: Event) -> Option<Event> {
     match event {
       Event::Key(key, _) => match key {
         Key::Char('q') => Some(Event::Quit),
@@ -229,30 +227,34 @@ mod tests {
     };
     let ui_state = SerUiState {
       queries: vec![
-        (SerQuery {
-          name: "all".to_string(),
-          lits: vec![],
-        }, None),
-        (SerQuery {
-          name: "tag complete".to_string(),
-          lits: vec![vec![SerTagLit::Pos(tags[0])]],
-        }, None),
-        (SerQuery {
-          name: "tag2 || tag3".to_string(),
-          lits: vec![
-            vec![
-              SerTagLit::Pos(tags[2]),
-              SerTagLit::Pos(tags[3]),
-            ],
-          ],
-        }, None),
-        (SerQuery {
-          name: "tag1 && tag3".to_string(),
-          lits: vec![
-            vec![SerTagLit::Pos(tags[1])],
-            vec![SerTagLit::Pos(tags[3])],
-          ],
-        }, None),
+        (
+          SerQuery {
+            name: "all".to_string(),
+            lits: vec![],
+          },
+          None,
+        ),
+        (
+          SerQuery {
+            name: "tag complete".to_string(),
+            lits: vec![vec![SerTagLit::Pos(tags[0])]],
+          },
+          None,
+        ),
+        (
+          SerQuery {
+            name: "tag2 || tag3".to_string(),
+            lits: vec![vec![SerTagLit::Pos(tags[2]), SerTagLit::Pos(tags[3])]],
+          },
+          None,
+        ),
+        (
+          SerQuery {
+            name: "tag1 && tag3".to_string(),
+            lits: vec![vec![SerTagLit::Pos(tags[1])], vec![SerTagLit::Pos(tags[3])]],
+          },
+          None,
+        ),
       ],
       selected: None,
       colors: Default::default(),
@@ -282,7 +284,10 @@ mod tests {
     where
       T: AsRef<[SerTask]> + Into<Vec<SerTask>>,
     {
-      tasks.as_ref().iter().for_each(|x| assert!(x.tags.is_empty()));
+      tasks
+        .as_ref()
+        .iter()
+        .for_each(|x| assert!(x.tags.is_empty()));
 
       Self {
         task_state: SerTaskState {
@@ -349,7 +354,7 @@ mod tests {
     async fn handle<E, I>(&mut self, events: I) -> &mut Self
     where
       E: Into<Event>,
-      I: IntoIterator<Item=E>,
+      I: IntoIterator<Item = E>,
     {
       for event in events.into_iter() {
         if let Some(event) = self.ui.handle(event).await {
@@ -378,7 +383,11 @@ mod tests {
       let resp = self.ui.send(root, Message::CollectState).await.unwrap();
 
       if let Message::CollectedState(tab_state) = resp {
-        tab_state.queries.into_iter().map(|(query, _)| query.name().to_string()).collect()
+        tab_state
+          .queries
+          .into_iter()
+          .map(|(query, _)| query.name().to_string())
+          .collect()
       } else {
         panic!("Unexpected response: {:?}", resp)
       }
@@ -428,9 +437,7 @@ mod tests {
 
   #[test]
   async fn remove_no_task() {
-    let events = vec![
-      Event::from('d'),
-    ];
+    let events = vec![Event::from('d')];
 
     let tasks = TestUiBuilder::new()
       .build()
@@ -445,9 +452,7 @@ mod tests {
   #[test]
   async fn remove_only_task() {
     let tasks = make_tasks(1);
-    let events = vec![
-      Event::from('d'),
-    ];
+    let events = vec![Event::from('d')];
 
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
@@ -530,11 +535,7 @@ mod tests {
   #[test]
   async fn remove_second_to_last_task() {
     let tasks = make_tasks(5);
-    let events = vec![
-      Event::from('G'),
-      Event::from('k'),
-      Event::from('d'),
-    ];
+    let events = vec![Event::from('G'), Event::from('k'), Event::from('d')];
 
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
@@ -741,10 +742,7 @@ mod tests {
   #[test]
   async fn add_empty_task() {
     let tasks = make_tasks(1);
-    let events = vec![
-      Event::from('a'),
-      Event::from('\n'),
-    ];
+    let events = vec![Event::from('a'), Event::from('\n')];
 
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
@@ -791,10 +789,7 @@ mod tests {
 
     // Check that the 'complete' tag, which was present on the original
     // task, has been cleared.
-    let tags = tasks[2]
-      .tags()
-      .map(|x| x.name())
-      .collect::<Vec<_>>();
+    let tags = tasks[2].tags().map(|x| x.name()).collect::<Vec<_>>();
     let expected = Vec::<String>::new();
     assert_eq!(tags, expected);
 
@@ -802,10 +797,7 @@ mod tests {
     // which shows tasks with tag2 or tag3 present.
     assert_eq!(tasks[11].summary, "hi");
 
-    let tags = tasks[11]
-      .tags()
-      .map(|x| x.name())
-      .collect::<Vec<_>>();
+    let tags = tasks[11].tags().map(|x| x.name()).collect::<Vec<_>>();
     let expected = vec!["tag2"];
     assert_eq!(tags, expected);
   }
@@ -832,15 +824,8 @@ mod tests {
 
     assert_eq!(tasks[15].summary, "foo");
 
-    let tags = tasks[15]
-      .tags()
-      .map(|x| x.name())
-      .collect::<Vec<_>>();
-    let expected = vec![
-      "tag1".to_string(),
-      "tag2".to_string(),
-      "tag3".to_string(),
-    ];
+    let tags = tasks[15].tags().map(|x| x.name()).collect::<Vec<_>>();
+    let expected = vec!["tag1".to_string(), "tag2".to_string(), "tag3".to_string()];
     assert_eq!(tags, expected);
   }
 
@@ -1092,9 +1077,7 @@ mod tests {
   async fn move_no_or_one_task_up_or_down() {
     async fn test_tasks(count: usize, key: char) {
       let tasks = make_tasks(count);
-      let events = vec![
-        Event::from(key),
-      ];
+      let events = vec![Event::from(key)];
 
       let tasks = TestUiBuilder::with_ser_tasks(tasks)
         .build()
@@ -1115,9 +1098,7 @@ mod tests {
   #[test]
   async fn move_task_down() {
     let tasks = make_tasks(3);
-    let events = vec![
-      Event::from('J'),
-    ];
+    let events = vec![Event::from('J')];
 
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
@@ -1135,10 +1116,7 @@ mod tests {
   #[test]
   async fn move_task_up() {
     let tasks = make_tasks(3);
-    let events = vec![
-      Event::from('G'),
-      Event::from('K'),
-    ];
+    let events = vec![Event::from('G'), Event::from('K')];
 
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
@@ -1156,10 +1134,7 @@ mod tests {
   #[test]
   async fn move_second_task_down() {
     let tasks = make_tasks(4);
-    let events = vec![
-      Event::from('j'),
-      Event::from('J'),
-    ];
+    let events = vec![Event::from('j'), Event::from('J')];
 
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
@@ -1177,10 +1152,7 @@ mod tests {
   #[test]
   async fn move_second_task_up() {
     let tasks = make_tasks(4);
-    let events = vec![
-      Event::from('j'),
-      Event::from('K'),
-    ];
+    let events = vec![Event::from('j'), Event::from('K')];
 
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
@@ -1246,10 +1218,7 @@ mod tests {
 
     let (.., mut expected) = make_tasks_with_tags(15);
     expected[14].summary = "15a".to_string();
-    let expected = expected
-      .into_iter()
-      .map(|x| x.summary)
-      .collect::<Vec<_>>();
+    let expected = expected.into_iter().map(|x| x.summary).collect::<Vec<_>>();
 
     assert_eq!(tasks, expected);
   }
@@ -1286,21 +1255,14 @@ mod tests {
     expected[1].summary = "2a".to_string();
     expected[3].summary = "4a".to_string();
     expected[14].summary = "15a".to_string();
-    let expected = expected
-      .into_iter()
-      .map(|x| x.summary)
-      .collect::<Vec<_>>();
+    let expected = expected.into_iter().map(|x| x.summary).collect::<Vec<_>>();
 
     assert_eq!(tasks, expected);
   }
 
   #[test]
   async fn select_last_tab_plus_one() {
-    let events = vec![
-      Event::from('0'),
-      Event::from('l'),
-      Event::from('d'),
-    ];
+    let events = vec![Event::from('0'), Event::from('l'), Event::from('d')];
 
     let tasks = TestUiBuilder::with_default_tasks_and_tags()
       .build()
@@ -1314,88 +1276,47 @@ mod tests {
 
     let (.., mut expected) = make_tasks_with_tags(15);
     expected.remove(14);
-    let expected = expected
-      .into_iter()
-      .map(|x| x.summary)
-      .collect::<Vec<_>>();
+    let expected = expected.into_iter().map(|x| x.summary).collect::<Vec<_>>();
 
     assert_eq!(tasks, expected);
   }
 
   #[test]
   async fn move_tab_left() {
-    let events = vec![
-      Event::from('2'),
-      Event::from('H'),
-    ];
+    let events = vec![Event::from('2'), Event::from('H')];
 
     let mut ui = TestUiBuilder::with_default_tasks_and_tags().build();
-    let queries = ui
-      .handle(events)
-      .await
-      .queries()
-      .await;
+    let queries = ui.handle(events).await.queries().await;
 
-    let expected = vec![
-      "tag complete",
-      "all",
-      "tag2 || tag3",
-      "tag1 && tag3",
-    ];
+    let expected = vec!["tag complete", "all", "tag2 || tag3", "tag1 && tag3"];
     assert_eq!(queries, expected);
 
     // Try moving the tab once more but since we are already all the way
     // to the left nothing should change.
-    let events = vec![
-      Event::from('H'),
-    ];
-    let queries = ui
-      .handle(events)
-      .await
-      .queries()
-      .await;
+    let events = vec![Event::from('H')];
+    let queries = ui.handle(events).await.queries().await;
     assert_eq!(queries, expected);
   }
 
   #[test]
   async fn move_tab_right() {
-    let events = vec![
-      Event::from('3'),
-      Event::from('L'),
-    ];
+    let events = vec![Event::from('3'), Event::from('L')];
 
     let mut ui = TestUiBuilder::with_default_tasks_and_tags().build();
-    let queries = ui
-      .handle(events)
-      .await
-      .queries()
-      .await;
+    let queries = ui.handle(events).await.queries().await;
 
-    let expected = vec![
-      "all",
-      "tag complete",
-      "tag1 && tag3",
-      "tag2 || tag3",
-    ];
+    let expected = vec!["all", "tag complete", "tag1 && tag3", "tag2 || tag3"];
     assert_eq!(queries, expected);
 
-    let events = vec![
-      Event::from('L'),
-    ];
-    let queries = ui
-      .handle(events)
-      .await
-      .queries()
-      .await;
+    let events = vec![Event::from('L')];
+    let queries = ui.handle(events).await.queries().await;
     assert_eq!(queries, expected);
   }
 
   #[test]
   async fn in_out_state_after_write() {
     let tasks = make_tasks(2);
-    let events = vec![
-      Event::from('w'),
-    ];
+    let events = vec![Event::from('w')];
 
     let state = TestUiBuilder::with_ser_tasks(tasks)
       .build()
@@ -1411,10 +1332,7 @@ mod tests {
   async fn in_out_state_after_write_and_key_press() {
     async fn with_key(key: impl Into<Event>) -> InOut {
       let tasks = make_tasks(2);
-      let events = vec![
-        Event::from('w'),
-        key.into(),
-      ];
+      let events = vec![Event::from('w'), key.into()];
 
       TestUiBuilder::with_ser_tasks(tasks)
         .build()
@@ -1455,10 +1373,7 @@ mod tests {
   async fn in_out_state_on_edit() {
     async fn with_key(key: impl Into<Event>) -> InOut {
       let tasks = make_tasks(4);
-      let events = vec![
-        Event::from('a'),
-        key.into().into(),
-      ];
+      let events = vec![Event::from('a'), key.into().into()];
 
       TestUiBuilder::with_ser_tasks(tasks)
         .build()
@@ -1487,11 +1402,7 @@ mod tests {
   #[test]
   async fn search_empty_tab() {
     async fn test(c: char) {
-      let events = vec![
-        Event::from(c),
-        Event::from('f'),
-        Event::from('\n'),
-      ];
+      let events = vec![Event::from(c), Event::from('f'), Event::from('\n')];
 
       let state = TestUiBuilder::with_ser_tasks(Vec::new())
         .build()
@@ -1512,11 +1423,7 @@ mod tests {
   async fn search_single_task() {
     async fn test(c: char) {
       let tasks = make_tasks(1);
-      let events = vec![
-        Event::from(c),
-        Event::from('1'),
-        Event::from('\n'),
-      ];
+      let events = vec![Event::from(c), Event::from('1'), Event::from('\n')];
 
       let state = TestUiBuilder::with_ser_tasks(tasks)
         .build()
@@ -1537,11 +1444,7 @@ mod tests {
   async fn search_abort() {
     async fn test(c: char) {
       let tasks = make_tasks(4);
-      let events = vec![
-        Event::from(c),
-        Event::from('f'),
-        Event::from(Key::Esc),
-      ];
+      let events = vec![Event::from(c), Event::from('f'), Event::from(Key::Esc)];
 
       let state = TestUiBuilder::with_ser_tasks(tasks)
         .build()
@@ -1614,11 +1517,7 @@ mod tests {
   async fn search_continue_without_start() {
     async fn test(c: char) {
       let tasks = make_tasks(4);
-      let events = vec![
-        Event::from(c),
-        Event::from(c),
-        Event::from(c),
-      ];
+      let events = vec![Event::from(c), Event::from(c), Event::from(c)];
 
       let state = TestUiBuilder::with_ser_tasks(tasks)
         .build()
@@ -1713,10 +1612,7 @@ mod tests {
   #[test]
   async fn search_case_insensitive() {
     async fn test(c: char) {
-      let tasks = vec![
-        SerTask::new("First"),
-        SerTask::new("SeCOnd"),
-      ];
+      let tasks = vec![SerTask::new("First"), SerTask::new("SeCOnd")];
       let events = vec![
         Event::from(c),
         Event::from('c'),
@@ -1734,9 +1630,7 @@ mod tests {
         .ser_tasks()
         .await;
 
-      let expected = vec![
-        SerTask::new("First"),
-      ];
+      let expected = vec![SerTask::new("First")];
       assert_eq!(tasks, expected);
     }
 
@@ -1944,9 +1838,7 @@ mod tests {
   #[test]
   async fn save_ui_state_single_tab() {
     let tasks = make_tasks(1);
-    let events = vec![
-      Event::from('w'),
-    ];
+    let events = vec![Event::from('w')];
     let state = TestUiBuilder::with_ser_tasks(tasks)
       .build()
       .handle(events)
@@ -1957,12 +1849,13 @@ mod tests {
       .to_serde();
 
     let expected = SerUiState {
-      queries: vec![
-        (SerQuery {
+      queries: vec![(
+        SerQuery {
           name: "all".to_string(),
           lits: vec![],
-        }, Some(0)),
-      ],
+        },
+        Some(0),
+      )],
       selected: Some(0),
       colors: Default::default(),
     };
@@ -1972,11 +1865,7 @@ mod tests {
   #[test]
   async fn save_ui_state_single_tab_different_task() {
     let tasks = make_tasks(5);
-    let events = vec![
-      Event::from('j'),
-      Event::from('j'),
-      Event::from('w'),
-    ];
+    let events = vec![Event::from('j'), Event::from('j'), Event::from('w')];
     let state = TestUiBuilder::with_ser_tasks(tasks)
       .build()
       .handle(events)
@@ -1987,12 +1876,13 @@ mod tests {
       .to_serde();
 
     let expected = SerUiState {
-      queries: vec![
-        (SerQuery {
+      queries: vec![(
+        SerQuery {
           name: "all".to_string(),
           lits: vec![],
-        }, Some(2)),
-      ],
+        },
+        Some(2),
+      )],
       selected: Some(0),
       colors: Default::default(),
     };
@@ -2001,9 +1891,7 @@ mod tests {
 
   #[test]
   async fn save_ui_state_multiple_tabs() {
-    let events = vec![
-      Event::from('w'),
-    ];
+    let events = vec![Event::from('w')];
     let state = TestUiBuilder::with_default_tasks_and_tags()
       .build()
       .handle(events)

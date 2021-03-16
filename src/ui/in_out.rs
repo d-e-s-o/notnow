@@ -8,8 +8,8 @@ use std::pin::Pin;
 
 use async_trait::async_trait;
 
-use gui::Cap;
 use gui::derive::Widget;
+use gui::Cap;
 use gui::Handleable;
 use gui::Id;
 use gui::MutCap;
@@ -248,9 +248,12 @@ impl InOutArea {
   ) -> Option<Message> {
     let data = self.data_mut::<InOutAreaData>(cap);
     match key {
-      Key::Esc |
-      Key::Char('\n') => {
-        let string = if key == Key::Char('\n') { Some(s) } else { None };
+      Key::Esc | Key::Char('\n') => {
+        let string = if key == Key::Char('\n') {
+          Some(s)
+        } else {
+          None
+        };
         self.finish_input(cap, string).await
       },
       // We cannot easily handle multi byte Unicode graphemes with
@@ -385,11 +388,7 @@ impl InOutArea {
 #[async_trait(?Send)]
 impl Handleable<Event, Message> for InOutArea {
   /// Handle an event.
-  async fn handle(
-    &self,
-    cap: &mut dyn MutCap<Event, Message>,
-    event: Event,
-  ) -> Option<Event> {
+  async fn handle(&self, cap: &mut dyn MutCap<Event, Message>, event: Event) -> Option<Event> {
     match event {
       Event::Key(key, raw) => {
         let data = self.data::<InOutAreaData>(cap);
@@ -399,10 +398,7 @@ impl Handleable<Event, Message> for InOutArea {
           panic!("In/out area not used for input.");
         };
 
-        self
-          .handle_key(cap, s, idx, key, &raw)
-          .await
-          .into_event()
+        self.handle_key(cap, s, idx, key, &raw).await.into_event()
       },
       _ => Some(event),
     }

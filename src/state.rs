@@ -164,8 +164,12 @@ impl State {
   }
 
   /// Create a new `State` object from a serializable one.
-  pub fn with_serde<P>(task_state: SerTaskState, task_path: P,
-                       ui_state: SerUiState, ui_path: P) -> Result<Self>
+  pub fn with_serde<P>(
+    task_state: SerTaskState,
+    task_path: P,
+    ui_state: SerUiState,
+    ui_path: P,
+  ) -> Result<Self>
   where
     P: Into<PathBuf>,
   {
@@ -205,8 +209,8 @@ pub mod tests {
   use super::*;
 
   use std::env::temp_dir;
-  use std::fs::File;
   use std::fs::remove_dir_all;
+  use std::fs::File;
   use std::io::Read;
 
   use crate::ser::tags::Id as SerId;
@@ -289,20 +293,11 @@ pub mod tests {
   #[test]
   fn load_state_with_invalid_tag() {
     let templates = SerTemplates(Default::default());
-    let tasks = SerTasks(vec![
-      SerTask {
-        summary: "a task!".to_string(),
-        tags: vec![
-          SerTag {
-            id: SerId::new(42),
-          },
-        ],
-      },
-    ]);
-    let task_state = SerTaskState {
-      templates,
-      tasks,
-    };
+    let tasks = SerTasks(vec![SerTask {
+      summary: "a task!".to_string(),
+      tags: vec![SerTag { id: SerId::new(42) }],
+    }]);
+    let task_state = SerTaskState { templates, tasks };
     let task_path = PathBuf::default();
     let ui_state = Default::default();
     let ui_path = PathBuf::default();
@@ -330,37 +325,19 @@ pub mod tests {
     let tasks = SerTasks(vec![
       SerTask {
         summary: "a task!".to_string(),
-        tags: vec![
-          SerTag {
-            id: id_tag2,
-          },
-        ],
+        tags: vec![SerTag { id: id_tag2 }],
       },
       SerTask::new("an untagged task"),
       SerTask {
         summary: "a tag1 task".to_string(),
-        tags: vec![
-          SerTag {
-            id: id_tag1,
-          },
-        ],
+        tags: vec![SerTag { id: id_tag1 }],
       },
       SerTask {
         summary: "a doubly tagged task".to_string(),
-        tags: vec![
-          SerTag {
-            id: id_tag2,
-          },
-          SerTag {
-            id: id_tag1,
-          },
-        ],
+        tags: vec![SerTag { id: id_tag2 }, SerTag { id: id_tag1 }],
       },
     ]);
-    let task_state = SerTaskState {
-      templates,
-      tasks,
-    };
+    let task_state = SerTaskState { templates, tasks };
     let task_path = PathBuf::default();
 
     let ui_state = Default::default();

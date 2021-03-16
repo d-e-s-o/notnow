@@ -36,9 +36,13 @@ impl Event {
 impl From<u8> for Event {
   fn from(b: u8) -> Self {
     #[cfg(not(feature = "readline"))]
-    { Event::Key(Key::Char(char::from(b)), ()) }
+    {
+      Event::Key(Key::Char(char::from(b)), ())
+    }
     #[cfg(feature = "readline")]
-    { Event::Key(Key::Char(char::from(b)), vec![b]) }
+    {
+      Event::Key(Key::Char(char::from(b)), vec![b])
+    }
   }
 }
 

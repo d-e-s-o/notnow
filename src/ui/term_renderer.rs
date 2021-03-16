@@ -173,7 +173,13 @@ where
 
   /// Clear the terminal content.
   fn clear_all(&self) -> Result<()> {
-    write!(self.writer.borrow_mut(), "{}{}{}", Fg(Reset), Bg(Reset), All)
+    write!(
+      self.writer.borrow_mut(),
+      "{}{}{}",
+      Fg(Reset),
+      Bg(Reset),
+      All
+    )
   }
 
   /// Flush everything written so far.
@@ -292,7 +298,10 @@ where
       let (fg, bg) = if i == selection {
         (self.colors.selected_query_fg, self.colors.selected_query_bg)
       } else {
-        (self.colors.unselected_query_fg, self.colors.unselected_query_bg)
+        (
+          self.colors.unselected_query_fg,
+          self.colors.unselected_query_bg,
+        )
       };
 
       let title = align_center(tab.clone(), TAB_TITLE_WIDTH as usize - 4);
@@ -341,7 +350,11 @@ where
     for (i, task) in query.iter().clone().enumerate().skip(offset).take(limit) {
       let complete = task.is_complete();
       let (state, state_fg, state_bg) = if !complete {
-        ("[ ]", self.colors.task_not_started_fg, self.colors.task_not_started_bg)
+        (
+          "[ ]",
+          self.colors.task_not_started_fg,
+          self.colors.task_not_started_bg,
+        )
       } else {
         ("[X]", self.colors.task_done_fg, self.colors.task_done_bg)
       };
@@ -349,7 +362,10 @@ where
       let (task_fg, task_bg) = if i == selection {
         (self.colors.selected_task_fg, self.colors.selected_task_bg)
       } else {
-        (self.colors.unselected_task_fg, self.colors.unselected_task_bg)
+        (
+          self.colors.unselected_task_fg,
+          self.colors.unselected_task_bg,
+        )
       };
 
       self.writer.write(x, y, state_fg, state_bg, state)?;
@@ -433,14 +449,7 @@ where
 {
   fn renderable_area(&self) -> BBox {
     match terminal_size() {
-      Ok((w, h)) => {
-        BBox {
-          x: 0,
-          y: 0,
-          w,
-          h,
-        }
-      },
+      Ok((w, h)) => BBox { x: 0, y: 0, w, h },
       Err(e) => panic!("Retrieving terminal size failed: {}", e),
     }
   }
@@ -534,12 +543,7 @@ mod tests {
     // The position of the bounding box should not matter.
     for x in 0..5 {
       for y in 0..3 {
-        let bbox = BBox {
-          x,
-          y,
-          w: 5,
-          h: 3,
-        };
+        let bbox = BBox { x, y, w: 5, h: 3 };
         assert_eq!(clip(0, 2, "inside", bbox), "insid");
         assert_eq!(clip(0, 3, "outside", bbox), "");
 

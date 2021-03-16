@@ -218,7 +218,7 @@ impl Templates {
 
   /// Retrieve an iterator over all the tag templates.
   #[cfg(test)]
-  pub fn iter(&self) -> impl Iterator<Item=&Template> {
+  pub fn iter(&self) -> impl Iterator<Item = &Template> {
     self.templates.iter().map(AsRef::as_ref)
   }
 }

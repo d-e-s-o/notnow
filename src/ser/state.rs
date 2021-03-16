@@ -4,10 +4,10 @@
 use serde::Deserialize;
 use serde::Serialize;
 
+use crate::colors::Colors;
 use crate::ser::query::Query;
 use crate::ser::tags::Templates;
 use crate::ser::tasks::Tasks;
-use crate::colors::Colors;
 
 
 /// A struct comprising the task state of the program.

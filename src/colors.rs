@@ -11,9 +11,9 @@ use serde::de::SeqAccess;
 use serde::de::Unexpected;
 use serde::de::VariantAccess;
 use serde::de::Visitor;
+use serde::ser::SerializeTupleVariant;
 use serde::Deserialize;
 use serde::Deserializer;
-use serde::ser::SerializeTupleVariant;
 use serde::Serialize;
 use serde::Serializer;
 
@@ -80,7 +80,7 @@ impl PartialEq for Color {
         Color::Reset(_) => false,
         Color::Rgb(other_rgb) => {
           rgb.0 == other_rgb.0 && rgb.1 == other_rgb.1 && rgb.2 == other_rgb.2
-        }
+        },
       },
     }
   }
@@ -158,7 +158,7 @@ impl<'de> Visitor<'de> for ColorVisitor<'de> {
     EnumAccess::variant(data).and_then(|value| match value {
       (ColorEnum::Reset, variant) => {
         VariantAccess::unit_variant(variant).map(|_| Color::Reset(Reset))
-      }
+      },
       (ColorEnum::Rgb, variant) => VariantAccess::tuple_variant(
         variant,
         3,
@@ -216,7 +216,7 @@ impl<'de> Visitor<'de> for VariantVisitor {
       _ => {
         let value = &String::from_utf8_lossy(value);
         Err(Error::unknown_variant(value, VARIANTS))
-      }
+      },
     }
   }
 }
@@ -247,8 +247,8 @@ impl<'de> Visitor<'de> for RgbVisitor<'de> {
         return Err(Error::invalid_length(
           0,
           &"tuple variant Color::Rgb with 3 elements",
-        ));
-      }
+        ))
+      },
     };
 
     let g = match match SeqAccess::next_element::<u8>(&mut seq) {
@@ -260,8 +260,8 @@ impl<'de> Visitor<'de> for RgbVisitor<'de> {
         return Err(Error::invalid_length(
           1,
           &"tuple variant Color::Rgb with 3 elements",
-        ));
-      }
+        ))
+      },
     };
 
     let b = match match SeqAccess::next_element::<u8>(&mut seq) {
@@ -273,8 +273,8 @@ impl<'de> Visitor<'de> for RgbVisitor<'de> {
         return Err(Error::invalid_length(
           2,
           &"tuple variant Color::Rgb with 3 elements",
-        ));
-      }
+        ))
+      },
     };
 
     Ok(Color::Rgb(Rgb(r, g, b)))

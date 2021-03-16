@@ -32,8 +32,7 @@ impl TagLit {
   /// Retrieve the contained `Tag`.
   fn tag(&self) -> &Tag {
     match self {
-      TagLit::Pos(tag) |
-      TagLit::Neg(tag) => tag,
+      TagLit::Pos(tag) | TagLit::Neg(tag) => tag,
     }
   }
 
@@ -73,7 +72,7 @@ impl<'t> Filter<'t> {
   /// Check if one of the given tags matches the available ones.
   fn matches<'tag, I>(lits: &[TagLit], avail_tags: &I) -> bool
   where
-    I: Iterator<Item=&'tag Tag> + Clone,
+    I: Iterator<Item = &'tag Tag> + Clone,
   {
     // Iterate over disjunctions and check if any of them matches.
     for lit in lits {
@@ -90,7 +89,7 @@ impl<'t> Filter<'t> {
   /// Check if the given `tags` match this query's requirements.
   fn matched_by<'tag, I>(&self, avail_tags: &I) -> bool
   where
-    I: Iterator<Item=&'tag Tag> + Clone,
+    I: Iterator<Item = &'tag Tag> + Clone,
   {
     // Iterate over conjunctions; all of them need to match.
     for req_lits in self.lits {
@@ -267,10 +266,12 @@ pub struct Query {
 
 impl Query {
   /// Create a new `Query` object from a serializable one.
-  pub fn with_serde(query: SerQuery,
-                    templates: &Rc<Templates>,
-                    map: &TagMap,
-                    tasks: Rc<RefCell<Tasks>>) -> IoResult<Self> {
+  pub fn with_serde(
+    query: SerQuery,
+    templates: &Rc<Templates>,
+    map: &TagMap,
+    tasks: Rc<RefCell<Tasks>>,
+  ) -> IoResult<Self> {
     let mut and_lits = Vec::with_capacity(query.lits.len());
     for lits in query.lits.into_iter() {
       let mut or_lits = Vec::with_capacity(lits.len());
@@ -372,9 +373,7 @@ mod tests {
   fn filter_completions() {
     let (templates, tasks) = make_tagged_tasks(16);
     let complete_tag = templates.instantiate(templates.complete_tag().id());
-    let query = QueryBuilder::new(tasks)
-      .and(complete_tag)
-      .build("test");
+    let query = QueryBuilder::new(tasks).and(complete_tag).build("test");
 
     query.iter().clone().for_each(|x| assert!(x.is_complete()));
 
@@ -394,9 +393,7 @@ mod tests {
   fn filter_no_completions() {
     let (templates, tasks) = make_tagged_tasks(16);
     let complete_tag = templates.instantiate(templates.complete_tag().id());
-    let query = QueryBuilder::new(tasks)
-      .and_not(complete_tag)
-      .build("test");
+    let query = QueryBuilder::new(tasks).and_not(complete_tag).build("test");
 
     query.iter().clone().for_each(|x| assert!(!x.is_complete()));
 
@@ -417,10 +414,7 @@ mod tests {
     let (templates, tasks) = make_tagged_tasks(20);
     let tag1 = templates.instantiate(templates.iter().nth(1).unwrap().id());
     let tag2 = templates.instantiate(templates.iter().nth(2).unwrap().id());
-    let query = QueryBuilder::new(tasks)
-      .and(tag1)
-      .and(tag2)
-      .build("test");
+    let query = QueryBuilder::new(tasks).and(tag1).and(tag2).build("test");
 
     let mut iter = query.iter();
     assert_eq!(iter.next().unwrap().summary, "11");
@@ -437,10 +431,7 @@ mod tests {
     let (templates, tasks) = make_tagged_tasks(20);
     let tag1 = templates.instantiate(templates.iter().nth(1).unwrap().id());
     let tag3 = templates.instantiate(templates.iter().nth(3).unwrap().id());
-    let query = QueryBuilder::new(tasks)
-      .or(tag3)
-      .or(tag1)
-      .build("test");
+    let query = QueryBuilder::new(tasks).or(tag3).or(tag1).build("test");
 
     let mut iter = query.iter();
     assert_eq!(iter.next().unwrap().summary, "5");

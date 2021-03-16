@@ -10,12 +10,12 @@ use async_trait::async_trait;
 
 use cell::RefCell;
 
+use gui::derive::Widget;
 use gui::Cap;
 use gui::Handleable;
 use gui::Id;
 use gui::MutCap;
 use gui::Widget;
-use gui::derive::Widget;
 
 use crate::query::Query;
 use crate::tasks::Id as TaskId;
@@ -134,9 +134,7 @@ impl TaskListBox {
     let data = task_list_box.data_mut::<TaskListBoxData>(cap);
 
     let count = data.query.iter().clone().count();
-    let selected = selected
-      .map(|x| min(x, isize::MAX as usize))
-      .unwrap_or(0) as isize;
+    let selected = selected.map(|x| min(x, isize::MAX as usize)).unwrap_or(0) as isize;
     let selected = sanitize_selection(selected, count) as isize;
     data.selection = selected;
 
@@ -212,7 +210,9 @@ impl TaskListBox {
         };
 
         if reverse {
-          count.saturating_sub(1).saturating_sub(data.selection(-offset))
+          count
+            .saturating_sub(1)
+            .saturating_sub(data.selection(-offset))
         } else {
           data.selection(offset)
         }
@@ -285,90 +285,87 @@ impl TaskListBox {
 #[async_trait(?Send)]
 impl Handleable<Event, Message> for TaskListBox {
   /// Check for new input and react to it.
-  async fn handle(
-    &self,
-    cap: &mut dyn MutCap<Event, Message>,
-    event: Event,
-  ) -> Option<Event> {
+  async fn handle(&self, cap: &mut dyn MutCap<Event, Message>, event: Event) -> Option<Event> {
     let data = self.data_mut::<TaskListBoxData>(cap);
     match event {
-      Event::Key(key, _) => {
-        match key {
-          Key::Char(' ') => {
-            if let Some(mut task) = data.selected_task() {
-              let id = task.id();
-              task.toggle_complete();
-              data.tasks.borrow_mut().update(task);
-              self
-                .select_task(cap, id)
-                .await
-                .maybe_update(true)
-                .into_event()
-            } else {
-              None
-            }
-          },
-          Key::Char('a') => {
-            data.state = Some(State::Add);
-            let message = Message::SetInOut(InOut::Input("".to_string(), 0));
-            cap.send(self.in_out, message).await.into_event()
-          },
-          Key::Char('d') => {
-            if let Some(task) = data.selected_task() {
-              data.tasks.borrow_mut().remove(task.id());
-              MessageExt::maybe_update(None, true).into_event()
-            } else {
-              None
-            }
-          },
-          Key::Char('e') => {
-            if let Some(task) = data.selected_task() {
-              let string = task.summary.clone();
-              let idx = string.len();
-              data.state = Some(State::Edit(task));
+      Event::Key(key, _) => match key {
+        Key::Char(' ') => {
+          if let Some(mut task) = data.selected_task() {
+            let id = task.id();
+            task.toggle_complete();
+            data.tasks.borrow_mut().update(task);
+            self
+              .select_task(cap, id)
+              .await
+              .maybe_update(true)
+              .into_event()
+          } else {
+            None
+          }
+        },
+        Key::Char('a') => {
+          data.state = Some(State::Add);
+          let message = Message::SetInOut(InOut::Input("".to_string(), 0));
+          cap.send(self.in_out, message).await.into_event()
+        },
+        Key::Char('d') => {
+          if let Some(task) = data.selected_task() {
+            data.tasks.borrow_mut().remove(task.id());
+            MessageExt::maybe_update(None, true).into_event()
+          } else {
+            None
+          }
+        },
+        Key::Char('e') => {
+          if let Some(task) = data.selected_task() {
+            let string = task.summary.clone();
+            let idx = string.len();
+            data.state = Some(State::Edit(task));
 
-              let message = Message::SetInOut(InOut::Input(string, idx));
-              cap.send(self.in_out, message).await.into_event()
+            let message = Message::SetInOut(InOut::Input(string, idx));
+            cap.send(self.in_out, message).await.into_event()
+          } else {
+            None
+          }
+        },
+        Key::Char('J') => {
+          if let Some(to_move) = data.selected_task() {
+            let other = data.query.iter().nth(data.selection(1));
+            if let Some(other) = other {
+              data.tasks.borrow_mut().move_after(to_move.id(), other.id());
+              MessageExt::maybe_update(None, data.select(1)).into_event()
             } else {
               None
             }
-          },
-          Key::Char('J') => {
-            if let Some(to_move) = data.selected_task() {
-              let other = data.query.iter().nth(data.selection(1));
+          } else {
+            None
+          }
+        },
+        Key::Char('K') => {
+          if let Some(to_move) = data.selected_task() {
+            if data.selection(0) > 0 {
+              let other = data.query.iter().nth(data.selection(-1));
               if let Some(other) = other {
-                data.tasks.borrow_mut().move_after(to_move.id(), other.id());
-                MessageExt::maybe_update(None, data.select(1)).into_event()
+                data
+                  .tasks
+                  .borrow_mut()
+                  .move_before(to_move.id(), other.id());
+                MessageExt::maybe_update(None, data.select(-1)).into_event()
               } else {
                 None
               }
             } else {
               None
             }
-          },
-          Key::Char('K') => {
-            if let Some(to_move) = data.selected_task() {
-              if data.selection(0) > 0 {
-                let other = data.query.iter().nth(data.selection(-1));
-                if let Some(other) = other {
-                  data.tasks.borrow_mut().move_before(to_move.id(), other.id());
-                  MessageExt::maybe_update(None, data.select(-1)).into_event()
-                } else {
-                  None
-                }
-              } else {
-                None
-              }
-            } else {
-              None
-            }
-          },
-          Key::Char('g') => MessageExt::maybe_update(None, data.set_select(0)).into_event(),
-          Key::Char('G') => MessageExt::maybe_update(None, data.set_select(isize::MAX)).into_event(),
-          Key::Char('j') => MessageExt::maybe_update(None, data.select(1)).into_event(),
-          Key::Char('k') => MessageExt::maybe_update(None, data.select(-1)).into_event(),
-          _ => Some(event),
-        }
+          } else {
+            None
+          }
+        },
+        Key::Char('g') => MessageExt::maybe_update(None, data.set_select(0)).into_event(),
+        Key::Char('G') => MessageExt::maybe_update(None, data.set_select(isize::MAX)).into_event(),
+        Key::Char('j') => MessageExt::maybe_update(None, data.select(1)).into_event(),
+        Key::Char('k') => MessageExt::maybe_update(None, data.select(-1)).into_event(),
+        _ => Some(event),
       },
       _ => Some(event),
     }

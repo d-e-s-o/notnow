@@ -24,8 +24,7 @@ impl TagLit {
   /// Retrieve the ID of the wrapped tag.
   pub fn id(&self) -> Id {
     match self {
-      TagLit::Pos(tag) |
-      TagLit::Neg(tag) => tag.id,
+      TagLit::Pos(tag) | TagLit::Neg(tag) => tag.id,
     }
   }
 }
@@ -51,18 +50,10 @@ mod tests {
 
   #[test]
   fn serialize_deserialize_query() {
-    let tag1 = Tag {
-      id: Id::new(1),
-    };
-    let tag2 = Tag {
-      id: Id::new(2),
-    };
-    let tag3 = Tag {
-      id: Id::new(3),
-    };
-    let tag4 = Tag {
-      id: Id::new(4),
-    };
+    let tag1 = Tag { id: Id::new(1) };
+    let tag2 = Tag { id: Id::new(2) };
+    let tag3 = Tag { id: Id::new(3) };
+    let tag4 = Tag { id: Id::new(4) };
 
     let query = Query {
       name: "test-query".to_string(),

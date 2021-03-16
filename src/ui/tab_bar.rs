@@ -11,8 +11,8 @@ use async_trait::async_trait;
 
 use cell::RefCell;
 
-use gui::Cap;
 use gui::derive::Widget;
+use gui::Cap;
 use gui::Handleable;
 use gui::Id;
 use gui::MutCap;
@@ -197,9 +197,7 @@ impl TabBar {
     selected: Option<usize>,
   ) -> Self {
     let count = queries.len();
-    let selected = selected
-      .map(|x| min(x, isize::MAX as usize))
-      .unwrap_or(0) as isize;
+    let selected = selected.map(|x| min(x, isize::MAX as usize)).unwrap_or(0) as isize;
     let selected = sanitize_selection(selected, count);
     let tab_bar = id;
 
@@ -221,7 +219,8 @@ impl TabBar {
           cap.hide(task_list);
         }
         (name, task_list)
-      }).collect();
+      })
+      .collect();
 
     let tab_bar = Self { id, in_out };
     let data = tab_bar.data_mut::<TabBarData>(cap);
@@ -288,7 +287,7 @@ impl TabBar {
   }
 
   /// Retrieve an iterator over the names of all the tabs.
-  pub fn iter<'slf>(&'slf self, cap: &'slf dyn Cap) -> impl ExactSizeIterator<Item=&'slf String> {
+  pub fn iter<'slf>(&'slf self, cap: &'slf dyn Cap) -> impl ExactSizeIterator<Item = &'slf String> {
     let data = self.data::<TabBarData>(cap);
     data.tabs.iter().map(|(x, _)| x)
   }
@@ -359,79 +358,66 @@ impl TabBar {
 #[async_trait(?Send)]
 impl Handleable<Event, Message> for TabBar {
   /// Check for new input and react to it.
-  async fn handle(
-    &self,
-    cap: &mut dyn MutCap<Event, Message>,
-    event: Event,
-  ) -> Option<Event> {
+  async fn handle(&self, cap: &mut dyn MutCap<Event, Message>, event: Event) -> Option<Event> {
     let data = self.data_mut::<TabBarData>(cap);
     match event {
-      Event::Key(key, _) => {
-        match key {
-          Key::Char('1') => MessageExt::maybe_update(None, self.set_select(cap, 0)).into_event(),
-          Key::Char('2') => MessageExt::maybe_update(None, self.set_select(cap, 1)).into_event(),
-          Key::Char('3') => MessageExt::maybe_update(None, self.set_select(cap, 2)).into_event(),
-          Key::Char('4') => MessageExt::maybe_update(None, self.set_select(cap, 3)).into_event(),
-          Key::Char('5') => MessageExt::maybe_update(None, self.set_select(cap, 4)).into_event(),
-          Key::Char('6') => MessageExt::maybe_update(None, self.set_select(cap, 5)).into_event(),
-          Key::Char('7') => MessageExt::maybe_update(None, self.set_select(cap, 6)).into_event(),
-          Key::Char('8') => MessageExt::maybe_update(None, self.set_select(cap, 7)).into_event(),
-          Key::Char('9') => MessageExt::maybe_update(None, self.set_select(cap, 8)).into_event(),
-          Key::Char('0') => MessageExt::maybe_update(None, self.set_select(cap, isize::MAX)).into_event(),
-          Key::Char('`') => MessageExt::maybe_update(None, self.select_previous(cap)).into_event(),
-          Key::Char('h') => MessageExt::maybe_update(None, self.select(cap, -1)).into_event(),
-          Key::Char('l') => MessageExt::maybe_update(None, self.select(cap, 1)).into_event(),
-          Key::Char('H') => MessageExt::maybe_update(None, self.swap(cap, true)).into_event(),
-          Key::Char('L') => MessageExt::maybe_update(None, self.swap(cap, false)).into_event(),
-          Key::Char('n') |
-          Key::Char('N') => {
-            let event = match data.search.take() {
-              Search::Preparing(..) |
-              Search::Unset => {
-                data.search = Search::Unset;
+      Event::Key(key, _) => match key {
+        Key::Char('1') => MessageExt::maybe_update(None, self.set_select(cap, 0)).into_event(),
+        Key::Char('2') => MessageExt::maybe_update(None, self.set_select(cap, 1)).into_event(),
+        Key::Char('3') => MessageExt::maybe_update(None, self.set_select(cap, 2)).into_event(),
+        Key::Char('4') => MessageExt::maybe_update(None, self.set_select(cap, 3)).into_event(),
+        Key::Char('5') => MessageExt::maybe_update(None, self.set_select(cap, 4)).into_event(),
+        Key::Char('6') => MessageExt::maybe_update(None, self.set_select(cap, 5)).into_event(),
+        Key::Char('7') => MessageExt::maybe_update(None, self.set_select(cap, 6)).into_event(),
+        Key::Char('8') => MessageExt::maybe_update(None, self.set_select(cap, 7)).into_event(),
+        Key::Char('9') => MessageExt::maybe_update(None, self.set_select(cap, 8)).into_event(),
+        Key::Char('0') => {
+          MessageExt::maybe_update(None, self.set_select(cap, isize::MAX)).into_event()
+        },
+        Key::Char('`') => MessageExt::maybe_update(None, self.select_previous(cap)).into_event(),
+        Key::Char('h') => MessageExt::maybe_update(None, self.select(cap, -1)).into_event(),
+        Key::Char('l') => MessageExt::maybe_update(None, self.select(cap, 1)).into_event(),
+        Key::Char('H') => MessageExt::maybe_update(None, self.swap(cap, true)).into_event(),
+        Key::Char('L') => MessageExt::maybe_update(None, self.swap(cap, false)).into_event(),
+        Key::Char('n') | Key::Char('N') => {
+          let event = match data.search.take() {
+            Search::Preparing(..) | Search::Unset => {
+              data.search = Search::Unset;
 
-                let error = InOut::Error("Nothing to search for".to_string());
-                let message = Message::SetInOut(error);
-                cap
-                  .send(self.in_out, message)
-                  .await
-                  .into_event()
-              },
-              Search::Taken => panic!("invalid search state"),
-              Search::State(string) => {
-                let reverse = key == Key::Char('N');
-                let message = Message::SetInOut(InOut::Search(string.clone()));
-                let updated1 = cap
-                  .send(self.in_out, message)
-                  .await
-                  .map(|m| m.is_updated())
-                  .unwrap_or(false);
+              let error = InOut::Error("Nothing to search for".to_string());
+              let message = Message::SetInOut(error);
+              cap.send(self.in_out, message).await.into_event()
+            },
+            Search::Taken => panic!("invalid search state"),
+            Search::State(string) => {
+              let reverse = key == Key::Char('N');
+              let message = Message::SetInOut(InOut::Search(string.clone()));
+              let updated1 = cap
+                .send(self.in_out, message)
+                .await
+                .map(|m| m.is_updated())
+                .unwrap_or(false);
 
-                let search_state = SearchState::AfterCurrent;
-                let updated2 = self
-                  .search_task(cap, string, search_state, reverse)
-                  .await
-                  .map(|m| m.is_updated())
-                  .unwrap_or(false);
+              let search_state = SearchState::AfterCurrent;
+              let updated2 = self
+                .search_task(cap, string, search_state, reverse)
+                .await
+                .map(|m| m.is_updated())
+                .unwrap_or(false);
 
-                MessageExt::maybe_update(None, updated1 || updated2).into_event()
-              },
-            };
-            event
-          },
-          Key::Char('/') |
-          Key::Char('?') => {
-            let reverse = key == Key::Char('?');
-            data.search = Search::Preparing(reverse);
+              MessageExt::maybe_update(None, updated1 || updated2).into_event()
+            },
+          };
+          event
+        },
+        Key::Char('/') | Key::Char('?') => {
+          let reverse = key == Key::Char('?');
+          data.search = Search::Preparing(reverse);
 
-            let message = Message::SetInOut(InOut::Input("".to_string(), 0));
-            cap
-              .send(self.in_out, message)
-              .await
-              .into_event()
-          },
-          _ => Some(event),
-        }
+          let message = Message::SetInOut(InOut::Input("".to_string(), 0));
+          cap.send(self.in_out, message).await.into_event()
+        },
+        _ => Some(event),
       },
       _ => Some(event),
     }

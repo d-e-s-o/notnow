@@ -80,7 +80,7 @@ impl Task {
   }
 
   /// Retrieve an iterator over this task's tags.
-  pub fn tags(&self) -> impl Iterator<Item=&Tag> + Clone {
+  pub fn tags(&self) -> impl Iterator<Item = &Tag> + Clone {
     self.tags.values()
   }
 
@@ -208,11 +208,7 @@ impl Tasks {
         .position(|x| x.id() == to_move)
         .map(|x| {
           let task = self.tasks.remove(x);
-          let idx = self
-            .tasks
-            .iter_mut()
-            .position(|x| x.id() == other)
-            .unwrap() + add;
+          let idx = self.tasks.iter_mut().position(|x| x.id() == other).unwrap() + add;
 
           self.tasks.insert(idx, task);
         })

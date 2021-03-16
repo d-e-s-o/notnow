@@ -58,9 +58,7 @@ mod tests {
 
   #[test]
   fn serialize_deserialize_tag() {
-    let tag = Tag {
-      id: Id::new(42),
-    };
+    let tag = Tag { id: Id::new(42) };
     let serialized = to_json(&tag).unwrap();
     let deserialized = from_json::<Tag>(&serialized).unwrap();
 
