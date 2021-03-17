@@ -225,8 +225,6 @@ impl Templates {
 
 impl ToSerde<SerTemplates> for Templates {
   /// Convert the tag templates object into a serializable form.
-  // TODO: Remove lint with newer version of clippy in use.
-  #[allow(clippy::redundant_closure)]
   fn to_serde(&self) -> SerTemplates {
     SerTemplates(self.templates.iter().map(|x| x.to_serde()).collect())
   }
