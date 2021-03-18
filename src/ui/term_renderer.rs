@@ -222,8 +222,12 @@ pub struct TermRenderer<W>
 where
   W: Write,
 {
+  /// Our actual writer.
   writer: ClippingWriter<BufWriter<W>>,
+  /// A mapping from widget ID to a widget-specific offset indicating
+  /// where to start rendering.
   data: RefCell<HashMap<Id, OffsetData>>,
+  /// The colors to use.
   colors: Colors,
 }
 
@@ -465,21 +469,19 @@ where
   }
 
   fn render(&self, widget: &dyn Renderable, cap: &dyn Cap, bbox: BBox) -> BBox {
-    let result;
-
     self.writer.restrict(bbox);
 
-    if let Some(ui) = widget.downcast_ref::<TermUi>() {
-      result = self.render_term_ui(ui, bbox)
+    let result = if let Some(ui) = widget.downcast_ref::<TermUi>() {
+      self.render_term_ui(ui, bbox)
     } else if let Some(in_out) = widget.downcast_ref::<InOutArea>() {
-      result = self.render_input_output(in_out, cap, bbox);
+      self.render_input_output(in_out, cap, bbox)
     } else if let Some(tab_bar) = widget.downcast_ref::<TabBar>() {
-      result = self.render_tab_bar(tab_bar, cap, bbox);
+      self.render_tab_bar(tab_bar, cap, bbox)
     } else if let Some(task_list) = widget.downcast_ref::<TaskListBox>() {
-      result = self.render_task_list_box(task_list, cap, bbox);
+      self.render_task_list_box(task_list, cap, bbox)
     } else {
       panic!("Widget {:?} is unknown to the renderer", widget)
-    }
+    };
 
     match result {
       Ok(b) => b,
@@ -500,6 +502,8 @@ where
   W: Write,
 {
   fn drop(&mut self) {
+    // We should never panic in a destructor so don't unwrap and just
+    // swallow the result. We are done anyway.
     let _ = self.writer.show();
   }
 }
