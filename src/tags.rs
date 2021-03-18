@@ -145,14 +145,10 @@ fn ensure_contains<S>(templates: &mut BTreeSet<Rc<Template>>, name: S) -> Rc<Tem
 where
   S: Into<String> + AsRef<str>,
 {
-  let found = templates.iter().any(|x| x.name == name.as_ref());
+  let found = templates.iter().find(|x| x.name == name.as_ref());
 
-  if found {
-    templates
-      .iter()
-      .find(|x| x.name == name.as_ref())
-      .unwrap()
-      .clone()
+  if let Some(found) = found {
+    found.clone()
   } else {
     let rc = Rc::new(Template::new(name.into()));
     let inserted = templates.insert(rc.clone());
