@@ -22,6 +22,7 @@ use super::event::Event;
 use super::event::Key;
 use super::message::Message;
 use super::message::MessageExt;
+use super::modal::Modal;
 
 
 /// An object representing the in/out area within the TermUi.
@@ -364,24 +365,21 @@ impl InOutArea {
     }
   }
 
-  /// Focus the previously focused widget or the parent.
-  fn restore_focus(&self, cap: &mut dyn MutCap<Event, Message>) -> Id {
-    let data = self.data::<InOutAreaData>(cap);
-    match data.prev_focused {
-      Some(to_focus) => {
-        cap.focus(to_focus);
-        to_focus
-      },
-      // Really should never happen. We are not the root widget so at
-      // the very least there must be a parent to focus.
-      None => panic!("No previous widget to focus"),
-    }
-  }
-
   /// Retrieve the input/output area's current state.
   pub fn state<'slf>(&'slf self, cap: &'slf dyn Cap) -> &'slf InOut {
     let data = self.data::<InOutAreaData>(cap);
     &data.in_out.get()
+  }
+}
+
+impl Modal for InOutArea {
+  fn prev_focused(&self, cap: &dyn Cap) -> Option<Id> {
+    self.data::<InOutAreaData>(cap).prev_focused
+  }
+
+  fn set_prev_focused(&self, cap: &mut dyn MutCap<Event, Message>, focused: Option<Id>) {
+    let data = self.data_mut::<InOutAreaData>(cap);
+    data.prev_focused = focused;
   }
 }
 
@@ -412,12 +410,7 @@ impl Handleable<Event, Message> for InOutArea {
           // TODO: It is not nice that we allow clients to provide
           //       potentially unsanitized inputs.
           debug_assert!(idx <= s.len());
-
-          let focused = cap.focused();
-          cap.focus(self.id);
-
-          let data = self.data_mut::<InOutAreaData>(cap);
-          data.prev_focused = focused;
+          self.make_focused(cap);
         };
 
         let data = self.data_mut::<InOutAreaData>(cap);
