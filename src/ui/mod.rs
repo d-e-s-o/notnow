@@ -5,6 +5,7 @@ pub mod event;
 pub mod in_out;
 pub mod message;
 pub mod modal;
+pub mod selectable;
 pub mod tab_bar;
 pub mod task_list_box;
 pub mod term_renderer;

@@ -1,7 +1,6 @@
 // Copyright (C) 2018-2021 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use std::cmp::max;
 use std::cmp::min;
 use std::isize;
 use std::rc::Rc;
@@ -27,18 +26,9 @@ use super::event::Key;
 use super::in_out::InOut;
 use super::message::Message;
 use super::message::MessageExt;
+use super::selectable::Selectable;
 use super::tab_bar::SearchState;
 use super::tab_bar::TabState;
-
-
-/// Sanitize a selection index.
-fn sanitize_selection(selection: isize, count: usize) -> usize {
-  if count == 0 {
-    0
-  } else {
-    max(0, min(count as isize - 1, selection)) as usize
-  }
-}
 
 
 /// An enum representing the state a `TaskListBox` can be in.
@@ -72,38 +62,24 @@ impl TaskListBoxData {
     }
   }
 
-  /// Retrieve the selection index with some relative change.
-  fn selection(&self, add: isize) -> usize {
-    let count = self.query.iter().clone().count();
-    let selection = sanitize_selection(self.selection, count);
-    debug_assert!(add >= 0 || selection as isize >= add);
-    (selection as isize + add) as usize
-  }
-
-  /// Change the currently selected task.
-  fn select(&mut self, selection: isize) -> bool {
-    let count = self.query.iter().clone().count();
-    let old_selection = sanitize_selection(self.selection, count);
-    let new_selection = sanitize_selection(selection, count);
-
-    self.selection = selection;
-    new_selection != old_selection
-  }
-
-  /// Change the currently selected task in a relative fashion.
-  fn change_selection(&mut self, change: isize) -> bool {
-    // We always make sure to base the given `change` value off of a
-    // sanitized selection. Otherwise the result is not as expected.
-    let count = self.query.iter().clone().count();
-    let selection = sanitize_selection(self.selection, count);
-    let new_selection = selection as isize + change;
-    self.select(new_selection)
-  }
-
   /// Retrieve a copy of the selected task, if any.
   fn selected_task(&self) -> Option<Task> {
     let selection = self.selection(0);
     self.query.iter().clone().cloned().nth(selection)
+  }
+}
+
+impl Selectable for TaskListBoxData {
+  fn selection_index(&self) -> isize {
+    self.selection
+  }
+
+  fn set_selection_index(&mut self, selection: isize) {
+    self.selection = selection
+  }
+
+  fn count(&self) -> usize {
+    self.query.iter().clone().count()
   }
 }
 
@@ -132,10 +108,7 @@ impl TaskListBox {
       in_out,
     };
     let data = task_list_box.data_mut::<TaskListBoxData>(cap);
-
-    let count = data.query.iter().clone().count();
     let selected = selected.map(|x| min(x, isize::MAX as usize)).unwrap_or(0) as isize;
-    let selected = sanitize_selection(selected, count) as isize;
     data.selection = selected;
 
     task_list_box
