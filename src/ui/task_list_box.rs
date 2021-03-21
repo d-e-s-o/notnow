@@ -81,7 +81,7 @@ impl TaskListBoxData {
   }
 
   /// Change the currently selected task.
-  fn set_select(&mut self, selection: isize) -> bool {
+  fn select(&mut self, selection: isize) -> bool {
     let count = self.query.iter().clone().count();
     let old_selection = sanitize_selection(self.selection, count);
     let new_selection = sanitize_selection(selection, count);
@@ -91,13 +91,13 @@ impl TaskListBoxData {
   }
 
   /// Change the currently selected task in a relative fashion.
-  fn select(&mut self, change: isize) -> bool {
+  fn change_selection(&mut self, change: isize) -> bool {
     // We always make sure to base the given `change` value off of a
     // sanitized selection. Otherwise the result is not as expected.
     let count = self.query.iter().clone().count();
     let selection = sanitize_selection(self.selection, count);
     let new_selection = selection as isize + change;
-    self.set_select(new_selection)
+    self.select(new_selection)
   }
 
   /// Retrieve a copy of the selected task, if any.
@@ -157,7 +157,7 @@ impl TaskListBox {
     let idx = data.query.iter().position(|x| x.id() == task_id);
 
     if let Some(idx) = idx {
-      let update = data.set_select(idx as isize);
+      let update = data.select(idx as isize);
       if let Some(done) = done {
         *done = true
       }
@@ -260,7 +260,7 @@ impl TaskListBox {
       *search_state = SearchState::Done;
 
       let data = self.data_mut::<TaskListBoxData>(cap);
-      let update = data.set_select(idx as isize);
+      let update = data.select(idx as isize);
       MessageExt::maybe_update(None, update)
     } else {
       None
@@ -333,7 +333,7 @@ impl Handleable<Event, Message> for TaskListBox {
             let other = data.query.iter().nth(data.selection(1));
             if let Some(other) = other {
               data.tasks.borrow_mut().move_after(to_move.id(), other.id());
-              MessageExt::maybe_update(None, data.select(1)).into_event()
+              MessageExt::maybe_update(None, data.change_selection(1)).into_event()
             } else {
               None
             }
@@ -350,7 +350,7 @@ impl Handleable<Event, Message> for TaskListBox {
                   .tasks
                   .borrow_mut()
                   .move_before(to_move.id(), other.id());
-                MessageExt::maybe_update(None, data.select(-1)).into_event()
+                MessageExt::maybe_update(None, data.change_selection(-1)).into_event()
               } else {
                 None
               }
@@ -361,10 +361,10 @@ impl Handleable<Event, Message> for TaskListBox {
             None
           }
         },
-        Key::Char('g') => MessageExt::maybe_update(None, data.set_select(0)).into_event(),
-        Key::Char('G') => MessageExt::maybe_update(None, data.set_select(isize::MAX)).into_event(),
-        Key::Char('j') => MessageExt::maybe_update(None, data.select(1)).into_event(),
-        Key::Char('k') => MessageExt::maybe_update(None, data.select(-1)).into_event(),
+        Key::Char('g') => MessageExt::maybe_update(None, data.select(0)).into_event(),
+        Key::Char('G') => MessageExt::maybe_update(None, data.select(isize::MAX)).into_event(),
+        Key::Char('j') => MessageExt::maybe_update(None, data.change_selection(1)).into_event(),
+        Key::Char('k') => MessageExt::maybe_update(None, data.change_selection(-1)).into_event(),
         _ => Some(event),
       },
       _ => Some(event),
