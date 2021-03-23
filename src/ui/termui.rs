@@ -17,6 +17,8 @@ use crate::state::UiState;
 #[cfg(all(test, not(feature = "readline")))]
 use crate::tasks::Task;
 
+use super::dialog::Dialog;
+use super::dialog::DialogData;
 use super::event::Event;
 use super::event::Key;
 use super::in_out::InOut;
@@ -62,6 +64,19 @@ impl TermUi {
       queries, selected, ..
     } = state;
 
+    // TODO: Ideally, widgets that need a modal dialog could just create
+    //       one on-the-fly. But doing so will also require support for
+    //       destroying widgets, which is something that the `gui` crate
+    //       does not support yet.
+    let dialog = cap.add_widget(
+      id,
+      Box::new(|| Box::new(DialogData::new())),
+      Box::new(|id, cap| {
+        let dialog = Dialog::new(id);
+        cap.hide(id);
+        Box::new(dialog)
+      }),
+    );
     let in_out = cap.add_widget(
       id,
       Box::new(|| Box::new(InOutAreaData::new())),
@@ -73,7 +88,9 @@ impl TermUi {
       Box::new(move |id, cap| {
         let data = cap.data(termui_id).downcast_ref::<TermUiData>().unwrap();
         let tasks = data.task_state.tasks();
-        Box::new(TabBar::new(id, cap, in_out, tasks, queries, selected))
+        Box::new(TabBar::new(
+          id, cap, dialog, in_out, tasks, queries, selected,
+        ))
       }),
     );
 

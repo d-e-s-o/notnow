@@ -29,6 +29,7 @@ use gui::Renderer;
 use crate::colors::Color;
 use crate::colors::Colors;
 
+use super::dialog::Dialog;
 use super::in_out::InOut;
 use super::in_out::InOutArea;
 use super::tab_bar::TabBar;
@@ -396,6 +397,11 @@ where
     Ok(bbox)
   }
 
+  /// Render a `Dialog`.
+  fn render_dialog(&self, _dialog: &Dialog, bbox: BBox) -> Result<BBox> {
+    Ok(bbox)
+  }
+
   /// Render an `InOutArea`.
   fn render_input_output(&self, in_out: &InOutArea, cap: &dyn Cap, bbox: BBox) -> Result<BBox> {
     let (prefix, fg, bg, string) = match in_out.state(cap) {
@@ -473,6 +479,8 @@ where
 
     let result = if let Some(ui) = widget.downcast_ref::<TermUi>() {
       self.render_term_ui(ui, bbox)
+    } else if let Some(dialog) = widget.downcast_ref::<Dialog>() {
+      self.render_dialog(dialog, bbox)
     } else if let Some(in_out) = widget.downcast_ref::<InOutArea>() {
       self.render_input_output(in_out, cap, bbox)
     } else if let Some(tab_bar) = widget.downcast_ref::<TabBar>() {

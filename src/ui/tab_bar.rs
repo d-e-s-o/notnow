@@ -191,6 +191,7 @@ impl TabBar {
   pub fn new(
     id: Id,
     cap: &mut dyn MutCap<Event, Message>,
+    dialog: Id,
     in_out: Id,
     tasks: Rc<RefCell<Tasks>>,
     queries: Vec<(Query, Option<usize>)>,
@@ -210,7 +211,9 @@ impl TabBar {
         let task_list = cap.add_widget(
           id,
           Box::new(|| Box::new(TaskListBoxData::new(tasks, query))),
-          Box::new(move |id, cap| Box::new(TaskListBox::new(id, cap, tab_bar, in_out, task))),
+          Box::new(move |id, cap| {
+            Box::new(TaskListBox::new(id, cap, tab_bar, dialog, in_out, task))
+          }),
         );
 
         if i == selected {

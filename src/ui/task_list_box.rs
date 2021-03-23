@@ -89,8 +89,9 @@ impl Selectable for TaskListBoxData {
 #[gui(Event = Event, Message = Message)]
 pub struct TaskListBox {
   id: Id,
-  in_out: Id,
   tab_bar: Id,
+  dialog: Id,
+  in_out: Id,
 }
 
 impl TaskListBox {
@@ -99,12 +100,14 @@ impl TaskListBox {
     id: Id,
     cap: &mut dyn MutCap<Event, Message>,
     tab_bar: Id,
+    dialog: Id,
     in_out: Id,
     selected: Option<usize>,
   ) -> Self {
     let task_list_box = Self {
       id,
       tab_bar,
+      dialog,
       in_out,
     };
     let data = task_list_box.data_mut::<TaskListBoxData>(cap);
