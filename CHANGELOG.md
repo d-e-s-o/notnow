@@ -2,6 +2,7 @@ Unreleased
 ----------
 - Changed placement of newly created tasks to be after currently
   selected one
+- Bumped required Rust version to `1.43`
 
 
 0.2.4
