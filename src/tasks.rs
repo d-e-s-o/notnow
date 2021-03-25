@@ -16,6 +16,7 @@ use crate::ser::ToSerde;
 use crate::tags::Id as TagId;
 use crate::tags::Tag;
 use crate::tags::TagMap;
+use crate::tags::Template;
 use crate::tags::Templates;
 
 #[derive(Copy, Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -46,10 +47,13 @@ impl Task {
   }
 
   /// Create a task using the given summary.
-  fn with_summary_and_tags(summary: String, tags: Vec<Tag>, templates: Rc<Templates>) -> Self {
+  pub fn with_summary_and_tags<S>(summary: S, tags: Vec<Tag>, templates: Rc<Templates>) -> Self
+  where
+    S: Into<String>,
+  {
     Task {
       id: Id::new(),
-      summary,
+      summary: summary.into(),
       tags: tags.into_iter().map(|x| (x.id(), x)).collect(),
       templates,
     }
@@ -82,6 +86,11 @@ impl Task {
   /// Retrieve an iterator over this task's tags.
   pub fn tags(&self) -> impl Iterator<Item = &Tag> + Clone {
     self.tags.values()
+  }
+
+  /// Retrieve an iterator over all tag templates.
+  pub fn templates(&self) -> impl Iterator<Item = Rc<Template>> + '_ {
+    self.templates.iter()
   }
 
   /// Check whether the task is tagged as complete or not.

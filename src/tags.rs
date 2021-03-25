@@ -25,7 +25,7 @@ pub const COMPLETE_TAG: &str = "complete";
 
 
 /// A struct defining a particular tag.
-#[derive(Clone, Debug, Eq)]
+#[derive(Debug, Eq)]
 pub struct Template {
   id: Id,
   name: String,
@@ -33,7 +33,10 @@ pub struct Template {
 
 impl Template {
   /// Create a new tag template with the given name.
-  fn new(name: impl Into<String>) -> Self {
+  pub fn new<S>(name: S) -> Self
+  where
+    S: Into<String>,
+  {
     Self {
       id: Id::new(),
       name: name.into(),
@@ -46,7 +49,6 @@ impl Template {
   }
 
   /// Retrieve the tag template's name.
-  #[cfg(test)]
   pub fn name(&self) -> &str {
     &self.name
   }
@@ -104,12 +106,13 @@ impl ToSerde<SerTemplate> for Template {
 /// An actual tag instance, which may be associated with a task.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Tag {
+  /// The underlying shared template.
   template: Rc<Template>,
 }
 
 impl Tag {
   /// Create a new tag referencing the given template.
-  fn new(template: Rc<Template>) -> Tag {
+  pub fn new(template: Rc<Template>) -> Tag {
     Self { template }
   }
 
@@ -119,9 +122,13 @@ impl Tag {
   }
 
   /// Retrieve the tag's name.
-  #[cfg(test)]
   pub fn name(&self) -> &str {
     self.template.name()
+  }
+
+  /// Retrieve the tag's underlying template.
+  pub fn template(&self) -> Rc<Template> {
+    self.template.clone()
   }
 }
 
@@ -207,15 +214,37 @@ impl Templates {
     }
   }
 
+  /// Instantiate a new tag based on a name.
+  #[cfg(test)]
+  pub fn instantiate_from_name(&self, name: &str) -> Tag {
+    let result = self.templates.iter().find(|x| x.name == name);
+
+    match result {
+      Some(template) => Tag::new(template.clone()),
+      None => panic!("Attempt to create tag from invalid name: {}", name),
+    }
+  }
+
   /// Retrieve a reference to the 'complete' tag template.
   pub fn complete_tag(&self) -> &Template {
     &self.complete
   }
 
   /// Retrieve an iterator over all the tag templates.
-  #[cfg(test)]
-  pub fn iter(&self) -> impl Iterator<Item = &Template> {
-    self.templates.iter().map(AsRef::as_ref)
+  pub fn iter(&self) -> impl Iterator<Item = Rc<Template>> + '_ {
+    self.templates.iter().map(Rc::clone)
+  }
+}
+
+impl Extend<Template> for Templates
+where
+  T: Ord,
+{
+  fn extend<I>(&mut self, iter: I)
+  where
+    I: IntoIterator<Item = Template>,
+  {
+    self.templates.extend(iter.into_iter().map(Rc::new))
   }
 }
 
