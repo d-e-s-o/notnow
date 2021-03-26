@@ -33,6 +33,23 @@ pub enum SetUnsetTag {
   Unset(Tag),
 }
 
+impl SetUnsetTag {
+  /// Retrieve the tag's name.
+  pub fn name(&self) -> &str {
+    match self {
+      Self::Unset(template) | Self::Set(template) => template.name(),
+    }
+  }
+
+  /// Check whether the tag is set.
+  pub fn is_set(&self) -> bool {
+    match self {
+      Self::Set(_) => true,
+      Self::Unset(_) => false,
+    }
+  }
+}
+
 
 /// A comparison function for two `Tag` objects, sorting them
 /// by their names.
@@ -167,6 +184,24 @@ impl Dialog {
       Key::Char('k') => MessageExt::maybe_update(None, data.change_selection(-1)),
       _ => None,
     }
+  }
+
+  /// Retrieve the list of set/unset tags.
+  pub fn tags<'cap>(&self, cap: &'cap dyn Cap) -> &'cap [SetUnsetTag] {
+    let data = self.data::<DialogData>(cap);
+    data
+      .data
+      .as_ref()
+      .map(|data| &data.tags)
+      .expect("dialog has no data set")
+  }
+
+  /// Retrieve the current selection index.
+  ///
+  /// The selection index indicates the currently selected tag.
+  pub fn selection(&self, cap: &dyn Cap) -> usize {
+    let data = self.data::<DialogData>(cap);
+    data.selection(0)
   }
 }
 
