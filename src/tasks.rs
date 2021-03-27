@@ -88,6 +88,14 @@ impl Task {
     self.tags.values()
   }
 
+  /// Set the tags of the task.
+  pub fn set_tags<I>(&mut self, tags: I)
+  where
+    I: Iterator<Item = Tag>,
+  {
+    self.tags = tags.map(|x| (x.id(), x)).collect();
+  }
+
   /// Retrieve an iterator over all tag templates.
   pub fn templates(&self) -> impl Iterator<Item = Rc<Template>> + '_ {
     self.templates.iter()

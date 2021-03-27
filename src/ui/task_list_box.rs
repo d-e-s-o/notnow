@@ -405,6 +405,10 @@ impl Handleable<Event, Message> for TaskListBox {
           cap.send(self.tab_bar, message).await
         }
       },
+      Message::UpdateTask(task) => {
+        data.tasks.borrow_mut().update(task);
+        Some(Message::Updated)
+      },
       #[cfg(not(feature = "readline"))]
       Message::InputCanceled => {
         if data.state.take().is_some() {

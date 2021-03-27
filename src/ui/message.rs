@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use crate::tasks::Id as TaskId;
-#[cfg(all(test, not(feature = "readline")))]
 use crate::tasks::Task;
 
 use super::event::Event;
@@ -22,6 +21,8 @@ pub enum Message {
   /// select it. The last argument indicates whether we search in
   /// reverse order (true) or not (false).
   SearchTask(String, SearchState, bool),
+  /// Update a task.
+  UpdateTask(Task),
   /// Set the state of the input/output area.
   SetInOut(InOut),
   /// Text has been entered.

@@ -117,6 +117,17 @@ impl Data {
       selection: 0,
     }
   }
+
+  /// Convert the `Data` into a `Task` with updated tags.
+  fn into_task(mut self) -> Task {
+    let tags = self.tags.into_iter().filter_map(|tag| match tag {
+      SetUnsetTag::Set(tag) => Some(tag),
+      SetUnsetTag::Unset(_) => None,
+    });
+
+    self.task.set_tags(tags);
+    self.task
+  }
 }
 
 
@@ -199,11 +210,18 @@ impl Dialog {
     let data = self.data_mut::<DialogData>(cap);
     match key {
       Key::Esc | Key::Char('\n') | Key::Char('q') => {
-        self.restore_focus(cap);
+        let widget = self.restore_focus(cap);
         cap.hide(self.id);
 
         let data = self.data_mut::<DialogData>(cap);
-        data.data = None;
+        let data = data.data.take();
+
+        if key == Key::Char('\n') {
+          let task = data
+            .map(|data| data.into_task())
+            .expect("dialog has no data set");
+          cap.send(widget, Message::UpdateTask(task)).await;
+        }
 
         Some(Message::Updated)
       },
