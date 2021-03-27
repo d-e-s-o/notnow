@@ -48,6 +48,14 @@ impl SetUnsetTag {
       Self::Unset(_) => false,
     }
   }
+
+  /// Toggle the tag.
+  fn toggle(&mut self) {
+    *self = match self {
+      Self::Set(tag) => Self::Unset(tag.clone()),
+      Self::Unset(tag) => Self::Set(tag.clone()),
+    };
+  }
 }
 
 
@@ -123,6 +131,27 @@ impl DialogData {
   pub fn new() -> Self {
     Self { data: None }
   }
+
+  /// Retrieve a reference to the selected tag, if any.
+  fn selected_tag(&mut self) -> Option<&mut SetUnsetTag> {
+    let selection = self.selection(0);
+    self
+      .data
+      .as_mut()
+      .map(|data| data.tags.get_mut(selection))
+      .expect("dialog has no data set")
+  }
+
+  /// Toggle the currently selected tag, if any.
+  fn toggle_tag(&mut self) -> bool {
+    self
+      .selected_tag()
+      .map(|tag| {
+        tag.toggle();
+        true
+      })
+      .unwrap_or(false)
+  }
 }
 
 impl Selectable for DialogData {
@@ -178,6 +207,7 @@ impl Dialog {
 
         Some(Message::Updated)
       },
+      Key::Char(' ') => MessageExt::maybe_update(None, data.toggle_tag()),
       Key::Char('g') => MessageExt::maybe_update(None, data.select(0)),
       Key::Char('G') => MessageExt::maybe_update(None, data.select(isize::MAX)),
       Key::Char('j') => MessageExt::maybe_update(None, data.change_selection(1)),
