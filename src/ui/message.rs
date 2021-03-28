@@ -21,6 +21,8 @@ pub enum Message {
   /// select it. The last argument indicates whether we search in
   /// reverse order (true) or not (false).
   SearchTask(String, SearchState, bool),
+  /// Edit the tags associated with a task.
+  EditTags(Task),
   /// Update a task.
   UpdateTask(Task),
   /// Set the state of the input/output area.

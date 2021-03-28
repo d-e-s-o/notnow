@@ -40,7 +40,8 @@ where that is possible. The key bindings are as follows:
 | Key(s) | Function                                 |
 |--------|------------------------------------------|
 | a      | Add a new task                           |
-| e      | Edit selected task                       |
+| e      | Edit selected task's description         |
+| t      | Edit selected task's tags                |
 | d      | Delete selected task                     |
 | j      | Move task selection down                 |
 | k      | Move task selection up                   |

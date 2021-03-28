@@ -1362,7 +1362,15 @@ mod tests {
     // We test all ASCII chars.
     for c in 0u8..127u8 {
       let c = c as char;
-      if c != 'a' && c != 'e' && c != 'n' && c != 'N' && c != 'w' && c != '/' && c != '?' {
+      if c != 'a'
+        && c != 'e'
+        && c != 'n'
+        && c != 'N'
+        && c != 't'
+        && c != 'w'
+        && c != '/'
+        && c != '?'
+      {
         assert_eq!(with_key(c).await, InOut::Clear, "char: {} ({})", c, c as u8);
       }
     }
@@ -1963,5 +1971,89 @@ mod tests {
     assert_eq!(state.queries[2].1, Some(4));
     assert_eq!(state.queries[3].1, Some(0));
     assert_eq!(state.selected, Some(2));
+  }
+
+  /// Check that we can edit the tags of a task with no tags set
+  /// currently.
+  #[test]
+  async fn edit_task_with_no_tags() {
+    let events = vec![
+      Event::from('t'),
+      // Set the first tag, which is "complete".
+      Event::from(' '),
+      Event::from('\n'),
+    ];
+    let tasks = TestUiBuilder::with_default_tasks_and_tags()
+      .build()
+      .handle(events)
+      .await
+      .tasks()
+      .await;
+
+    let tags = tasks[0].tags().map(|x| x.name()).collect::<Vec<_>>();
+    let expected = vec!["complete"];
+    assert_eq!(tags, expected);
+  }
+
+  /// Check that we can edit the tags of a task with some tags set
+  /// already.
+  #[test]
+  async fn edit_task_with_existing_tags() {
+    let events = vec![
+      // Move to the third query (tag2 || tag3).
+      Event::from('l'),
+      Event::from('l'),
+      // Move to task11.
+      Event::from('j'),
+      Event::from('j'),
+      Event::from('t'),
+      // Move to tag2.
+      Event::from('j'),
+      // Toggle it.
+      Event::from(' '),
+      // Move to tag1.
+      Event::from('k'),
+      // Toggle it.
+      Event::from(' '),
+      Event::from('\n'),
+    ];
+    let tasks = TestUiBuilder::with_default_tasks_and_tags()
+      .build()
+      .handle(events)
+      .await
+      .tasks()
+      .await;
+
+    let tags = tasks[10].tags().map(|x| x.name()).collect::<Vec<_>>();
+    assert_eq!(tags, Vec::<&str>::new());
+  }
+
+  /// Test setting all available tags for a task.
+  #[test]
+  async fn set_all_tags() {
+    let events = vec![
+      // Move to task3.
+      Event::from('j'),
+      Event::from('j'),
+      Event::from('t'),
+      Event::from(' '),
+      Event::from('j'),
+      Event::from(' '),
+      Event::from('j'),
+      Event::from(' '),
+      Event::from('j'),
+      Event::from(' '),
+      Event::from('\n'),
+    ];
+    let tasks = TestUiBuilder::with_default_tasks_and_tags()
+      .build()
+      .handle(events)
+      .await
+      .tasks()
+      .await;
+
+    let tags = tasks[2].tags().map(|x| x.name()).collect::<Vec<_>>();
+    let expected = vec!["complete", "tag1", "tag2", "tag3"];
+    assert_eq!(tags, expected);
   }
 }

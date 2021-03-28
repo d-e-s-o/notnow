@@ -304,6 +304,14 @@ impl Handleable<Event, Message> for TaskListBox {
             None
           }
         },
+        Key::Char('t') => {
+          if let Some(task) = data.selected_task() {
+            let message = Message::EditTags(task);
+            cap.send(self.dialog, message).await.into_event()
+          } else {
+            None
+          }
+        },
         Key::Char('J') => {
           if let Some(to_move) = data.selected_task() {
             let other = data.query.iter().nth(data.selection(1));

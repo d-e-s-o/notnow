@@ -104,7 +104,6 @@ struct Data {
   selection: isize,
 }
 
-#[allow(unused)]
 impl Data {
   /// Create a new `Data` object from the given `Task` object.
   fn new(task: Task) -> Self {
@@ -280,6 +279,21 @@ impl Handleable<Event, Message> for Dialog {
     match event {
       Event::Key(key, _raw) => self.handle_key(cap, key).await.into_event(),
       _ => Some(event),
+    }
+  }
+
+  /// React to a message.
+  async fn react(&self, message: Message, cap: &mut dyn MutCap<Event, Message>) -> Option<Message> {
+    match message {
+      Message::EditTags(task) => {
+        let data = self.data_mut::<DialogData>(cap);
+        debug_assert_eq!(data.data, None);
+        data.data = Some(Data::new(task));
+
+        self.make_focused(cap);
+        Some(Message::Updated)
+      },
+      m => panic!("Received unexpected message: {:?}", m),
     }
   }
 }

@@ -1,5 +1,7 @@
 Unreleased
 ----------
+- Added support for editing tags through newly introduced dialog widget,
+  accessible via 't'
 - Changed placement of newly created tasks to be after currently
   selected one
 - Bumped required Rust version to `1.43`
