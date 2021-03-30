@@ -1,5 +1,5 @@
-Unreleased
-----------
+0.2.5
+-----
 - Added support for editing tags through newly introduced dialog widget,
   accessible via 't'
 - Changed placement of newly created tasks to be after currently
