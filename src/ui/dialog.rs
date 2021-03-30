@@ -92,7 +92,7 @@ fn prepare_tags(task: &Task) -> Vec<SetUnsetTag> {
 }
 
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 struct Data {
   /// The ID of the previously focused widget.
   prev_focused: Option<Id>,
@@ -287,7 +287,7 @@ impl Handleable<Event, Message> for Dialog {
     match message {
       Message::EditTags(task) => {
         let data = self.data_mut::<DialogData>(cap);
-        debug_assert_eq!(data.data, None);
+        debug_assert!(data.data.is_none());
         data.data = Some(Data::new(task));
 
         self.make_focused(cap);

@@ -427,7 +427,7 @@ impl Handleable<Event, Message> for InOutArea {
 }
 
 
-#[cfg(all(test, feature = "readline"))]
+#[cfg(all(test, not(feature = "readline")))]
 mod tests {
   use super::*;
 

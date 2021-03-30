@@ -2056,4 +2056,30 @@ mod tests {
     let expected = vec!["complete", "tag1", "tag2", "tag3"];
     assert_eq!(tags, expected);
   }
+
+  /// Check that we can select the first and last tags quickly.
+  #[test]
+  async fn first_last_tag() {
+    let events = vec![
+      Event::from('t'),
+      Event::from('j'),
+      // Toggle the last tag.
+      Event::from('G'),
+      Event::from(' '),
+      // Toggle the first tag.
+      Event::from('g'),
+      Event::from(' '),
+      Event::from('\n'),
+    ];
+    let tasks = TestUiBuilder::with_default_tasks_and_tags()
+      .build()
+      .handle(events)
+      .await
+      .tasks()
+      .await;
+
+    let tags = tasks[0].tags().map(|x| x.name()).collect::<Vec<_>>();
+    let expected = vec!["complete", "tag3"];
+    assert_eq!(tags, expected);
+  }
 }

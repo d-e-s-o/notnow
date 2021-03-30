@@ -121,15 +121,6 @@ impl Task {
   }
 }
 
-impl PartialEq for Task {
-  fn eq(&self, other: &Task) -> bool {
-    let result = self.id == other.id;
-    assert!(!result || self.summary == other.summary);
-    assert!(!result || self.tags == other.tags);
-    result
-  }
-}
-
 impl ToSerde<SerTask> for Task {
   /// Convert this task into a serializable one.
   fn to_serde(&self) -> SerTask {
@@ -144,7 +135,7 @@ pub type TaskIter<'a> = slice::Iter<'a, Task>;
 
 
 /// A management struct for tasks and their associated data.
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub struct Tasks {
   templates: Rc<Templates>,
   tasks: Vec<Task>,
