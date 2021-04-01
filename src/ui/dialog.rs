@@ -129,6 +129,20 @@ impl Data {
   }
 }
 
+impl Selectable for Data {
+  fn selection_index(&self) -> isize {
+    self.selection
+  }
+
+  fn set_selection_index(&mut self, selection: isize) {
+    self.selection = selection
+  }
+
+  fn count(&self) -> usize {
+    self.tags.len()
+  }
+}
+
 
 /// The data associated with a `Dialog` widget.
 #[derive(Debug)]
@@ -169,7 +183,7 @@ impl Selectable for DialogData {
     self
       .data
       .as_ref()
-      .map(|data| data.selection)
+      .map(|data| data.selection_index())
       .expect("dialog has no data set")
   }
 
@@ -177,7 +191,7 @@ impl Selectable for DialogData {
     self
       .data
       .as_mut()
-      .map(|mut data| data.selection = selection)
+      .map(|data| data.set_selection_index(selection))
       .expect("dialog has no data set")
   }
 
@@ -185,7 +199,7 @@ impl Selectable for DialogData {
     self
       .data
       .as_ref()
-      .map(|data| data.tags.len())
+      .map(|data| data.count())
       .expect("dialog has no data set")
   }
 }
