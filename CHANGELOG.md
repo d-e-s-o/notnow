@@ -1,3 +1,8 @@
+Unreleased
+----------
+- Added support for jumping to tags via 'f' and 'F'
+
+
 0.2.5
 -----
 - Added support for editing tags through newly introduced dialog widget,

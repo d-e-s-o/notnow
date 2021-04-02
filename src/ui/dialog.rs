@@ -92,6 +92,17 @@ fn prepare_tags(task: &Task) -> Vec<SetUnsetTag> {
 }
 
 
+/// An enum indicating in which direction to search for the next desired
+/// entry.
+#[derive(Copy, Clone, Debug, PartialEq)]
+enum Direction {
+  /// Search for the next desired entry in forward direction.
+  Forward,
+  /// Search for the next desired entry in backward direction.
+  Backward,
+}
+
+
 #[derive(Debug)]
 struct Data {
   /// The ID of the previously focused widget.
@@ -102,6 +113,8 @@ struct Data {
   tags: Vec<SetUnsetTag>,
   /// The currently selected tag.
   selection: isize,
+  /// Whether the user has started a "jump to" operation.
+  jump_to: Option<Direction>,
 }
 
 impl Data {
@@ -114,6 +127,35 @@ impl Data {
       task,
       tags,
       selection: 0,
+      jump_to: None,
+    }
+  }
+
+  /// Jump to the next task beginning with the given character, moving
+  /// in the provided direction.
+  fn select_task_beginning_with(&mut self, c: char, direction: Direction) -> bool {
+    let pattern = &c.to_lowercase().to_string();
+    let new_selection = match direction {
+      Direction::Forward => self
+        .tags
+        .iter()
+        .enumerate()
+        .skip(self.selection(1))
+        .find(|(_, tag)| tag.name().to_lowercase().starts_with(pattern)),
+      Direction::Backward => self
+        .tags
+        .iter()
+        .enumerate()
+        .rev()
+        .skip(self.count() - self.selection(0))
+        .find(|(_, tag)| tag.name().to_lowercase().starts_with(pattern)),
+    };
+
+    if let Some((new_selection, _)) = new_selection {
+      self.set_selection_index(new_selection as isize);
+      true
+    } else {
+      false
     }
   }
 
@@ -219,7 +261,12 @@ impl Dialog {
   }
 
   /// Handle a key press.
+  #[allow(clippy::option_map_unit_fn)]
   async fn handle_key(&self, cap: &mut dyn MutCap<Event, Message>, key: Key) -> Option<Message> {
+    if let Some(result) = self.handle_jump_to(cap, key) {
+      return result
+    }
+
     let data = self.data_mut::<DialogData>(cap);
     match key {
       Key::Esc | Key::Char('\n') | Key::Char('q') => {
@@ -239,11 +286,57 @@ impl Dialog {
         Some(Message::Updated)
       },
       Key::Char(' ') => MessageExt::maybe_update(None, data.toggle_tag()),
+      Key::Char('f') => {
+        data
+          .data
+          .as_mut()
+          .map(|data| data.jump_to = Some(Direction::Forward));
+        None
+      },
+      Key::Char('F') => {
+        data
+          .data
+          .as_mut()
+          .map(|data| data.jump_to = Some(Direction::Backward));
+        None
+      },
       Key::Char('g') => MessageExt::maybe_update(None, data.select(0)),
       Key::Char('G') => MessageExt::maybe_update(None, data.select(isize::MAX)),
       Key::Char('j') => MessageExt::maybe_update(None, data.change_selection(1)),
       Key::Char('k') => MessageExt::maybe_update(None, data.change_selection(-1)),
       _ => None,
+    }
+  }
+
+  /// Handle any "jump to" action.
+  #[allow(clippy::option_option)]
+  fn handle_jump_to(
+    &self,
+    cap: &mut dyn MutCap<Event, Message>,
+    key: Key,
+  ) -> Option<Option<Message>> {
+    let data = self
+      .data_mut::<DialogData>(cap)
+      .data
+      .as_mut()
+      .expect("dialog has no data set");
+
+    match data.jump_to {
+      Some(direction) => {
+        data.jump_to = None;
+
+        match key {
+          Key::Char(c) => {
+            let updated = data.select_task_beginning_with(c, direction);
+            Some(MessageExt::maybe_update(None, updated))
+          },
+          // All non-char keys just reset the "jump to" flag directly and
+          // will be handled they same way they would have been had it not
+          // been set to begin with.
+          _ => None,
+        }
+      },
+      None => None,
     }
   }
 
@@ -353,5 +446,59 @@ mod tests {
       SetUnsetTag::Unset(templates.instantiate_from_name("Z")),
     ];
     assert_eq!(tags, expected);
+  }
+
+  #[test]
+  fn data_tag_selection() {
+    let template_list = vec![
+      Template::new("a"),
+      Template::new("b"),
+      Template::new("c"),
+      Template::new("c1"),
+      Template::new("d"),
+      Template::new("h"),
+      Template::new("z"),
+    ];
+
+    let mut templates = Templates::new();
+    templates.extend(template_list);
+    let templates = Rc::new(templates);
+
+    // We have two tags set.
+    let tags = vec![
+      templates.instantiate_from_name("a"),
+      templates.instantiate_from_name("h"),
+      templates.instantiate_from_name("d"),
+    ];
+
+    // The full list of tags will look like this:
+    // a, d, h, b, c, c1, complete, z
+    let task = Task::with_summary_and_tags("task", tags, templates.clone());
+    let mut data = Data::new(task);
+    assert_eq!(data.selection, 0);
+
+    assert!(!data.select_task_beginning_with('h', Direction::Backward));
+    assert_eq!(data.selection, 0);
+    assert!(data.select_task_beginning_with('h', Direction::Forward));
+    assert_eq!(data.selection, 2);
+
+    assert!(data.select_task_beginning_with('z', Direction::Forward));
+    assert_eq!(data.selection, 7);
+
+    assert!(data.select_task_beginning_with('c', Direction::Backward));
+    assert_eq!(data.selection, 6);
+    assert!(data.select_task_beginning_with('c', Direction::Backward));
+    assert_eq!(data.selection, 5);
+    assert!(data.select_task_beginning_with('c', Direction::Backward));
+    assert_eq!(data.selection, 4);
+    assert!(!data.select_task_beginning_with('c', Direction::Backward));
+    assert_eq!(data.selection, 4);
+
+    assert!(data.select_task_beginning_with('c', Direction::Forward));
+    assert_eq!(data.selection, 5);
+    assert!(data.select_task_beginning_with('c', Direction::Forward));
+    assert_eq!(data.selection, 6);
+    assert!(!data.select_task_beginning_with('c', Direction::Forward));
+    assert_eq!(data.selection, 6);
   }
 }

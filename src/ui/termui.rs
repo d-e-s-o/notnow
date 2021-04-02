@@ -2082,4 +2082,52 @@ mod tests {
     let expected = vec!["complete", "tag3"];
     assert_eq!(tags, expected);
   }
+
+  /// Check that we can quickly jump to a certain tag on the dialog.
+  #[test]
+  async fn jump_to_tag() {
+    let events = vec![
+      Event::from('t'),
+      Event::from('f'),
+      Event::from('t'),
+      Event::from(' '),
+      Event::from('F'),
+      Event::from('c'),
+      Event::from(' '),
+      Event::from('\n'),
+    ];
+    let tasks = TestUiBuilder::with_default_tasks_and_tags()
+      .build()
+      .handle(events)
+      .await
+      .tasks()
+      .await;
+
+    let tags = tasks[0].tags().map(|x| x.name()).collect::<Vec<_>>();
+    let expected = vec!["complete", "tag1"];
+    assert_eq!(tags, expected);
+  }
+
+  /// Check that we can properly abort a "jump to" action.
+  #[test]
+  async fn jump_to_tag_abort() {
+    let events = vec![
+      Event::from('t'),
+      Event::from('f'),
+      Event::from(Key::Esc),
+      Event::from('t'),
+      Event::from(' '),
+      Event::from('\n'),
+    ];
+    let tasks = TestUiBuilder::with_default_tasks_and_tags()
+      .build()
+      .handle(events)
+      .await
+      .tasks()
+      .await;
+
+    let tags = tasks[0].tags().map(|x| x.name()).collect::<Vec<_>>();
+    let expected = vec!["complete"];
+    assert_eq!(tags, expected);
+  }
 }
