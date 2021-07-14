@@ -14,9 +14,6 @@ A terminal based task and TODO management software.
 """
 include = ["src/**/*", "LICENSE", "README.md", "CHANGELOG.md"]
 
-[badges]
-gitlab = { repository = "d-e-s-o/notnow", branch = "master" }
-
 [profile.release]
 opt-level = "z"
 debug = true
