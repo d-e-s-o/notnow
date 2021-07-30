@@ -664,6 +664,15 @@ mod tests {
     assert_eq!(clip(1, 0, "foobar", bbox), "");
     assert_eq!(clip(1, 1, "baz?", bbox), "");
 
+    let bbox = BBox {
+      x: 10,
+      y: 16,
+      w: 6,
+      h: 1,
+    };
+    assert_eq!(clip(0, 0, "hello", bbox), "hello");
+    assert_eq!(clip(0, 0, "hello you", bbox), "hello ");
+
     // The position of the bounding box should not matter.
     for x in 0..5 {
       for y in 0..3 {
