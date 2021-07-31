@@ -108,13 +108,6 @@ use crate::ui::term_renderer::TermRenderer;
 use crate::ui::termui::TermUi;
 use crate::ui::termui::TermUiData;
 
-/// A type indicating the desire to continue execution.
-///
-/// If set to `Some` we continue, in case of `None` we stop. The boolean
-/// indicates whether or not an `Updated` event was found, indicating
-/// that the UI should be rerendered.
-type Continue = Option<bool>;
-
 
 /// An event to be handled by the program.
 #[derive(Clone, Debug)]
@@ -144,15 +137,6 @@ fn ui_config() -> Result<PathBuf> {
       .join("notnow")
       .join("notnow.json"),
   )
-}
-
-/// Handle the given `UiEvent`.
-fn handle_unhandled_event(event: UiEvent) -> Continue {
-  match event {
-    UiEvent::Quit => None,
-    UiEvent::Updated => Some(true),
-    _ => Some(false),
-  }
 }
 
 /// Instantiate a key receiver thread and have it send key events through the given channel.
@@ -201,9 +185,10 @@ where
           let event = UiEvent::Key(key, _raw);
 
           if let Some(event) = ui.handle(event).await {
-            match handle_unhandled_event(event) {
-              Some(update) => render = update || render,
-              None => break 'handler,
+            match event {
+              UiEvent::Quit => break 'handler,
+              UiEvent::Updated => render = true,
+              UiEvent::Key(..) => {},
             }
           }
         },
