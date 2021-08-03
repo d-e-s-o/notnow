@@ -62,7 +62,7 @@ version = "1.0"
 version = "1.5"
 
 [dependencies.tokio]
-version = "1.0"
+version = "1.8"
 default-features = false
 features = ["macros", "rt"]
 
