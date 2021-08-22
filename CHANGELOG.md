@@ -3,6 +3,7 @@ Unreleased
 - Added support for jumping to tags via 'f' and 'F'
 - Added `dirs` dependency in version `3.0`
 - Added `tokio` dependency in version `1.8`
+- Bumped minimum supported Rust version to `1.46`
 
 
 0.2.5

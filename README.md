@@ -1,7 +1,7 @@
 [![pipeline](https://gitlab.com/d-e-s-o/notnow/badges/master/pipeline.svg)](https://gitlab.com/d-e-s-o/notnow/commits/master)
 [![coverage](https://gitlab.com/d-e-s-o/notnow/badges/master/coverage.svg)](https://gitlab.com/d-e-s-o/notnow/-/jobs/artifacts/master/file/kcov/kcov-merged/index.html?job=coverage:kcov)
 [![crates.io](https://img.shields.io/crates/v/notnow.svg)](https://crates.io/crates/notnow)
-[![rustc](https://img.shields.io/badge/rustc-1.43+-blue.svg)](https://blog.rust-lang.org/2020/04/23/Rust-1.43.0.html)
+[![rustc](https://img.shields.io/badge/rustc-1.46+-blue.svg)](https://blog.rust-lang.org/2020/08/27/Rust-1.46.0.html)
 
 notnow
 ======
