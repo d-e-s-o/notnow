@@ -180,10 +180,13 @@ impl Tasks {
   }
 
   /// Add a new task.
-  pub fn add(&mut self, summary: String, tags: Vec<Tag>) -> Id {
+  pub fn add(&mut self, summary: String, tags: Vec<Tag>, after: Option<Id>) -> Id {
     let task = Task::with_summary_and_tags(summary, tags, self.templates.clone());
     let id = task.id;
     self.tasks.push(task);
+    if let Some(after) = after {
+      self.move_relative_to(id, after, 1);
+    }
     id
   }
 
@@ -252,9 +255,25 @@ pub mod tests {
   fn add_task() {
     let mut tasks = Tasks::with_serde_tasks(make_tasks(3)).unwrap();
     let tags = Default::default();
-    tasks.add("4".to_string(), tags);
+    tasks.add("4".to_string(), tags, None);
 
     assert_eq!(tasks.to_serde().0, make_tasks(4));
+  }
+
+  /// Check that adding a task after another works correctly.
+  #[test]
+  fn add_task_after() {
+    let tasks = make_tasks(3);
+    let mut tasks = Tasks::with_serde_tasks(tasks).unwrap();
+    let id = tasks.tasks[0].id;
+    let tags = Default::default();
+    tasks.add("4".to_string(), tags, Some(id));
+
+    let mut expected = make_tasks(4);
+    let task = expected.remove(3);
+    expected.insert(1, task);
+
+    assert_eq!(tasks.to_serde().0, expected);
   }
 
   #[test]

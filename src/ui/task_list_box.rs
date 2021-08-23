@@ -374,21 +374,20 @@ impl Handleable<Event, Message> for TaskListBox {
                   Default::default()
                 };
 
-                let id = data.tasks.borrow_mut().add(text.clone(), tags);
                 // We want the new task to be displayed after the
-                // currently selected one.
-                if let Some(current) = data.selected_task() {
-                  // TODO: This movement may lead to a bit surprising
-                  //       placement for tasks that were previously
-                  //       tagged 'complete', because we move the new
-                  //       task just after this one, but given that we
-                  //       removed the tag it may end up being displayed
-                  //       on a different query altogether -- and at a
-                  //       rather random seeming location because of it.
-                  //       Eventually we may want to remove the special
-                  //       case logic for the 'complete' tag.
-                  data.tasks.borrow_mut().move_after(id, current.id());
-                }
+                // currently selected one, so find the ID of the
+                // currently selected task first.
+                // TODO: The movement initiated here may lead to a bit
+                //       surprising placement for tasks that were
+                //       previously tagged 'complete', because we move
+                //       the new task just after this one, but given
+                //       that we removed the tag it may end up being
+                //       displayed on a different query altogether --
+                //       and at a rather random seeming location because
+                //       of it. Eventually we may want to remove the
+                //       special case logic for the 'complete' tag.
+                let after = data.selected_task().as_ref().map(Task::id);
+                let id = data.tasks.borrow_mut().add(text.clone(), tags, after);
                 self.select_task(cap, id).await
               } else {
                 None
