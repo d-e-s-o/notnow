@@ -137,6 +137,16 @@ fn find_idx(tasks: &[Task], id: Id) -> usize {
   tasks.iter().position(|task| task.id() == id).unwrap()
 }
 
+/// Add a task to a vector of tasks.
+fn add_task(tasks: &mut Vec<Task>, task: Task, after: Option<Id>) {
+  if let Some(after) = after {
+    let idx = find_idx(tasks, after);
+    tasks.insert(idx + 1, task);
+  } else {
+    tasks.push(task);
+  }
+}
+
 
 pub type TaskIter<'a> = slice::Iter<'a, Task>;
 
@@ -191,13 +201,7 @@ impl Tasks {
     let task = Task::with_summary_and_tags(summary, tags, self.templates.clone());
     let id = task.id;
 
-    if let Some(after) = after {
-      let idx = find_idx(&self.tasks, after);
-      self.tasks.insert(idx + 1, task);
-    } else {
-      self.tasks.push(task);
-    }
-
+    add_task(&mut self.tasks, task, after);
     id
   }
 
