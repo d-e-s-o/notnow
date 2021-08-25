@@ -131,6 +131,13 @@ impl ToSerde<SerTask> for Task {
   }
 }
 
+
+/// Find the position of a task.
+fn find_idx(tasks: &[Task], id: Id) -> usize {
+  tasks.iter().position(|task| task.id() == id).unwrap()
+}
+
+
 pub type TaskIter<'a> = slice::Iter<'a, Task>;
 
 
@@ -183,47 +190,37 @@ impl Tasks {
   pub fn add(&mut self, summary: String, tags: Vec<Tag>, after: Option<Id>) -> Id {
     let task = Task::with_summary_and_tags(summary, tags, self.templates.clone());
     let id = task.id;
-    self.tasks.push(task);
+
     if let Some(after) = after {
-      self.move_relative_to(id, after, 1);
+      let idx = find_idx(&self.tasks, after);
+      self.tasks.insert(idx + 1, task);
+    } else {
+      self.tasks.push(task);
     }
+
     id
   }
 
   /// Remove a task.
   pub fn remove(&mut self, id: Id) {
-    self
-      .tasks
-      .iter()
-      .position(|x| x.id() == id)
-      .map(|x| self.tasks.remove(x))
-      .unwrap();
+    let idx = find_idx(&self.tasks, id);
+    let _ = self.tasks.remove(idx);
   }
 
   /// Update a task.
   pub fn update(&mut self, task: Task) {
-    self
-      .tasks
-      .iter_mut()
-      .position(|x| x.id() == task.id())
-      .map(|x| self.tasks[x] = task)
-      .unwrap();
+    let idx = find_idx(&self.tasks, task.id);
+    self.tasks[idx] = task;
   }
 
   /// Move a task relative to another.
   fn move_relative_to(&mut self, to_move: Id, other: Id, add: usize) {
     if to_move != other {
-      self
-        .tasks
-        .iter_mut()
-        .position(|x| x.id() == to_move)
-        .map(|x| {
-          let task = self.tasks.remove(x);
-          let idx = self.tasks.iter_mut().position(|x| x.id() == other).unwrap() + add;
+      let old_pos = find_idx(&self.tasks, to_move);
+      let task = self.tasks.remove(old_pos);
 
-          self.tasks.insert(idx, task);
-        })
-        .unwrap();
+      let new_pos = find_idx(&self.tasks, other) + add;
+      self.tasks.insert(new_pos, task);
     }
   }
 
