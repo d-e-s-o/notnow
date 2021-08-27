@@ -147,6 +147,12 @@ fn add_task(tasks: &mut Vec<Task>, task: Task, after: Option<Id>) {
   }
 }
 
+/// Remove a task from a vector of tasks.
+fn remove_task(tasks: &mut Vec<Task>, id: Id) -> (Task, usize) {
+  let idx = find_idx(tasks, id);
+  (tasks.remove(idx), idx)
+}
+
 
 pub type TaskIter<'a> = slice::Iter<'a, Task>;
 
@@ -207,8 +213,7 @@ impl Tasks {
 
   /// Remove a task.
   pub fn remove(&mut self, id: Id) {
-    let idx = find_idx(&self.tasks, id);
-    let _ = self.tasks.remove(idx);
+    let _ = remove_task(&mut self.tasks, id);
   }
 
   /// Update a task.
