@@ -6,6 +6,7 @@ use std::collections::BTreeMap;
 use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Result;
+use std::mem::replace;
 use std::rc::Rc;
 use std::slice;
 
@@ -153,6 +154,12 @@ fn remove_task(tasks: &mut Vec<Task>, id: Id) -> (Task, usize) {
   (tasks.remove(idx), idx)
 }
 
+/// Update a task in a vector of tasks.
+fn update_task(tasks: &mut Vec<Task>, task: Task) -> Task {
+  let idx = find_idx(tasks, task.id);
+  replace(&mut tasks[idx], task)
+}
+
 
 pub type TaskIter<'a> = slice::Iter<'a, Task>;
 
@@ -218,8 +225,7 @@ impl Tasks {
 
   /// Update a task.
   pub fn update(&mut self, task: Task) {
-    let idx = find_idx(&self.tasks, task.id);
-    self.tasks[idx] = task;
+    let _ = update_task(&mut self.tasks, task);
   }
 
   /// Move a task relative to another.
