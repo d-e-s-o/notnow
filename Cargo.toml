@@ -47,6 +47,9 @@ features = ["derive"]
 [dependencies.libc]
 version = "0.2"
 
+[dependencies.rbuf]
+version = "0.1.3"
+
 [dependencies.rline]
 version = "0.3"
 optional = true

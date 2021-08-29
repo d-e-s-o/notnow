@@ -58,6 +58,7 @@
 
 mod colors;
 mod id;
+mod ops;
 mod query;
 mod resize;
 mod ser;
