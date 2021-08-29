@@ -11,6 +11,7 @@ use std::rc::Rc;
 use std::slice;
 
 use crate::id::Id as IdT;
+use crate::ops::Op;
 use crate::ser::tasks::Task as SerTask;
 use crate::ser::tasks::Tasks as SerTasks;
 use crate::ser::ToSerde;
@@ -161,6 +162,155 @@ fn update_task(tasks: &mut Vec<Task>, task: Task) -> Task {
 }
 
 
+/// An enumeration holding either a task ID or the full task.
+///
+/// This type is mostly an implementation detail of the `TaskOp`
+/// enumeration.
+#[derive(Debug)]
+enum IdOrTask {
+  /// The ID of a task.
+  Id(Id),
+  /// An actual task along with its position.
+  Task(Task, usize),
+}
+
+impl IdOrTask {
+  fn id(&self) -> Id {
+    match self {
+      Self::Id(id) => *id,
+      Self::Task(task, ..) => task.id,
+    }
+  }
+
+  fn task(&self) -> (&Task, usize) {
+    match self {
+      Self::Id(..) => panic!("IdOrTask does not contain a task"),
+      Self::Task(task, position) => (task, *position),
+    }
+  }
+}
+
+
+/// An enum encoding the target location of a task: before or after a
+/// task with a given ID.
+#[allow(unused)]
+#[derive(Clone, Copy, Debug)]
+enum Target {
+  /// The target is the spot before the given task.
+  Before(Id),
+  /// The target is the spot after the given task.
+  After(Id),
+}
+
+impl Target {
+  fn id(&self) -> Id {
+    match self {
+      Self::Before(id) | Self::After(id) => *id,
+    }
+  }
+}
+
+
+/// An operation to be performed on a task in a `Tasks` object.
+#[derive(Debug)]
+enum TaskOp {
+  /// An operation adding a task.
+  Add { task: Task, after: Option<Id> },
+  /// An operation removing a task.
+  Remove { id_or_task: IdOrTask },
+  /// An operation updating a task.
+  Update { updated: Task, before: Option<Task> },
+  /// An operation changing a task's position.
+  Move {
+    from: usize,
+    to: Target,
+    task: Option<Task>,
+  },
+}
+
+#[allow(unused)]
+impl TaskOp {
+  fn add(task: Task, after: Option<Id>) -> Self {
+    Self::Add { task, after }
+  }
+
+  fn remove(id: Id) -> Self {
+    Self::Remove {
+      id_or_task: IdOrTask::Id(id),
+    }
+  }
+
+  fn update(updated: Task) -> Self {
+    Self::Update {
+      updated,
+      before: None,
+    }
+  }
+
+  fn move_(from: usize, to: Target) -> Self {
+    Self::Move {
+      from,
+      to,
+      task: None,
+    }
+  }
+}
+
+impl Op<Vec<Task>> for TaskOp {
+  fn exec(&mut self, tasks: &mut Vec<Task>) {
+    match self {
+      Self::Add { task, after } => add_task(tasks, task.clone(), *after),
+      Self::Remove { id_or_task } => {
+        let (task, idx) = remove_task(tasks, id_or_task.id());
+        *id_or_task = IdOrTask::Task(task, idx);
+      },
+      Self::Update { updated, before } => {
+        let task = update_task(tasks, updated.clone());
+        *before = Some(task);
+      },
+      Self::Move { from, to, task } => {
+        let removed = tasks.remove(*from);
+        // We do not support the case of moving a task with itself as a
+        // target. Doing so should be prevented at a higher layer,
+        // though.
+        debug_assert_ne!(removed.id, to.id());
+
+        let idx = find_idx(tasks, to.id());
+        let idx = match to {
+          Target::Before(..) => idx,
+          Target::After(..) => idx + 1,
+        };
+        tasks.insert(idx, removed.clone());
+
+        *task = Some(removed);
+      },
+    }
+  }
+
+  fn undo(&mut self, tasks: &mut Vec<Task>) {
+    match self {
+      Self::Add { task, .. } => {
+        let _ = remove_task(tasks, task.id());
+      },
+      Self::Remove { id_or_task } => {
+        let (task, idx) = id_or_task.task();
+        tasks.insert(idx, task.clone());
+      },
+      Self::Update { updated, before } => {
+        let _task = update_task(tasks, before.clone().unwrap());
+        debug_assert_eq!(_task.id(), updated.id());
+      },
+      Self::Move { from, task, .. } => {
+        let id = task.as_ref().map(|task| task.id).unwrap();
+        let idx = find_idx(tasks, id);
+        let removed = tasks.remove(idx);
+        tasks.insert(*from, removed);
+      },
+    }
+  }
+}
+
+
 pub type TaskIter<'a> = slice::Iter<'a, Task>;
 
 
@@ -259,9 +409,161 @@ pub mod tests {
   use serde_json::from_str as from_json;
   use serde_json::to_string_pretty as to_json;
 
+  use crate::ops::Ops;
   use crate::ser::tags::Templates as SerTemplates;
   use crate::test::make_tasks;
 
+
+  /// Check that the `TaskOp::Add` variant works as expected on an empty
+  /// task vector.
+  #[test]
+  fn exec_undo_task_add_empty() {
+    let mut tasks = Vec::new();
+    let mut ops = Ops::new(3);
+
+    let task1 = Task::new("task1");
+    let op = TaskOp::add(task1, None);
+    ops.exec(op, &mut tasks);
+    assert_eq!(tasks.len(), 1);
+    assert_eq!(tasks[0].summary, "task1");
+
+    ops.undo(&mut tasks);
+    assert!(tasks.is_empty());
+
+    ops.redo(&mut tasks);
+    assert_eq!(tasks.len(), 1);
+    assert_eq!(tasks[0].summary, "task1");
+  }
+
+  /// Check that the `TaskOp::Add` variant works as expected on a
+  /// non-empty task vector.
+  #[test]
+  fn exec_undo_task_add_non_empty() {
+    let mut tasks = vec![Task::new("task1")];
+    let mut ops = Ops::new(3);
+    let task2 = Task::new("task2");
+    let op = TaskOp::add(task2, None);
+    ops.exec(op, &mut tasks);
+    assert_eq!(tasks.len(), 2);
+    assert_eq!(tasks[0].summary, "task1");
+    assert_eq!(tasks[1].summary, "task2");
+
+    let task3 = Task::new("task3");
+    let op = TaskOp::add(task3, Some(tasks[0].id));
+    ops.exec(op, &mut tasks);
+    assert_eq!(tasks.len(), 3);
+    assert_eq!(tasks[0].summary, "task1");
+    assert_eq!(tasks[1].summary, "task3");
+    assert_eq!(tasks[2].summary, "task2");
+
+    ops.undo(&mut tasks);
+    assert_eq!(tasks.len(), 2);
+    assert_eq!(tasks[0].summary, "task1");
+    assert_eq!(tasks[1].summary, "task2");
+
+    ops.undo(&mut tasks);
+    assert_eq!(tasks.len(), 1);
+    assert_eq!(tasks[0].summary, "task1");
+  }
+
+  /// Check that the `TaskOp::Remove` variant works as expected on a
+  /// task vector with only a single task.
+  #[test]
+  fn exec_undo_task_remove_single() {
+    let mut tasks = vec![Task::new("task1")];
+    let mut ops = Ops::new(3);
+
+    let op = TaskOp::remove(tasks[0].id);
+    ops.exec(op, &mut tasks);
+    assert!(tasks.is_empty());
+
+    ops.undo(&mut tasks);
+    assert_eq!(tasks.len(), 1);
+    assert_eq!(tasks[0].summary, "task1");
+
+    ops.redo(&mut tasks);
+    assert!(tasks.is_empty());
+  }
+
+  /// Check that the `TaskOp::Remove` variant works as expected on a
+  /// task vector with multiple tasks.
+  #[test]
+  fn exec_undo_task_remove_multi() {
+    let mut tasks = vec![Task::new("task1"), Task::new("task2"), Task::new("task3")];
+    let mut ops = Ops::new(3);
+
+    let op = TaskOp::remove(tasks[1].id);
+    ops.exec(op, &mut tasks);
+    assert_eq!(tasks.len(), 2);
+    assert_eq!(tasks[0].summary, "task1");
+    assert_eq!(tasks[1].summary, "task3");
+
+    ops.undo(&mut tasks);
+    assert_eq!(tasks.len(), 3);
+    assert_eq!(tasks[0].summary, "task1");
+    assert_eq!(tasks[1].summary, "task2");
+    assert_eq!(tasks[2].summary, "task3");
+
+    ops.redo(&mut tasks);
+    assert_eq!(tasks.len(), 2);
+    assert_eq!(tasks[0].summary, "task1");
+    assert_eq!(tasks[1].summary, "task3");
+  }
+
+  /// Check that the `TaskOp::Update` variant works as expected.
+  #[test]
+  fn exec_undo_task_update() {
+    let mut tasks = vec![Task::new("task1"), Task::new("task2")];
+    let mut ops = Ops::new(3);
+
+    let mut new = tasks[0].clone();
+    new.summary = "foo!".to_string();
+    let op = TaskOp::update(new);
+    ops.exec(op, &mut tasks);
+    assert_eq!(tasks.len(), 2);
+    assert_eq!(tasks[0].summary, "foo!");
+    assert_eq!(tasks[1].summary, "task2");
+
+    ops.undo(&mut tasks);
+    assert_eq!(tasks.len(), 2);
+    assert_eq!(tasks[0].summary, "task1");
+    assert_eq!(tasks[1].summary, "task2");
+
+    ops.redo(&mut tasks);
+    assert_eq!(tasks.len(), 2);
+    assert_eq!(tasks[0].summary, "foo!");
+    assert_eq!(tasks[1].summary, "task2");
+  }
+
+  /// Check that the `TaskOp::Update` variant works as expected when
+  /// only a single task is present and the operation is no-op.
+  #[test]
+  fn exec_undo_task_move() {
+    let mut tasks = vec![Task::new("task1"), Task::new("task2")];
+    let mut ops = Ops::new(3);
+
+    let op = TaskOp::move_(1, Target::Before(tasks[0].id));
+    ops.exec(op, &mut tasks);
+    assert_eq!(tasks.len(), 2);
+    assert_eq!(tasks[0].summary, "task2");
+    assert_eq!(tasks[1].summary, "task1");
+
+    ops.undo(&mut tasks);
+    assert_eq!(tasks.len(), 2);
+    assert_eq!(tasks[0].summary, "task1");
+    assert_eq!(tasks[1].summary, "task2");
+
+    let op = TaskOp::move_(1, Target::After(tasks[0].id));
+    ops.exec(op, &mut tasks);
+    assert_eq!(tasks.len(), 2);
+    assert_eq!(tasks[0].summary, "task1");
+    assert_eq!(tasks[1].summary, "task2");
+
+    ops.undo(&mut tasks);
+    assert_eq!(tasks.len(), 2);
+    assert_eq!(tasks[0].summary, "task1");
+    assert_eq!(tasks[1].summary, "task2");
+  }
 
   #[test]
   fn add_task() {
