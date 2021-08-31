@@ -140,10 +140,14 @@ fn find_idx(tasks: &[Task], id: Id) -> usize {
 }
 
 /// Add a task to a vector of tasks.
-fn add_task(tasks: &mut Vec<Task>, task: Task, after: Option<Id>) {
-  if let Some(after) = after {
-    let idx = find_idx(tasks, after);
-    tasks.insert(idx + 1, task);
+fn add_task(tasks: &mut Vec<Task>, task: Task, target: Option<Target>) {
+  if let Some(target) = target {
+    let idx = find_idx(tasks, target.id());
+    let idx = match target {
+      Target::Before(..) => idx,
+      Target::After(..) => idx + 1,
+    };
+    tasks.insert(idx, task);
   } else {
     tasks.push(task);
   }
@@ -259,7 +263,7 @@ impl TaskOp {
 impl Op<Vec<Task>> for TaskOp {
   fn exec(&mut self, tasks: &mut Vec<Task>) {
     match self {
-      Self::Add { task, after } => add_task(tasks, task.clone(), *after),
+      Self::Add { task, after } => add_task(tasks, task.clone(), after.map(Target::After)),
       Self::Remove { id_or_task } => {
         let (task, idx) = remove_task(tasks, id_or_task.id());
         *id_or_task = IdOrTask::Task(task, idx);
@@ -274,13 +278,7 @@ impl Op<Vec<Task>> for TaskOp {
         // target. Doing so should be prevented at a higher layer,
         // though.
         debug_assert_ne!(removed.id, to.id());
-
-        let idx = find_idx(tasks, to.id());
-        let idx = match to {
-          Target::Before(..) => idx,
-          Target::After(..) => idx + 1,
-        };
-        tasks.insert(idx, removed.clone());
+        add_task(tasks, removed.clone(), Some(*to));
 
         *task = Some(removed);
       },
@@ -363,8 +361,7 @@ impl Tasks {
   pub fn add(&mut self, summary: String, tags: Vec<Tag>, after: Option<Id>) -> Id {
     let task = Task::with_summary_and_tags(summary, tags, self.templates.clone());
     let id = task.id;
-
-    add_task(&mut self.tasks, task, after);
+    add_task(&mut self.tasks, task, after.map(Target::After));
     id
   }
 
