@@ -12,6 +12,7 @@ use std::slice;
 
 use crate::id::Id as IdT;
 use crate::ops::Op;
+use crate::ops::Ops;
 use crate::ser::tasks::Task as SerTask;
 use crate::ser::tasks::Tasks as SerTasks;
 use crate::ser::ToSerde;
@@ -20,6 +21,12 @@ use crate::tags::Tag;
 use crate::tags::TagMap;
 use crate::tags::Template;
 use crate::tags::Templates;
+
+
+/// The maximum number of undo steps that we keep record of.
+// TODO: We may consider making this value user-configurable.
+const MAX_UNDO_STEP_COUNT: usize = 64;
+
 
 #[derive(Copy, Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct T(());
@@ -197,7 +204,6 @@ impl IdOrTask {
 
 /// An enum encoding the target location of a task: before or after a
 /// task with a given ID.
-#[allow(unused)]
 #[derive(Clone, Copy, Debug)]
 enum Target {
   /// The target is the spot before the given task.
@@ -232,7 +238,6 @@ enum TaskOp {
   },
 }
 
-#[allow(unused)]
 impl TaskOp {
   fn add(task: Task, after: Option<Id>) -> Self {
     Self::Add { task, after }
@@ -317,6 +322,8 @@ pub type TaskIter<'a> = slice::Iter<'a, Task>;
 pub struct Tasks {
   templates: Rc<Templates>,
   tasks: Vec<Task>,
+  /// A record of operations in the order they were performed.
+  operations: Ops<TaskOp, Vec<Task>>,
 }
 
 impl Tasks {
@@ -331,6 +338,7 @@ impl Tasks {
     Ok(Self {
       templates,
       tasks: new_tasks,
+      operations: Ops::new(MAX_UNDO_STEP_COUNT),
     })
   }
 
@@ -349,6 +357,7 @@ impl Tasks {
 
   /// Convert this object into a serializable one.
   pub fn to_serde(&self) -> SerTasks {
+    // TODO: We should consider including the operations here as well.
     SerTasks(self.tasks.iter().map(ToSerde::to_serde).collect())
   }
 
@@ -361,39 +370,42 @@ impl Tasks {
   pub fn add(&mut self, summary: String, tags: Vec<Tag>, after: Option<Id>) -> Id {
     let task = Task::with_summary_and_tags(summary, tags, self.templates.clone());
     let id = task.id;
-    add_task(&mut self.tasks, task, after.map(Target::After));
+    let op = TaskOp::add(task, after);
+    self.operations.exec(op, &mut self.tasks);
+
     id
   }
 
   /// Remove a task.
   pub fn remove(&mut self, id: Id) {
-    let _ = remove_task(&mut self.tasks, id);
+    let op = TaskOp::remove(id);
+    self.operations.exec(op, &mut self.tasks);
   }
 
   /// Update a task.
   pub fn update(&mut self, task: Task) {
-    let _ = update_task(&mut self.tasks, task);
-  }
-
-  /// Move a task relative to another.
-  fn move_relative_to(&mut self, to_move: Id, other: Id, add: usize) {
-    if to_move != other {
-      let old_pos = find_idx(&self.tasks, to_move);
-      let task = self.tasks.remove(old_pos);
-
-      let new_pos = find_idx(&self.tasks, other) + add;
-      self.tasks.insert(new_pos, task);
-    }
+    let op = TaskOp::update(task);
+    self.operations.exec(op, &mut self.tasks);
   }
 
   /// Reorder the tasks referenced by `to_move` before `other`.
   pub fn move_before(&mut self, to_move: Id, other: Id) {
-    self.move_relative_to(to_move, other, 0)
+    if to_move != other {
+      let idx = find_idx(&self.tasks, to_move);
+      let to = Target::Before(other);
+      let op = TaskOp::move_(idx, to);
+      self.operations.exec(op, &mut self.tasks);
+    }
   }
 
   /// Reorder the tasks referenced by `to_move` after `other`.
   pub fn move_after(&mut self, to_move: Id, other: Id) {
-    self.move_relative_to(to_move, other, 1)
+    if to_move != other {
+      let idx = find_idx(&self.tasks, to_move);
+      let to = Target::After(other);
+      let op = TaskOp::move_(idx, to);
+      self.operations.exec(op, &mut self.tasks);
+    }
   }
 }
 
@@ -406,7 +418,6 @@ pub mod tests {
   use serde_json::from_str as from_json;
   use serde_json::to_string_pretty as to_json;
 
-  use crate::ops::Ops;
   use crate::ser::tags::Templates as SerTemplates;
   use crate::test::make_tasks;
 

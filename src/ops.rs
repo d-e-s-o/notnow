@@ -28,7 +28,6 @@ pub struct Ops<O, D> {
   _phantom: PhantomData<D>,
 }
 
-#[allow(unused)]
 impl<O, D> Ops<O, D> {
   pub fn new(max_count: usize) -> Self {
     Self {
