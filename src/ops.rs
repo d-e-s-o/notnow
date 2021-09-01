@@ -40,7 +40,6 @@ impl<O, D> Ops<O, D> {
   }
 }
 
-#[allow(unused)]
 impl<O, D> Ops<O, D>
 where
   O: Op<D>,

@@ -1,5 +1,6 @@
 Unreleased
 ----------
+- Introduced `undo` and `redo` functionality via 'u' and 'U'
 - Added support for jumping to tags via 'f' and 'F'
 - Added `dirs` dependency in version `3.0`
 - Added `tokio` dependency in version `1.8`

@@ -25,7 +25,7 @@ use super::in_out::InOut;
 use super::in_out::InOutArea;
 use super::in_out::InOutAreaData;
 use super::message::Message;
-use super::message::MessageExt as _;
+use super::message::MessageExt;
 use super::tab_bar::TabBar;
 use super::tab_bar::TabBarData;
 use super::tab_bar::TabState;
@@ -157,6 +157,17 @@ impl Handleable<Event, Message> for TermUi {
   async fn handle(&self, cap: &mut dyn MutCap<Event, Message>, event: Event) -> Option<Event> {
     match event {
       Event::Key(key, _) => match key {
+        Key::Char('u') | Key::Char('U') => {
+          let data = self.data::<TermUiData>(cap);
+          let tasks = data.task_state.tasks();
+
+          let update = if key == Key::Char('u') {
+            tasks.borrow_mut().undo()
+          } else {
+            tasks.borrow_mut().redo()
+          };
+          MessageExt::maybe_update(None, update).into_event()
+        },
         Key::Char('q') => Some(Event::Quit),
         Key::Char('w') => self.save(cap).await.into_event(),
         // All key events not handled at this point will just get
@@ -2129,5 +2140,52 @@ mod tests {
     let tags = tasks[0].tags().map(|x| x.name()).collect::<Vec<_>>();
     let expected = vec!["complete"];
     assert_eq!(tags, expected);
+  }
+
+  /// Check that we can undo a task removal.
+  #[test]
+  async fn undo_task_removal() {
+    let tasks = make_tasks(4);
+    let events = vec![
+      Event::from('j'),
+      Event::from('d'),
+      Event::from('j'),
+      Event::from('d'),
+      Event::from('u'),
+    ];
+
+    let tasks = TestUiBuilder::with_ser_tasks(tasks)
+      .build()
+      .handle(events)
+      .await
+      .ser_tasks()
+      .await;
+
+    let mut expected = make_tasks(4);
+    expected.remove(1);
+    assert_eq!(tasks, expected);
+  }
+
+  /// Check that we can undo and then redo a task removal.
+  #[test]
+  async fn redo_task_removal() {
+    let tasks = make_tasks(4);
+    let events = vec![
+      Event::from('j'),
+      Event::from('d'),
+      Event::from('u'),
+      Event::from('U'),
+    ];
+
+    let tasks = TestUiBuilder::with_ser_tasks(tasks)
+      .build()
+      .handle(events)
+      .await
+      .ser_tasks()
+      .await;
+
+    let mut expected = make_tasks(4);
+    expected.remove(1);
+    assert_eq!(tasks, expected);
   }
 }

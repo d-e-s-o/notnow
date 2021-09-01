@@ -407,6 +407,16 @@ impl Tasks {
       self.operations.exec(op, &mut self.tasks);
     }
   }
+
+  /// Undo the "most recent" operation.
+  pub fn undo(&mut self) -> bool {
+    self.operations.undo(&mut self.tasks)
+  }
+
+  /// Redo the last undone operation.
+  pub fn redo(&mut self) -> bool {
+    self.operations.redo(&mut self.tasks)
+  }
 }
 
 
