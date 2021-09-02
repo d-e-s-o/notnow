@@ -7,12 +7,12 @@ use rbuf::RingBuf;
 
 
 /// A trait representing a reversible operation.
-pub trait Op<D> {
+pub trait Op<D, T> {
   /// Execute the operation.
-  fn exec(&mut self, data: &mut D);
+  fn exec(&mut self, data: &mut D) -> T;
 
   /// Undo the operation.
-  fn undo(&mut self, data: &mut D);
+  fn undo(&mut self, data: &mut D) -> T;
 }
 
 
@@ -21,14 +21,14 @@ pub trait Op<D> {
 /// It is actually a fixed size ring buffer, but conceptually we allow
 /// for pushing of new operations and then moving back and forth again.
 #[derive(Debug)]
-pub struct Ops<O, D> {
+pub struct Ops<O, D, T> {
   /// A fixed size ring buffer storing operations performed on tasks as
   /// well as their inverse (i.e., allowing us to "undo").
   ops: RingBuf<Option<O>>,
-  _phantom: PhantomData<D>,
+  _phantom: PhantomData<(D, T)>,
 }
 
-impl<O, D> Ops<O, D> {
+impl<O, D, T> Ops<O, D, T> {
   pub fn new(max_count: usize) -> Self {
     Self {
       // We add one to the maximum undo step count to account for the
@@ -40,9 +40,9 @@ impl<O, D> Ops<O, D> {
   }
 }
 
-impl<O, D> Ops<O, D>
+impl<O, D, T> Ops<O, D, T>
 where
-  O: Op<D>,
+  O: Op<D, T>,
 {
   /// Execute an operation and stash it away for later.
   pub fn exec(&mut self, mut op: O, data: &mut D) {
@@ -59,9 +59,9 @@ where
 
   /// Undo the most recent operation, returning whether an action was
   /// performed (`true`) or not (`false`).
-  pub fn undo(&mut self, data: &mut D) -> bool {
+  pub fn undo(&mut self, data: &mut D) -> Option<T> {
     if let Some(op) = self.ops.front_mut() {
-      op.undo(data);
+      let result = op.undo(data);
 
       let op = self.ops.pop_front();
       // We didn't actually need to remove the operation from the ring
@@ -70,17 +70,17 @@ where
       // what is now the back. This way, it will still be available
       // should we decide to `redo` it.
       *self.ops.back_mut() = op;
-      true
+      Some(result)
     } else {
-      false
+      None
     }
   }
 
   /// Re-do the next operation, returning whether an action was
   /// performed (`true`) or not (`false`).
-  pub fn redo(&mut self, data: &mut D) -> bool {
+  pub fn redo(&mut self, data: &mut D) -> Option<T> {
     if let Some(op) = self.ops.back_mut() {
-      op.exec(data);
+      let result = op.exec(data);
 
       // There is no way for us to tell the ring buffer to just advance
       // the "front" pointer. So we actually have to take a peek at the
@@ -88,9 +88,9 @@ where
       // front.
       let op = self.ops.back_mut().take();
       self.ops.push_front(op);
-      true
+      Some(result)
     } else {
-      false
+      None
     }
   }
 }
@@ -103,7 +103,7 @@ pub mod tests {
 
   struct AddOp(usize);
 
-  impl Op<usize> for AddOp {
+  impl Op<usize, ()> for AddOp {
     fn exec(&mut self, data: &mut usize) {
       *data += self.0;
     }
@@ -116,7 +116,7 @@ pub mod tests {
 
   struct MulOp(usize);
 
-  impl Op<usize> for MulOp {
+  impl Op<usize, ()> for MulOp {
     fn exec(&mut self, data: &mut usize) {
       *data *= self.0;
     }
@@ -126,12 +126,12 @@ pub mod tests {
     }
   }
 
-  impl<D> Op<D> for &mut dyn Op<D> {
-    fn exec(&mut self, data: &mut D) {
+  impl<D, T> Op<D, T> for &mut dyn Op<D, T> {
+    fn exec(&mut self, data: &mut D) -> T {
       (*self).exec(data)
     }
 
-    fn undo(&mut self, data: &mut D) {
+    fn undo(&mut self, data: &mut D) -> T {
       (*self).undo(data)
     }
   }
@@ -141,7 +141,7 @@ pub mod tests {
   #[test]
   fn exec_undo_redo() {
     let mut data = 0;
-    let mut ops = Ops::<&mut dyn Op<usize>, usize>::new(3);
+    let mut ops = Ops::<&mut dyn Op<usize, ()>, usize, ()>::new(3);
 
     let mut op1 = AddOp(4);
     let mut op2 = MulOp(3);
@@ -156,25 +156,25 @@ pub mod tests {
     ops.exec(&mut op3, &mut data);
     assert_eq!(data, 84);
 
-    assert!(ops.undo(&mut data));
+    assert!(ops.undo(&mut data).is_some());
     assert_eq!(data, 12);
 
-    assert!(ops.redo(&mut data));
+    assert!(ops.redo(&mut data).is_some());
     assert_eq!(data, 84);
 
-    assert!(ops.undo(&mut data));
+    assert!(ops.undo(&mut data).is_some());
     assert_eq!(data, 12);
 
-    assert!(ops.undo(&mut data));
+    assert!(ops.undo(&mut data).is_some());
     assert_eq!(data, 4);
 
-    assert!(ops.redo(&mut data));
+    assert!(ops.redo(&mut data).is_some());
     assert_eq!(data, 12);
 
-    assert!(ops.undo(&mut data));
+    assert!(ops.undo(&mut data).is_some());
     assert_eq!(data, 4);
 
-    assert!(ops.undo(&mut data));
+    assert!(ops.undo(&mut data).is_some());
     assert_eq!(data, 0);
   }
 
@@ -182,7 +182,7 @@ pub mod tests {
   #[test]
   fn undo_limit() {
     let mut data = 0;
-    let mut ops = Ops::<&mut dyn Op<usize>, usize>::new(2);
+    let mut ops = Ops::<&mut dyn Op<usize, ()>, usize, ()>::new(2);
 
     let mut op1 = AddOp(2);
     let mut op2 = MulOp(3);
@@ -199,38 +199,38 @@ pub mod tests {
     ops.exec(&mut op3, &mut data);
     assert_eq!(data, 30);
 
-    assert!(ops.undo(&mut data));
+    assert!(ops.undo(&mut data).is_some());
     assert_eq!(data, 6);
 
-    assert!(ops.undo(&mut data));
+    assert!(ops.undo(&mut data).is_some());
     assert_eq!(data, 2);
 
     // We should only be able to undo two operations.
     for _ in 0..5 {
-      assert!(!ops.undo(&mut data));
+      assert!(!ops.undo(&mut data).is_some());
       assert_eq!(data, 2);
     }
 
-    assert!(ops.redo(&mut data));
+    assert!(ops.redo(&mut data).is_some());
     assert_eq!(data, 6);
 
-    assert!(ops.redo(&mut data));
+    assert!(ops.redo(&mut data).is_some());
     assert_eq!(data, 30);
 
     // Similarly, we may only ever redo two operations.
     for _ in 0..5 {
-      assert!(!ops.redo(&mut data));
+      assert!(!ops.redo(&mut data).is_some());
       assert_eq!(data, 30);
     }
 
-    assert!(ops.undo(&mut data));
+    assert!(ops.undo(&mut data).is_some());
     assert_eq!(data, 6);
 
-    assert!(ops.undo(&mut data));
+    assert!(ops.undo(&mut data).is_some());
     assert_eq!(data, 2);
 
     for _ in 0..5 {
-      assert!(!ops.undo(&mut data));
+      assert!(!ops.undo(&mut data).is_some());
       assert_eq!(data, 2);
     }
   }

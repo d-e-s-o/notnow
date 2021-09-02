@@ -25,7 +25,7 @@ use super::in_out::InOut;
 use super::in_out::InOutArea;
 use super::in_out::InOutAreaData;
 use super::message::Message;
-use super::message::MessageExt;
+use super::message::MessageExt as _;
 use super::tab_bar::TabBar;
 use super::tab_bar::TabBarData;
 use super::tab_bar::TabState;
@@ -161,12 +161,12 @@ impl Handleable<Event, Message> for TermUi {
           let data = self.data::<TermUiData>(cap);
           let tasks = data.task_state.tasks();
 
-          let update = if key == Key::Char('u') {
+          let () = if key == Key::Char('u') {
             tasks.borrow_mut().undo()
           } else {
             tasks.borrow_mut().redo()
-          };
-          MessageExt::maybe_update(None, update).into_event()
+          }?;
+          Some(Event::Updated)
         },
         Key::Char('q') => Some(Event::Quit),
         Key::Char('w') => self.save(cap).await.into_event(),

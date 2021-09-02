@@ -265,7 +265,7 @@ impl TaskOp {
   }
 }
 
-impl Op<Vec<Task>> for TaskOp {
+impl Op<Vec<Task>, ()> for TaskOp {
   fn exec(&mut self, tasks: &mut Vec<Task>) {
     match self {
       Self::Add { task, after } => add_task(tasks, task.clone(), after.map(Target::After)),
@@ -323,7 +323,7 @@ pub struct Tasks {
   templates: Rc<Templates>,
   tasks: Vec<Task>,
   /// A record of operations in the order they were performed.
-  operations: Ops<TaskOp, Vec<Task>>,
+  operations: Ops<TaskOp, Vec<Task>, ()>,
 }
 
 impl Tasks {
@@ -409,12 +409,12 @@ impl Tasks {
   }
 
   /// Undo the "most recent" operation.
-  pub fn undo(&mut self) -> bool {
+  pub fn undo(&mut self) -> Option<()> {
     self.operations.undo(&mut self.tasks)
   }
 
   /// Redo the last undone operation.
-  pub fn redo(&mut self) -> bool {
+  pub fn redo(&mut self) -> Option<()> {
     self.operations.redo(&mut self.tasks)
   }
 }
