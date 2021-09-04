@@ -265,17 +265,22 @@ impl TaskOp {
   }
 }
 
-impl Op<Vec<Task>, ()> for TaskOp {
-  fn exec(&mut self, tasks: &mut Vec<Task>) {
+impl Op<Vec<Task>, Option<Id>> for TaskOp {
+  fn exec(&mut self, tasks: &mut Vec<Task>) -> Option<Id> {
     match self {
-      Self::Add { task, after } => add_task(tasks, task.clone(), after.map(Target::After)),
+      Self::Add { task, after } => {
+        add_task(tasks, task.clone(), after.map(Target::After));
+        Some(task.id)
+      },
       Self::Remove { id_or_task } => {
         let (task, idx) = remove_task(tasks, id_or_task.id());
         *id_or_task = IdOrTask::Task(task, idx);
+        None
       },
       Self::Update { updated, before } => {
         let task = update_task(tasks, updated.clone());
         *before = Some(task);
+        Some(updated.id)
       },
       Self::Move { from, to, task } => {
         let removed = tasks.remove(*from);
@@ -285,29 +290,38 @@ impl Op<Vec<Task>, ()> for TaskOp {
         debug_assert_ne!(removed.id, to.id());
         add_task(tasks, removed.clone(), Some(*to));
 
+        let id = removed.id;
         *task = Some(removed);
+        Some(id)
       },
     }
   }
 
-  fn undo(&mut self, tasks: &mut Vec<Task>) {
+  fn undo(&mut self, tasks: &mut Vec<Task>) -> Option<Id> {
     match self {
       Self::Add { task, .. } => {
         let _ = remove_task(tasks, task.id());
+        None
       },
       Self::Remove { id_or_task } => {
         let (task, idx) = id_or_task.task();
         tasks.insert(idx, task.clone());
+        Some(task.id)
       },
       Self::Update { updated, before } => {
-        let _task = update_task(tasks, before.clone().unwrap());
+        let before = before.clone().unwrap();
+        debug_assert_eq!(updated.id, before.id);
+        let id = before.id;
+        let _task = update_task(tasks, before);
         debug_assert_eq!(_task.id(), updated.id());
+        Some(id)
       },
       Self::Move { from, task, .. } => {
         let id = task.as_ref().map(|task| task.id).unwrap();
         let idx = find_idx(tasks, id);
         let removed = tasks.remove(idx);
         tasks.insert(*from, removed);
+        Some(id)
       },
     }
   }
@@ -323,7 +337,7 @@ pub struct Tasks {
   templates: Rc<Templates>,
   tasks: Vec<Task>,
   /// A record of operations in the order they were performed.
-  operations: Ops<TaskOp, Vec<Task>, ()>,
+  operations: Ops<TaskOp, Vec<Task>, Option<Id>>,
 }
 
 impl Tasks {
@@ -409,12 +423,14 @@ impl Tasks {
   }
 
   /// Undo the "most recent" operation.
-  pub fn undo(&mut self) -> Option<()> {
+  #[allow(clippy::option_option)]
+  pub fn undo(&mut self) -> Option<Option<Id>> {
     self.operations.undo(&mut self.tasks)
   }
 
   /// Redo the last undone operation.
-  pub fn redo(&mut self) -> Option<()> {
+  #[allow(clippy::option_option)]
+  pub fn redo(&mut self) -> Option<Option<Id>> {
     self.operations.redo(&mut self.tasks)
   }
 }

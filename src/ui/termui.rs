@@ -161,11 +161,21 @@ impl Handleable<Event, Message> for TermUi {
           let data = self.data::<TermUiData>(cap);
           let tasks = data.task_state.tasks();
 
-          let () = if key == Key::Char('u') {
+          let to_select = if key == Key::Char('u') {
             tasks.borrow_mut().undo()
           } else {
             tasks.borrow_mut().redo()
           }?;
+          if let Some(id) = to_select {
+            // Ask the tab bar to select the task that was the target of
+            // the undone/redone operation.
+            // TODO: We may want to make sure that the `TabBar` tries to
+            //       select a task on the currently selected tab first,
+            //       or we run risk of spuriously flipping tabs here if
+            //       the user has queries that overlap in some form
+            //       (i.e., a task is displayed on multiple tabs).
+            cap.send(self.tab_bar, Message::SelectTask(id, false)).await;
+          }
           Some(Event::Updated)
         },
         Key::Char('q') => Some(Event::Quit),
@@ -2187,5 +2197,76 @@ mod tests {
     let mut expected = make_tasks(4);
     expected.remove(1);
     assert_eq!(tasks, expected);
+  }
+
+  /// Check that the correct task is selected when a task removal is
+  /// undone.
+  #[test]
+  async fn select_on_task_op_undo() {
+    async fn test(events: impl IntoIterator<Item = Event>, redo: bool, add: bool) {
+      let tasks = make_tasks(4);
+      let before = vec![Event::from('j')];
+      let after = if !redo {
+        vec![
+          Event::from('G'),
+          // Undo the task operation. The second task should be selected at
+          // this point.
+          Event::from('u'),
+          // Delete the currently selected task.
+          Event::from('d'),
+        ]
+      } else {
+        vec![
+          Event::from('u'),
+          Event::from('G'),
+          // Redo the task addition. The second task should be selected at
+          // this point.
+          Event::from('U'),
+          // Delete the currently selected task.
+          Event::from('d'),
+        ]
+      };
+      let events = before.into_iter().chain(events).chain(after);
+
+      let tasks = TestUiBuilder::with_ser_tasks(tasks)
+        .build()
+        .handle(events)
+        .await
+        .ser_tasks()
+        .await;
+
+      let mut expected = make_tasks(4);
+      if !add {
+        expected.remove(1);
+      }
+      assert_eq!(tasks, expected);
+    }
+
+    // Test undo of task deletion.
+    test(vec![Event::from('d')], false, false).await;
+    // Test undo and redo of task update.
+    for redo in &[false, true] {
+      test(
+        vec![Event::from('e'), Event::from('1'), Event::from('\n')],
+        *redo,
+        false,
+      )
+      .await;
+      // Test undo and redo of task move.
+      test(vec![Event::from('J')], *redo, false).await;
+    }
+    // Test redo of task addition.
+    test(
+      vec![
+        Event::from('a'),
+        Event::from('f'),
+        Event::from('o'),
+        Event::from('o'),
+        Event::from('\n'),
+      ],
+      true,
+      true,
+    )
+    .await;
   }
 }
