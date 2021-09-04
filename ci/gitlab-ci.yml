@@ -8,8 +8,19 @@
 image: "rust:1.46.0"
 
 stages:
+  - cache
   - build
   - test
+
+cache:
+  key:
+  paths:
+  - tarpaulin/
+
+cache:tarpaulin:
+  stage: cache
+  script:
+  - cargo install cargo-tarpaulin --root tarpaulin/
 
 build:cargo:
   stage: build
@@ -27,9 +38,7 @@ build:tarpaulin-tests:
     expire_in: 1h
     paths:
     - target/
-    - tarpaulin/
   script:
-  - cargo install cargo-tarpaulin --root tarpaulin/
   - PATH="$PWD/tarpaulin/bin/:$PATH" cargo tarpaulin --no-run
 
 test:cargo:
