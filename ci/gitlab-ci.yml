@@ -12,21 +12,30 @@ stages:
   - build
   - test
 
-cache:
-  key:
+variables:
+  CARGO_HOME: $CI_PROJECT_DIR/cargo-home
+
+cache: &global-cache
+  key: global-cache
   paths:
+  - $CARGO_HOME
+  - target/
   - tarpaulin/
+  policy: pull
 
 cache:tarpaulin:
   stage: cache
+  cache:
+    <<: *global-cache
+    policy: pull-push
   script:
   - cargo install cargo-tarpaulin --root tarpaulin/
 
 build:cargo:
   stage: build
-  artifacts:
-    paths:
-      - target/
+  cache:
+    <<: *global-cache
+    policy: pull-push
   script:
   - rustc --version && cargo --version
   - cargo build --bins --tests --verbose
