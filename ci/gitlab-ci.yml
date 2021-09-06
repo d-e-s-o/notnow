@@ -25,6 +25,7 @@ cache: &global-cache
 
 cache:tarpaulin:
   stage: cache
+  image: rust:latest
   cache:
     <<: *global-cache
     policy: pull-push
@@ -43,6 +44,7 @@ build:cargo:
 
 build:tarpaulin-tests:
   stage: build
+  image: rust:latest
   artifacts:
     expire_in: 1h
     paths:
@@ -71,6 +73,7 @@ coverage:tarpaulin:
   only:
   - master
   stage: test
+  image: rust:latest
   dependencies:
   - build:tarpaulin-tests
   artifacts:
