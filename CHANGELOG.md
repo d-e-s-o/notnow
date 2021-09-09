@@ -1,5 +1,5 @@
-Unreleased
-----------
+0.2.6
+-----
 - Introduced `undo` and `redo` functionality via 'u' and 'U'
 - Added support for jumping to tags via 'f' and 'F'
 - Added `dirs` dependency in version `3.0`
