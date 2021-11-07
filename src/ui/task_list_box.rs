@@ -267,13 +267,10 @@ impl Handleable<Event, Message> for TaskListBox {
       Event::Key(key, _) => match key {
         Key::Char(' ') => {
           if let Some(mut task) = data.selected_task() {
-            let id = task.id();
             task.toggle_complete();
-            data.tasks.borrow_mut().update(task);
-            self
-              .select_task(cap, id)
+            cap
+              .send(self.id, Message::UpdateTask(task))
               .await
-              .maybe_update(true)
               .into_event()
           } else {
             None
@@ -413,8 +410,12 @@ impl Handleable<Event, Message> for TaskListBox {
         }
       },
       Message::UpdateTask(task) => {
+        let task_id = task.id();
         data.tasks.borrow_mut().update(task);
-        Some(Message::Updated)
+
+        // Try to select the task now that something may have changed
+        // (such as its tags).
+        self.select_task(cap, task_id).await.maybe_update(true)
       },
       #[cfg(not(feature = "readline"))]
       Message::InputCanceled => {

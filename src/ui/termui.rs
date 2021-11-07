@@ -2152,6 +2152,37 @@ mod tests {
     assert_eq!(tags, expected);
   }
 
+  /// Check that a task is re-selected after its tags were changed.
+  #[test]
+  async fn tag_change_reselects_task() {
+    let events = vec![
+      // Move to the "complete" query.
+      Event::from('l'),
+      // Move to task10.
+      Event::from('j'),
+      Event::from('j'),
+      Event::from('j'),
+      Event::from('j'),
+      Event::from('t'),
+      // Deselect its complete tag.
+      Event::from(' '),
+      Event::from('\n'),
+      // Edit the task and append 'ab' to it.
+      Event::from('e'),
+      Event::from('a'),
+      Event::from('b'),
+      Event::from('\n'),
+    ];
+    let tasks = TestUiBuilder::with_default_tasks_and_tags()
+      .build()
+      .handle(events)
+      .await
+      .tasks()
+      .await;
+
+    assert_eq!(tasks[9].summary, "10ab");
+  }
+
   /// Check that we can undo a task removal.
   #[test]
   async fn undo_task_removal() {
