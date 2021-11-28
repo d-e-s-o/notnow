@@ -1,3 +1,8 @@
+Unreleased
+----------
+- Re-select task after successfully editing tags
+
+
 0.2.6
 -----
 - Introduced `undo` and `redo` functionality via 'u' and 'U'
