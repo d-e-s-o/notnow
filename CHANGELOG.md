@@ -1,13 +1,14 @@
 Unreleased
 ----------
 - Re-select task after successfully editing tags
+- Bumped `dirs` dependency to `4.0`
 
 
 0.2.6
 -----
 - Introduced `undo` and `redo` functionality via 'u' and 'U'
 - Added support for jumping to tags via 'f' and 'F'
-- Added `dirs` dependency in version `3.0`
+- Bumped `dirs` dependency to `3.0`
 - Added `tokio` dependency in version `1.8`
 - Switched to using tarpaulin for code coverage collection
 - Bumped minimum supported Rust version to `1.46`
