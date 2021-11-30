@@ -208,7 +208,7 @@ impl TaskListBox {
         .clone()
         .rev()
         .skip(start_idx)
-        .position(|x| x.summary.to_ascii_lowercase().contains(string))
+        .position(|x| x.summary.to_lowercase().contains(string))
         .map(|idx| (count - 1) - (start_idx + idx))
     } else {
       data
@@ -216,7 +216,7 @@ impl TaskListBox {
         .iter()
         .clone()
         .skip(start_idx)
-        .position(|x| x.summary.to_ascii_lowercase().contains(string))
+        .position(|x| x.summary.to_lowercase().contains(string))
         .map(|idx| start_idx + idx)
     }
   }
@@ -229,7 +229,7 @@ impl TaskListBox {
     search_state: &mut SearchState,
     reverse: bool,
   ) -> Option<Message> {
-    debug_assert_eq!(string, &string.to_ascii_lowercase());
+    debug_assert_eq!(string, &string.to_lowercase());
 
     let idx = self.search_task_index(cap, string, search_state, reverse);
     if let Some(idx) = idx {

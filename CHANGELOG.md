@@ -1,6 +1,7 @@
 Unreleased
 ----------
 - Re-select task after successfully editing tags
+- Use Unicode aware lowercase in task summary search
 - Bumped `dirs` dependency to `4.0`
 
 

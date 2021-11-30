@@ -487,11 +487,10 @@ impl Handleable<Event, Message> for TabBar {
         }
         result
       },
-      Message::EnteredText(mut string) => {
+      Message::EnteredText(string) => {
         let data = self.data_mut::<TabBarData>(cap);
         if !string.is_empty() && !data.tabs.is_empty() {
-          string.make_ascii_lowercase();
-
+          let string = string.to_lowercase();
           let reverse = data.search.take().is_reverse();
           let message = Message::SetInOut(InOut::Search(string.clone()));
           let updated1 = cap
