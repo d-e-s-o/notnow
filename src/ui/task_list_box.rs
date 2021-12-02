@@ -168,6 +168,7 @@ impl TaskListBox {
     string: &str,
     search_state: &SearchState,
     reverse: bool,
+    exact: bool,
   ) -> Option<usize> {
     let data = self.data::<TaskListBoxData>(cap);
     // Note that because we use the count for index calculation
@@ -197,6 +198,14 @@ impl TaskListBox {
       SearchState::Done => unreachable!(),
     };
 
+    let cmp_exact = |task: &Task| task.summary == string;
+    let cmp_vague = |task: &Task| task.summary.to_lowercase().contains(string);
+
+    let check = if exact {
+      &cmp_exact as &dyn Fn(&Task) -> bool
+    } else {
+      &cmp_vague as &dyn Fn(&Task) -> bool
+    };
     // Note that a simpler version of this find magic would just use
     // the `enumerate` functionality. However, for some reason that
     // would require us to work with an `ExactSizeIterator`, which is
@@ -208,7 +217,7 @@ impl TaskListBox {
         .clone()
         .rev()
         .skip(start_idx)
-        .position(|x| x.summary.to_lowercase().contains(string))
+        .position(check)
         .map(|idx| (count - 1) - (start_idx + idx))
     } else {
       data
@@ -216,7 +225,7 @@ impl TaskListBox {
         .iter()
         .clone()
         .skip(start_idx)
-        .position(|x| x.summary.to_lowercase().contains(string))
+        .position(check)
         .map(|idx| start_idx + idx)
     }
   }
@@ -228,10 +237,11 @@ impl TaskListBox {
     string: &str,
     search_state: &mut SearchState,
     reverse: bool,
+    exact: bool,
   ) -> Option<Message> {
     debug_assert_eq!(string, &string.to_lowercase());
 
-    let idx = self.search_task_index(cap, string, search_state, reverse);
+    let idx = self.search_task_index(cap, string, search_state, reverse, exact);
     if let Some(idx) = idx {
       *search_state = SearchState::Done;
 
@@ -441,9 +451,9 @@ impl Handleable<Event, Message> for TaskListBox {
       Message::SelectTask(task_id, done) => {
         self.handle_select_task(cap, *task_id, Some(done)).await
       },
-      Message::SearchTask(string, search_state, reverse) => {
+      Message::SearchTask(string, search_state, reverse, exact) => {
         self
-          .handle_search_task(cap, string, search_state, *reverse)
+          .handle_search_task(cap, string, search_state, *reverse, *exact)
           .await
       },
       Message::GetTabState(ref mut tab_state) => {

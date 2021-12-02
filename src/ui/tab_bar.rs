@@ -45,8 +45,9 @@ enum Search {
   // case, but we would like to assert different invariants when the
   // state is taken versus when it was never actually set.
   Taken,
-  /// The (lowercased) text to search for.
-  State(String),
+  /// The (lowercased) text to search for. The `bool` determines whether
+  /// the search is for an exact match or not.
+  State(String, bool),
 }
 
 impl Search {
@@ -241,11 +242,12 @@ impl TabBar {
     string: String,
     search_state: SearchState,
     reverse: bool,
+    exact: bool,
   ) -> Option<Message> {
     let mut result = None;
     let data = self.data_mut::<TabBarData>(cap);
     let tabs = data.search_snapshot(reverse);
-    let mut message = Message::SearchTask(string.clone(), search_state, reverse);
+    let mut message = Message::SearchTask(string.clone(), search_state, reverse, exact);
     let mut found = false;
 
     for (idx, tab) in tabs {
@@ -256,7 +258,7 @@ impl TabBar {
         .unwrap_or(false);
       result = MessageExt::maybe_update(result, update);
 
-      if let Message::SearchTask(_, search_state, _) = &mut message {
+      if let Message::SearchTask(_, search_state, _, _) = &mut message {
         if let SearchState::Done = search_state {
           let update = self.set_select(cap, idx as isize);
           result = MessageExt::maybe_update(result, update);
@@ -285,7 +287,7 @@ impl TabBar {
     }
 
     let data = self.data_mut::<TabBarData>(cap);
-    data.search = Search::State(string);
+    data.search = Search::State(string, exact);
     result
   }
 
@@ -392,7 +394,7 @@ impl Handleable<Event, Message> for TabBar {
               cap.send(self.in_out, message).await.into_event()
             },
             Search::Taken => panic!("invalid search state"),
-            Search::State(string) => {
+            Search::State(string, exact) => {
               let reverse = key == Key::Char('N');
               let message = Message::SetInOut(InOut::Search(string.clone()));
               let updated1 = cap
@@ -403,7 +405,7 @@ impl Handleable<Event, Message> for TabBar {
 
               let search_state = SearchState::AfterCurrent;
               let updated2 = self
-                .search_task(cap, string, search_state, reverse)
+                .search_task(cap, string, search_state, reverse, exact)
                 .await
                 .map(|m| m.is_updated())
                 .unwrap_or(false);
@@ -492,6 +494,7 @@ impl Handleable<Event, Message> for TabBar {
         if !string.is_empty() && !data.tabs.is_empty() {
           let string = string.to_lowercase();
           let reverse = data.search.take().is_reverse();
+          let exact = false;
           let message = Message::SetInOut(InOut::Search(string.clone()));
           let updated1 = cap
             .send(self.in_out, message)
@@ -501,7 +504,7 @@ impl Handleable<Event, Message> for TabBar {
 
           let search_state = SearchState::Current;
           let updated2 = self
-            .search_task(cap, string, search_state, reverse)
+            .search_task(cap, string, search_state, reverse, exact)
             .await
             .map(|m| m.is_updated())
             .unwrap_or(false);
@@ -532,9 +535,12 @@ mod tests {
     assert_eq!(search.take(), Search::Taken);
     assert_eq!(search, Search::Taken);
 
-    let mut search = Search::State("test".to_string());
+    let mut search = Search::State("test".to_string(), false);
     match search.take() {
-      Search::State(string) => assert_eq!(string, "test"),
+      Search::State(string, exact) => {
+        assert_eq!(string, "test");
+        assert!(!exact);
+      },
       _ => panic!(),
     }
     assert_eq!(search, Search::Taken);

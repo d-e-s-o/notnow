@@ -18,9 +18,11 @@ pub enum Message {
   /// the given ID has been selected.
   SelectTask(TaskId, bool),
   /// Search for a task containing the given string in its summary and
-  /// select it. The last argument indicates whether we search in
-  /// reverse order (true) or not (false).
-  SearchTask(String, SearchState, bool),
+  /// select it. The second to last argument indicates whether we search
+  /// in reverse order (true) or not (false). The last argument
+  /// determines whether we accept only an exact match (true) or merely
+  /// require a substring match (false).
+  SearchTask(String, SearchState, bool, bool),
   /// Edit the tags associated with a task.
   EditTags(Task),
   /// Update a task.
