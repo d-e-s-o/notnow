@@ -239,8 +239,6 @@ impl TaskListBox {
     reverse: bool,
     exact: bool,
   ) -> Option<Message> {
-    debug_assert_eq!(string, &string.to_lowercase());
-
     let idx = self.search_task_index(cap, string, search_state, reverse, exact);
     if let Some(idx) = idx {
       *search_state = SearchState::Done;
@@ -356,6 +354,14 @@ impl Handleable<Event, Message> for TaskListBox {
         Key::Char('G') => MessageExt::maybe_update(None, data.select(isize::MAX)).into_event(),
         Key::Char('j') => MessageExt::maybe_update(None, data.change_selection(1)).into_event(),
         Key::Char('k') => MessageExt::maybe_update(None, data.change_selection(-1)).into_event(),
+        Key::Char('*') => {
+          if let Some(selected) = data.selected_task() {
+            let message = Message::StartTaskSearch(selected.summary);
+            cap.send(self.tab_bar, message).await.into_event()
+          } else {
+            None
+          }
+        },
         _ => Some(event),
       },
       _ => Some(event),

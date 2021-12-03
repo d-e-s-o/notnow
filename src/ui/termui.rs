@@ -1391,6 +1391,7 @@ mod tests {
         && c != 'w'
         && c != '/'
         && c != '?'
+        && c != '*'
       {
         assert_eq!(with_key(c).await, InOut::Clear, "char: {} ({})", c, c as u8);
       }
@@ -1846,6 +1847,100 @@ mod tests {
     expected.remove(1);
 
     assert_eq!(tasks, expected);
+  }
+
+  /// Check that we can easily search for the currently selected task on
+  /// other tabs.
+  #[test]
+  async fn search_current_task() {
+    async fn test(count: usize) {
+      let down = (1..count).map(|_| Event::from('j'));
+      let events = vec![
+        // Search for it on other tabs. That should find it on the very
+        // next tab (the one showing all tasks with the complete tag).
+        Event::from('*'),
+        // Now delete the follow on task. This should be task10 (because
+        // task9 does not have the complete tag).
+        Event::from('j'),
+        Event::from('d'),
+      ];
+      let events = down.chain(events);
+
+      let tasks = TestUiBuilder::with_default_tasks_and_tags()
+        .build()
+        .handle(events)
+        .await
+        .tasks()
+        .await
+        .into_iter()
+        .map(|x| x.summary)
+        .collect::<Vec<_>>();
+
+      let (.., mut expected) = make_tasks_with_tags(15);
+      expected.remove(count);
+      let expected = expected.into_iter().map(|x| x.summary).collect::<Vec<_>>();
+
+      assert_eq!(tasks, expected);
+    }
+
+    test(9).await;
+    // Note that this test actually tests exact matching, because
+    // without exact matching we would select and delete a different
+    // task.
+    test(1).await;
+  }
+
+  /// Check that a "current task search" is case-sensitive and exact
+  /// when started but also when resumed.
+  #[test]
+  async fn search_current_is_exact_and_case_sensitive() {
+    async fn test(tasks: Vec<SerTask>) {
+      let mut expected = tasks.iter().map(|x| x.summary.clone()).collect::<Vec<_>>();
+      expected[0] += "d";
+      expected.remove(1);
+
+      let events = vec![
+        Event::from('*'),
+        Event::from('e'),
+        Event::from('d'),
+        Event::from('\n'),
+        Event::from('j'),
+        // Resume search. We should not find anything.
+        Event::from('n'),
+        // Delete the current task, which is "test".
+        Event::from('d'),
+      ];
+
+      let tasks = TestUiBuilder::with_ser_tasks(tasks)
+        .build()
+        .handle(events)
+        .await
+        .tasks()
+        .await
+        .into_iter()
+        .map(|x| x.summary)
+        .collect::<Vec<_>>();
+
+      assert_eq!(tasks, expected);
+    }
+
+    let tasks = vec![
+      SerTask::new("LOWER"),
+      SerTask::new("test"),
+      SerTask::new("LOWER still"),
+      SerTask::new("lower"),
+      SerTask::new("lowered"),
+    ];
+    test(tasks).await;
+
+    let tasks = vec![
+      SerTask::new("lower"),
+      SerTask::new("test"),
+      SerTask::new("LOWER still"),
+      SerTask::new("LOWER"),
+      SerTask::new("lowered"),
+    ];
+    test(tasks).await;
   }
 
   #[test]

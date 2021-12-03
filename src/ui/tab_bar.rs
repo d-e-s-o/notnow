@@ -45,8 +45,8 @@ enum Search {
   // case, but we would like to assert different invariants when the
   // state is taken versus when it was never actually set.
   Taken,
-  /// The (lowercased) text to search for. The `bool` determines whether
-  /// the search is for an exact match or not.
+  /// The text to search for. The `bool` determines whether the search
+  /// is for an exact match or not.
   State(String, bool),
 }
 
@@ -235,6 +235,50 @@ impl TabBar {
     tab_bar
   }
 
+  /// Initiate the search of a task based on a string.
+  async fn start_task_search(
+    &self,
+    cap: &mut dyn MutCap<Event, Message>,
+    string: String,
+    reverse: bool,
+    exact: bool,
+  ) -> Option<Message> {
+    let data = self.data::<TabBarData>(cap);
+    if !string.is_empty() && !data.tabs.is_empty() {
+      let message = Message::SetInOut(InOut::Search(string.clone()));
+      let updated1 = cap
+        .send(self.in_out, message)
+        .await
+        .map(|m| m.is_updated())
+        .unwrap_or(false);
+
+      let search_state = SearchState::Current;
+      let updated2 = self
+        .search_task(cap, string, search_state, reverse, exact)
+        .await
+        .map(|m| m.is_updated())
+        .unwrap_or(false);
+
+      MessageExt::maybe_update(None, updated1 || updated2)
+    } else {
+      None
+    }
+  }
+
+  /// Continue the search of a task based on a string.
+  async fn continue_task_search(
+    &self,
+    cap: &mut dyn MutCap<Event, Message>,
+    string: String,
+    reverse: bool,
+    exact: bool,
+  ) -> Option<Message> {
+    let search_state = SearchState::AfterCurrent;
+    self
+      .search_task(cap, string, search_state, reverse, exact)
+      .await
+  }
+
   /// Handle a `Message::SearchTask` event.
   async fn search_task(
     &self,
@@ -403,9 +447,8 @@ impl Handleable<Event, Message> for TabBar {
                 .map(|m| m.is_updated())
                 .unwrap_or(false);
 
-              let search_state = SearchState::AfterCurrent;
               let updated2 = self
-                .search_task(cap, string, search_state, reverse, exact)
+                .continue_task_search(cap, string, reverse, exact)
                 .await
                 .map(|m| m.is_updated())
                 .unwrap_or(false);
@@ -489,30 +532,36 @@ impl Handleable<Event, Message> for TabBar {
         }
         result
       },
-      Message::EnteredText(string) => {
+      Message::StartTaskSearch(ref string) | Message::EnteredText(ref string) => {
+        let entered = matches!(message, Message::EnteredText(_));
         let data = self.data_mut::<TabBarData>(cap);
-        if !string.is_empty() && !data.tabs.is_empty() {
-          let string = string.to_lowercase();
-          let reverse = data.search.take().is_reverse();
-          let exact = false;
-          let message = Message::SetInOut(InOut::Search(string.clone()));
-          let updated1 = cap
-            .send(self.in_out, message)
-            .await
-            .map(|m| m.is_updated())
-            .unwrap_or(false);
-
-          let search_state = SearchState::Current;
-          let updated2 = self
-            .search_task(cap, string, search_state, reverse, exact)
-            .await
-            .map(|m| m.is_updated())
-            .unwrap_or(false);
-
-          MessageExt::maybe_update(None, updated1 || updated2)
+        let (string, reverse, exact) = if entered {
+          (
+            string.to_lowercase(),
+            data.search.take().is_reverse(),
+            false,
+          )
         } else {
-          None
-        }
+          (string.clone(), false, true)
+        };
+
+        let updated1 = self
+          .start_task_search(cap, string.clone(), reverse, exact)
+          .await
+          .map(|m| m.is_updated())
+          .unwrap_or(false);
+
+        let updated2 = if !entered {
+          self
+            .continue_task_search(cap, string, reverse, exact)
+            .await
+            .map(|m| m.is_updated())
+            .unwrap_or(false)
+        } else {
+          false
+        };
+
+        MessageExt::maybe_update(None, updated1 || updated2)
       },
       m => panic!("Received unexpected message: {:?}", m),
     }

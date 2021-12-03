@@ -1,5 +1,7 @@
 Unreleased
 ----------
+- Added support for finding the currently selected task on other tabs
+  via '*'
 - Re-select task after successfully editing tags
 - Use Unicode aware lowercase in task summary search
 - Bumped `dirs` dependency to `4.0`

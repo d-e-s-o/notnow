@@ -17,6 +17,8 @@ pub enum Message {
   /// `TaskId`. The last argument is used to indicate that a task with
   /// the given ID has been selected.
   SelectTask(TaskId, bool),
+  /// Initiate the search of a task based on a string.
+  StartTaskSearch(String),
   /// Search for a task containing the given string in its summary and
   /// select it. The second to last argument indicates whether we search
   /// in reverse order (true) or not (false). The last argument
