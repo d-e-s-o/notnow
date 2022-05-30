@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2021 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2020-2022 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use crate::tasks::Id as TaskId;
@@ -61,11 +61,7 @@ pub enum Message {
 impl Message {
   /// Check whether the message is the `Updated` variant.
   pub fn is_updated(&self) -> bool {
-    if let Message::Updated = self {
-      true
-    } else {
-      false
-    }
+    matches!(self, Message::Updated)
   }
 }
 

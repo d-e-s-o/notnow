@@ -1,4 +1,4 @@
-// Copyright (C) 2017-2021 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2017-2022 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::io::Result;
@@ -395,10 +395,8 @@ mod tests {
       I: IntoIterator<Item = E>,
     {
       for event in events.into_iter() {
-        if let Some(event) = self.ui.handle(event).await {
-          if let Event::Quit = event {
-            break
-          }
+        if let Some(Event::Quit) = self.ui.handle(event).await {
+          break
         }
       }
       self
@@ -1420,7 +1418,7 @@ mod tests {
   async fn in_out_state_on_edit() {
     async fn with_key(key: impl Into<Event>) -> InOut {
       let tasks = make_tasks(4);
-      let events = vec![Event::from('a'), key.into().into()];
+      let events = vec![Event::from('a'), key.into()];
 
       TestUiBuilder::with_ser_tasks(tasks)
         .build()
@@ -1438,7 +1436,7 @@ mod tests {
       let state = with_key(c).await;
       match state {
         InOut::Input(_, _) => (),
-        _ => assert!(false, "Unexpected state {:?} for char {}", state, c),
+        _ => panic!("Unexpected state {:?} for char {}", state, c),
       }
     }
 

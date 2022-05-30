@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2021 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2018-2022 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use gui::Mergeable;
@@ -26,10 +26,7 @@ pub enum Event {
 #[cfg(test)]
 impl Event {
   pub fn is_updated(&self) -> bool {
-    match self {
-      Self::Updated => true,
-      _ => false,
-    }
+    matches!(self, Self::Updated)
   }
 }
 

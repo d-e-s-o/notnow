@@ -65,7 +65,7 @@ impl TaskListBoxData {
   /// Retrieve a copy of the selected task, if any.
   fn selected_task(&self) -> Option<Task> {
     let selection = self.selection(0);
-    self.query.iter().clone().cloned().nth(selection)
+    self.query.iter().clone().nth(selection).cloned()
   }
 }
 

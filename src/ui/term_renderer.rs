@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2021 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2018-2022 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::cell::Cell;
@@ -9,7 +9,6 @@ use std::collections::HashMap;
 use std::io::BufWriter;
 use std::io::Result;
 use std::io::Write;
-use std::iter::repeat;
 
 use termion::clear::All;
 use termion::color::Bg;
@@ -92,8 +91,8 @@ fn align_center(string: impl Into<String>, width: usize) -> String {
       let pad_right = (width - length) / 2;
       let pad_left = width - length - pad_right;
 
-      let pad_right = repeat(" ").take(pad_right).collect::<String>();
-      let pad_left = repeat(" ").take(pad_left).collect::<String>();
+      let pad_right = " ".repeat(pad_right);
+      let pad_left = " ".repeat(pad_left);
 
       string.insert_str(0, &pad_right);
       string.push_str(&pad_left);
@@ -329,7 +328,7 @@ where
     }
 
     if x < w {
-      let pad = repeat(" ").take((w - x) as usize).collect::<String>();
+      let pad = " ".repeat((w - x) as usize);
       let fg = self.colors.unselected_query_fg;
       let bg = self.colors.unselected_query_bg;
       self.writer.write(x, 0, fg, bg, pad)?
@@ -485,12 +484,10 @@ where
         || (y - DIALOG_MARGIN_Y) % TAG_SPACE != 0
       {
         self.fill_dialog_line(0, y, bbox.w)
+      } else if let Some((i, tag)) = tags.next() {
+        self.render_dialog_tag_line(tag, y, bbox.w, i == selection)
       } else {
-        if let Some((i, tag)) = tags.next() {
-          self.render_dialog_tag_line(&tag, y, bbox.w, i == selection)
-        } else {
-          self.fill_dialog_line(0, y, bbox.w)
-        }
+        self.fill_dialog_line(0, y, bbox.w)
       }
     })?;
 
@@ -546,7 +543,7 @@ where
       if let InOut::Input(s, idx) = in_out.state(cap) {
         debug_assert!(cap.is_focused(in_out.id()));
 
-        let idx = char_index(&s, *idx);
+        let idx = char_index(s, *idx);
         self.writer.goto(x + idx as u16, bbox.h - 1)?;
         self.writer.show()?
       }

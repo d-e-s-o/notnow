@@ -1,4 +1,4 @@
-// Copyright (C) 2021 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2021-2022 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::cmp::Ordering;
@@ -473,7 +473,7 @@ mod tests {
 
     // The full list of tags will look like this:
     // a, d, h, b, c, c1, complete, z
-    let task = Task::with_summary_and_tags("task", tags, templates.clone());
+    let task = Task::with_summary_and_tags("task", tags, templates);
     let mut data = Data::new(task);
     assert_eq!(data.selection, 0);
 

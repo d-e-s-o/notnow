@@ -1,4 +1,4 @@
-// Copyright (C) 2021 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2021-2022 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::marker::PhantomData;
@@ -207,7 +207,7 @@ pub mod tests {
 
     // We should only be able to undo two operations.
     for _ in 0..5 {
-      assert!(!ops.undo(&mut data).is_some());
+      assert!(ops.undo(&mut data).is_none());
       assert_eq!(data, 2);
     }
 
@@ -219,7 +219,7 @@ pub mod tests {
 
     // Similarly, we may only ever redo two operations.
     for _ in 0..5 {
-      assert!(!ops.redo(&mut data).is_some());
+      assert!(ops.redo(&mut data).is_none());
       assert_eq!(data, 30);
     }
 
@@ -230,7 +230,7 @@ pub mod tests {
     assert_eq!(data, 2);
 
     for _ in 0..5 {
-      assert!(!ops.undo(&mut data).is_some());
+      assert!(ops.undo(&mut data).is_none());
       assert_eq!(data, 2);
     }
   }

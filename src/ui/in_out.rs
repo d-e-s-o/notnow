@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2021 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2018-2022 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #[cfg(feature = "readline")]
@@ -39,11 +39,7 @@ pub enum InOut {
 impl InOut {
   /// Check whether the `InOut` state is `Input`.
   fn is_input(&self) -> bool {
-    if let InOut::Input(..) = &self {
-      true
-    } else {
-      false
-    }
+    matches!(self, InOut::Input(..))
   }
 }
 
@@ -368,7 +364,7 @@ impl InOutArea {
   /// Retrieve the input/output area's current state.
   pub fn state<'slf>(&'slf self, cap: &'slf dyn Cap) -> &'slf InOut {
     let data = self.data::<InOutAreaData>(cap);
-    &data.in_out.get()
+    data.in_out.get()
   }
 }
 

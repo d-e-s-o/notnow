@@ -1,4 +1,4 @@
-// Copyright (C) 2017-2021 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2017-2022 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::cmp::PartialEq;
@@ -167,7 +167,7 @@ fn remove_task(tasks: &mut Vec<Task>, id: Id) -> (Task, usize) {
 }
 
 /// Update a task in a vector of tasks.
-fn update_task(tasks: &mut Vec<Task>, task: Task) -> Task {
+fn update_task(tasks: &mut [Task], task: Task) -> Task {
   let idx = find_idx(tasks, task.id);
   replace(&mut tasks[idx], task)
 }
@@ -345,7 +345,7 @@ impl Tasks {
   pub fn with_serde(tasks: SerTasks, templates: Rc<Templates>, map: &TagMap) -> Result<Self> {
     let mut new_tasks = Vec::with_capacity(tasks.0.len());
     for task in tasks.0.into_iter() {
-      let task = Task::with_serde(task, templates.clone(), &map)?;
+      let task = Task::with_serde(task, templates.clone(), map)?;
       new_tasks.push(task);
     }
 
