@@ -1,4 +1,4 @@
-// Copyright (C) 2017-2021 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2017-2022 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 // We basically deny most lints that "warn" by default, except for
@@ -46,6 +46,7 @@
   while_true
 )]
 #![allow(
+  deref_into_dyn_supertrait,
   unreachable_pub,
   clippy::collapsible_if,
   clippy::let_and_return,
