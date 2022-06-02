@@ -1,17 +1,7 @@
-// Copyright (C) 2019,2021 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2019-2022 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use std::fmt::Formatter;
-use std::fmt::Result as FmtResult;
-use std::marker::PhantomData;
-
-use serde::de::EnumAccess;
-use serde::de::Error;
-use serde::de::SeqAccess;
-use serde::de::Unexpected;
-use serde::de::VariantAccess;
-use serde::de::Visitor;
-use serde::ser::SerializeTupleVariant;
+use serde::ser::SerializeTuple as _;
 use serde::Deserialize;
 use serde::Deserializer;
 use serde::Serialize;
@@ -22,9 +12,60 @@ use termion::color::Reset;
 use termion::color::Rgb;
 
 
-#[derive(Clone, Copy, Debug)]
+mod reset {
+  use super::*;
+
+  /// Deserialize a [`Reset`] value.
+  pub(crate) fn deserialize<'de, D>(deserializer: D) -> Result<Reset, D::Error>
+  where
+    D: Deserializer<'de>,
+  {
+    let () = <()>::deserialize(deserializer)?;
+    Ok(Reset)
+  }
+
+  /// Serialize a [`Reset`] value.
+  pub(crate) fn serialize<S>(_reset: &Reset, serializer: S) -> Result<S::Ok, S::Error>
+  where
+    S: Serializer,
+  {
+    serializer.serialize_unit()
+  }
+}
+
+
+mod rgb {
+  use super::*;
+
+  /// Deserialize a [`Rgb`] value.
+  pub(crate) fn deserialize<'de, D>(deserializer: D) -> Result<Rgb, D::Error>
+  where
+    D: Deserializer<'de>,
+  {
+    let [r, g, b] = <[u8; 3]>::deserialize(deserializer)?;
+    Ok(Rgb(r, g, b))
+  }
+
+  /// Serialize a [`Rgb`] value.
+  pub(crate) fn serialize<S>(rgb: &Rgb, serializer: S) -> Result<S::Ok, S::Error>
+  where
+    S: Serializer,
+  {
+    let mut tuple = serializer.serialize_tuple(3)?;
+    tuple.serialize_element(&rgb.0)?;
+    tuple.serialize_element(&rgb.1)?;
+    tuple.serialize_element(&rgb.2)?;
+    tuple.end()
+  }
+}
+
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Color {
+  #[serde(with = "reset")]
   Reset(Reset),
+  #[serde(with = "rgb")]
   Rgb(Rgb),
 }
 
@@ -87,201 +128,6 @@ impl PartialEq for Color {
         },
       },
     }
-  }
-}
-
-impl Serialize for Color {
-  fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-  where
-    S: Serializer,
-  {
-    match self {
-      Color::Reset(_) => serializer.serialize_unit_variant("Color", 0, "reset"),
-      Color::Rgb(c) => {
-        let mut tuple = serializer.serialize_tuple_variant("Color", 1, "rgb", 3)?;
-        tuple.serialize_field(&c.0)?;
-        tuple.serialize_field(&c.1)?;
-        tuple.serialize_field(&c.2)?;
-        tuple.end()
-      },
-    }
-  }
-}
-
-impl<'de> Deserialize<'de> for Color {
-  fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-  where
-    D: Deserializer<'de>,
-  {
-    deserializer.deserialize_enum(
-      "Color",
-      VARIANTS,
-      ColorVisitor {
-        marker: PhantomData,
-      },
-    )
-  }
-}
-
-
-const VARIANTS: &[&str] = &["reset", "rgb"];
-
-
-/// A helper enum for deserializing a `Color`.
-enum ColorEnum {
-  Reset,
-  Rgb,
-}
-
-impl<'de> Deserialize<'de> for ColorEnum {
-  fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-  where
-    D: Deserializer<'de>,
-  {
-    deserializer.deserialize_identifier(VariantVisitor)
-  }
-}
-
-
-/// A visitor for the `Color` enum.
-struct ColorVisitor<'de> {
-  marker: PhantomData<&'de Color>,
-}
-
-impl<'de> Visitor<'de> for ColorVisitor<'de> {
-  type Value = Color;
-
-  fn expecting(&self, formatter: &mut Formatter<'_>) -> FmtResult {
-    formatter.write_str("enum Color")
-  }
-
-  fn visit_enum<A>(self, data: A) -> Result<Self::Value, A::Error>
-  where
-    A: EnumAccess<'de>,
-  {
-    EnumAccess::variant(data).and_then(|value| match value {
-      (ColorEnum::Reset, variant) => {
-        VariantAccess::unit_variant(variant).map(|_| Color::Reset(Reset))
-      },
-      (ColorEnum::Rgb, variant) => VariantAccess::tuple_variant(
-        variant,
-        3,
-        RgbVisitor {
-          marker: PhantomData,
-        },
-      ),
-    })
-  }
-}
-
-
-/// A visitor for the individual variants of the `Color` enum.
-struct VariantVisitor;
-
-impl<'de> Visitor<'de> for VariantVisitor {
-  type Value = ColorEnum;
-
-  fn expecting(&self, formatter: &mut Formatter<'_>) -> FmtResult {
-    formatter.write_str("variant identifier")
-  }
-
-  fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E>
-  where
-    E: Error,
-  {
-    match value {
-      0 => Ok(ColorEnum::Reset),
-      1 => Ok(ColorEnum::Rgb),
-      _ => Err(Error::invalid_value(
-        Unexpected::Unsigned(value),
-        &"variant index 0 <= i < 2",
-      )),
-    }
-  }
-
-  fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
-  where
-    E: Error,
-  {
-    match value {
-      "reset" => Ok(ColorEnum::Reset),
-      "rgb" => Ok(ColorEnum::Rgb),
-      _ => Err(Error::unknown_variant(value, VARIANTS)),
-    }
-  }
-
-  fn visit_bytes<E>(self, value: &[u8]) -> Result<Self::Value, E>
-  where
-    E: Error,
-  {
-    match value {
-      b"reset" => Ok(ColorEnum::Reset),
-      b"rgb" => Ok(ColorEnum::Rgb),
-      _ => {
-        let value = &String::from_utf8_lossy(value);
-        Err(Error::unknown_variant(value, VARIANTS))
-      },
-    }
-  }
-}
-
-
-/// A visitor for the `Color::Rgb` variant.
-struct RgbVisitor<'de> {
-  marker: PhantomData<&'de Color>,
-}
-
-impl<'de> Visitor<'de> for RgbVisitor<'de> {
-  type Value = Color;
-
-  fn expecting(&self, formatter: &mut Formatter<'_>) -> FmtResult {
-    formatter.write_str("tuple variant Color::Rgb")
-  }
-
-  fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
-  where
-    A: SeqAccess<'de>,
-  {
-    let r = match match SeqAccess::next_element::<u8>(&mut seq) {
-      Ok(value) => value,
-      Err(err) => return Err(err),
-    } {
-      Some(value) => value,
-      None => {
-        return Err(Error::invalid_length(
-          0,
-          &"tuple variant Color::Rgb with 3 elements",
-        ))
-      },
-    };
-
-    let g = match match SeqAccess::next_element::<u8>(&mut seq) {
-      Ok(value) => value,
-      Err(err) => return Err(err),
-    } {
-      Some(value) => value,
-      None => {
-        return Err(Error::invalid_length(
-          1,
-          &"tuple variant Color::Rgb with 3 elements",
-        ))
-      },
-    };
-
-    let b = match match SeqAccess::next_element::<u8>(&mut seq) {
-      Ok(value) => value,
-      Err(err) => return Err(err),
-    } {
-      Some(value) => value,
-      None => {
-        return Err(Error::invalid_length(
-          2,
-          &"tuple variant Color::Rgb with 3 elements",
-        ))
-      },
-    };
-
-    Ok(Color::Rgb(Rgb(r, g, b)))
   }
 }
 
@@ -413,16 +259,20 @@ pub mod tests {
     assert_ne!(Color::Rgb(Rgb(1, 69, 12)), Color::Rgb(Rgb(0, 69, 12)));
   }
 
+  /// Check that we can serialize the [`Color::Reset`] variant and
+  /// deserialize it back.
   #[test]
   fn serialize_deserialize_reset() {
     let reset = Color::Reset(Reset);
     let serialized = to_json(&reset).unwrap();
-    assert_eq!(serialized, "\"reset\"");
+    assert_eq!(serialized, "{\"reset\":null}");
 
     let deserialized = from_json::<Color>(&serialized).unwrap();
     assert_eq!(deserialized, reset);
   }
 
+  /// Check that we can serialize the [`Color::Rgb`] variant and
+  /// deserialize it back.
   #[test]
   fn serialize_deserialize_rgb() {
     let rgb = Color::Rgb(Rgb(1, 2, 3));
