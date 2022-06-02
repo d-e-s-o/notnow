@@ -1,6 +1,8 @@
 // Copyright (C) 2019-2022 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+use serde::de::Error;
+use serde::de::Unexpected;
 use serde::ser::SerializeTuple as _;
 use serde::Deserialize;
 use serde::Deserializer;
@@ -20,8 +22,15 @@ mod reset {
   where
     D: Deserializer<'de>,
   {
-    let () = <()>::deserialize(deserializer)?;
-    Ok(Reset)
+    let string = String::deserialize(deserializer)?;
+    if string == "reset" {
+      Ok(Reset)
+    } else {
+      Err(Error::invalid_value(
+        Unexpected::Str(&string),
+        &"the string \"reset\"",
+      ))
+    }
   }
 
   /// Serialize a [`Reset`] value.
@@ -29,7 +38,7 @@ mod reset {
   where
     S: Serializer,
   {
-    serializer.serialize_unit()
+    serializer.serialize_str("reset")
   }
 }
 
@@ -61,7 +70,7 @@ mod rgb {
 
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
-#[serde(rename_all = "lowercase")]
+#[serde(untagged)]
 pub enum Color {
   #[serde(with = "reset")]
   Reset(Reset),
@@ -265,7 +274,7 @@ pub mod tests {
   fn serialize_deserialize_reset() {
     let reset = Color::Reset(Reset);
     let serialized = to_json(&reset).unwrap();
-    assert_eq!(serialized, "{\"reset\":null}");
+    assert_eq!(serialized, "\"reset\"");
 
     let deserialized = from_json::<Color>(&serialized).unwrap();
     assert_eq!(deserialized, reset);
@@ -277,7 +286,7 @@ pub mod tests {
   fn serialize_deserialize_rgb() {
     let rgb = Color::Rgb(Rgb(1, 2, 3));
     let serialized = to_json(&rgb).unwrap();
-    assert_eq!(serialized, "{\"rgb\":[1,2,3]}");
+    assert_eq!(serialized, "[1,2,3]");
 
     let deserialized = from_json::<Color>(&serialized).unwrap();
     assert_eq!(deserialized, rgb);
