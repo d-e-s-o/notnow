@@ -1,4 +1,4 @@
-// Copyright (C) 2018,2021 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2018-2022 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use serde::Deserialize;
@@ -26,6 +26,7 @@ pub struct Template {
 
 /// A serializable tag instance.
 #[derive(Copy, Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(transparent)]
 pub struct Tag {
   pub id: Id,
 }

@@ -2,6 +2,7 @@ Unreleased
 ----------
 - Added support for finding the currently selected task on other tabs
   via '*'
+- Adjusted serialization format to be more compact
 - Re-select task after successfully editing tags
 - Use Unicode aware lowercase in task summary search
 - Bumped minimum supported Rust version to `1.52`
