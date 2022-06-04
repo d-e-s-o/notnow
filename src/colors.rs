@@ -291,4 +291,14 @@ pub mod tests {
     let deserialized = from_json::<Color>(&serialized).unwrap();
     assert_eq!(deserialized, rgb);
   }
+
+  /// Check that we can serialize and then deserialize again the default
+  /// representation of the [`Colors`] type.
+  #[test]
+  fn serialize_deserialize_colors() {
+    let colors = Colors::default();
+    let serialized = to_json(&colors).unwrap();
+    let deserialized = from_json::<Colors>(&serialized).unwrap();
+    assert_eq!(deserialized, colors);
+  }
 }
