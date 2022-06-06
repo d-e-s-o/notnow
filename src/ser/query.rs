@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2019,2021 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2018-2022 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use serde::Deserialize;
@@ -12,11 +12,7 @@ use crate::ser::tags::Tag;
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum TagLit {
-  // TODO: Remove the aliases with the next compatibility breaking
-  //       release.
-  #[serde(alias = "Pos")]
   Pos(Tag),
-  #[serde(alias = "Neg")]
   Neg(Tag),
 }
 
