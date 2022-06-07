@@ -148,13 +148,13 @@ pub struct Colors {
   #[serde(default = "Color::bright_green")]
   pub more_tasks_bg: Color,
   #[serde(default = "Color::color15")]
-  pub selected_query_fg: Color,
+  pub selected_tab_fg: Color,
   #[serde(default = "Color::color240")]
-  pub selected_query_bg: Color,
+  pub selected_tab_bg: Color,
   #[serde(default = "Color::color15")]
-  pub unselected_query_fg: Color,
+  pub unselected_tab_fg: Color,
   #[serde(default = "Color::color235")]
-  pub unselected_query_bg: Color,
+  pub unselected_tab_bg: Color,
   #[serde(default = "Color::color0")]
   pub unselected_task_fg: Color,
   #[serde(default = "Color::reset")]
@@ -210,10 +210,10 @@ impl Default for Colors {
     Self {
       more_tasks_fg: Color::color0(),
       more_tasks_bg: Color::bright_green(),
-      selected_query_fg: Color::color15(),
-      selected_query_bg: Color::color240(),
-      unselected_query_fg: Color::color15(),
-      unselected_query_bg: Color::color235(),
+      selected_tab_fg: Color::color15(),
+      selected_tab_bg: Color::color240(),
+      unselected_tab_fg: Color::color15(),
+      unselected_tab_bg: Color::color235(),
       unselected_task_fg: Color::color0(),
       unselected_task_bg: Color::reset(),
       selected_task_fg: Color::color15(),

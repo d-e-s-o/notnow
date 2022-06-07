@@ -295,8 +295,8 @@ where
       let bg = self.colors.more_tasks_bg;
       self.writer.write(0, 0, fg, bg, "<")?;
     } else {
-      let fg = self.colors.unselected_query_fg;
-      let bg = self.colors.unselected_query_bg;
+      let fg = self.colors.unselected_tab_fg;
+      let bg = self.colors.unselected_tab_bg;
       self.writer.write(0, 0, fg, bg, " ")?;
     }
 
@@ -305,19 +305,16 @@ where
       let bg = self.colors.more_tasks_bg;
       self.writer.write(bbox.w - 1, 0, fg, bg, ">")?;
     } else {
-      let fg = self.colors.unselected_query_fg;
-      let bg = self.colors.unselected_query_bg;
+      let fg = self.colors.unselected_tab_fg;
+      let bg = self.colors.unselected_tab_bg;
       self.writer.write(bbox.w - 1, 0, fg, bg, " ")?;
     }
 
     for (i, tab) in tab_bar.iter(cap).enumerate().skip(offset).take(limit) {
       let (fg, bg) = if i == selection {
-        (self.colors.selected_query_fg, self.colors.selected_query_bg)
+        (self.colors.selected_tab_fg, self.colors.selected_tab_bg)
       } else {
-        (
-          self.colors.unselected_query_fg,
-          self.colors.unselected_query_bg,
-        )
+        (self.colors.unselected_tab_fg, self.colors.unselected_tab_bg)
       };
 
       let title = align_center(tab.clone(), TAB_TITLE_WIDTH as usize - 4);
@@ -329,8 +326,8 @@ where
 
     if x < w {
       let pad = " ".repeat((w - x) as usize);
-      let fg = self.colors.unselected_query_fg;
-      let bg = self.colors.unselected_query_bg;
+      let fg = self.colors.unselected_tab_fg;
+      let bg = self.colors.unselected_tab_bg;
       self.writer.write(x, 0, fg, bg, pad)?
     }
 
