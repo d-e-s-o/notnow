@@ -227,13 +227,13 @@ mod tests {
 
   use tokio::test;
 
-  use crate::ser::query::Query as SerQuery;
-  use crate::ser::query::TagLit as SerTagLit;
   use crate::ser::state::TaskState as SerTaskState;
   use crate::ser::state::UiState as SerUiState;
   use crate::ser::tags::Templates as SerTemplates;
   use crate::ser::tasks::Task as SerTask;
   use crate::ser::tasks::Tasks as SerTasks;
+  use crate::ser::view::TagLit as SerTagLit;
+  use crate::ser::view::View as SerView;
   use crate::ser::ToSerde;
   use crate::state::State;
   use crate::test::make_tasks;
@@ -264,30 +264,30 @@ mod tests {
       tasks: SerTasks(tasks),
     };
     let ui_state = SerUiState {
-      queries: vec![
+      views: vec![
         (
-          SerQuery {
+          SerView {
             name: "all".to_string(),
             lits: vec![],
           },
           None,
         ),
         (
-          SerQuery {
+          SerView {
             name: "tag complete".to_string(),
             lits: vec![vec![SerTagLit::Pos(tags[0])]],
           },
           None,
         ),
         (
-          SerQuery {
+          SerView {
             name: "tag2 || tag3".to_string(),
             lits: vec![vec![SerTagLit::Pos(tags[2]), SerTagLit::Pos(tags[3])]],
           },
           None,
         ),
         (
-          SerQuery {
+          SerView {
             name: "tag1 && tag3".to_string(),
             lits: vec![vec![SerTagLit::Pos(tags[1])], vec![SerTagLit::Pos(tags[3])]],
           },
@@ -1988,8 +1988,8 @@ mod tests {
       .to_serde();
 
     let expected = SerUiState {
-      queries: vec![(
-        SerQuery {
+      views: vec![(
+        SerView {
           name: "all".to_string(),
           lits: vec![],
         },
@@ -2015,8 +2015,8 @@ mod tests {
       .to_serde();
 
     let expected = SerUiState {
-      queries: vec![(
-        SerQuery {
+      views: vec![(
+        SerView {
           name: "all".to_string(),
           lits: vec![],
         },
@@ -2041,12 +2041,12 @@ mod tests {
       .to_serde();
 
     let (_, expected) = default_tasks_and_tags();
-    assert_eq!(state.queries.len(), expected.queries.len());
-    assert_eq!(state.queries.len(), 4);
-    assert_eq!(state.queries[0].0.name, expected.queries[0].0.name);
-    assert_eq!(state.queries[1].0.name, expected.queries[1].0.name);
-    assert_eq!(state.queries[2].0.name, expected.queries[2].0.name);
-    assert_eq!(state.queries[3].0.name, expected.queries[3].0.name);
+    assert_eq!(state.views.len(), expected.views.len());
+    assert_eq!(state.views.len(), 4);
+    assert_eq!(state.views[0].0.name, expected.views[0].0.name);
+    assert_eq!(state.views[1].0.name, expected.views[1].0.name);
+    assert_eq!(state.views[2].0.name, expected.views[2].0.name);
+    assert_eq!(state.views[3].0.name, expected.views[3].0.name);
     assert_eq!(state.selected, Some(0));
   }
 
@@ -2074,16 +2074,16 @@ mod tests {
       .to_serde();
 
     let (_, expected) = default_tasks_and_tags();
-    assert_eq!(state.queries.len(), expected.queries.len());
-    assert_eq!(state.queries.len(), 4);
-    assert_eq!(state.queries[0].0.name, expected.queries[0].0.name);
-    assert_eq!(state.queries[1].0.name, expected.queries[1].0.name);
-    assert_eq!(state.queries[2].0.name, expected.queries[2].0.name);
-    assert_eq!(state.queries[3].0.name, expected.queries[3].0.name);
-    assert_eq!(state.queries[0].1, Some(1));
-    assert_eq!(state.queries[1].1, Some(2));
-    assert_eq!(state.queries[2].1, Some(4));
-    assert_eq!(state.queries[3].1, Some(0));
+    assert_eq!(state.views.len(), expected.views.len());
+    assert_eq!(state.views.len(), 4);
+    assert_eq!(state.views[0].0.name, expected.views[0].0.name);
+    assert_eq!(state.views[1].0.name, expected.views[1].0.name);
+    assert_eq!(state.views[2].0.name, expected.views[2].0.name);
+    assert_eq!(state.views[3].0.name, expected.views[3].0.name);
+    assert_eq!(state.views[0].1, Some(1));
+    assert_eq!(state.views[1].1, Some(2));
+    assert_eq!(state.views[2].1, Some(4));
+    assert_eq!(state.views[3].1, Some(0));
     assert_eq!(state.selected, Some(2));
   }
 

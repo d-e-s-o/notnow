@@ -1,13 +1,13 @@
-// Copyright (C) 2018-2019,2021 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2018-2022 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use serde::Deserialize;
 use serde::Serialize;
 
 use crate::colors::Colors;
-use crate::ser::query::Query;
 use crate::ser::tags::Templates;
 use crate::ser::tasks::Tasks;
+use crate::ser::view::View;
 
 
 /// A struct comprising the task state of the program.
@@ -28,7 +28,7 @@ pub struct UiState {
   #[serde(default)]
   pub colors: Colors,
   #[serde(default, skip_serializing_if = "Vec::is_empty")]
-  pub queries: Vec<(Query, Option<usize>)>,
+  pub views: Vec<(View, Option<usize>)>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub selected: Option<usize>,
 }

@@ -131,7 +131,7 @@ impl Data {
     }
   }
 
-  /// Jump to the next task beginning with the given character, moving
+  /// Jump to the next tag beginning with the given character, moving
   /// in the provided direction.
   fn select_task_beginning_with(&mut self, c: char, direction: Direction) -> bool {
     let pattern = &c.to_lowercase().to_string();

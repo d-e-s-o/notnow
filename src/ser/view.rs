@@ -26,9 +26,9 @@ impl TagLit {
 }
 
 
-/// A query that can be serialized and deserialized.
+/// A view that can be serialized and deserialized.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
-pub struct Query {
+pub struct View {
   pub name: String,
   pub lits: Vec<Vec<TagLit>>,
 }
@@ -45,14 +45,14 @@ mod tests {
 
 
   #[test]
-  fn serialize_deserialize_query() {
+  fn serialize_deserialize_view() {
     let tag1 = Tag { id: Id::new(1) };
     let tag2 = Tag { id: Id::new(2) };
     let tag3 = Tag { id: Id::new(3) };
     let tag4 = Tag { id: Id::new(4) };
 
-    let query = Query {
-      name: "test-query".to_string(),
+    let view = View {
+      name: "test-view".to_string(),
       lits: vec![
         vec![TagLit::Pos(tag1)],
         vec![TagLit::Pos(tag2), TagLit::Neg(tag3)],
@@ -60,9 +60,9 @@ mod tests {
       ],
     };
 
-    let serialized = to_json(&query).unwrap();
-    let deserialized = from_json::<Query>(&serialized).unwrap();
+    let serialized = to_json(&view).unwrap();
+    let deserialized = from_json::<View>(&serialized).unwrap();
 
-    assert_eq!(deserialized, query);
+    assert_eq!(deserialized, view);
   }
 }

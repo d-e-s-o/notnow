@@ -1,4 +1,4 @@
-// Copyright (C) 2017-2021 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2017-2022 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::io::Error;
@@ -10,8 +10,8 @@ use cell::Ref;
 use cell::RefCell;
 use cell::RefVal;
 
-use crate::ser::query::Query as SerQuery;
-use crate::ser::query::TagLit as SerTagLit;
+use crate::ser::view::TagLit as SerTagLit;
+use crate::ser::view::View as SerView;
 use crate::ser::ToSerde;
 use crate::tags::Tag;
 use crate::tags::TagMap;
@@ -267,13 +267,13 @@ pub struct Query {
 impl Query {
   /// Create a new `Query` object from a serializable one.
   pub fn with_serde(
-    query: SerQuery,
+    view: SerView,
     templates: &Rc<Templates>,
     map: &TagMap,
     tasks: Rc<RefCell<Tasks>>,
   ) -> IoResult<Self> {
-    let mut and_lits = Vec::with_capacity(query.lits.len());
-    for lits in query.lits.into_iter() {
+    let mut and_lits = Vec::with_capacity(view.lits.len());
+    for lits in view.lits.into_iter() {
       let mut or_lits = Vec::with_capacity(lits.len());
       for lit in lits.into_iter() {
         let id = map.get(&lit.id()).ok_or_else(|| {
@@ -292,7 +292,7 @@ impl Query {
     }
 
     Ok(Query {
-      name: query.name,
+      name: view.name,
       tasks,
       lits: and_lits,
     })
@@ -315,16 +315,16 @@ impl Query {
   }
 }
 
-impl ToSerde<SerQuery> for Query {
+impl ToSerde<SerView> for Query {
   /// Convert this query into a serializable one.
-  fn to_serde(&self) -> SerQuery {
+  fn to_serde(&self) -> SerView {
     let lits = self
       .lits
       .iter()
       .map(|lits| lits.iter().map(ToSerde::to_serde).collect())
       .collect();
 
-    SerQuery {
+    SerView {
       name: self.name.clone(),
       lits,
     }

@@ -1,4 +1,4 @@
-// Copyright (C) 2017-2021 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2017-2022 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::cell::Cell;
@@ -135,7 +135,7 @@ impl ToSerde<SerUiState> for UiState {
 
     SerUiState {
       colors: self.colors.get().unwrap_or_default(),
-      queries,
+      views: queries,
       selected: self.selected,
     }
   }
@@ -178,8 +178,8 @@ impl State {
     let tasks = Tasks::with_serde(task_state.tasks, templates.clone(), &map)?;
     let tasks = Rc::new(RefCell::new(tasks));
     let mut queries = Vec::new();
-    for (query, selected) in ui_state.queries.into_iter() {
-      let query = Query::with_serde(query, &templates, &map, tasks.clone())?;
+    for (view, selected) in ui_state.views.into_iter() {
+      let query = Query::with_serde(view, &templates, &map, tasks.clone())?;
       queries.push((query, selected))
     }
     // For convenience for the user, we add a default query capturing
