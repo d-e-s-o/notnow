@@ -355,12 +355,12 @@ where
     let mut y = TASK_LIST_MARGIN_Y;
     let mut cursor = None;
 
-    let query = task_list.query(cap);
+    let view = task_list.view(cap);
     let limit = displayable_tasks(bbox);
     let selection = task_list.selection(cap);
     let offset = sanitize_offset(data.offset, selection, limit);
 
-    for (i, task) in query.iter().clone().enumerate().skip(offset).take(limit) {
+    for (i, task) in view.iter().clone().enumerate().skip(offset).take(limit) {
       let complete = task.is_complete();
       let (state, state_fg, state_bg) = if !complete {
         (

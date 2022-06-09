@@ -86,7 +86,7 @@ impl<'t> Filter<'t> {
     false
   }
 
-  /// Check if the given `tags` match this query's requirements.
+  /// Check if the given `tags` match this view's requirements.
   fn matched_by<'tag, I>(&self, avail_tags: &I) -> bool
   where
     I: Iterator<Item = &'tag Tag> + Clone,
@@ -142,40 +142,40 @@ impl<'t> DoubleEndedIterator for Filter<'t> {
 }
 
 
-/// A builder object to create a `Query`.
+/// A builder object to create a `View`.
 // Strictly speaking the builder contains the same members as the actual
-// `Query` object and, hence, could be merged into it easily. However,
-// the API would be rather unnatural and non-obvious. A `Query` is
+// `View` object and, hence, could be merged into it easily. However,
+// the API would be rather unnatural and non-obvious. A `View` is
 // supposed to be something that does not change over its lifetime.
-pub struct QueryBuilder {
+pub struct ViewBuilder {
   tasks: Rc<RefCell<Tasks>>,
   lits: Vec<Vec<TagLit>>,
 }
 
-impl QueryBuilder {
-  /// Create a new `QueryBuilder` object.
-  pub fn new(tasks: Rc<RefCell<Tasks>>) -> QueryBuilder {
+impl ViewBuilder {
+  /// Create a new `ViewBuilder` object.
+  pub fn new(tasks: Rc<RefCell<Tasks>>) -> ViewBuilder {
     Self {
       tasks,
       lits: Default::default(),
     }
   }
 
-  /// Add a new conjunction containing the given literal to the query.
+  /// Add a new conjunction containing the given literal to the view.
   #[cfg(test)]
-  fn and_lit(mut self, lit: TagLit) -> QueryBuilder {
+  fn and_lit(mut self, lit: TagLit) -> ViewBuilder {
     // An AND always starts a new vector of ORs.
     self.lits.push(vec![lit]);
     self
   }
 
-  /// Add a new conjunction containing the given tag to the query.
+  /// Add a new conjunction containing the given tag to the view.
   ///
   /// Note that ANDed tags always associate with previously ANDed ones.
   /// That is, if you ORed a tag before you won't be able to OR any more
   /// tags to that same tag after a tag was ANDed in. E.g.,
   ///
-  /// query
+  /// view
   ///  .or(tag1)  // `and` or `or` act equivalently for the first tag
   ///  .and(tag2)
   ///  .or(tag3)
@@ -183,22 +183,23 @@ impl QueryBuilder {
   ///
   /// Is equivalent to tag1 && (tag2 || tag3) && tag4.
   #[cfg(test)]
-  pub fn and(self, tag: impl Into<Tag>) -> QueryBuilder {
+  pub fn and(self, tag: impl Into<Tag>) -> ViewBuilder {
     self.and_lit(TagLit::Pos(tag.into()))
   }
 
-  /// Add a new conjunction containing the given tag in negated form to the query.
+  /// Add a new conjunction containing the given tag in negated form to
+  /// the view.
   ///
-  /// Please see `Query::and` for more details on how ANDed tags
+  /// Please see `View::and` for more details on how ANDed tags
   /// associate with one another and with ORed ones.
   #[cfg(test)]
-  pub fn and_not(self, tag: impl Into<Tag>) -> QueryBuilder {
+  pub fn and_not(self, tag: impl Into<Tag>) -> ViewBuilder {
     self.and_lit(TagLit::Neg(tag.into()))
   }
 
   /// Add a new literal to the last disjunction.
   #[cfg(test)]
-  fn or_lit(mut self, lit: TagLit) -> QueryBuilder {
+  fn or_lit(mut self, lit: TagLit) -> ViewBuilder {
     let last = self.lits.pop();
     match last {
       Some(mut last) => {
@@ -212,25 +213,25 @@ impl QueryBuilder {
 
   /// Add a new tag to the last disjunction.
   ///
-  /// Please see `Query::and` for more details on how ORed tags
+  /// Please see `View::and` for more details on how ORed tags
   /// associate with one another and with ANDed ones.
   #[cfg(test)]
-  pub fn or(self, tag: impl Into<Tag>) -> QueryBuilder {
+  pub fn or(self, tag: impl Into<Tag>) -> ViewBuilder {
     self.or_lit(TagLit::Pos(tag.into()))
   }
 
   /// Add a new tag in negated form to the last disjunction.
   ///
-  /// Please see `Query::and` for more details on how ORed tags
+  /// Please see `View::and` for more details on how ORed tags
   /// associate with one another and with ANDed ones.
   #[cfg(test)]
-  pub fn or_not(self, tag: impl Into<Tag>) -> QueryBuilder {
+  pub fn or_not(self, tag: impl Into<Tag>) -> ViewBuilder {
     self.or_lit(TagLit::Neg(tag.into()))
   }
 
-  /// Build the final `Query` instance.
-  pub fn build(self, name: impl Into<String>) -> Query {
-    Query {
+  /// Build the final `View` instance.
+  pub fn build(self, name: impl Into<String>) -> View {
+    View {
       name: name.into(),
       tasks: self.tasks,
       lits: self.lits,
@@ -241,16 +242,16 @@ impl QueryBuilder {
 
 /// An object representing a particular view onto a `Tasks` object.
 ///
-/// Ultimately a `Query` is conceptually an iterator over a set of
-/// `Task` objects. However, there are crucial differences to ordinary
+/// Ultimately a `View` is conceptually an iterator over a set of `Task`
+/// objects. However, there are crucial differences to ordinary
 /// iterators.
 /// 1) Where an normal iterator requires a true reference to the
-///    underlying collection, a `Query` relieves that restriction.
+///    underlying collection, a `View` relieves that restriction.
 /// 2) Iteration is internal instead of external to reduce the
 ///    likelihood of borrowing conflicts.
 #[derive(Clone, Debug)]
-pub struct Query {
-  /// The name of the query.
+pub struct View {
+  /// The name of the view.
   // TODO: This attribute does not really belong in here. Once we have
   //       the necessary infrastructure for storing it elsewhere it
   //       should be removed from this struct.
@@ -264,8 +265,8 @@ pub struct Query {
   lits: Vec<Vec<TagLit>>,
 }
 
-impl Query {
-  /// Create a new `Query` object from a serializable one.
+impl View {
+  /// Create a new `View` object from a serializable one.
   pub fn with_serde(
     view: SerView,
     templates: &Rc<Templates>,
@@ -291,32 +292,32 @@ impl Query {
       and_lits.push(or_lits);
     }
 
-    Ok(Query {
+    Ok(Self {
       name: view.name,
       tasks,
       lits: and_lits,
     })
   }
 
-  /// Retrieve an iterator over the tasks represented by this query.
+  /// Retrieve an iterator over the tasks represented by this view.
   pub fn iter<'t, 's: 't>(&'s self) -> RefVal<'t, Filter<'t>> {
     Ref::map_val(self.tasks.borrow(), |x| Filter::new(x.iter(), &self.lits))
   }
 
-  /// Check whether the query is empty or not.
+  /// Check whether the view is empty or not.
   #[cfg(test)]
   pub fn is_empty(&self) -> bool {
     self.iter().next().is_none()
   }
 
-  /// Retrieve the query's name.
+  /// Retrieve the view's name.
   pub fn name(&self) -> &str {
     &self.name
   }
 }
 
-impl ToSerde<SerView> for Query {
-  /// Convert this query into a serializable one.
+impl ToSerde<SerView> for View {
+  /// Convert this view into a serializable one.
   fn to_serde(&self) -> SerView {
     let lits = self
       .lits
@@ -343,12 +344,12 @@ mod tests {
   use crate::test::make_tasks_with_tags;
 
 
-  /// Create a query with the given number of tasks in it.
-  fn make_query(count: usize) -> Query {
+  /// Create a view with the given number of tasks in it.
+  fn make_view(count: usize) -> View {
     let tasks = Tasks::with_serde_tasks(make_tasks(count));
     let tasks = Rc::new(RefCell::new(tasks.unwrap()));
-    let query = QueryBuilder::new(tasks).build("test");
-    query
+    let view = ViewBuilder::new(tasks).build("test");
+    view
   }
 
   fn make_tagged_tasks(count: usize) -> (Rc<Templates>, Rc<RefCell<Tasks>>) {
@@ -365,19 +366,19 @@ mod tests {
 
   #[test]
   fn is_empty() {
-    assert!(make_query(0).is_empty());
-    assert!(!make_query(1).is_empty());
+    assert!(make_view(0).is_empty());
+    assert!(!make_view(1).is_empty());
   }
 
   #[test]
   fn filter_completions() {
     let (templates, tasks) = make_tagged_tasks(16);
     let complete_tag = templates.instantiate(templates.complete_tag().id());
-    let query = QueryBuilder::new(tasks).and(complete_tag).build("test");
+    let view = ViewBuilder::new(tasks).and(complete_tag).build("test");
 
-    query.iter().clone().for_each(|x| assert!(x.is_complete()));
+    view.iter().clone().for_each(|x| assert!(x.is_complete()));
 
-    let mut iter = query.iter();
+    let mut iter = view.iter();
     assert_eq!(iter.next().unwrap().summary, "2");
     assert_eq!(iter.next().unwrap().summary, "4");
     assert_eq!(iter.next().unwrap().summary, "6");
@@ -393,11 +394,11 @@ mod tests {
   fn filter_no_completions() {
     let (templates, tasks) = make_tagged_tasks(16);
     let complete_tag = templates.instantiate(templates.complete_tag().id());
-    let query = QueryBuilder::new(tasks).and_not(complete_tag).build("test");
+    let view = ViewBuilder::new(tasks).and_not(complete_tag).build("test");
 
-    query.iter().clone().for_each(|x| assert!(!x.is_complete()));
+    view.iter().clone().for_each(|x| assert!(!x.is_complete()));
 
-    let mut iter = query.iter();
+    let mut iter = view.iter();
     assert_eq!(iter.next().unwrap().summary, "1");
     assert_eq!(iter.next().unwrap().summary, "3");
     assert_eq!(iter.next().unwrap().summary, "5");
@@ -414,9 +415,9 @@ mod tests {
     let (templates, tasks) = make_tagged_tasks(20);
     let tag1 = templates.instantiate(templates.iter().nth(1).unwrap().id());
     let tag2 = templates.instantiate(templates.iter().nth(2).unwrap().id());
-    let query = QueryBuilder::new(tasks).and(tag1).and(tag2).build("test");
+    let view = ViewBuilder::new(tasks).and(tag1).and(tag2).build("test");
 
-    let mut iter = query.iter();
+    let mut iter = view.iter();
     assert_eq!(iter.next().unwrap().summary, "11");
     assert_eq!(iter.next().unwrap().summary, "12");
     assert_eq!(iter.next().unwrap().summary, "15");
@@ -431,9 +432,9 @@ mod tests {
     let (templates, tasks) = make_tagged_tasks(20);
     let tag1 = templates.instantiate(templates.iter().nth(1).unwrap().id());
     let tag3 = templates.instantiate(templates.iter().nth(3).unwrap().id());
-    let query = QueryBuilder::new(tasks).or(tag3).or(tag1).build("test");
+    let view = ViewBuilder::new(tasks).or(tag3).or(tag1).build("test");
 
-    let mut iter = query.iter();
+    let mut iter = view.iter();
     assert_eq!(iter.next().unwrap().summary, "5");
     assert_eq!(iter.next().unwrap().summary, "6");
     assert_eq!(iter.next().unwrap().summary, "7");
@@ -455,13 +456,13 @@ mod tests {
     let complete_tag = templates.instantiate(templates.complete_tag().id());
     let tag1 = templates.instantiate(templates.iter().nth(1).unwrap().id());
     let tag4 = templates.instantiate(templates.iter().nth(4).unwrap().id());
-    let query = QueryBuilder::new(tasks)
+    let view = ViewBuilder::new(tasks)
       .and(tag1)
       .and(complete_tag)
       .or(tag4)
       .build("test");
 
-    let mut iter = query.iter();
+    let mut iter = view.iter();
     assert_eq!(iter.next().unwrap().summary, "6");
     assert_eq!(iter.next().unwrap().summary, "8");
     assert_eq!(iter.next().unwrap().summary, "12");
@@ -476,12 +477,12 @@ mod tests {
     let (templates, tasks) = make_tagged_tasks(20);
     let complete_tag = templates.instantiate(templates.complete_tag().id());
     let tag2 = templates.instantiate(templates.iter().nth(2).unwrap().id());
-    let query = QueryBuilder::new(tasks)
+    let view = ViewBuilder::new(tasks)
       .and_not(tag2)
       .and_not(complete_tag)
       .build("test");
 
-    let mut iter = query.iter();
+    let mut iter = view.iter();
     assert_eq!(iter.next().unwrap().summary, "1");
     assert_eq!(iter.next().unwrap().summary, "3");
     assert_eq!(iter.next().unwrap().summary, "5");
@@ -497,13 +498,13 @@ mod tests {
     let complete_tag = templates.instantiate(templates.complete_tag().id());
     let tag2 = templates.instantiate(templates.iter().nth(2).unwrap().id());
     let tag3 = templates.instantiate(templates.iter().nth(3).unwrap().id());
-    let query = QueryBuilder::new(tasks)
+    let view = ViewBuilder::new(tasks)
       .or_not(tag2)
       .or_not(complete_tag)
       .and(tag3)
       .build("test");
 
-    let mut iter = query.iter();
+    let mut iter = view.iter();
     assert_eq!(iter.next().unwrap().summary, "13");
     assert_eq!(iter.next().unwrap().summary, "14");
     assert_eq!(iter.next().unwrap().summary, "15");

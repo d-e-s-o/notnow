@@ -61,7 +61,7 @@ impl TermUi {
   pub fn new(id: Id, cap: &mut dyn MutCap<Event, Message>, state: UiState) -> Self {
     let termui_id = id;
     let UiState {
-      queries, selected, ..
+      views, selected, ..
     } = state;
 
     // TODO: Ideally, widgets that need a modal dialog could just create
@@ -88,9 +88,7 @@ impl TermUi {
       Box::new(move |id, cap| {
         let data = cap.data(termui_id).downcast_ref::<TermUiData>().unwrap();
         let tasks = data.task_state.tasks();
-        Box::new(TabBar::new(
-          id, cap, dialog, in_out, tasks, queries, selected,
-        ))
+        Box::new(TabBar::new(id, cap, dialog, in_out, tasks, views, selected))
       }),
     );
 
@@ -139,11 +137,11 @@ impl TermUi {
 
     let data = self.data::<TermUiData>(cap);
     let TabState {
-      queries, selected, ..
+      views, selected, ..
     } = state;
     let ui_state = UiState {
       path: data.ui_state_path.clone(),
-      queries,
+      views,
       selected,
       colors: Default::default(),
     };
@@ -172,8 +170,8 @@ impl Handleable<Event, Message> for TermUi {
             // TODO: We may want to make sure that the `TabBar` tries to
             //       select a task on the currently selected tab first,
             //       or we run risk of spuriously flipping tabs here if
-            //       the user has queries that overlap in some form
-            //       (i.e., a task is displayed on multiple tabs).
+            //       the user has views that overlap in some form (i.e.,
+            //       a task is displayed on multiple tabs).
             cap.send(self.tab_bar, Message::SelectTask(id, false)).await;
           }
           Some(Event::Updated)
@@ -254,7 +252,7 @@ mod tests {
   }
 
 
-  /// Create the default `UiState` with four queries and 15 tasks with
+  /// Create the default `UiState` with four views and 15 tasks with
   /// tags. Tag assignment follows the pattern that
   /// `make_tasks_with_tags` creates.
   fn default_tasks_and_tags() -> (SerTaskState, SerUiState) {
@@ -414,15 +412,15 @@ mod tests {
     }
 
     /// Retrieve the names of all tabs.
-    async fn queries(&mut self) -> Vec<String> {
+    async fn views(&mut self) -> Vec<String> {
       let root = self.ui.root_id();
       let resp = self.ui.send(root, Message::CollectState).await.unwrap();
 
       if let Message::CollectedState(tab_state) = resp {
         tab_state
-          .queries
+          .views
           .into_iter()
-          .map(|(query, _)| query.name().to_string())
+          .map(|(view, _)| view.name().to_string())
           .collect()
       } else {
         panic!("Unexpected response: {:?}", resp)
@@ -817,7 +815,7 @@ mod tests {
       .tasks()
       .await;
 
-    // We created a task on the second query, i.e., the one showing
+    // We created a task on the second tab, i.e., the one showing
     // completed tasks (which is every other). So we expect the new task
     // to show up past the second one in the list of all tests, at index
     // 2.
@@ -829,7 +827,7 @@ mod tests {
     let expected = Vec::<String>::new();
     assert_eq!(tags, expected);
 
-    // The second task should have been created on the third query,
+    // The second task should have been created on the third tab,
     // which shows tasks with tag2 or tag3 present.
     assert_eq!(tasks[11].summary, "hi");
 
@@ -1204,7 +1202,7 @@ mod tests {
   }
 
   #[test]
-  async fn transparent_task_removal_down_to_empty_query() {
+  async fn transparent_task_removal_down_to_empty_view() {
     let events = vec![
       Event::from('l'),
       Event::from('l'),
@@ -1322,16 +1320,16 @@ mod tests {
     let events = vec![Event::from('2'), Event::from('H')];
 
     let mut ui = TestUiBuilder::with_default_tasks_and_tags().build();
-    let queries = ui.handle(events).await.queries().await;
+    let views = ui.handle(events).await.views().await;
 
     let expected = vec!["tag complete", "all", "tag2 || tag3", "tag1 && tag3"];
-    assert_eq!(queries, expected);
+    assert_eq!(views, expected);
 
     // Try moving the tab once more but since we are already all the way
     // to the left nothing should change.
     let events = vec![Event::from('H')];
-    let queries = ui.handle(events).await.queries().await;
-    assert_eq!(queries, expected);
+    let views = ui.handle(events).await.views().await;
+    assert_eq!(views, expected);
   }
 
   #[test]
@@ -1339,14 +1337,14 @@ mod tests {
     let events = vec![Event::from('3'), Event::from('L')];
 
     let mut ui = TestUiBuilder::with_default_tasks_and_tags().build();
-    let queries = ui.handle(events).await.queries().await;
+    let views = ui.handle(events).await.views().await;
 
     let expected = vec!["all", "tag complete", "tag1 && tag3", "tag2 || tag3"];
-    assert_eq!(queries, expected);
+    assert_eq!(views, expected);
 
     let events = vec![Event::from('L')];
-    let queries = ui.handle(events).await.queries().await;
-    assert_eq!(queries, expected);
+    let views = ui.handle(events).await.views().await;
+    assert_eq!(views, expected);
   }
 
   #[test]
@@ -2114,7 +2112,7 @@ mod tests {
   #[test]
   async fn edit_task_with_existing_tags() {
     let events = vec![
-      // Move to the third query (tag2 || tag3).
+      // Move to the third tab (tag2 || tag3).
       Event::from('l'),
       Event::from('l'),
       // Move to task11.
@@ -2249,7 +2247,7 @@ mod tests {
   #[test]
   async fn tag_change_reselects_task() {
     let events = vec![
-      // Move to the "complete" query.
+      // Move to the "complete" tab.
       Event::from('l'),
       // Move to task10.
       Event::from('j'),

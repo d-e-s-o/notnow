@@ -60,7 +60,6 @@
 mod colors;
 mod id;
 mod ops;
-mod query;
 mod resize;
 mod ser;
 mod state;
@@ -70,6 +69,7 @@ mod tasks;
 #[allow(unsafe_code)]
 mod test;
 mod ui;
+mod view;
 
 use std::env::args_os;
 use std::fs::OpenOptions;

@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2021 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2018-2022 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::cmp::min;
@@ -16,10 +16,10 @@ use gui::Id;
 use gui::MutCap;
 use gui::Widget;
 
-use crate::query::Query;
 use crate::tasks::Id as TaskId;
 use crate::tasks::Task;
 use crate::tasks::Tasks;
+use crate::view::View;
 
 use super::event::Event;
 use super::event::Key;
@@ -43,8 +43,8 @@ enum State {
 pub struct TaskListBoxData {
   /// The tasks database.
   tasks: Rc<RefCell<Tasks>>,
-  /// The query represented by the `TaskListBox`.
-  query: Query,
+  /// The view represented by the `TaskListBox`.
+  view: View,
   /// The currently selected task.
   selection: isize,
   /// The state the `TaskListBox` is in.
@@ -53,10 +53,10 @@ pub struct TaskListBoxData {
 
 impl TaskListBoxData {
   /// Create a new `TaskListBoxData` object.
-  pub fn new(tasks: Rc<RefCell<Tasks>>, query: Query) -> Self {
+  pub fn new(tasks: Rc<RefCell<Tasks>>, view: View) -> Self {
     Self {
       tasks,
-      query,
+      view,
       selection: 0,
       state: None,
     }
@@ -65,7 +65,7 @@ impl TaskListBoxData {
   /// Retrieve a copy of the selected task, if any.
   fn selected_task(&self) -> Option<Task> {
     let selection = self.selection(0);
-    self.query.iter().clone().nth(selection).cloned()
+    self.view.iter().clone().nth(selection).cloned()
   }
 }
 
@@ -79,7 +79,7 @@ impl Selectable for TaskListBoxData {
   }
 
   fn count(&self) -> usize {
-    self.query.iter().clone().count()
+    self.view.iter().clone().count()
   }
 }
 
@@ -121,7 +121,7 @@ impl TaskListBox {
   ///
   /// This method takes care of correctly selecting a task after it was
   /// added or modified. After such an operation a task may or may not
-  /// be covered by our query anymore, meaning we either need to select
+  /// be covered by our view anymore, meaning we either need to select
   /// it or find somebody else who displays it and ask him to select it.
   async fn handle_select_task(
     &self,
@@ -130,7 +130,7 @@ impl TaskListBox {
     done: Option<&mut bool>,
   ) -> Option<Message> {
     let data = self.data_mut::<TaskListBoxData>(cap);
-    let idx = data.query.iter().position(|x| x.id() == task_id);
+    let idx = data.view.iter().position(|x| x.id() == task_id);
 
     if let Some(idx) = idx {
       let update = data.select(idx as isize);
@@ -142,7 +142,7 @@ impl TaskListBox {
       // If there is no `done` we were called directly from within the
       // widget and not in response to a message from the TabBar. In
       // that case, given that we have not found the task in our own
-      // query, reach out to the TabBar.
+      // view, reach out to the TabBar.
       if done.is_none() {
         let message = Message::SelectTask(task_id, false);
         cap.send(self.tab_bar, message).await
@@ -173,7 +173,7 @@ impl TaskListBox {
     let data = self.data::<TaskListBoxData>(cap);
     // Note that because we use the count for index calculation
     // purposes, we subtract one below on every use.
-    let count = data.query.iter().clone().count();
+    let count = data.view.iter().clone().count();
     // First figure out from where we start the search. If we have
     // visited this `TaskListBox` beforehand we may have already visited
     // the first couple of tasks matching the given string and we should
@@ -212,7 +212,7 @@ impl TaskListBox {
     // not something that we can provide.
     if reverse {
       data
-        .query
+        .view
         .iter()
         .clone()
         .rev()
@@ -221,7 +221,7 @@ impl TaskListBox {
         .map(|idx| (count - 1) - (start_idx + idx))
     } else {
       data
-        .query
+        .view
         .iter()
         .clone()
         .skip(start_idx)
@@ -251,10 +251,10 @@ impl TaskListBox {
     }
   }
 
-  /// Retrieve the query associated with this widget.
-  pub fn query(&self, cap: &dyn Cap) -> Query {
+  /// Retrieve the view associated with this widget.
+  pub fn view(&self, cap: &dyn Cap) -> View {
     let data = self.data::<TaskListBoxData>(cap);
-    data.query.clone()
+    data.view.clone()
   }
 
   /// Retrieve the current selection index.
@@ -319,7 +319,7 @@ impl Handleable<Event, Message> for TaskListBox {
         },
         Key::Char('J') => {
           if let Some(to_move) = data.selected_task() {
-            let other = data.query.iter().nth(data.selection(1));
+            let other = data.view.iter().nth(data.selection(1));
             if let Some(other) = other {
               data.tasks.borrow_mut().move_after(to_move.id(), other.id());
               MessageExt::maybe_update(None, data.change_selection(1)).into_event()
@@ -333,7 +333,7 @@ impl Handleable<Event, Message> for TaskListBox {
         Key::Char('K') => {
           if let Some(to_move) = data.selected_task() {
             if data.selection(0) > 0 {
-              let other = data.query.iter().nth(data.selection(-1));
+              let other = data.view.iter().nth(data.selection(-1));
               if let Some(other) = other {
                 data
                   .tasks
@@ -395,9 +395,9 @@ impl Handleable<Event, Message> for TaskListBox {
                 //       previously tagged 'complete', because we move
                 //       the new task just after this one, but given
                 //       that we removed the tag it may end up being
-                //       displayed on a different query altogether --
-                //       and at a rather random seeming location because
-                //       of it. Eventually we may want to remove the
+                //       displayed on a different view altogether -- and
+                //       at a rather random seeming location because of
+                //       it. Eventually we may want to remove the
                 //       special case logic for the 'complete' tag.
                 let after = data.selected_task().as_ref().map(Task::id);
                 let id = data.tasks.borrow_mut().add(text.clone(), tags, after);
@@ -463,13 +463,11 @@ impl Handleable<Event, Message> for TaskListBox {
           .await
       },
       Message::GetTabState(ref mut tab_state) => {
-        let TabState {
-          ref mut queries, ..
-        } = tab_state;
+        let TabState { ref mut views, .. } = tab_state;
         let data = self.data::<TaskListBoxData>(cap);
         let selected = Some(data.selection(0));
 
-        queries.push((self.query(cap), selected));
+        views.push((self.view(cap), selected));
         None
       },
       m => panic!("Received unexpected message: {:?}", m),

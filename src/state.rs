@@ -20,13 +20,13 @@ use serde_json::from_reader;
 use serde_json::to_string_pretty as to_json;
 
 use crate::colors::Colors;
-use crate::query::Query;
-use crate::query::QueryBuilder;
 use crate::ser::state::TaskState as SerTaskState;
 use crate::ser::state::UiState as SerUiState;
 use crate::ser::ToSerde;
 use crate::tags::Templates;
 use crate::tasks::Tasks;
+use crate::view::View;
+use crate::view::ViewBuilder;
 
 
 /// Load some serialized state from a file.
@@ -106,9 +106,9 @@ pub struct UiState {
   pub path: PathBuf,
   /// The configured colors.
   pub colors: Cell<Option<Colors>>,
-  /// The queries used in the UI.
-  pub queries: Vec<(Query, Option<usize>)>,
-  /// The currently selected `Query`.
+  /// The views used in the UI.
+  pub views: Vec<(View, Option<usize>)>,
+  /// The currently selected `View`.
   pub selected: Option<usize>,
 }
 
@@ -125,17 +125,13 @@ impl UiState {
 impl ToSerde<SerUiState> for UiState {
   /// Convert this object into a serializable one.
   fn to_serde(&self) -> SerUiState {
-    debug_assert!(self.selected.is_none() || self.selected.unwrap() < self.queries.len());
+    debug_assert!(self.selected.is_none() || self.selected.unwrap() < self.views.len());
 
-    let queries = self
-      .queries
-      .iter()
-      .map(|(q, s)| (q.to_serde(), *s))
-      .collect();
+    let views = self.views.iter().map(|(q, s)| (q.to_serde(), *s)).collect();
 
     SerUiState {
       colors: self.colors.get().unwrap_or_default(),
-      views: queries,
+      views,
       selected: self.selected,
     }
   }
@@ -177,15 +173,15 @@ impl State {
     let templates = Rc::new(templates);
     let tasks = Tasks::with_serde(task_state.tasks, templates.clone(), &map)?;
     let tasks = Rc::new(RefCell::new(tasks));
-    let mut queries = Vec::new();
+    let mut views = Vec::new();
     for (view, selected) in ui_state.views.into_iter() {
-      let query = Query::with_serde(view, &templates, &map, tasks.clone())?;
-      queries.push((query, selected))
+      let view = View::with_serde(view, &templates, &map, tasks.clone())?;
+      views.push((view, selected))
     }
-    // For convenience for the user, we add a default query capturing
-    // all tasks if no other queries have been configured.
-    if queries.is_empty() {
-      queries.push((QueryBuilder::new(tasks.clone()).build("all"), None))
+    // For convenience for the user, we add a default view capturing
+    // all tasks if no other views have been configured.
+    if views.is_empty() {
+      views.push((ViewBuilder::new(tasks.clone()).build("all"), None))
     }
 
     let task_state = TaskState {
@@ -196,7 +192,7 @@ impl State {
     let ui_state = UiState {
       colors: Cell::new(Some(ui_state.colors)),
       path: ui_path.into(),
-      queries,
+      views,
       selected: ui_state.selected,
     };
     Ok(Self(task_state, ui_state))

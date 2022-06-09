@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2021 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2018-2022 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::cmp::max;
@@ -18,8 +18,8 @@ use gui::Id;
 use gui::MutCap;
 use gui::Widget;
 
-use crate::query::Query;
 use crate::tasks::Tasks;
+use crate::view::View;
 
 use super::event::Event;
 use super::event::Key;
@@ -78,21 +78,21 @@ pub enum SearchState {
   Current,
   /// Start right after the currently selected task.
   AfterCurrent,
-  /// Start the search at the first task in the query being displayed.
+  /// Start the search at the first task in the view being displayed.
   First,
   /// The search is done.
   Done,
 }
 
 
-/// The state used for collecting the queries from the various
+/// The state used for collecting the views from the various
 /// `TaskListBox` objects.
 #[derive(Debug)]
 pub struct TabState {
-  /// The accumulation of queries gathered from the individual
+  /// The accumulation of views gathered from the individual
   /// `TaskListBox` objects.
-  pub queries: Vec<(Query, Option<usize>)>,
-  /// The currently selected query.
+  pub views: Vec<(View, Option<usize>)>,
+  /// The currently selected view.
   pub selected: Option<usize>,
 }
 
@@ -195,23 +195,23 @@ impl TabBar {
     dialog: Id,
     in_out: Id,
     tasks: Rc<RefCell<Tasks>>,
-    queries: Vec<(Query, Option<usize>)>,
+    views: Vec<(View, Option<usize>)>,
     selected: Option<usize>,
   ) -> Self {
-    let count = queries.len();
+    let count = views.len();
     let selected = selected.map(|x| min(x, isize::MAX as usize)).unwrap_or(0) as isize;
     let selected = sanitize_selection(selected, count);
     let tab_bar = id;
 
-    let tabs = queries
+    let tabs = views
       .into_iter()
       .enumerate()
-      .map(|(i, (query, task))| {
-        let name = query.name().to_string();
+      .map(|(i, (view, task))| {
+        let name = view.name().to_string();
         let tasks = tasks.clone();
         let task_list = cap.add_widget(
           id,
-          Box::new(|| Box::new(TaskListBoxData::new(tasks, query))),
+          Box::new(|| Box::new(TaskListBoxData::new(tasks, view))),
           Box::new(move |id, cap| {
             Box::new(TaskListBox::new(id, cap, tab_bar, dialog, in_out, task))
           }),
@@ -476,7 +476,7 @@ impl Handleable<Event, Message> for TabBar {
     match message {
       Message::CollectState => {
         let tab_state = TabState {
-          queries: Vec::new(),
+          views: Vec::new(),
           selected: Some(self.selection(cap)),
         };
         let mut message = Message::GetTabState(tab_state);

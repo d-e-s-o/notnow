@@ -13,7 +13,7 @@ yet another). It uses JSON for plain-text storage of a TODO database and
 is conceived in the [Rust programming language][rust-lang].
 
 Two of its overarching goals are to allow for tag based filtering of
-tasks, along with fully user-definable tags and queries, and to support
+tasks, along with fully user-definable tags and views, and to support
 server based synchronization of tasks using the CalDAV protocol as
 specified by [RFC 4791][rfc-4791].
 While filtering based on tags is already implemented, not all aspects of
