@@ -1629,6 +1629,7 @@ mod tests {
     assert_eq!(tasks, expected);
   }
 
+  /// Check that we can search in reverse direction.
   #[test]
   async fn search_reverse() {
     let tasks = make_tasks(12);
@@ -1733,11 +1734,12 @@ mod tests {
     assert_eq!(tasks, expected);
   }
 
+  /// Check that we can search tasks across multiple tabs.
   #[test]
   async fn search_tasks_on_multiple_tabs() {
     async fn test(c1: char, c2: char) {
       let events = vec![
-        // Switch to tag2 || tag3 tab.
+        // Switch to 'complete' tab.
         Event::from('l'),
         // Search for a task with '4' in it.
         Event::from(c1),
