@@ -187,9 +187,7 @@ impl TaskListBox {
         };
 
         if reverse {
-          count
-            .saturating_sub(1)
-            .saturating_sub(data.selection(-offset))
+          count.checked_sub(1)?.checked_sub(data.selection(-offset))?
         } else {
           data.selection(offset)
         }
@@ -218,7 +216,7 @@ impl TaskListBox {
         .rev()
         .skip(start_idx)
         .position(check)
-        .map(|idx| (count - 1) - (start_idx + idx))
+        .map(|idx| count.saturating_sub(start_idx + idx + 1))
     } else {
       data
         .view

@@ -1777,6 +1777,54 @@ mod tests {
     test('?', 'N').await;
   }
 
+  /// Check that we can search across multiple tabs in reverse
+  /// direction, This test is a regression test whose semantics
+  /// should not be changed.
+  #[test]
+  async fn search_tasks_reverse_on_multiple_tabs() {
+    let events = vec![
+      // Search for a task with '3' in it. The result should be task 3.
+      Event::from('/'),
+      Event::from('3'),
+      Event::from('\n'),
+      // Mark it as complete so that it appears on the 'complete' tab.
+      Event::from(' '),
+      // Search forward. This action will select task 13 on tab 'tag2 ||
+      // tag3'.
+      Event::from('n'),
+      Event::from('n'),
+      Event::from('n'),
+      // Move it to the top.
+      Event::from('K'),
+      Event::from('K'),
+      Event::from('K'),
+      Event::from('K'),
+      // Now search reverse. That should select task 3 on the 'complete'
+      // tab.
+      Event::from('N'),
+      // Delete it.
+      Event::from('d'),
+    ];
+
+    let tasks = TestUiBuilder::with_default_tasks_and_tags()
+      .build()
+      .handle(events)
+      .await
+      .tasks()
+      .await
+      .into_iter()
+      .map(|x| x.summary)
+      .collect::<Vec<_>>();
+
+    let (.., mut expected) = make_tasks_with_tags(15);
+    let task = expected.remove(12);
+    expected.insert(8, task);
+    expected.remove(2);
+    let expected = expected.into_iter().map(|x| x.summary).collect::<Vec<_>>();
+
+    assert_eq!(tasks, expected);
+  }
+
   #[test]
   async fn search_wrap_around() {
     let events = vec![
