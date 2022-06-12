@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2021 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2018-2022 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::env::temp_dir;
@@ -11,10 +11,16 @@ use libc::c_int;
 use libc::close;
 use libc::mkstemp;
 
+use crate::ser::state::TaskState as SerTaskState;
+use crate::ser::state::UiState as SerUiState;
 use crate::ser::tags::Id as SerId;
 use crate::ser::tags::Tag as SerTag;
 use crate::ser::tags::Template as SerTemplate;
+use crate::ser::tags::Templates as SerTemplates;
 use crate::ser::tasks::Task as SerTask;
+use crate::ser::tasks::Tasks as SerTasks;
+use crate::ser::view::TagLit as SerTagLit;
+use crate::ser::view::View as SerView;
 use crate::tags::COMPLETE_TAG;
 
 
@@ -132,4 +138,52 @@ pub fn make_tasks_with_tags(count: usize) -> (Vec<SerTag>, Vec<SerTemplate>, Vec
     .collect();
 
   (tags, templates, tasks)
+}
+
+
+/// Create the default `UiState` with four views and 15 tasks with
+/// tags. Tag assignment follows the pattern that
+/// `make_tasks_with_tags` creates.
+pub fn default_tasks_and_tags() -> (SerTaskState, SerUiState) {
+  let (tags, templates, tasks) = make_tasks_with_tags(15);
+  let task_state = SerTaskState {
+    templates: SerTemplates(templates),
+    tasks: SerTasks(tasks),
+  };
+  let ui_state = SerUiState {
+    views: vec![
+      (
+        SerView {
+          name: "all".to_string(),
+          lits: vec![],
+        },
+        None,
+      ),
+      (
+        SerView {
+          name: "tag complete".to_string(),
+          lits: vec![vec![SerTagLit::Pos(tags[0])]],
+        },
+        None,
+      ),
+      (
+        SerView {
+          name: "tag2 || tag3".to_string(),
+          lits: vec![vec![SerTagLit::Pos(tags[2]), SerTagLit::Pos(tags[3])]],
+        },
+        None,
+      ),
+      (
+        SerView {
+          name: "tag1 && tag3".to_string(),
+          lits: vec![vec![SerTagLit::Pos(tags[1])], vec![SerTagLit::Pos(tags[3])]],
+        },
+        None,
+      ),
+    ],
+    selected: None,
+    colors: Default::default(),
+  };
+
+  (task_state, ui_state)
 }

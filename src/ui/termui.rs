@@ -227,13 +227,12 @@ mod tests {
 
   use crate::ser::state::TaskState as SerTaskState;
   use crate::ser::state::UiState as SerUiState;
-  use crate::ser::tags::Templates as SerTemplates;
   use crate::ser::tasks::Task as SerTask;
   use crate::ser::tasks::Tasks as SerTasks;
-  use crate::ser::view::TagLit as SerTagLit;
   use crate::ser::view::View as SerView;
   use crate::ser::ToSerde;
   use crate::state::State;
+  use crate::test::default_tasks_and_tags;
   use crate::test::make_tasks;
   use crate::test::make_tasks_with_tags;
   use crate::test::NamedTempFile;
@@ -251,53 +250,6 @@ mod tests {
     }
   }
 
-
-  /// Create the default `UiState` with four views and 15 tasks with
-  /// tags. Tag assignment follows the pattern that
-  /// `make_tasks_with_tags` creates.
-  fn default_tasks_and_tags() -> (SerTaskState, SerUiState) {
-    let (tags, templates, tasks) = make_tasks_with_tags(15);
-    let task_state = SerTaskState {
-      templates: SerTemplates(templates),
-      tasks: SerTasks(tasks),
-    };
-    let ui_state = SerUiState {
-      views: vec![
-        (
-          SerView {
-            name: "all".to_string(),
-            lits: vec![],
-          },
-          None,
-        ),
-        (
-          SerView {
-            name: "tag complete".to_string(),
-            lits: vec![vec![SerTagLit::Pos(tags[0])]],
-          },
-          None,
-        ),
-        (
-          SerView {
-            name: "tag2 || tag3".to_string(),
-            lits: vec![vec![SerTagLit::Pos(tags[2]), SerTagLit::Pos(tags[3])]],
-          },
-          None,
-        ),
-        (
-          SerView {
-            name: "tag1 && tag3".to_string(),
-            lits: vec![vec![SerTagLit::Pos(tags[1])], vec![SerTagLit::Pos(tags[3])]],
-          },
-          None,
-        ),
-      ],
-      selected: None,
-      colors: Default::default(),
-    };
-
-    (task_state, ui_state)
-  }
 
   /// A builder object used for instantiating a UI with a certain
   /// composition of tasks.
