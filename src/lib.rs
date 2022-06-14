@@ -79,6 +79,7 @@ use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Result;
 use std::io::Write;
+use std::path::Path;
 use std::path::PathBuf;
 use std::sync::mpsc::channel;
 use std::sync::mpsc::Receiver;
@@ -205,15 +206,13 @@ where
 }
 
 /// Run the program.
-fn run_prog<W>(out: W) -> Result<()>
+fn run_prog<W>(out: W, ui_config: &Path, task_config: &Path) -> Result<()>
 where
   W: Write,
 {
   let rt = Builder::new_current_thread().build()?;
-  let task_path = task_config()?;
-  let ui_path = ui_config()?;
 
-  let state = State::new(&task_path, &ui_path)?;
+  let state = State::new(task_config, ui_config)?;
   let screen = AlternateScreen::from(out.into_raw_mode()?);
   let colors = state.1.colors.get().unwrap_or_default();
   let renderer = TermRenderer::new(screen, colors)?;
@@ -243,13 +242,16 @@ fn run_with_args() -> Result<()> {
       .map_err(|(ctx, err)| Error::new(ErrorKind::Other, format!("{}: {}", ctx, err)))?;
   }
 
+  let task_path = task_config()?;
+  let ui_path = ui_config()?;
+
   let mut it = args_os();
   match it.len() {
-    0 | 1 => run_prog(stdout().lock()),
+    0 | 1 => run_prog(stdout().lock(), &ui_path, &task_path),
     2 => {
       let path = it.nth(1).unwrap();
       let file = OpenOptions::new().read(false).write(true).open(path)?;
-      run_prog(file)
+      run_prog(file, &ui_path, &task_path)
     },
     _ => Err(Error::new(
       ErrorKind::InvalidInput,
