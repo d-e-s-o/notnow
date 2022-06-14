@@ -65,9 +65,9 @@ mod ser;
 mod state;
 mod tags;
 mod tasks;
-#[cfg(test)]
+#[cfg(any(test, feature = "test"))]
 #[allow(unsafe_code)]
-mod test;
+pub mod test;
 mod ui;
 mod view;
 

@@ -9,7 +9,7 @@ use crate::ser::tags::Tag;
 
 
 /// A literal that can be serialized and deserialized.
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[derive(Copy, Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum TagLit {
   Pos(Tag),

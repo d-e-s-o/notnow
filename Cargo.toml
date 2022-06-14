@@ -25,6 +25,7 @@ incremental = false
 default = []
 coredump = ["cdump"]
 readline = ["rline"]
+test = []
 
 [dependencies.async-trait]
 version = "0.1.41"

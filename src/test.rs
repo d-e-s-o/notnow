@@ -1,6 +1,8 @@
 // Copyright (C) 2018-2022 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+//! A module providing testing related utility functionality.
+
 use std::env::temp_dir;
 use std::ffi::CString;
 use std::fs::remove_file;
@@ -27,12 +29,14 @@ use crate::tags::COMPLETE_TAG;
 /// A temporary file with a visible file system path.
 ///
 /// This class is only meant for our internal testing!
+#[derive(Debug)]
 pub struct NamedTempFile {
   file: u64,
   path: PathBuf,
 }
 
 impl NamedTempFile {
+  /// Create a new temporary file in the system's temporary directory.
   pub fn new() -> Self {
     let path = temp_dir().join("tempXXXXXX");
     let template = CString::new(path.into_os_string().into_vec()).unwrap();
@@ -46,6 +50,7 @@ impl NamedTempFile {
     }
   }
 
+  /// Retrieve the full path to the file.
   pub fn path(&self) -> &PathBuf {
     &self.path
   }
@@ -61,6 +66,7 @@ impl Drop for NamedTempFile {
 }
 
 
+/// Create `count` task objects.
 pub fn make_tasks(count: usize) -> Vec<SerTask> {
   (0..count)
     .map(|i| SerTask::new(format!("{}", i + 1)))

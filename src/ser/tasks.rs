@@ -1,4 +1,4 @@
-// Copyright (C) 2018,2021 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2018-2022 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use serde::Deserialize;
@@ -15,7 +15,7 @@ pub struct Task {
   pub tags: Vec<Tag>,
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test"))]
 impl Task {
   /// Create a new task with the given summary and no tags.
   pub fn new<S>(summary: S) -> Self
