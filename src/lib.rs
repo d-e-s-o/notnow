@@ -61,8 +61,8 @@ mod colors;
 mod id;
 mod ops;
 mod resize;
-mod ser;
-mod state;
+pub mod ser;
+pub mod state;
 mod tags;
 mod tasks;
 #[cfg(any(test, feature = "test"))]
@@ -206,7 +206,7 @@ where
 }
 
 /// Run the program.
-fn run_prog<W>(out: W, ui_config: &Path, task_config: &Path) -> Result<()>
+pub fn run_prog<W>(out: W, ui_config: &Path, task_config: &Path) -> Result<()>
 where
   W: Write,
 {

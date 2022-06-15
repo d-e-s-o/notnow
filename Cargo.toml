@@ -27,6 +27,11 @@ coredump = ["cdump"]
 readline = ["rline"]
 test = []
 
+[[example]]
+name = "with-test-data"
+path = "examples/with-test-data.rs"
+required-features = ["test"]
+
 [dependencies.async-trait]
 version = "0.1.41"
 

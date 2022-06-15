@@ -2,6 +2,7 @@ Unreleased
 ----------
 - Added support for finding the currently selected task on other tabs
   via '*'
+- Added example program using automatically generated task data
 - Adjusted serialization format to be more compact
 - Re-select task after successfully editing tags
 - Use Unicode aware lowercase in task summary search

@@ -1,5 +1,7 @@
-// Copyright (C) 2018-2021 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2018-2022 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
+
+//! A module for the serialization of IDs.
 
 use std::fmt::Debug;
 use std::fmt::Display;
@@ -27,6 +29,7 @@ impl<T> Id<T>
 where
   T: Copy,
 {
+  /// Create a new `Id` object from a "raw" integer.
   pub fn new(id: usize) -> Self {
     Self {
       id,

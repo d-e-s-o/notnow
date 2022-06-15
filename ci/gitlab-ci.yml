@@ -39,8 +39,8 @@ build:cargo:
     policy: pull-push
   script:
   - rustc --version && cargo --version
-  - cargo build --bins --tests --verbose
-  - cargo build --bins --tests --verbose --release
+  - cargo build --bins --tests --examples --features=test --verbose
+  - cargo build --bins --tests --examples --features=test --verbose --release
 
 build:tarpaulin-tests:
   stage: build

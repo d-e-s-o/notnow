@@ -1,6 +1,8 @@
 // Copyright (C) 2017-2022 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+//! Definitions pertaining UI and task state of the program.
+
 use std::cell::Cell;
 use std::fs::create_dir_all;
 use std::fs::File;
