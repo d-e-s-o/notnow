@@ -7,7 +7,7 @@ Unreleased
 - Re-select task after successfully editing tags
 - Use Unicode aware lowercase in task summary search
 - Fixed reverse task search not progressing under certain conditions
-- Bumped minimum supported Rust version to `1.52`
+- Bumped minimum supported Rust version to `1.57`
 - Bumped `dirs` dependency to `4.0`
 
 
