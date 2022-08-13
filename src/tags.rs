@@ -1,11 +1,9 @@
-// Copyright (C) 2018-2021 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2018-2022 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
-use std::hash::Hash;
-use std::hash::Hasher;
 use std::rc::Rc;
 
 use crate::id::Id as IdT;
@@ -51,15 +49,6 @@ impl Template {
   /// Retrieve the tag template's name.
   pub fn name(&self) -> &str {
     &self.name
-  }
-}
-
-impl Hash for Template {
-  fn hash<H>(&self, state: &mut H)
-  where
-    H: Hasher,
-  {
-    self.id.hash(state);
   }
 }
 
