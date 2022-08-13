@@ -49,9 +49,11 @@
   deref_into_dyn_supertrait,
   unreachable_pub,
   clippy::collapsible_if,
+  clippy::derive_partial_eq_without_eq,
   clippy::let_and_return,
   clippy::let_unit_value,
   clippy::new_ret_no_self,
+  clippy::new_without_default,
   clippy::redundant_field_names
 )]
 
