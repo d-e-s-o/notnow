@@ -106,7 +106,7 @@ impl Task {
   }
 
   /// Retrieve an iterator over all tag templates.
-  pub fn templates(&self) -> impl Iterator<Item = Rc<Template>> + '_ {
+  pub fn templates(&self) -> impl Iterator<Item = Template> + '_ {
     self.templates.iter()
   }
 

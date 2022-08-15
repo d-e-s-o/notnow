@@ -22,12 +22,36 @@ pub type Id = IdT<T>;
 pub const COMPLETE_TAG: &str = "complete";
 
 
-/// A struct defining a particular tag.
 #[derive(Debug, Eq)]
-pub struct Template {
+struct TemplateInner {
   id: Id,
   name: String,
 }
+
+impl PartialEq for TemplateInner {
+  fn eq(&self, other: &TemplateInner) -> bool {
+    let result = self.id == other.id;
+    debug_assert!(!result || self.name == other.name);
+    result
+  }
+}
+
+impl PartialOrd for TemplateInner {
+  fn partial_cmp(&self, other: &TemplateInner) -> Option<Ordering> {
+    self.id.partial_cmp(&other.id)
+  }
+}
+
+impl Ord for TemplateInner {
+  fn cmp(&self, other: &TemplateInner) -> Ordering {
+    self.id.cmp(&other.id)
+  }
+}
+
+
+/// A struct defining a particular tag.
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub struct Template(Rc<TemplateInner>);
 
 impl Template {
   /// Create a new tag template with the given name.
@@ -35,49 +59,30 @@ impl Template {
   where
     S: Into<String>,
   {
-    Self {
+    let inner = TemplateInner {
       id: Id::new(),
       name: name.into(),
-    }
+    };
+
+    Self(Rc::new(inner))
   }
 
   /// Retrieve this template's ID.
+  #[inline]
   pub fn id(&self) -> Id {
-    self.id
+    self.0.id
   }
 
   /// Retrieve the tag template's name.
+  #[inline]
   pub fn name(&self) -> &str {
-    &self.name
-  }
-}
-
-impl PartialEq for Template {
-  fn eq(&self, other: &Template) -> bool {
-    let result = self.id == other.id;
-    debug_assert!(!result || self.name == other.name);
-    result
-  }
-}
-
-impl PartialOrd for Template {
-  fn partial_cmp(&self, other: &Template) -> Option<Ordering> {
-    self.id.partial_cmp(&other.id)
-  }
-}
-
-impl Ord for Template {
-  fn cmp(&self, other: &Template) -> Ordering {
-    self.id.cmp(&other.id)
+    &self.0.name
   }
 }
 
 impl From<SerTemplate> for Template {
   fn from(template: SerTemplate) -> Self {
-    Self {
-      id: Id::new(),
-      name: template.name,
-    }
+    Self::new(template.name)
   }
 }
 
@@ -85,8 +90,8 @@ impl ToSerde<SerTemplate> for Template {
   /// Convert the template into a serializable one.
   fn to_serde(&self) -> SerTemplate {
     SerTemplate {
-      id: self.id.to_serde(),
-      name: self.name.clone(),
+      id: self.0.id.to_serde(),
+      name: self.0.name.clone(),
     }
   }
 }
@@ -96,12 +101,12 @@ impl ToSerde<SerTemplate> for Template {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Tag {
   /// The underlying shared template.
-  template: Rc<Template>,
+  template: Template,
 }
 
 impl Tag {
   /// Create a new tag referencing the given template.
-  pub fn new(template: Rc<Template>) -> Tag {
+  pub fn new(template: Template) -> Tag {
     Self { template }
   }
 
@@ -116,7 +121,7 @@ impl Tag {
   }
 
   /// Retrieve the tag's underlying template.
-  pub fn template(&self) -> Rc<Template> {
+  pub fn template(&self) -> Template {
     self.template.clone()
   }
 }
@@ -125,7 +130,7 @@ impl ToSerde<SerTag> for Tag {
   /// Convert the tag into a serializable one.
   fn to_serde(&self) -> SerTag {
     SerTag {
-      id: self.template.id.to_serde(),
+      id: self.template.id().to_serde(),
     }
   }
 }
@@ -137,19 +142,19 @@ pub type TagMap = BTreeMap<SerTagId, Id>;
 
 
 /// Ensure the given template set contains a tag with the given name.
-fn ensure_contains<S>(templates: &mut BTreeSet<Rc<Template>>, name: S) -> Rc<Template>
+fn ensure_contains<S>(templates: &mut BTreeSet<Template>, name: S) -> Template
 where
   S: Into<String> + AsRef<str>,
 {
-  let found = templates.iter().find(|x| x.name == name.as_ref());
+  let found = templates.iter().find(|x| x.name() == name.as_ref());
 
   if let Some(found) = found {
     found.clone()
   } else {
-    let rc = Rc::new(Template::new(name.into()));
-    let inserted = templates.insert(rc.clone());
+    let template = Template::new(name.into());
+    let inserted = templates.insert(template.clone());
     debug_assert!(inserted);
-    rc
+    template
   }
 }
 
@@ -157,9 +162,9 @@ where
 #[derive(Clone, Debug, PartialEq)]
 pub struct Templates {
   /// A set of all the tag templates.
-  templates: BTreeSet<Rc<Template>>,
+  templates: BTreeSet<Template>,
   /// Reference to the tag template representing task completion.
-  complete: Rc<Template>,
+  complete: Template,
 }
 
 impl Templates {
@@ -181,7 +186,7 @@ impl Templates {
         let serde_id = x.id;
         let template = Template::from(x);
         let id = template.id();
-        (Rc::new(template), (serde_id, id))
+        (template, (serde_id, id))
       })
       .unzip();
 
@@ -195,7 +200,7 @@ impl Templates {
 
   /// Instantiate a new tag from the referenced template.
   pub fn instantiate(&self, id: Id) -> Tag {
-    let result = self.templates.iter().find(|x| x.id == id);
+    let result = self.templates.iter().find(|x| x.id() == id);
 
     match result {
       Some(template) => Tag::new(template.clone()),
@@ -206,7 +211,7 @@ impl Templates {
   /// Instantiate a new tag based on a name.
   #[cfg(test)]
   pub fn instantiate_from_name(&self, name: &str) -> Tag {
-    let result = self.templates.iter().find(|x| x.name == name);
+    let result = self.templates.iter().find(|x| x.name() == name);
 
     match result {
       Some(template) => Tag::new(template.clone()),
@@ -220,8 +225,8 @@ impl Templates {
   }
 
   /// Retrieve an iterator over all the tag templates.
-  pub fn iter(&self) -> impl Iterator<Item = Rc<Template>> + '_ {
-    self.templates.iter().map(Rc::clone)
+  pub fn iter(&self) -> impl Iterator<Item = Template> + '_ {
+    self.templates.iter().cloned()
   }
 }
 
@@ -233,7 +238,7 @@ where
   where
     I: IntoIterator<Item = Template>,
   {
-    self.templates.extend(iter.into_iter().map(Rc::new))
+    self.templates.extend(iter.into_iter())
   }
 }
 
@@ -256,7 +261,7 @@ mod tests {
   #[test]
   fn ensure_complete_tag_exists() {
     let templates = Templates::new();
-    let template = templates.iter().find(|x| x.name == COMPLETE_TAG).unwrap();
+    let template = templates.iter().find(|x| x.name() == COMPLETE_TAG).unwrap();
     assert_eq!(template.id(), templates.complete_tag().id());
   }
 
@@ -269,7 +274,7 @@ mod tests {
 
     let count = new_templates
       .iter()
-      .fold(0, |c, x| if x.name == COMPLETE_TAG { c + 1 } else { c });
+      .fold(0, |c, x| if x.name() == COMPLETE_TAG { c + 1 } else { c });
     assert_eq!(count, 1);
   }
 }
