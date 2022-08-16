@@ -159,7 +159,7 @@ where
 }
 
 /// A management structure for tag templates.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Debug)]
 pub struct Templates {
   /// A set of all the tag templates.
   templates: BTreeSet<Template>,
