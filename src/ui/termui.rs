@@ -223,6 +223,8 @@ mod tests {
   use gui::Cap;
   use gui::Ui;
 
+  use tempfile::NamedTempFile;
+
   use tokio::test;
 
   use crate::ser::state::TaskState as SerTaskState;
@@ -235,7 +237,6 @@ mod tests {
   use crate::test::default_tasks_and_tags;
   use crate::test::make_tasks;
   use crate::test::make_tasks_with_tags;
-  use crate::test::NamedTempFile;
 
 
   impl From<Key> for Event {
@@ -298,8 +299,8 @@ mod tests {
 
     /// Build the actual UI object that we can test with.
     fn build(self) -> TestUi {
-      let task_file = NamedTempFile::new();
-      let ui_file = NamedTempFile::new();
+      let task_file = NamedTempFile::new().unwrap();
+      let ui_file = NamedTempFile::new().unwrap();
       let state = State::with_serde(
         self.task_state,
         task_file.path(),

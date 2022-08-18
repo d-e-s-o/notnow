@@ -3,16 +3,6 @@
 
 //! A module providing testing related utility functionality.
 
-use std::env::temp_dir;
-use std::ffi::CString;
-use std::fs::remove_file;
-use std::os::unix::ffi::OsStringExt;
-use std::path::PathBuf;
-
-use libc::c_int;
-use libc::close;
-use libc::mkstemp;
-
 use crate::ser::state::TaskState as SerTaskState;
 use crate::ser::state::UiState as SerUiState;
 use crate::ser::tags::Id as SerId;
@@ -24,46 +14,6 @@ use crate::ser::tasks::Tasks as SerTasks;
 use crate::ser::view::TagLit as SerTagLit;
 use crate::ser::view::View as SerView;
 use crate::tags::COMPLETE_TAG;
-
-
-/// A temporary file with a visible file system path.
-///
-/// This class is only meant for our internal testing!
-#[derive(Debug)]
-pub struct NamedTempFile {
-  file: u64,
-  path: PathBuf,
-}
-
-impl NamedTempFile {
-  /// Create a new temporary file in the system's temporary directory.
-  pub fn new() -> Self {
-    let path = temp_dir().join("tempXXXXXX");
-    let template = CString::new(path.into_os_string().into_vec()).unwrap();
-    let raw = template.into_raw();
-    let result = unsafe { mkstemp(raw) };
-    assert!(result > 0);
-
-    Self {
-      file: result as u64,
-      path: unsafe { PathBuf::from(CString::from_raw(raw).into_string().unwrap()) },
-    }
-  }
-
-  /// Retrieve the full path to the file.
-  pub fn path(&self) -> &PathBuf {
-    &self.path
-  }
-}
-
-impl Drop for NamedTempFile {
-  fn drop(&mut self) {
-    remove_file(&self.path).unwrap();
-
-    let result = unsafe { close(self.file as c_int) };
-    assert!(result == 0)
-  }
-}
 
 
 /// Create `count` task objects.

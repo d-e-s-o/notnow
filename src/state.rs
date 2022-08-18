@@ -211,6 +211,8 @@ pub mod tests {
   use std::fs::File;
   use std::io::Read;
 
+  use tempfile::NamedTempFile;
+
   use crate::ser::tags::Id as SerId;
   use crate::ser::tags::Tag as SerTag;
   use crate::ser::tags::Template as SerTemplate;
@@ -218,7 +220,6 @@ pub mod tests {
   use crate::ser::tasks::Task as SerTask;
   use crate::ser::tasks::Tasks as SerTasks;
   use crate::test::make_tasks;
-  use crate::test::NamedTempFile;
 
 
   /// Create a state object based off of two temporary configuration files.
@@ -228,8 +229,8 @@ pub mod tests {
       tasks: SerTasks(make_tasks(count)),
     };
     let ui_state = Default::default();
-    let task_file = NamedTempFile::new();
-    let ui_file = NamedTempFile::new();
+    let task_file = NamedTempFile::new().unwrap();
+    let ui_file = NamedTempFile::new().unwrap();
     let state = State::with_serde(task_state, task_file.path(), ui_state, ui_file.path());
     (state.unwrap(), task_file, ui_file)
   }
@@ -272,7 +273,7 @@ pub mod tests {
       state.0.save().unwrap();
       state.1.save().unwrap();
 
-      (task_file.path().clone(), ui_file.path().clone())
+      (task_file.path().to_path_buf(), ui_file.path().to_path_buf())
     };
 
     // The files are removed by now, so we can test that `State` handles
