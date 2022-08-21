@@ -37,7 +37,7 @@ where
   T: Default,
   for<'de> T: Deserialize<'de>,
 {
-  match File::open(&path) {
+  match File::open(path) {
     Ok(file) => Ok(from_reader::<File, T>(file)?),
     Err(e) => {
       // If the file does not exist we create an empty object and work

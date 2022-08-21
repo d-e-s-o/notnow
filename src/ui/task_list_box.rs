@@ -180,12 +180,7 @@ impl TaskListBox {
     // skip those.
     let start_idx = match search_state {
       SearchState::Current | SearchState::AfterCurrent => {
-        let offset = if let SearchState::AfterCurrent = search_state {
-          1
-        } else {
-          0
-        };
-
+        let offset = matches!(search_state, SearchState::AfterCurrent) as isize;
         if reverse {
           count.checked_sub(1)?.checked_sub(data.selection(-offset))?
         } else {
