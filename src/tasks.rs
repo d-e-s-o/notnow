@@ -135,7 +135,7 @@ impl ToSerde<SerTask> for Task {
   fn to_serde(&self) -> SerTask {
     SerTask {
       summary: self.summary.clone(),
-      tags: self.tags.iter().map(|(_, x)| x.to_serde()).collect(),
+      tags: self.tags.values().map(|x| x.to_serde()).collect(),
     }
   }
 }
