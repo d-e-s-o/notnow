@@ -257,7 +257,7 @@ fn run_with_args() -> Result<()> {
     },
     _ => Err(Error::new(
       ErrorKind::InvalidInput,
-      "unsupported number of arguments",
+      "Unsupported number of program arguments",
     )),
   }
 }
