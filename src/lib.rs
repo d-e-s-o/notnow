@@ -123,16 +123,6 @@ pub enum Event {
 }
 
 
-/// Retrieve the path to the program's task configuration file.
-fn task_config() -> Result<PathBuf> {
-  Ok(
-    config_dir()
-      .ok_or_else(|| Error::new(ErrorKind::NotFound, "Unable to determine config directory"))?
-      .join("notnow")
-      .join("tasks.json"),
-  )
-}
-
 /// Retrieve the path to the UI's configuration file.
 fn ui_config() -> Result<PathBuf> {
   Ok(
@@ -140,6 +130,16 @@ fn ui_config() -> Result<PathBuf> {
       .ok_or_else(|| Error::new(ErrorKind::NotFound, "Unable to determine config directory"))?
       .join("notnow")
       .join("notnow.json"),
+  )
+}
+
+/// Retrieve the path to the program's task configuration file.
+fn task_config() -> Result<PathBuf> {
+  Ok(
+    config_dir()
+      .ok_or_else(|| Error::new(ErrorKind::NotFound, "Unable to determine config directory"))?
+      .join("notnow")
+      .join("tasks.json"),
   )
 }
 
@@ -214,15 +214,15 @@ where
 {
   let rt = Builder::new_current_thread().build()?;
 
-  let state = State::new(task_config, ui_config)?;
+  let state = State::new(ui_config, task_config)?;
   let screen = AlternateScreen::from(out.into_raw_mode()?);
-  let colors = state.1.colors.get().unwrap_or_default();
+  let colors = state.0.colors.get().unwrap_or_default();
   let renderer = TermRenderer::new(screen, colors)?;
-  let State(task_state, ui_state) = state;
+  let State(ui_state, task_state) = state;
   let path = ui_state.path.clone();
 
   let (ui, _) = Ui::new(
-    || Box::new(TermUiData::new(task_state, path)),
+    || Box::new(TermUiData::new(path, task_state)),
     |id, cap| Box::new(TermUi::new(id, cap, ui_state)),
   );
 
@@ -244,8 +244,8 @@ fn run_with_args() -> Result<()> {
       .map_err(|(ctx, err)| Error::new(ErrorKind::Other, format!("{}: {}", ctx, err)))?;
   }
 
-  let task_path = task_config()?;
   let ui_path = ui_config()?;
+  let task_path = task_config()?;
 
   let mut it = args_os();
   match it.len() {

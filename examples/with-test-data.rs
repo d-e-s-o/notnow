@@ -12,14 +12,14 @@ use tempfile::NamedTempFile;
 
 
 fn main() -> Result<()> {
-  let task_file = NamedTempFile::new()?;
   let ui_file = NamedTempFile::new()?;
-  let (task_state, ui_state) = default_tasks_and_tags();
-  let state = State::with_serde(task_state, task_file.path(), ui_state, ui_file.path());
-  let State(task_state, ui_state) = state?;
+  let task_file = NamedTempFile::new()?;
+  let (ui_state, task_state) = default_tasks_and_tags();
+  let state = State::with_serde(ui_state, ui_file.path(), task_state, task_file.path());
+  let State(ui_state, task_state) = state?;
 
-  task_state.save()?;
   ui_state.save()?;
+  task_state.save()?;
 
   run_prog(stdout().lock(), ui_file.path(), task_file.path())
 }

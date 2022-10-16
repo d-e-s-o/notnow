@@ -33,15 +33,15 @@ use super::tab_bar::TabState;
 
 /// The data associated with a `TermUi`.
 pub struct TermUiData {
-  task_state: TaskState,
   ui_state_path: PathBuf,
+  task_state: TaskState,
 }
 
 impl TermUiData {
-  pub fn new(task_state: TaskState, ui_state_path: PathBuf) -> Self {
+  pub fn new(ui_state_path: PathBuf, task_state: TaskState) -> Self {
     Self {
-      task_state,
       ui_state_path,
+      task_state,
     }
   }
 }
@@ -100,11 +100,11 @@ impl TermUi {
   }
 
   /// Persist the state into a file.
-  fn save_all(&self, task_state: &TaskState, ui_state: &UiState) -> Result<()> {
-    task_state.save()?;
+  fn save_all(&self, ui_state: &UiState, task_state: &TaskState) -> Result<()> {
     // TODO: We risk data inconsistencies if the second save operation
     //       fails.
     ui_state.save()?;
+    task_state.save()?;
     Ok(())
   }
 
@@ -115,7 +115,7 @@ impl TermUi {
     ui_state: &UiState,
   ) -> Option<Message> {
     let data = self.data::<TermUiData>(cap);
-    let in_out = match self.save_all(&data.task_state, ui_state) {
+    let in_out = match self.save_all(ui_state, &data.task_state) {
       Ok(_) => InOut::Saved,
       Err(err) => InOut::Error(format!("{}", err)),
     };
@@ -255,16 +255,16 @@ mod tests {
   /// A builder object used for instantiating a UI with a certain
   /// composition of tasks.
   struct TestUiBuilder {
-    task_state: SerTaskState,
     ui_state: SerUiState,
+    task_state: SerTaskState,
   }
 
   impl TestUiBuilder {
     /// Create a builder that will create a UI without any tasks.
     fn new() -> TestUiBuilder {
       Self {
-        task_state: Default::default(),
         ui_state: Default::default(),
+        task_state: Default::default(),
       }
     }
 
@@ -279,46 +279,46 @@ mod tests {
         .for_each(|x| assert!(x.tags.is_empty()));
 
       Self {
+        ui_state: Default::default(),
         task_state: SerTaskState {
           templates: Default::default(),
           tasks: SerTasks(tasks.into()),
         },
-        ui_state: Default::default(),
       }
     }
 
     /// Create a builder that will instantiate a UI with state as
     /// created by `default_tasks_and_tags`.
     fn with_default_tasks_and_tags() -> TestUiBuilder {
-      let (task_state, ui_state) = default_tasks_and_tags();
+      let (ui_state, task_state) = default_tasks_and_tags();
       TestUiBuilder {
-        task_state,
         ui_state,
+        task_state,
       }
     }
 
     /// Build the actual UI object that we can test with.
     fn build(self) -> TestUi {
-      let task_file = NamedTempFile::new().unwrap();
       let ui_file = NamedTempFile::new().unwrap();
+      let task_file = NamedTempFile::new().unwrap();
       let state = State::with_serde(
-        self.task_state,
-        task_file.path(),
         self.ui_state,
         ui_file.path(),
+        self.task_state,
+        task_file.path(),
       );
-      let State(task_state, ui_state) = state.unwrap();
+      let State(ui_state, task_state) = state.unwrap();
       let path = ui_state.path.clone();
 
       let (ui, _) = Ui::new(
-        || Box::new(TermUiData::new(task_state, path)),
+        || Box::new(TermUiData::new(path, task_state)),
         |id, cap| Box::new(TermUi::new(id, cap, ui_state)),
       );
 
       TestUi {
-        task_file,
-        ui_file,
         ui,
+        ui_file,
+        task_file,
       }
     }
   }
@@ -327,9 +327,9 @@ mod tests {
   /// `Ui`.
   #[allow(unused)]
   struct TestUi {
-    task_file: NamedTempFile,
-    ui_file: NamedTempFile,
     ui: Ui<Event, Message>,
+    ui_file: NamedTempFile,
+    task_file: NamedTempFile,
   }
 
   impl TestUi {
@@ -399,7 +399,7 @@ mod tests {
     /// Load the UI's state from a file. Note that unless the state has
     /// been saved, the result will probably just be the default state.
     fn load_state(&self) -> Result<State> {
-      State::new(self.task_file.path(), self.ui_file.path())
+      State::new(self.ui_file.path(), self.task_file.path())
     }
   }
 
@@ -1985,7 +1985,7 @@ mod tests {
       .await
       .load_state()
       .unwrap()
-      .1
+      .0
       .to_serde();
 
     let expected = SerUiState {
@@ -2012,7 +2012,7 @@ mod tests {
       .await
       .load_state()
       .unwrap()
-      .1
+      .0
       .to_serde();
 
     let expected = SerUiState {
@@ -2038,10 +2038,10 @@ mod tests {
       .await
       .load_state()
       .unwrap()
-      .1
+      .0
       .to_serde();
 
-    let (_, expected) = default_tasks_and_tags();
+    let (expected, _) = default_tasks_and_tags();
     assert_eq!(state.views.len(), expected.views.len());
     assert_eq!(state.views.len(), 4);
     assert_eq!(state.views[0].0.name, expected.views[0].0.name);
@@ -2071,10 +2071,10 @@ mod tests {
       .await
       .load_state()
       .unwrap()
-      .1
+      .0
       .to_serde();
 
-    let (_, expected) = default_tasks_and_tags();
+    let (expected, _) = default_tasks_and_tags();
     assert_eq!(state.views.len(), expected.views.len());
     assert_eq!(state.views.len(), 4);
     assert_eq!(state.views[0].0.name, expected.views[0].0.name);

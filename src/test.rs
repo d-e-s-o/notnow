@@ -100,12 +100,8 @@ pub fn make_tasks_with_tags(count: usize) -> (Vec<SerTag>, Vec<SerTemplate>, Vec
 /// Create the default `UiState` with four views and 15 tasks with
 /// tags. Tag assignment follows the pattern that
 /// `make_tasks_with_tags` creates.
-pub fn default_tasks_and_tags() -> (SerTaskState, SerUiState) {
+pub fn default_tasks_and_tags() -> (SerUiState, SerTaskState) {
   let (tags, templates, tasks) = make_tasks_with_tags(15);
-  let task_state = SerTaskState {
-    templates: SerTemplates(templates),
-    tasks: SerTasks(tasks),
-  };
   let ui_state = SerUiState {
     views: vec![
       (
@@ -140,6 +136,10 @@ pub fn default_tasks_and_tags() -> (SerTaskState, SerUiState) {
     selected: None,
     colors: Default::default(),
   };
+  let task_state = SerTaskState {
+    templates: SerTemplates(templates),
+    tasks: SerTasks(tasks),
+  };
 
-  (task_state, ui_state)
+  (ui_state, task_state)
 }

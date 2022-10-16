@@ -13,15 +13,6 @@ use crate::ser::tasks::Tasks;
 use crate::ser::view::View;
 
 
-/// A struct comprising the task state of the program.
-#[derive(Debug, Default, Deserialize, PartialEq, Serialize)]
-pub struct TaskState {
-  #[serde(default)]
-  pub templates: Templates,
-  pub tasks: Tasks,
-}
-
-
 /// A struct comprising the program state itself.
 #[derive(Debug, Default, Deserialize, PartialEq, Serialize)]
 pub struct UiState {
@@ -34,4 +25,13 @@ pub struct UiState {
   pub views: Vec<(View, Option<usize>)>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub selected: Option<usize>,
+}
+
+
+/// A struct comprising the task state of the program.
+#[derive(Debug, Default, Deserialize, PartialEq, Serialize)]
+pub struct TaskState {
+  #[serde(default)]
+  pub templates: Templates,
+  pub tasks: Tasks,
 }
