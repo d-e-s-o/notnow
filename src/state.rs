@@ -32,7 +32,7 @@ use crate::view::ViewBuilder;
 
 
 /// Load some serialized state from a file.
-fn load_state<T>(path: &Path) -> Result<T>
+fn load_state_from_file<T>(path: &Path) -> Result<T>
 where
   T: Default,
   for<'de> T: Deserialize<'de>,
@@ -52,7 +52,7 @@ where
 }
 
 /// Save some state into a file.
-fn save_state<T>(path: &Path, state: T) -> Result<()>
+fn save_state_to_file<T>(path: &Path, state: T) -> Result<()>
 where
   T: Serialize,
 {
@@ -82,7 +82,7 @@ pub struct TaskState {
 impl TaskState {
   /// Persist the state into a file.
   pub fn save(&self) -> Result<()> {
-    save_state(&self.path, self.to_serde())
+    save_state_to_file(&self.path, self.to_serde())
   }
 
   /// Retrieve the `Tasks` object associated with this `State` object.
@@ -117,10 +117,10 @@ pub struct UiState {
 impl UiState {
   /// Persist the state into a file.
   pub fn save(&self) -> Result<()> {
-    let ui_state = load_state::<SerUiState>(self.path.as_ref()).unwrap_or_default();
+    let ui_state = load_state_from_file::<SerUiState>(self.path.as_ref()).unwrap_or_default();
     self.colors.set(Some(ui_state.colors));
 
-    save_state(&self.path, self.to_serde())
+    save_state_to_file(&self.path, self.to_serde())
   }
 }
 
@@ -155,8 +155,8 @@ impl State {
   where
     P: Into<PathBuf> + AsRef<Path>,
   {
-    let task_state = load_state::<SerTaskState>(task_path.as_ref())?;
-    let ui_state = load_state::<SerUiState>(ui_path.as_ref())?;
+    let task_state = load_state_from_file::<SerTaskState>(task_path.as_ref())?;
+    let ui_state = load_state_from_file::<SerUiState>(ui_path.as_ref())?;
 
     Self::with_serde(task_state, task_path, ui_state, ui_path)
   }
@@ -240,7 +240,7 @@ pub mod tests {
     let base = temp_dir().join("dir1");
     let path = base.join("dir2").join("file");
 
-    save_state(&path, 42).unwrap();
+    save_state_to_file(&path, 42).unwrap();
     let mut file = File::open(path).unwrap();
     let mut content = Vec::new();
     file.read_to_end(&mut content).unwrap();
