@@ -33,14 +33,14 @@ use super::tab_bar::TabState;
 
 /// The data associated with a `TermUi`.
 pub struct TermUiData {
-  ui_state_path: PathBuf,
+  ui_config: PathBuf,
   task_state: TaskState,
 }
 
 impl TermUiData {
-  pub fn new(ui_state_path: PathBuf, task_state: TaskState) -> Self {
+  pub fn new(ui_config: PathBuf, task_state: TaskState) -> Self {
     Self {
-      ui_state_path,
+      ui_config,
       task_state,
     }
   }
@@ -140,7 +140,7 @@ impl TermUi {
       views, selected, ..
     } = state;
     let ui_state = UiState {
-      path: data.ui_state_path.clone(),
+      path: data.ui_config.clone(),
       views,
       selected,
       colors: Default::default(),

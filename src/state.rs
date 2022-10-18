@@ -152,22 +152,22 @@ pub struct State(pub UiState, pub TaskState);
 
 impl State {
   /// Create a new `State` object, loaded from files.
-  pub fn new<P>(ui_path: P, task_path: P) -> Result<Self>
+  pub fn new<P>(ui_config: P, task_config: P) -> Result<Self>
   where
     P: Into<PathBuf> + AsRef<Path>,
   {
-    let ui_state = load_state_from_file::<SerUiState>(ui_path.as_ref())?;
-    let task_state = load_state_from_file::<SerTaskState>(task_path.as_ref())?;
+    let ui_state = load_state_from_file::<SerUiState>(ui_config.as_ref())?;
+    let task_state = load_state_from_file::<SerTaskState>(task_config.as_ref())?;
 
-    Self::with_serde(ui_state, ui_path, task_state, task_path)
+    Self::with_serde(ui_state, ui_config, task_state, task_config)
   }
 
   /// Create a new `State` object from a serializable one.
   pub fn with_serde<P>(
     ui_state: SerUiState,
-    ui_path: P,
+    ui_config: P,
     task_state: SerTaskState,
-    task_path: P,
+    task_config: P,
   ) -> Result<Self>
   where
     P: Into<PathBuf>,
@@ -189,12 +189,12 @@ impl State {
 
     let ui_state = UiState {
       colors: Cell::new(Some(ui_state.colors)),
-      path: ui_path.into(),
+      path: ui_config.into(),
       views,
       selected: ui_state.selected,
     };
     let task_state = TaskState {
-      path: task_path.into(),
+      path: task_config.into(),
       templates,
       tasks,
     };
@@ -269,7 +269,7 @@ pub mod tests {
 
   #[test]
   fn load_state_file_not_found() {
-    let (ui_path, task_path) = {
+    let (ui_config, task_config) = {
       let (state, ui_file, task_file) = make_state(1);
       state.0.save().unwrap();
       state.1.save().unwrap();
@@ -279,7 +279,7 @@ pub mod tests {
 
     // The files are removed by now, so we can test that `State` handles
     // such missing files gracefully.
-    let new_state = State::new(ui_path, task_path).unwrap();
+    let new_state = State::new(ui_config, task_config).unwrap();
     let new_task_vec = new_state
       .1
       .tasks
@@ -298,18 +298,18 @@ pub mod tests {
       tags: vec![SerTag { id: SerId::new(42) }],
     }]);
     let ui_state = Default::default();
-    let ui_path = PathBuf::default();
+    let ui_config = PathBuf::default();
     let task_state = SerTaskState { templates, tasks };
-    let task_path = PathBuf::default();
+    let task_config = PathBuf::default();
 
-    let err = State::with_serde(ui_state, ui_path, task_state, task_path).unwrap_err();
+    let err = State::with_serde(ui_state, ui_config, task_state, task_config).unwrap_err();
     assert_eq!(err.to_string(), "Encountered invalid tag Id 42")
   }
 
   #[test]
   fn load_state() {
     let ui_state = Default::default();
-    let ui_path = PathBuf::default();
+    let ui_config = PathBuf::default();
 
     let id_tag1 = SerId::new(29);
     let id_tag2 = SerId::new(1337 + 42 - 1);
@@ -341,9 +341,9 @@ pub mod tests {
       },
     ]);
     let task_state = SerTaskState { templates, tasks };
-    let task_path = PathBuf::default();
+    let task_config = PathBuf::default();
 
-    let state = State::with_serde(ui_state, ui_path, task_state, task_path).unwrap();
+    let state = State::with_serde(ui_state, ui_config, task_state, task_config).unwrap();
     let tasks = state.1.tasks.borrow();
     let mut it = tasks.iter();
 

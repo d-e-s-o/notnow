@@ -244,16 +244,16 @@ fn run_with_args() -> Result<()> {
       .map_err(|(ctx, err)| Error::new(ErrorKind::Other, format!("{}: {}", ctx, err)))?;
   }
 
-  let ui_path = ui_config()?;
-  let task_path = task_config()?;
+  let ui_config = ui_config()?;
+  let task_config = task_config()?;
 
   let mut it = args_os();
   match it.len() {
-    0 | 1 => run_prog(stdout().lock(), &ui_path, &task_path),
+    0 | 1 => run_prog(stdout().lock(), &ui_config, &task_config),
     2 => {
       let path = it.nth(1).unwrap();
       let file = OpenOptions::new().read(false).write(true).open(path)?;
-      run_prog(file, &ui_path, &task_path)
+      run_prog(file, &ui_config, &task_config)
     },
     _ => Err(Error::new(
       ErrorKind::InvalidInput,
