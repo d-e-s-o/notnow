@@ -1,4 +1,4 @@
-// Copyright (C) 2018,2021 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2018,2021-2022 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 pub use uid::Id;
@@ -19,6 +19,8 @@ where
   /// allowed, for there is no way to guarantee uniqueness of the
   /// resulting in-memory ID.
   fn to_serde(&self) -> SerId<U> {
-    SerId::new(self.get())
+    // SANITY: Any `uid::Id` is guaranteed to never be zero, so the
+    //         unwrap is fine.
+    SerId::try_from(self.get()).unwrap()
   }
 }

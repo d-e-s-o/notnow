@@ -54,7 +54,9 @@ pub fn make_tasks(count: usize) -> Vec<SerTask> {
 /// ...
 pub fn make_tasks_with_tags(count: usize) -> (Vec<SerTag>, Vec<SerTemplate>, Vec<SerTask>) {
   let tags = (0..=count / 4)
-    .map(|x| SerTag { id: SerId::new(x) })
+    .map(|x| SerTag {
+      id: SerId::try_from(x + 1).unwrap(),
+    })
     .collect::<Vec<_>>();
   let templates = (0..=count / 4)
     .map(|x| {

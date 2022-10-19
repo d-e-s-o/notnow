@@ -48,7 +48,7 @@ mod tests {
   #[test]
   fn serialize_deserialize_template() {
     let template = Template {
-      id: Id::new(32),
+      id: Id::try_from(32).unwrap(),
       name: "test-tag".to_string(),
     };
     let serialized = to_json(&template).unwrap();
@@ -59,7 +59,9 @@ mod tests {
 
   #[test]
   fn serialize_deserialize_tag() {
-    let tag = Tag { id: Id::new(42) };
+    let tag = Tag {
+      id: Id::try_from(42).unwrap(),
+    };
     let serialized = to_json(&tag).unwrap();
     let deserialized = from_json::<Tag>(&serialized).unwrap();
 
@@ -70,11 +72,11 @@ mod tests {
   fn serialize_deserialize_templates() {
     let templates = vec![
       Template {
-        id: Id::new(3),
+        id: Id::try_from(3).unwrap(),
         name: "tag1".to_string(),
       },
       Template {
-        id: Id::new(990),
+        id: Id::try_from(990).unwrap(),
         name: "tag990".to_string(),
       },
     ];

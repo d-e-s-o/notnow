@@ -295,7 +295,9 @@ pub mod tests {
     let templates = SerTemplates(Default::default());
     let tasks = SerTasks(vec![SerTask {
       summary: "a task!".to_string(),
-      tags: vec![SerTag { id: SerId::new(42) }],
+      tags: vec![SerTag {
+        id: SerId::try_from(42).unwrap(),
+      }],
     }]);
     let ui_state = Default::default();
     let ui_config = PathBuf::default();
@@ -311,8 +313,8 @@ pub mod tests {
     let ui_state = Default::default();
     let ui_config = PathBuf::default();
 
-    let id_tag1 = SerId::new(29);
-    let id_tag2 = SerId::new(1337 + 42 - 1);
+    let id_tag1 = SerId::try_from(29).unwrap();
+    let id_tag2 = SerId::try_from(1337 + 42 - 1).unwrap();
 
     let templates = SerTemplates(vec![
       SerTemplate {

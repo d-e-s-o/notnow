@@ -46,10 +46,18 @@ mod tests {
 
   #[test]
   fn serialize_deserialize_view() {
-    let tag1 = Tag { id: Id::new(1) };
-    let tag2 = Tag { id: Id::new(2) };
-    let tag3 = Tag { id: Id::new(3) };
-    let tag4 = Tag { id: Id::new(4) };
+    let tag1 = Tag {
+      id: Id::try_from(1).unwrap(),
+    };
+    let tag2 = Tag {
+      id: Id::try_from(2).unwrap(),
+    };
+    let tag3 = Tag {
+      id: Id::try_from(3).unwrap(),
+    };
+    let tag4 = Tag {
+      id: Id::try_from(4).unwrap(),
+    };
 
     let view = View {
       name: "test-view".to_string(),

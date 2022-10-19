@@ -3,14 +3,18 @@
 
 //! A module for the serialization of IDs.
 
+use std::convert::TryFrom as _;
 use std::fmt::Debug;
 use std::fmt::Display;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
 use std::marker::PhantomData;
+use std::num::NonZeroUsize;
 
 use serde::de::Deserialize;
 use serde::de::Deserializer;
+use serde::de::Error as _;
+use serde::de::Unexpected;
 use serde::ser::Serialize;
 use serde::ser::Serializer;
 
@@ -21,7 +25,7 @@ pub struct Id<T>
 where
   T: Copy,
 {
-  id: usize,
+  id: NonZeroUsize,
   phantom: PhantomData<T>,
 }
 
@@ -30,11 +34,22 @@ where
   T: Copy,
 {
   /// Create a new `Id` object from a "raw" integer.
-  pub fn new(id: usize) -> Self {
+  pub fn new(id: NonZeroUsize) -> Self {
     Self {
       id,
       phantom: PhantomData,
     }
+  }
+}
+
+impl<T> TryFrom<usize> for Id<T>
+where
+  T: Copy,
+{
+  type Error = ();
+
+  fn try_from(other: usize) -> Result<Self, Self::Error> {
+    NonZeroUsize::new(other).map(Id::new).ok_or(())
   }
 }
 
@@ -67,7 +82,7 @@ where
   where
     S: Serializer,
   {
-    serializer.serialize_u64(self.id as u64)
+    serializer.serialize_u64(self.id.get() as u64)
   }
 }
 
@@ -79,8 +94,13 @@ where
   where
     D: Deserializer<'de>,
   {
+    let id = u64::deserialize(deserializer)?;
+    let id = NonZeroUsize::try_from(id as usize).map_err(|_| {
+      D::Error::invalid_value(Unexpected::Unsigned(id), &"a non-zero unsigned integer")
+    })?;
+
     Ok(Self {
-      id: u64::deserialize(deserializer)? as usize,
+      id,
       phantom: PhantomData,
     })
   }
@@ -99,7 +119,7 @@ mod tests {
 
   #[test]
   fn serialize_deserialize_id() {
-    let id = TestId::new(42);
+    let id = TestId::try_from(42).unwrap();
     let serialized = to_json(&id).unwrap();
     let deserialized = from_json::<TestId>(&serialized).unwrap();
 
@@ -108,7 +128,7 @@ mod tests {
 
   #[test]
   fn serialize_as_number() {
-    let id = TestId::new(1337);
+    let id = TestId::try_from(1337).unwrap();
     let serialized = to_json(&id).unwrap();
 
     assert_eq!(serialized, "1337");
