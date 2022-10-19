@@ -293,12 +293,9 @@ pub mod tests {
   #[test]
   fn load_state_with_invalid_tag() {
     let templates = SerTemplates(Default::default());
-    let tasks = SerTasks(vec![SerTask {
-      summary: "a task!".to_string(),
-      tags: vec![SerTag {
-        id: SerId::try_from(42).unwrap(),
-      }],
-    }]);
+    let tasks = SerTasks(vec![SerTask::new("a task!").with_tags([SerTag {
+      id: SerId::try_from(42).unwrap(),
+    }])]);
     let ui_state = Default::default();
     let ui_config = PathBuf::default();
     let task_state = SerTaskState { templates, tasks };
@@ -328,19 +325,11 @@ pub mod tests {
     ]);
 
     let tasks = SerTasks(vec![
-      SerTask {
-        summary: "a task!".to_string(),
-        tags: vec![SerTag { id: id_tag2 }],
-      },
+      SerTask::new("a task!").with_tags([SerTag { id: id_tag2 }]),
       SerTask::new("an untagged task"),
-      SerTask {
-        summary: "a tag1 task".to_string(),
-        tags: vec![SerTag { id: id_tag1 }],
-      },
-      SerTask {
-        summary: "a doubly tagged task".to_string(),
-        tags: vec![SerTag { id: id_tag2 }, SerTag { id: id_tag1 }],
-      },
+      SerTask::new("a tag1 task").with_tags([SerTag { id: id_tag1 }]),
+      SerTask::new("a doubly tagged task")
+        .with_tags([SerTag { id: id_tag2 }, SerTag { id: id_tag1 }]),
     ]);
     let task_state = SerTaskState { templates, tasks };
     let task_config = PathBuf::default();

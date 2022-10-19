@@ -27,6 +27,15 @@ impl Task {
       tags: Default::default(),
     }
   }
+
+  /// A convenience helper for setting the task's tags.
+  pub fn with_tags<I>(mut self, tags: I) -> Self
+  where
+    I: IntoIterator<Item = Tag>,
+  {
+    self.tags = tags.into_iter().collect();
+    self
+  }
 }
 
 
@@ -47,10 +56,7 @@ mod tests {
 
   #[test]
   fn serialize_deserialize_task_without_tags() {
-    let task = Task {
-      summary: "task without tags".to_string(),
-      tags: Vec::new(),
-    };
+    let task = Task::new("task without tags");
     let serialized = to_json(&task).unwrap();
     let deserialized = from_json::<Task>(&serialized).unwrap();
 
@@ -59,7 +65,7 @@ mod tests {
 
   #[test]
   fn serialize_deserialize_task() {
-    let tags = vec![
+    let tags = [
       Tag {
         id: TagId::try_from(2).unwrap(),
       },
@@ -67,10 +73,7 @@ mod tests {
         id: TagId::try_from(4).unwrap(),
       },
     ];
-    let task = Task {
-      summary: "this is a task".to_string(),
-      tags: tags,
-    };
+    let task = Task::new("this is a task").with_tags(tags);
     let serialized = to_json(&task).unwrap();
     let deserialized = from_json::<Task>(&serialized).unwrap();
 
@@ -80,28 +83,22 @@ mod tests {
   #[test]
   fn serialize_deserialize_tasks() {
     let task_vec = vec![
-      Task {
-        summary: "task 1".to_string(),
-        tags: vec![
-          Tag {
-            id: TagId::try_from(10000).unwrap(),
-          },
-          Tag {
-            id: TagId::try_from(5).unwrap(),
-          },
-        ],
-      },
-      Task {
-        tags: vec![
-          Tag {
-            id: TagId::try_from(5).unwrap(),
-          },
-          Tag {
-            id: TagId::try_from(6).unwrap(),
-          },
-        ],
-        summary: "task 2".to_string(),
-      },
+      Task::new("task 1").with_tags([
+        Tag {
+          id: TagId::try_from(10000).unwrap(),
+        },
+        Tag {
+          id: TagId::try_from(5).unwrap(),
+        },
+      ]),
+      Task::new("task 2").with_tags([
+        Tag {
+          id: TagId::try_from(5).unwrap(),
+        },
+        Tag {
+          id: TagId::try_from(6).unwrap(),
+        },
+      ]),
     ];
     let tasks = Tasks(task_vec);
     let serialized = to_json(&tasks).unwrap();

@@ -88,10 +88,7 @@ pub fn make_tasks_with_tags(count: usize) -> (Vec<SerTag>, Vec<SerTemplate>, Vec
       if x >= 8 && x % 4 >= 2 {
         task_tags.extend_from_slice(&tags[1..x / 4])
       }
-      SerTask {
-        summary: format!("{}", x + 1),
-        tags: task_tags,
-      }
+      SerTask::new(format!("{}", x + 1)).with_tags(task_tags)
     })
     .collect();
 
