@@ -60,6 +60,7 @@
 //! A terminal based task management application.
 
 mod colors;
+mod db;
 mod id;
 mod ops;
 mod resize;
