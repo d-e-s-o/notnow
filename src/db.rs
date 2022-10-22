@@ -1,6 +1,11 @@
 // Copyright (C) 2022 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+use std::cmp::Ordering;
+use std::collections::BTreeSet;
+use std::collections::HashSet;
+use std::hash::Hash;
+use std::hash::Hasher;
 use std::marker::PhantomData;
 use std::num::NonZeroUsize;
 use std::ops::Index;
@@ -50,9 +55,32 @@ impl<T> Clone for Id<T> {
 
 impl<T> Copy for Id<T> {}
 
+impl<T> PartialOrd<Self> for Id<T> {
+  fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+    self.id.partial_cmp(&other.id)
+  }
+}
+
+impl<T> Ord for Id<T> {
+  fn cmp(&self, other: &Self) -> Ordering {
+    self.id.cmp(&other.id)
+  }
+}
+
 impl<T> PartialEq<Self> for Id<T> {
   fn eq(&self, other: &Self) -> bool {
     self.id.eq(&other.id)
+  }
+}
+
+impl<T> Eq for Id<T> {}
+
+impl<T> Hash for Id<T> {
+  fn hash<H>(&self, state: &mut H)
+  where
+    H: Hasher,
+  {
+    self.id.hash(state)
   }
 }
 
@@ -71,18 +99,41 @@ pub type Iter<'t, T> = slice::Iter<'t, T>;
 pub struct Db<T> {
   /// The data, in a well-defined order.
   data: Vec<T>,
+  /// The IDs currently in use.
+  ids: BTreeSet<usize>,
 }
 
 impl<T> Db<T> {
   /// Create a database from the items contained in the provided
   /// iterator.
-  pub fn try_from_iter<I>(iter: I) -> Result<Self, usize>
+  pub fn try_from_iter<I, J>(iter: I) -> Result<Self, usize>
   where
     T: Idable<T>,
-    I: IntoIterator<Item = T>,
+    I: IntoIterator<IntoIter = J>,
+    J: ExactSizeIterator<Item = T>,
   {
+    let iter = iter.into_iter();
+    // We work with a `HashSet` as opposed to a `BTreeSet` here, because
+    // it provides faster access given the potentially large number of
+    // checks we use it for. Once we bulk-inserted, a `BTreeSet` is more
+    // suitable, because it maintains sorted order which allows us to
+    // find unused IDs in it much more easily.
+    let ids = HashSet::with_capacity(iter.len());
+    let data = Vec::with_capacity(iter.len());
+    let (data, ids) = iter
+      .into_iter()
+      .try_fold((data, ids), |(mut data, mut ids), item| {
+        if !ids.insert(item.id().id.get()) {
+          return Err(item.id().id.get())
+        }
+
+        data.push(item);
+        Ok((data, ids))
+      })?;
+
     let slf = Self {
-      data: iter.into_iter().collect(),
+      data,
+      ids: ids.into_iter().collect(),
     };
     Ok(slf)
   }
@@ -98,20 +149,33 @@ impl<T> Db<T> {
 
   /// Insert an item into the database at the given `index`.
   #[inline]
-  pub fn insert(&mut self, index: usize, item: T) {
+  pub fn insert(&mut self, index: usize, item: T)
+  where
+    T: Idable<T>,
+  {
+    assert!(self.ids.insert(item.id().id.get()));
     self.data.insert(index, item)
   }
 
   /// Insert an item at the end of the database.
   #[inline]
-  pub fn push(&mut self, item: T) {
+  pub fn push(&mut self, item: T)
+  where
+    T: Idable<T>,
+  {
+    assert!(self.ids.insert(item.id().id.get()));
     self.data.push(item)
   }
 
   /// Remove the item at the provided index.
   #[inline]
-  pub fn remove(&mut self, index: usize) -> T {
-    self.data.remove(index)
+  pub fn remove(&mut self, index: usize) -> T
+  where
+    T: Idable<T>,
+  {
+    let item = self.data.remove(index);
+    assert!(self.ids.remove(&item.id().id.get()));
+    item
   }
 
   /// Retrieve an iterator over the items of the database.
