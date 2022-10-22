@@ -7,9 +7,13 @@ use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Result;
 use std::mem::replace;
+use std::num::NonZeroUsize;
 use std::rc::Rc;
-use std::slice;
 
+use crate::db::Db;
+use crate::db::Id as DbId;
+use crate::db::Idable;
+use crate::db::Iter as DbIter;
 use crate::id::Id as IdT;
 use crate::ops::Op;
 use crate::ops::Ops;
@@ -31,7 +35,7 @@ const MAX_UNDO_STEP_COUNT: usize = 64;
 #[derive(Copy, Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct T(());
 
-pub type Id = IdT<T>;
+pub type Id = DbId<Task>;
 
 
 /// A struct representing a task item.
@@ -47,8 +51,9 @@ impl Task {
   /// Create a new task.
   #[cfg(test)]
   pub fn new(summary: impl Into<String>) -> Self {
+    let id = NonZeroUsize::new(IdT::<T>::new().get()).unwrap();
     Self {
-      id: Id::new(),
+      id: DbId::from_unique_id(id),
       summary: summary.into(),
       tags: Default::default(),
       templates: Rc::new(Templates::new()),
@@ -60,8 +65,9 @@ impl Task {
   where
     S: Into<String>,
   {
+    let id = NonZeroUsize::new(IdT::<T>::new().get()).unwrap();
     Task {
-      id: Id::new(),
+      id: DbId::from_unique_id(id),
       summary: summary.into(),
       tags: tags.into_iter().map(|x| (x.id(), x)).collect(),
       templates,
@@ -79,8 +85,9 @@ impl Task {
       tags.insert(*id, templates.instantiate(*id));
     }
 
+    let id = NonZeroUsize::new(IdT::<T>::new().get()).unwrap();
     Ok(Self {
-      id: Id::new(),
+      id: DbId::from_unique_id(id),
       summary: task.summary,
       tags,
       templates,
@@ -130,6 +137,12 @@ impl Task {
   }
 }
 
+impl<T> Idable<T> for Task {
+  fn id(&self) -> DbId<T> {
+    DbId::from_unique_id(self.id.get())
+  }
+}
+
 impl ToSerde<SerTask> for Task {
   /// Convert this task into a serializable one.
   fn to_serde(&self) -> SerTask {
@@ -141,15 +154,10 @@ impl ToSerde<SerTask> for Task {
 }
 
 
-/// Find the position of a task.
-fn find_idx(tasks: &[Task], id: Id) -> usize {
-  tasks.iter().position(|task| task.id() == id).unwrap()
-}
-
 /// Add a task to a vector of tasks.
-fn add_task(tasks: &mut Vec<Task>, task: Task, target: Option<Target>) {
+fn add_task(tasks: &mut Db<Task>, task: Task, target: Option<Target>) {
   if let Some(target) = target {
-    let idx = find_idx(tasks, target.id());
+    let idx = tasks.find(target.id()).unwrap();
     let idx = match target {
       Target::Before(..) => idx,
       Target::After(..) => idx + 1,
@@ -161,14 +169,14 @@ fn add_task(tasks: &mut Vec<Task>, task: Task, target: Option<Target>) {
 }
 
 /// Remove a task from a vector of tasks.
-fn remove_task(tasks: &mut Vec<Task>, id: Id) -> (Task, usize) {
-  let idx = find_idx(tasks, id);
+fn remove_task(tasks: &mut Db<Task>, id: Id) -> (Task, usize) {
+  let idx = tasks.find(id).unwrap();
   (tasks.remove(idx), idx)
 }
 
 /// Update a task in a vector of tasks.
-fn update_task(tasks: &mut [Task], task: Task) -> Task {
-  let idx = find_idx(tasks, task.id);
+fn update_task(tasks: &mut Db<Task>, task: Task) -> Task {
+  let idx = tasks.find(task.id).unwrap();
   replace(&mut tasks[idx], task)
 }
 
@@ -265,8 +273,8 @@ impl TaskOp {
   }
 }
 
-impl Op<Vec<Task>, Option<Id>> for TaskOp {
-  fn exec(&mut self, tasks: &mut Vec<Task>) -> Option<Id> {
+impl Op<Db<Task>, Option<Id>> for TaskOp {
+  fn exec(&mut self, tasks: &mut Db<Task>) -> Option<Id> {
     match self {
       Self::Add { task, after } => {
         add_task(tasks, task.clone(), after.map(Target::After));
@@ -297,7 +305,7 @@ impl Op<Vec<Task>, Option<Id>> for TaskOp {
     }
   }
 
-  fn undo(&mut self, tasks: &mut Vec<Task>) -> Option<Id> {
+  fn undo(&mut self, tasks: &mut Db<Task>) -> Option<Id> {
     match self {
       Self::Add { task, .. } => {
         let _ = remove_task(tasks, task.id());
@@ -317,8 +325,8 @@ impl Op<Vec<Task>, Option<Id>> for TaskOp {
         Some(id)
       },
       Self::Move { from, task, .. } => {
-        let id = task.as_ref().map(|task| task.id).unwrap();
-        let idx = find_idx(tasks, id);
+        let id = task.as_ref().map(|task| task.id()).unwrap();
+        let idx = tasks.find(id).unwrap();
         let removed = tasks.remove(idx);
         tasks.insert(*from, removed);
         Some(id)
@@ -328,30 +336,39 @@ impl Op<Vec<Task>, Option<Id>> for TaskOp {
 }
 
 
-pub type TaskIter<'a> = slice::Iter<'a, Task>;
+pub type TaskIter<'a> = DbIter<'a, Task>;
 
 
 /// A management struct for tasks and their associated data.
 #[derive(Debug)]
 pub struct Tasks {
   templates: Rc<Templates>,
-  tasks: Vec<Task>,
+  /// The managed tasks.
+  tasks: Db<Task>,
   /// A record of operations in the order they were performed.
-  operations: Ops<TaskOp, Vec<Task>, Option<Id>>,
+  operations: Ops<TaskOp, Db<Task>, Option<Id>>,
 }
 
 impl Tasks {
   /// Create a new `Tasks` object from a serializable one.
   pub fn with_serde(tasks: SerTasks, templates: Rc<Templates>, map: &TagMap) -> Result<Self> {
-    let mut new_tasks = Vec::with_capacity(tasks.0.len());
-    for task in tasks.0.into_iter() {
-      let task = Task::with_serde(task, templates.clone(), map)?;
-      new_tasks.push(task);
-    }
+    let len = tasks.0.len();
+    let tasks = tasks
+      .0
+      .into_iter()
+      .try_fold(Vec::with_capacity(len), |mut vec, task| {
+        let task = Task::with_serde(task, templates.clone(), map)?;
+        vec.push(task);
+        Result::Ok(vec)
+      })?;
+    let tasks = Db::try_from_iter(tasks).map_err(|id| {
+      let error = format!("Encountered duplicate task ID {}", id);
+      Error::new(ErrorKind::InvalidInput, error)
+    })?;
 
     Ok(Self {
       templates,
-      tasks: new_tasks,
+      tasks,
       operations: Ops::new(MAX_UNDO_STEP_COUNT),
     })
   }
@@ -405,7 +422,7 @@ impl Tasks {
   /// Reorder the tasks referenced by `to_move` before `other`.
   pub fn move_before(&mut self, to_move: Id, other: Id) {
     if to_move != other {
-      let idx = find_idx(&self.tasks, to_move);
+      let idx = self.tasks.find(to_move).unwrap();
       let to = Target::Before(other);
       let op = TaskOp::move_(idx, to);
       self.operations.exec(op, &mut self.tasks);
@@ -415,7 +432,7 @@ impl Tasks {
   /// Reorder the tasks referenced by `to_move` after `other`.
   pub fn move_after(&mut self, to_move: Id, other: Id) {
     if to_move != other {
-      let idx = find_idx(&self.tasks, to_move);
+      let idx = self.tasks.find(to_move).unwrap();
       let to = Target::After(other);
       let op = TaskOp::move_(idx, to);
       self.operations.exec(op, &mut self.tasks);
@@ -452,20 +469,20 @@ pub mod tests {
   /// task vector.
   #[test]
   fn exec_undo_task_add_empty() {
-    let mut tasks = Vec::new();
+    let mut tasks = Db::try_from_iter([]).unwrap();
     let mut ops = Ops::new(3);
 
     let task1 = Task::new("task1");
     let op = TaskOp::add(task1, None);
     ops.exec(op, &mut tasks);
-    assert_eq!(tasks.len(), 1);
+    assert_eq!(tasks.iter().len(), 1);
     assert_eq!(tasks[0].summary, "task1");
 
     ops.undo(&mut tasks);
-    assert!(tasks.is_empty());
+    assert_eq!(tasks.iter().len(), 0);
 
     ops.redo(&mut tasks);
-    assert_eq!(tasks.len(), 1);
+    assert_eq!(tasks.iter().len(), 1);
     assert_eq!(tasks[0].summary, "task1");
   }
 
@@ -473,30 +490,30 @@ pub mod tests {
   /// non-empty task vector.
   #[test]
   fn exec_undo_task_add_non_empty() {
-    let mut tasks = vec![Task::new("task1")];
+    let mut tasks = Db::try_from_iter([Task::new("task1")]).unwrap();
     let mut ops = Ops::new(3);
     let task2 = Task::new("task2");
     let op = TaskOp::add(task2, None);
     ops.exec(op, &mut tasks);
-    assert_eq!(tasks.len(), 2);
+    assert_eq!(tasks.iter().len(), 2);
     assert_eq!(tasks[0].summary, "task1");
     assert_eq!(tasks[1].summary, "task2");
 
     let task3 = Task::new("task3");
     let op = TaskOp::add(task3, Some(tasks[0].id));
     ops.exec(op, &mut tasks);
-    assert_eq!(tasks.len(), 3);
+    assert_eq!(tasks.iter().len(), 3);
     assert_eq!(tasks[0].summary, "task1");
     assert_eq!(tasks[1].summary, "task3");
     assert_eq!(tasks[2].summary, "task2");
 
     ops.undo(&mut tasks);
-    assert_eq!(tasks.len(), 2);
+    assert_eq!(tasks.iter().len(), 2);
     assert_eq!(tasks[0].summary, "task1");
     assert_eq!(tasks[1].summary, "task2");
 
     ops.undo(&mut tasks);
-    assert_eq!(tasks.len(), 1);
+    assert_eq!(tasks.iter().len(), 1);
     assert_eq!(tasks[0].summary, "task1");
   }
 
@@ -504,42 +521,43 @@ pub mod tests {
   /// task vector with only a single task.
   #[test]
   fn exec_undo_task_remove_single() {
-    let mut tasks = vec![Task::new("task1")];
+    let mut tasks = Db::try_from_iter([Task::new("task1")]).unwrap();
     let mut ops = Ops::new(3);
 
     let op = TaskOp::remove(tasks[0].id);
     ops.exec(op, &mut tasks);
-    assert!(tasks.is_empty());
+    assert_eq!(tasks.iter().len(), 0);
 
     ops.undo(&mut tasks);
-    assert_eq!(tasks.len(), 1);
+    assert_eq!(tasks.iter().len(), 1);
     assert_eq!(tasks[0].summary, "task1");
 
     ops.redo(&mut tasks);
-    assert!(tasks.is_empty());
+    assert_eq!(tasks.iter().len(), 0);
   }
 
   /// Check that the `TaskOp::Remove` variant works as expected on a
   /// task vector with multiple tasks.
   #[test]
   fn exec_undo_task_remove_multi() {
-    let mut tasks = vec![Task::new("task1"), Task::new("task2"), Task::new("task3")];
+    let mut tasks =
+      Db::try_from_iter([Task::new("task1"), Task::new("task2"), Task::new("task3")]).unwrap();
     let mut ops = Ops::new(3);
 
     let op = TaskOp::remove(tasks[1].id);
     ops.exec(op, &mut tasks);
-    assert_eq!(tasks.len(), 2);
+    assert_eq!(tasks.iter().len(), 2);
     assert_eq!(tasks[0].summary, "task1");
     assert_eq!(tasks[1].summary, "task3");
 
     ops.undo(&mut tasks);
-    assert_eq!(tasks.len(), 3);
+    assert_eq!(tasks.iter().len(), 3);
     assert_eq!(tasks[0].summary, "task1");
     assert_eq!(tasks[1].summary, "task2");
     assert_eq!(tasks[2].summary, "task3");
 
     ops.redo(&mut tasks);
-    assert_eq!(tasks.len(), 2);
+    assert_eq!(tasks.iter().len(), 2);
     assert_eq!(tasks[0].summary, "task1");
     assert_eq!(tasks[1].summary, "task3");
   }
@@ -547,24 +565,24 @@ pub mod tests {
   /// Check that the `TaskOp::Update` variant works as expected.
   #[test]
   fn exec_undo_task_update() {
-    let mut tasks = vec![Task::new("task1"), Task::new("task2")];
+    let mut tasks = Db::try_from_iter([Task::new("task1"), Task::new("task2")]).unwrap();
     let mut ops = Ops::new(3);
 
     let mut new = tasks[0].clone();
     new.summary = "foo!".to_string();
     let op = TaskOp::update(new);
     ops.exec(op, &mut tasks);
-    assert_eq!(tasks.len(), 2);
+    assert_eq!(tasks.iter().len(), 2);
     assert_eq!(tasks[0].summary, "foo!");
     assert_eq!(tasks[1].summary, "task2");
 
     ops.undo(&mut tasks);
-    assert_eq!(tasks.len(), 2);
+    assert_eq!(tasks.iter().len(), 2);
     assert_eq!(tasks[0].summary, "task1");
     assert_eq!(tasks[1].summary, "task2");
 
     ops.redo(&mut tasks);
-    assert_eq!(tasks.len(), 2);
+    assert_eq!(tasks.iter().len(), 2);
     assert_eq!(tasks[0].summary, "foo!");
     assert_eq!(tasks[1].summary, "task2");
   }
@@ -573,28 +591,28 @@ pub mod tests {
   /// only a single task is present and the operation is no-op.
   #[test]
   fn exec_undo_task_move() {
-    let mut tasks = vec![Task::new("task1"), Task::new("task2")];
+    let mut tasks = Db::try_from_iter([Task::new("task1"), Task::new("task2")]).unwrap();
     let mut ops = Ops::new(3);
 
     let op = TaskOp::move_(1, Target::Before(tasks[0].id));
     ops.exec(op, &mut tasks);
-    assert_eq!(tasks.len(), 2);
+    assert_eq!(tasks.iter().len(), 2);
     assert_eq!(tasks[0].summary, "task2");
     assert_eq!(tasks[1].summary, "task1");
 
     ops.undo(&mut tasks);
-    assert_eq!(tasks.len(), 2);
+    assert_eq!(tasks.iter().len(), 2);
     assert_eq!(tasks[0].summary, "task1");
     assert_eq!(tasks[1].summary, "task2");
 
     let op = TaskOp::move_(1, Target::After(tasks[0].id));
     ops.exec(op, &mut tasks);
-    assert_eq!(tasks.len(), 2);
+    assert_eq!(tasks.iter().len(), 2);
     assert_eq!(tasks[0].summary, "task1");
     assert_eq!(tasks[1].summary, "task2");
 
     ops.undo(&mut tasks);
-    assert_eq!(tasks.len(), 2);
+    assert_eq!(tasks.iter().len(), 2);
     assert_eq!(tasks[0].summary, "task1");
     assert_eq!(tasks[1].summary, "task2");
   }
