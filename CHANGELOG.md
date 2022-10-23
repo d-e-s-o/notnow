@@ -8,7 +8,7 @@ Unreleased
 - Use Unicode aware lowercase in task summary search
 - Fixed reverse task search not progressing under certain conditions
 - Switched to using GitHub Actions as CI provider
-- Bumped minimum supported Rust version to `1.57`
+- Bumped minimum supported Rust version to `1.58`
 - Bumped `dirs` dependency to `4.0`
 
 
