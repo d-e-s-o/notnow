@@ -177,7 +177,7 @@ fn remove_task(tasks: &mut Db<Task>, id: Id) -> (Task, usize) {
 /// Update a task in a vector of tasks.
 fn update_task(tasks: &mut Db<Task>, task: Task) -> Task {
   let idx = tasks.find(task.id).unwrap();
-  replace(&mut tasks[idx], task)
+  replace(&mut tasks.get_mut(idx).unwrap(), task)
 }
 
 
@@ -336,7 +336,7 @@ impl Op<Db<Task>, Option<Id>> for TaskOp {
 }
 
 
-pub type TaskIter<'a> = DbIter<'a, Task>;
+pub type TaskIter<'a> = DbIter<'a, (Id, Task)>;
 
 
 /// A management struct for tasks and their associated data.
@@ -389,7 +389,7 @@ impl Tasks {
   /// Convert this object into a serializable one.
   pub fn to_serde(&self) -> SerTasks {
     // TODO: We should consider including the operations here as well.
-    SerTasks(self.tasks.iter().map(ToSerde::to_serde).collect())
+    SerTasks(self.tasks.iter().map(|(_, task)| task.to_serde()).collect())
   }
 
   /// Retrieve an iterator over the tasks.
@@ -476,14 +476,14 @@ pub mod tests {
     let op = TaskOp::add(task1, None);
     ops.exec(op, &mut tasks);
     assert_eq!(tasks.iter().len(), 1);
-    assert_eq!(tasks[0].summary, "task1");
+    assert_eq!(tasks.get(0).unwrap().summary, "task1");
 
     ops.undo(&mut tasks);
     assert_eq!(tasks.iter().len(), 0);
 
     ops.redo(&mut tasks);
     assert_eq!(tasks.iter().len(), 1);
-    assert_eq!(tasks[0].summary, "task1");
+    assert_eq!(tasks.get(0).unwrap().summary, "task1");
   }
 
   /// Check that the `TaskOp::Add` variant works as expected on a
@@ -496,25 +496,25 @@ pub mod tests {
     let op = TaskOp::add(task2, None);
     ops.exec(op, &mut tasks);
     assert_eq!(tasks.iter().len(), 2);
-    assert_eq!(tasks[0].summary, "task1");
-    assert_eq!(tasks[1].summary, "task2");
+    assert_eq!(tasks.get(0).unwrap().summary, "task1");
+    assert_eq!(tasks.get(1).unwrap().summary, "task2");
 
     let task3 = Task::new("task3");
-    let op = TaskOp::add(task3, Some(tasks[0].id));
+    let op = TaskOp::add(task3, Some(tasks.get(0).unwrap().id()));
     ops.exec(op, &mut tasks);
     assert_eq!(tasks.iter().len(), 3);
-    assert_eq!(tasks[0].summary, "task1");
-    assert_eq!(tasks[1].summary, "task3");
-    assert_eq!(tasks[2].summary, "task2");
+    assert_eq!(tasks.get(0).unwrap().summary, "task1");
+    assert_eq!(tasks.get(1).unwrap().summary, "task3");
+    assert_eq!(tasks.get(2).unwrap().summary, "task2");
 
     ops.undo(&mut tasks);
     assert_eq!(tasks.iter().len(), 2);
-    assert_eq!(tasks[0].summary, "task1");
-    assert_eq!(tasks[1].summary, "task2");
+    assert_eq!(tasks.get(0).unwrap().summary, "task1");
+    assert_eq!(tasks.get(1).unwrap().summary, "task2");
 
     ops.undo(&mut tasks);
     assert_eq!(tasks.iter().len(), 1);
-    assert_eq!(tasks[0].summary, "task1");
+    assert_eq!(tasks.get(0).unwrap().summary, "task1");
   }
 
   /// Check that the `TaskOp::Remove` variant works as expected on a
@@ -524,13 +524,13 @@ pub mod tests {
     let mut tasks = Db::try_from_iter([Task::new("task1")]).unwrap();
     let mut ops = Ops::new(3);
 
-    let op = TaskOp::remove(tasks[0].id);
+    let op = TaskOp::remove(tasks.get(0).unwrap().id());
     ops.exec(op, &mut tasks);
     assert_eq!(tasks.iter().len(), 0);
 
     ops.undo(&mut tasks);
     assert_eq!(tasks.iter().len(), 1);
-    assert_eq!(tasks[0].summary, "task1");
+    assert_eq!(tasks.get(0).unwrap().summary, "task1");
 
     ops.redo(&mut tasks);
     assert_eq!(tasks.iter().len(), 0);
@@ -544,22 +544,22 @@ pub mod tests {
       Db::try_from_iter([Task::new("task1"), Task::new("task2"), Task::new("task3")]).unwrap();
     let mut ops = Ops::new(3);
 
-    let op = TaskOp::remove(tasks[1].id);
+    let op = TaskOp::remove(tasks.get(1).unwrap().id());
     ops.exec(op, &mut tasks);
     assert_eq!(tasks.iter().len(), 2);
-    assert_eq!(tasks[0].summary, "task1");
-    assert_eq!(tasks[1].summary, "task3");
+    assert_eq!(tasks.get(0).unwrap().summary, "task1");
+    assert_eq!(tasks.get(1).unwrap().summary, "task3");
 
     ops.undo(&mut tasks);
     assert_eq!(tasks.iter().len(), 3);
-    assert_eq!(tasks[0].summary, "task1");
-    assert_eq!(tasks[1].summary, "task2");
-    assert_eq!(tasks[2].summary, "task3");
+    assert_eq!(tasks.get(0).unwrap().summary, "task1");
+    assert_eq!(tasks.get(1).unwrap().summary, "task2");
+    assert_eq!(tasks.get(2).unwrap().summary, "task3");
 
     ops.redo(&mut tasks);
     assert_eq!(tasks.iter().len(), 2);
-    assert_eq!(tasks[0].summary, "task1");
-    assert_eq!(tasks[1].summary, "task3");
+    assert_eq!(tasks.get(0).unwrap().summary, "task1");
+    assert_eq!(tasks.get(1).unwrap().summary, "task3");
   }
 
   /// Check that the `TaskOp::Update` variant works as expected.
@@ -568,23 +568,23 @@ pub mod tests {
     let mut tasks = Db::try_from_iter([Task::new("task1"), Task::new("task2")]).unwrap();
     let mut ops = Ops::new(3);
 
-    let mut new = tasks[0].clone();
+    let mut new = tasks.get(0).unwrap().clone();
     new.summary = "foo!".to_string();
     let op = TaskOp::update(new);
     ops.exec(op, &mut tasks);
     assert_eq!(tasks.iter().len(), 2);
-    assert_eq!(tasks[0].summary, "foo!");
-    assert_eq!(tasks[1].summary, "task2");
+    assert_eq!(tasks.get(0).unwrap().summary, "foo!");
+    assert_eq!(tasks.get(1).unwrap().summary, "task2");
 
     ops.undo(&mut tasks);
     assert_eq!(tasks.iter().len(), 2);
-    assert_eq!(tasks[0].summary, "task1");
-    assert_eq!(tasks[1].summary, "task2");
+    assert_eq!(tasks.get(0).unwrap().summary, "task1");
+    assert_eq!(tasks.get(1).unwrap().summary, "task2");
 
     ops.redo(&mut tasks);
     assert_eq!(tasks.iter().len(), 2);
-    assert_eq!(tasks[0].summary, "foo!");
-    assert_eq!(tasks[1].summary, "task2");
+    assert_eq!(tasks.get(0).unwrap().summary, "foo!");
+    assert_eq!(tasks.get(1).unwrap().summary, "task2");
   }
 
   /// Check that the `TaskOp::Update` variant works as expected when
@@ -594,27 +594,27 @@ pub mod tests {
     let mut tasks = Db::try_from_iter([Task::new("task1"), Task::new("task2")]).unwrap();
     let mut ops = Ops::new(3);
 
-    let op = TaskOp::move_(1, Target::Before(tasks[0].id));
+    let op = TaskOp::move_(1, Target::Before(tasks.get(0).unwrap().id()));
     ops.exec(op, &mut tasks);
     assert_eq!(tasks.iter().len(), 2);
-    assert_eq!(tasks[0].summary, "task2");
-    assert_eq!(tasks[1].summary, "task1");
+    assert_eq!(tasks.get(0).unwrap().summary, "task2");
+    assert_eq!(tasks.get(1).unwrap().summary, "task1");
 
     ops.undo(&mut tasks);
     assert_eq!(tasks.iter().len(), 2);
-    assert_eq!(tasks[0].summary, "task1");
-    assert_eq!(tasks[1].summary, "task2");
+    assert_eq!(tasks.get(0).unwrap().summary, "task1");
+    assert_eq!(tasks.get(1).unwrap().summary, "task2");
 
-    let op = TaskOp::move_(1, Target::After(tasks[0].id));
+    let op = TaskOp::move_(1, Target::After(tasks.get(0).unwrap().id()));
     ops.exec(op, &mut tasks);
     assert_eq!(tasks.iter().len(), 2);
-    assert_eq!(tasks[0].summary, "task1");
-    assert_eq!(tasks[1].summary, "task2");
+    assert_eq!(tasks.get(0).unwrap().summary, "task1");
+    assert_eq!(tasks.get(1).unwrap().summary, "task2");
 
     ops.undo(&mut tasks);
     assert_eq!(tasks.iter().len(), 2);
-    assert_eq!(tasks[0].summary, "task1");
-    assert_eq!(tasks[1].summary, "task2");
+    assert_eq!(tasks.get(0).unwrap().summary, "task1");
+    assert_eq!(tasks.get(1).unwrap().summary, "task2");
   }
 
   #[test]
@@ -631,7 +631,7 @@ pub mod tests {
   fn add_task_after() {
     let tasks = make_tasks(3);
     let mut tasks = Tasks::with_serde_tasks(tasks).unwrap();
-    let id = tasks.tasks[0].id;
+    let id = tasks.tasks.get(0).unwrap().id();
     let tags = Default::default();
     tasks.add("4".to_string(), tags, Some(id));
 
@@ -645,7 +645,7 @@ pub mod tests {
   #[test]
   fn remove_task() {
     let mut tasks = Tasks::with_serde_tasks(make_tasks(3)).unwrap();
-    let id = tasks.iter().nth(1).unwrap().id();
+    let id = tasks.iter().nth(1).unwrap().0;
     tasks.remove(id);
 
     let mut expected = make_tasks(3);
@@ -657,7 +657,7 @@ pub mod tests {
   #[test]
   fn update_task() {
     let mut tasks = Tasks::with_serde_tasks(make_tasks(3)).unwrap();
-    let mut task = tasks.iter().nth(1).unwrap().clone();
+    let mut task = tasks.iter().nth(1).unwrap().1.clone();
     task.summary = "amended".to_string();
     tasks.update(task);
 
@@ -670,8 +670,8 @@ pub mod tests {
   #[test]
   fn move_before_for_first() {
     let mut tasks = Tasks::with_serde_tasks(make_tasks(3)).unwrap();
-    let id1 = tasks.iter().next().unwrap().id();
-    let id2 = tasks.iter().nth(1).unwrap().id();
+    let id1 = tasks.iter().next().unwrap().0;
+    let id2 = tasks.iter().nth(1).unwrap().0;
     tasks.move_before(id1, id2);
 
     let expected = make_tasks(3);
@@ -681,8 +681,8 @@ pub mod tests {
   #[test]
   fn move_after_for_last() {
     let mut tasks = Tasks::with_serde_tasks(make_tasks(3)).unwrap();
-    let id1 = tasks.iter().nth(2).unwrap().id();
-    let id2 = tasks.iter().nth(1).unwrap().id();
+    let id1 = tasks.iter().nth(2).unwrap().0;
+    let id2 = tasks.iter().nth(1).unwrap().0;
     tasks.move_after(id1, id2);
 
     let expected = make_tasks(3);
@@ -692,8 +692,8 @@ pub mod tests {
   #[test]
   fn move_before() {
     let mut tasks = Tasks::with_serde_tasks(make_tasks(4)).unwrap();
-    let id1 = tasks.iter().nth(2).unwrap().id();
-    let id2 = tasks.iter().nth(1).unwrap().id();
+    let id1 = tasks.iter().nth(2).unwrap().0;
+    let id2 = tasks.iter().nth(1).unwrap().0;
     tasks.move_before(id1, id2);
 
     let mut expected = make_tasks(4);
@@ -705,8 +705,8 @@ pub mod tests {
   #[test]
   fn move_after() {
     let mut tasks = Tasks::with_serde_tasks(make_tasks(4)).unwrap();
-    let id1 = tasks.iter().nth(1).unwrap().id();
-    let id2 = tasks.iter().nth(2).unwrap().id();
+    let id1 = tasks.iter().nth(1).unwrap().0;
+    let id2 = tasks.iter().nth(2).unwrap().0;
     tasks.move_after(id1, id2);
 
     let mut expected = make_tasks(4);

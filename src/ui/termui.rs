@@ -197,7 +197,11 @@ impl Handleable<Event, Message> for TermUi {
       Message::GetTasks => {
         let data = self.data::<TermUiData>(cap);
         let tasks = data.task_state.tasks();
-        let tasks = tasks.borrow().iter().cloned().collect();
+        let tasks = tasks
+          .borrow()
+          .iter()
+          .map(|(_, task)| task.clone())
+          .collect();
         Some(Message::GotTasks(tasks))
       },
       #[cfg(all(test, not(feature = "readline")))]

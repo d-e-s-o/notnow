@@ -12,8 +12,8 @@ use std::hash::Hasher;
 use std::marker::PhantomData;
 use std::num::NonZeroUsize;
 use std::ops::Bound;
-use std::ops::Index;
-use std::ops::IndexMut;
+use std::ops::Deref;
+use std::ops::DerefMut;
 use std::slice;
 
 use gaps::RangeGappable as _;
@@ -106,11 +106,61 @@ pub trait Idable<T> {
 pub type Iter<'t, T> = slice::Iter<'t, T>;
 
 
+/// An object wrapping an item contained in a `Db`, along with its `Id`,
+/// and providing read-only access to the former.
+#[derive(Debug)]
+pub struct Entry<'db, T>(&'db (Id<T>, T));
+
+impl<T> Entry<'_, T> {
+  /// Retrieve the entry's `Id`.
+  #[allow(unused)]
+  pub fn id(&self) -> Id<T> {
+    self.0 .0
+  }
+}
+
+impl<'db, T> Deref for Entry<'db, T> {
+  type Target = T;
+
+  fn deref(&self) -> &'db Self::Target {
+    &self.0 .1
+  }
+}
+
+
+/// An object wrapping an item contained in a `Db`, along with its `Id`,
+/// and providing mutable access to the former.
+#[derive(Debug)]
+pub struct EntryMut<'db, T>(&'db mut (Id<T>, T));
+
+impl<T> EntryMut<'_, T> {
+  /// Retrieve the entry's `Id`.
+  #[allow(unused)]
+  pub fn id(&self) -> Id<T> {
+    self.0 .0
+  }
+}
+
+impl<T> Deref for EntryMut<'_, T> {
+  type Target = T;
+
+  fn deref(&self) -> &Self::Target {
+    &self.0 .1
+  }
+}
+
+impl<T> DerefMut for EntryMut<'_, T> {
+  fn deref_mut(&mut self) -> &mut Self::Target {
+    &mut self.0 .1
+  }
+}
+
+
 /// A database for storing arbitrary but fixed data items.
 #[derive(Debug)]
 pub struct Db<T> {
-  /// The data, in a well-defined order.
-  data: Vec<T>,
+  /// The data along with its ID, in a well-defined order.
+  data: Vec<(Id<T>, T)>,
   /// The IDs currently in use.
   ids: BTreeSet<usize>,
 }
@@ -135,11 +185,12 @@ impl<T> Db<T> {
     let (data, ids) = iter
       .into_iter()
       .try_fold((data, ids), |(mut data, mut ids), item| {
-        if !ids.insert(item.id().id.get()) {
-          return Err(item.id().id.get())
+        let id = item.id();
+        if !ids.insert(id.id.get()) {
+          return Err(id.id)
         }
 
-        data.push(item);
+        data.push((id, item));
         Ok((data, ids))
       })?;
 
@@ -156,7 +207,7 @@ impl<T> Db<T> {
   where
     T: Idable<T>,
   {
-    self.data.iter().position(|task| task.id() == id)
+    self.data.iter().position(|(_, task)| task.id() == id)
   }
 
   /// Insert an item into the database at the given `index`.
@@ -165,8 +216,8 @@ impl<T> Db<T> {
   where
     T: Idable<T>,
   {
-    let _ = self.reserve_id(item.id().id.get());
-    self.data.insert(index, item)
+    let id = self.reserve_id(item.id().id.get());
+    self.data.insert(index, (id, item))
   }
 
   /// Insert an item at the end of the database.
@@ -175,8 +226,8 @@ impl<T> Db<T> {
   where
     T: Idable<T>,
   {
-    let _ = self.reserve_id(item.id().id.get());
-    self.data.push(item)
+    let id = self.reserve_id(item.id().id.get());
+    self.data.push((id, item))
   }
 
   /// Remove the item at the provided index.
@@ -185,14 +236,29 @@ impl<T> Db<T> {
   where
     T: Idable<T>,
   {
-    let item = self.data.remove(index);
-    self.free_id(item.id());
+    let (id, item) = self.data.remove(index);
+    self.free_id(id);
     item
+  }
+
+  /// Retrieve an [`Entry`] representing the item at the given index in
+  /// the database.
+  #[allow(unused)]
+  #[inline]
+  pub fn get(&self, index: usize) -> Option<Entry<'_, T>> {
+    self.data.get(index).map(Entry)
+  }
+
+  /// Retrieve an [`EntryMut`] representing the item at the given index
+  /// in the database.
+  #[inline]
+  pub fn get_mut(&mut self, index: usize) -> Option<EntryMut<'_, T>> {
+    self.data.get_mut(index).map(EntryMut)
   }
 
   /// Retrieve an iterator over the items of the database.
   #[inline]
-  pub fn iter(&self) -> Iter<'_, T> {
+  pub fn iter(&self) -> Iter<'_, (Id<T>, T)> {
     self.data.iter()
   }
 
@@ -245,21 +311,5 @@ impl<T> Db<T> {
   fn free_id(&mut self, id: Id<T>) {
     let _removed = self.ids.remove(&id.id.get());
     debug_assert!(_removed, "ID {id} was not allocated");
-  }
-}
-
-impl<T> Index<usize> for Db<T> {
-  type Output = T;
-
-  #[inline]
-  fn index(&self, index: usize) -> &Self::Output {
-    &self.data[index]
-  }
-}
-
-impl<T> IndexMut<usize> for Db<T> {
-  #[inline]
-  fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-    &mut self.data[index]
   }
 }

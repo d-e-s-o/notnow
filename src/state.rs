@@ -262,7 +262,7 @@ pub mod tests {
       .tasks
       .borrow()
       .iter()
-      .map(ToSerde::to_serde)
+      .map(|(_, task)| task.to_serde())
       .collect::<Vec<_>>();
     assert_eq!(new_task_vec, make_tasks(3));
   }
@@ -285,7 +285,7 @@ pub mod tests {
       .tasks
       .borrow()
       .iter()
-      .map(ToSerde::to_serde)
+      .map(|(_, task)| task.to_serde())
       .collect::<Vec<_>>();
     assert_eq!(new_task_vec, make_tasks(0));
   }
@@ -336,7 +336,7 @@ pub mod tests {
 
     let state = State::with_serde(ui_state, ui_config, task_state, task_config).unwrap();
     let tasks = state.1.tasks.borrow();
-    let mut it = tasks.iter();
+    let mut it = tasks.iter().map(|(_, task)| task);
 
     let task1 = it.next().unwrap();
     let mut tags = task1.tags();
