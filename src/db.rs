@@ -4,13 +4,19 @@
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
 use std::collections::HashSet;
+use std::fmt::Display;
+use std::fmt::Formatter;
+use std::fmt::Result as FmtResult;
 use std::hash::Hash;
 use std::hash::Hasher;
 use std::marker::PhantomData;
 use std::num::NonZeroUsize;
+use std::ops::Bound;
 use std::ops::Index;
 use std::ops::IndexMut;
 use std::slice;
+
+use gaps::RangeGappable as _;
 
 
 /// An ID used by `Db` instances to uniquely identify an item in it.
@@ -24,6 +30,12 @@ pub struct Id<T> {
   id: NonZeroUsize,
   /// Phantom data for `T`.
   _phantom: PhantomData<T>,
+}
+
+impl<T> Display for Id<T> {
+  fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+    Display::fmt(&self.id, f)
+  }
 }
 
 impl<T> Id<T> {
@@ -153,7 +165,7 @@ impl<T> Db<T> {
   where
     T: Idable<T>,
   {
-    assert!(self.ids.insert(item.id().id.get()));
+    let _ = self.reserve_id(item.id().id.get());
     self.data.insert(index, item)
   }
 
@@ -163,7 +175,7 @@ impl<T> Db<T> {
   where
     T: Idable<T>,
   {
-    assert!(self.ids.insert(item.id().id.get()));
+    let _ = self.reserve_id(item.id().id.get());
     self.data.push(item)
   }
 
@@ -174,7 +186,7 @@ impl<T> Db<T> {
     T: Idable<T>,
   {
     let item = self.data.remove(index);
-    assert!(self.ids.remove(&item.id().id.get()));
+    self.free_id(item.id());
     item
   }
 
@@ -182,6 +194,57 @@ impl<T> Db<T> {
   #[inline]
   pub fn iter(&self) -> Iter<'_, T> {
     self.data.iter()
+  }
+
+  /// Attempt to reserve an identifier in this `Db` instance.
+  fn try_reserve_id(&mut self, id: usize) -> Option<Id<T>> {
+    let id = NonZeroUsize::new(id)?;
+    if !self.ids.insert(id.get()) {
+      None
+    } else {
+      Some(Id::from_unique_id(id))
+    }
+  }
+
+  /// Reserve the identifier in this `Db` instance.
+  ///
+  /// # Panics
+  /// This method panics if the identifier is already used within the
+  /// `Db`.
+  fn reserve_id(&mut self, id: usize) -> Id<T> {
+    self
+      .try_reserve_id(id)
+      .unwrap_or_else(|| panic!("ID {id} is already in use"))
+  }
+
+  /// Allocate a new `Id`, unique to this `Db` instance.
+  #[allow(unused)]
+  fn allocate_id(&mut self) -> Id<T> {
+    let mut gaps = self.ids.gaps(1..=usize::MAX);
+    let gap = gaps.next().expect("available ID space is exhausted");
+    let id = match gap {
+      (Bound::Included(lower), _) => lower,
+      (Bound::Excluded(lower), _) => lower + 1,
+      (Bound::Unbounded, _) => {
+        // SANITY: We should never hit this case by virtue of the lower
+        //         bound we provide.
+        unreachable!()
+      },
+    };
+
+    let _inserted = self.ids.insert(id);
+    debug_assert!(_inserted, "ID {id} already present");
+
+    // SANITY: `id` will never be zero here, because we start gap
+    //         detection above at 1.
+    let id = NonZeroUsize::new(id).unwrap();
+    Id::from_unique_id(id)
+  }
+
+  /// Free the given `Id` for future use.
+  fn free_id(&mut self, id: Id<T>) {
+    let _removed = self.ids.remove(&id.id.get());
+    debug_assert!(_removed, "ID {id} was not allocated");
   }
 }
 

@@ -47,6 +47,9 @@ optional = true
 [dependencies.dirs]
 version = "4.0"
 
+[dependencies.gaps]
+version = "0.3.1"
+
 [dependencies.gui]
 version = "0.6"
 features = ["derive"]
