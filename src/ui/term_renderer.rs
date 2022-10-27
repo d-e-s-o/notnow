@@ -360,7 +360,7 @@ where
     let selection = task_list.selection(cap);
     let offset = sanitize_offset(data.offset, selection, limit);
 
-    for (i, task) in view.iter().clone().enumerate().skip(offset).take(limit) {
+    for (i, (_, task)) in view.iter().clone().enumerate().skip(offset).take(limit) {
       let complete = task.is_complete();
       let (state, state_fg, state_bg) = if !complete {
         (

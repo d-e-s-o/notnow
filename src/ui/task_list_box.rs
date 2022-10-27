@@ -65,7 +65,13 @@ impl TaskListBoxData {
   /// Retrieve a copy of the selected task, if any.
   fn selected_task(&self) -> Option<Task> {
     let selection = self.selection(0);
-    self.view.iter().clone().nth(selection).cloned()
+    self
+      .view
+      .iter()
+      .clone()
+      .nth(selection)
+      .map(|(_, task)| task)
+      .cloned()
   }
 }
 
@@ -130,7 +136,7 @@ impl TaskListBox {
     done: Option<&mut bool>,
   ) -> Option<Message> {
     let data = self.data_mut::<TaskListBoxData>(cap);
-    let idx = data.view.iter().position(|x| x.id() == task_id);
+    let idx = data.view.iter().position(|(id, _)| *id == task_id);
 
     if let Some(idx) = idx {
       let update = data.select(idx as isize);
@@ -210,6 +216,7 @@ impl TaskListBox {
         .clone()
         .rev()
         .skip(start_idx)
+        .map(|(_, task)| task)
         .position(check)
         .map(|idx| count.saturating_sub(start_idx + idx + 1))
     } else {
@@ -218,6 +225,7 @@ impl TaskListBox {
         .iter()
         .clone()
         .skip(start_idx)
+        .map(|(_, task)| task)
         .position(check)
         .map(|idx| start_idx + idx)
     }
@@ -313,7 +321,7 @@ impl Handleable<Event, Message> for TaskListBox {
         Key::Char('J') => {
           if let Some(to_move) = data.selected_task() {
             let other = data.view.iter().nth(data.selection(1));
-            if let Some(other) = other {
+            if let Some((_, other)) = other {
               data.tasks.borrow_mut().move_after(to_move.id(), other.id());
               MessageExt::maybe_update(None, data.change_selection(1)).into_event()
             } else {
@@ -327,7 +335,7 @@ impl Handleable<Event, Message> for TaskListBox {
           if let Some(to_move) = data.selected_task() {
             if data.selection(0) > 0 {
               let other = data.view.iter().nth(data.selection(-1));
-              if let Some(other) = other {
+              if let Some((_, other)) = other {
                 data
                   .tasks
                   .borrow_mut()
