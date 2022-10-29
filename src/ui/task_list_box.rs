@@ -274,11 +274,11 @@ impl Handleable<Event, Message> for TaskListBox {
     match event {
       Event::Key(key, _) => match key {
         Key::Char(' ') => {
-          if let Some((_, task)) = data.selected_task() {
+          if let Some((task_id, task)) = data.selected_task() {
             let mut task = task.clone();
             task.toggle_complete();
             cap
-              .send(self.id, Message::UpdateTask(task))
+              .send(self.id, Message::UpdateTask(task_id, task))
               .await
               .into_event()
           } else {
@@ -311,8 +311,8 @@ impl Handleable<Event, Message> for TaskListBox {
           }
         },
         Key::Char('t') => {
-          if let Some((_, task)) = data.selected_task() {
-            let message = Message::EditTags(task.clone());
+          if let Some((task_id, task)) = data.selected_task() {
+            let message = Message::EditTags(task_id, task.clone());
             cap.send(self.dialog, message).await.into_event()
           } else {
             None
@@ -427,8 +427,7 @@ impl Handleable<Event, Message> for TaskListBox {
           cap.send(self.tab_bar, message).await
         }
       },
-      Message::UpdateTask(task) => {
-        let task_id = task.id();
+      Message::UpdateTask(task_id, task) => {
         data.tasks.borrow_mut().update(task);
 
         // Try to select the task now that something may have changed

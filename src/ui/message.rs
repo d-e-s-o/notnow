@@ -26,9 +26,9 @@ pub enum Message {
   /// require a substring match (false).
   SearchTask(String, SearchState, bool, bool),
   /// Edit the tags associated with a task.
-  EditTags(Task),
+  EditTags(TaskId, Task),
   /// Update a task.
-  UpdateTask(Task),
+  UpdateTask(TaskId, Task),
   /// Set the state of the input/output area.
   SetInOut(InOut),
   /// Text has been entered.

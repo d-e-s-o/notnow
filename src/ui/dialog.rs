@@ -14,6 +14,7 @@ use gui::MutCap;
 use gui::Widget;
 
 use crate::tags::Tag;
+use crate::tasks::Id as TaskId;
 use crate::tasks::Task;
 
 use super::event::Event;
@@ -107,6 +108,8 @@ enum Direction {
 struct Data {
   /// The ID of the previously focused widget.
   prev_focused: Option<Id>,
+  /// The ID of the task for which to configure the tags.
+  task_id: TaskId,
   /// The task for which to configure the tags.
   task: Task,
   /// The tags to configure.
@@ -119,11 +122,12 @@ struct Data {
 
 impl Data {
   /// Create a new `Data` object from the given `Task` object.
-  fn new(task: Task) -> Self {
+  fn new(task_id: TaskId, task: Task) -> Self {
     let tags = prepare_tags(&task);
 
     Self {
       prev_focused: None,
+      task_id,
       task,
       tags,
       selection: 0,
@@ -159,15 +163,15 @@ impl Data {
     }
   }
 
-  /// Convert the `Data` into a `Task` with updated tags.
-  fn into_task(mut self) -> Task {
+  /// Convert the `Data` into a `Task` (and its ID) with updated tags.
+  fn into_task(mut self) -> (TaskId, Task) {
     let tags = self.tags.into_iter().filter_map(|tag| match tag {
       SetUnsetTag::Set(tag) => Some(tag),
       SetUnsetTag::Unset(_) => None,
     });
 
     self.task.set_tags(tags);
-    self.task
+    (self.task_id, self.task)
   }
 }
 
@@ -277,10 +281,10 @@ impl Dialog {
         let data = data.data.take();
 
         if key == Key::Char('\n') {
-          let task = data
+          let (task_id, task) = data
             .map(|data| data.into_task())
             .expect("dialog has no data set");
-          cap.send(widget, Message::UpdateTask(task)).await;
+          cap.send(widget, Message::UpdateTask(task_id, task)).await;
         }
 
         Some(Message::Updated)
@@ -392,10 +396,10 @@ impl Handleable<Event, Message> for Dialog {
   /// React to a message.
   async fn react(&self, message: Message, cap: &mut dyn MutCap<Event, Message>) -> Option<Message> {
     match message {
-      Message::EditTags(task) => {
+      Message::EditTags(task_id, task) => {
         let data = self.data_mut::<DialogData>(cap);
         debug_assert!(data.data.is_none());
-        data.data = Some(Data::new(task));
+        data.data = Some(Data::new(task_id, task));
 
         self.make_focused(cap);
         Some(Message::Updated)
@@ -410,6 +414,7 @@ impl Handleable<Event, Message> for Dialog {
 mod tests {
   use super::*;
 
+  use std::num::NonZeroUsize;
   use std::rc::Rc;
 
   use crate::tags::Template;
@@ -473,8 +478,9 @@ mod tests {
 
     // The full list of tags will look like this:
     // a, d, h, b, c, c1, complete, z
+    let task_id = TaskId::from_unique_id(NonZeroUsize::new(1).unwrap());
     let task = Task::with_summary_and_tags("task", tags, templates);
-    let mut data = Data::new(task);
+    let mut data = Data::new(task_id, task);
     assert_eq!(data.selection, 0);
 
     assert!(!data.select_task_beginning_with('h', Direction::Backward));
