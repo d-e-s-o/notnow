@@ -62,15 +62,15 @@ impl TaskListBoxData {
     }
   }
 
-  /// Retrieve a copy of the selected task and its ID, if any.
-  fn selected_task(&self) -> Option<(TaskId, Task)> {
+  /// Retrieve the selected task and its ID, if any.
+  fn selected_task(&self) -> Option<(TaskId, &Task)> {
     let selection = self.selection(0);
     self
       .view
       .iter()
       .clone()
       .nth(selection)
-      .map(|(id, task)| (*id, task.clone()))
+      .map(|(id, task)| (*id, task))
   }
 }
 
@@ -274,7 +274,8 @@ impl Handleable<Event, Message> for TaskListBox {
     match event {
       Event::Key(key, _) => match key {
         Key::Char(' ') => {
-          if let Some((_, mut task)) = data.selected_task() {
+          if let Some((_, task)) = data.selected_task() {
+            let mut task = task.clone();
             task.toggle_complete();
             cap
               .send(self.id, Message::UpdateTask(task))
@@ -301,7 +302,7 @@ impl Handleable<Event, Message> for TaskListBox {
           if let Some((_, task)) = data.selected_task() {
             let string = task.summary.clone();
             let idx = string.len();
-            data.state = Some(State::Edit(task));
+            data.state = Some(State::Edit(task.clone()));
 
             let message = Message::SetInOut(InOut::Input(string, idx));
             cap.send(self.in_out, message).await.into_event()
@@ -311,7 +312,7 @@ impl Handleable<Event, Message> for TaskListBox {
         },
         Key::Char('t') => {
           if let Some((_, task)) = data.selected_task() {
-            let message = Message::EditTags(task);
+            let message = Message::EditTags(task.clone());
             cap.send(self.dialog, message).await.into_event()
           } else {
             None
@@ -356,7 +357,7 @@ impl Handleable<Event, Message> for TaskListBox {
         Key::Char('k') => MessageExt::maybe_update(None, data.change_selection(-1)).into_event(),
         Key::Char('*') => {
           if let Some((_, selected)) = data.selected_task() {
-            let message = Message::StartTaskSearch(selected.summary);
+            let message = Message::StartTaskSearch(selected.summary.clone());
             cap.send(self.tab_bar, message).await.into_event()
           } else {
             None
@@ -377,7 +378,8 @@ impl Handleable<Event, Message> for TaskListBox {
           match state {
             State::Add => {
               if !text.is_empty() {
-                let tags = if let Some((_, mut task)) = data.selected_task() {
+                let tags = if let Some((_, task)) = data.selected_task() {
+                  let mut task = task.clone();
                   if task.is_complete() {
                     task.toggle_complete()
                   }
