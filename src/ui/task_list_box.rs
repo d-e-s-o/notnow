@@ -35,7 +35,7 @@ use super::tab_bar::TabState;
 #[derive(Debug)]
 enum State {
   Add,
-  Edit(Task),
+  Edit(TaskId, Task),
 }
 
 
@@ -299,10 +299,10 @@ impl Handleable<Event, Message> for TaskListBox {
           }
         },
         Key::Char('e') => {
-          if let Some((_, task)) = data.selected_task() {
+          if let Some((task_id, task)) = data.selected_task() {
             let string = task.summary.clone();
             let idx = string.len();
-            data.state = Some(State::Edit(task.clone()));
+            data.state = Some(State::Edit(task_id, task.clone()));
 
             let message = Message::SetInOut(InOut::Input(string, idx));
             cap.send(self.in_out, message).await.into_event()
@@ -408,17 +408,15 @@ impl Handleable<Event, Message> for TaskListBox {
                 None
               }
             },
-            State::Edit(mut task) => {
-              let id = task.id();
-
+            State::Edit(task_id, mut task) => {
               // Editing a task to empty just removes the task
               // altogether.
               if !text.is_empty() {
                 task.summary = text.clone();
                 data.tasks.borrow_mut().update(task);
-                self.select_task(cap, id).await.maybe_update(true)
+                self.select_task(cap, task_id).await.maybe_update(true)
               } else {
-                data.tasks.borrow_mut().remove(id);
+                data.tasks.borrow_mut().remove(task_id);
                 Some(Message::Updated)
               }
             },
