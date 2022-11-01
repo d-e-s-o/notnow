@@ -94,11 +94,6 @@ impl Task {
     })
   }
 
-  /// Retrieve this task's `Id`.
-  pub fn id(&self) -> Id {
-    self.id
-  }
-
   /// Retrieve an iterator over this task's tags.
   pub fn tags(&self) -> impl Iterator<Item = &Tag> + Clone {
     self.tags.values()
@@ -321,7 +316,7 @@ impl Op<Db<Task>, Option<Id>> for TaskOp {
         debug_assert_eq!(updated.id, before.id);
         let id = before.id;
         let _task = update_task(tasks, before);
-        debug_assert_eq!(_task.id(), updated.id());
+        debug_assert_eq!(_task.id, updated.id());
         Some(id)
       },
       Self::Move { from, task, .. } => {

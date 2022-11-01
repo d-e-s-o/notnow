@@ -291,8 +291,8 @@ impl Handleable<Event, Message> for TaskListBox {
           cap.send(self.in_out, message).await.into_event()
         },
         Key::Char('d') => {
-          if let Some((_, task)) = data.selected_task() {
-            data.tasks.borrow_mut().remove(task.id());
+          if let Some((task_id, _)) = data.selected_task() {
+            data.tasks.borrow_mut().remove(task_id);
             MessageExt::maybe_update(None, true).into_event()
           } else {
             None
@@ -319,10 +319,10 @@ impl Handleable<Event, Message> for TaskListBox {
           }
         },
         Key::Char('J') => {
-          if let Some((_, to_move)) = data.selected_task() {
+          if let Some((to_move_id, _)) = data.selected_task() {
             let other = data.view.iter().nth(data.selection(1));
-            if let Some((_, other)) = other {
-              data.tasks.borrow_mut().move_after(to_move.id(), other.id());
+            if let Some((other_id, _)) = other {
+              data.tasks.borrow_mut().move_after(to_move_id, *other_id);
               MessageExt::maybe_update(None, data.change_selection(1)).into_event()
             } else {
               None
@@ -332,14 +332,11 @@ impl Handleable<Event, Message> for TaskListBox {
           }
         },
         Key::Char('K') => {
-          if let Some((_, to_move)) = data.selected_task() {
+          if let Some((to_move_id, _)) = data.selected_task() {
             if data.selection(0) > 0 {
               let other = data.view.iter().nth(data.selection(-1));
-              if let Some((_, other)) = other {
-                data
-                  .tasks
-                  .borrow_mut()
-                  .move_before(to_move.id(), other.id());
+              if let Some((other_id, _)) = other {
+                data.tasks.borrow_mut().move_before(to_move_id, *other_id);
                 MessageExt::maybe_update(None, data.change_selection(-1)).into_event()
               } else {
                 None
