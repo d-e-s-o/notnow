@@ -237,7 +237,7 @@ enum TaskOp {
   Move {
     from: usize,
     to: Target,
-    task: Option<Task>,
+    id: Option<Id>,
   },
 }
 
@@ -260,11 +260,7 @@ impl TaskOp {
   }
 
   fn move_(from: usize, to: Target) -> Self {
-    Self::Move {
-      from,
-      to,
-      task: None,
-    }
+    Self::Move { from, to, id: None }
   }
 }
 
@@ -285,7 +281,7 @@ impl Op<Db<Task>, Option<Id>> for TaskOp {
         *before = Some(task);
         Some(updated.id)
       },
-      Self::Move { from, to, task } => {
+      Self::Move { from, to, id } => {
         let removed = tasks.remove(*from);
         // We do not support the case of moving a task with itself as a
         // target. Doing so should be prevented at a higher layer,
@@ -293,9 +289,9 @@ impl Op<Db<Task>, Option<Id>> for TaskOp {
         debug_assert_ne!(removed.id, to.id());
         add_task(tasks, removed.clone(), Some(*to));
 
-        let id = removed.id;
-        *task = Some(removed);
-        Some(id)
+        let removed_id = removed.id;
+        *id = Some(removed_id);
+        Some(removed_id)
       },
     }
   }
@@ -319,8 +315,8 @@ impl Op<Db<Task>, Option<Id>> for TaskOp {
         debug_assert_eq!(_task.id, updated.id());
         Some(id)
       },
-      Self::Move { from, task, .. } => {
-        let id = task.as_ref().map(|task| task.id()).unwrap();
+      Self::Move { from, id, .. } => {
+        let id = id.unwrap();
         let idx = tasks.find(id).unwrap();
         let removed = tasks.remove(idx);
         tasks.insert(*from, removed);
