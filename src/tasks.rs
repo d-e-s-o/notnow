@@ -185,21 +185,21 @@ enum IdOrTask {
   /// The ID of a task.
   Id(Id),
   /// An actual task along with its position.
-  Task(Task, usize),
+  Task { task: Task, position: usize },
 }
 
 impl IdOrTask {
   fn id(&self) -> Id {
     match self {
       Self::Id(id) => *id,
-      Self::Task(task, ..) => task.id,
+      Self::Task { task, .. } => task.id,
     }
   }
 
   fn task(&self) -> (&Task, usize) {
     match self {
       Self::Id(..) => panic!("IdOrTask does not contain a task"),
-      Self::Task(task, position) => (task, *position),
+      Self::Task { task, position } => (task, *position),
     }
   }
 }
@@ -279,7 +279,10 @@ impl Op<Db<Task>, Option<Id>> for TaskOp {
       },
       Self::Remove { id_or_task } => {
         let (task, idx) = remove_task(tasks, id_or_task.id());
-        *id_or_task = IdOrTask::Task(task, idx);
+        *id_or_task = IdOrTask::Task {
+          task,
+          position: idx,
+        };
         None
       },
       Self::Update { updated, before } => {
