@@ -228,11 +228,14 @@ impl Target {
 #[derive(Debug)]
 enum TaskOp {
   /// An operation adding a task.
-  Add { task: Task, after: Option<Id> },
+  Add { task: (Id, Task), after: Option<Id> },
   /// An operation removing a task.
   Remove { id_or_task: IdOrTask },
   /// An operation updating a task.
-  Update { updated: Task, before: Option<Task> },
+  Update {
+    updated: (Id, Task),
+    before: Option<(Id, Task)>,
+  },
   /// An operation changing a task's position.
   Move {
     from: usize,
@@ -242,8 +245,11 @@ enum TaskOp {
 }
 
 impl TaskOp {
-  fn add(task: Task, after: Option<Id>) -> Self {
-    Self::Add { task, after }
+  fn add(id: Id, task: Task, after: Option<Id>) -> Self {
+    Self::Add {
+      task: (id, task),
+      after,
+    }
   }
 
   fn remove(id: Id) -> Self {
@@ -252,9 +258,9 @@ impl TaskOp {
     }
   }
 
-  fn update(updated: Task) -> Self {
+  fn update(id: Id, updated: Task) -> Self {
     Self::Update {
-      updated,
+      updated: (id, updated),
       before: None,
     }
   }
@@ -268,8 +274,8 @@ impl Op<Db<Task>, Option<Id>> for TaskOp {
   fn exec(&mut self, tasks: &mut Db<Task>) -> Option<Id> {
     match self {
       Self::Add { task, after } => {
-        add_task(tasks, task.clone(), after.map(Target::After));
-        Some(task.id)
+        add_task(tasks, task.1.clone(), after.map(Target::After));
+        Some(task.1.id)
       },
       Self::Remove { id_or_task } => {
         let (task, idx) = remove_task(tasks, id_or_task.id());
@@ -277,9 +283,9 @@ impl Op<Db<Task>, Option<Id>> for TaskOp {
         None
       },
       Self::Update { updated, before } => {
-        let task = update_task(tasks, updated.clone());
-        *before = Some(task);
-        Some(updated.id)
+        let task = update_task(tasks, updated.1.clone());
+        *before = Some((task.id, task));
+        Some(updated.1.id)
       },
       Self::Move { from, to, id } => {
         let removed = tasks.remove(*from);
@@ -299,7 +305,7 @@ impl Op<Db<Task>, Option<Id>> for TaskOp {
   fn undo(&mut self, tasks: &mut Db<Task>) -> Option<Id> {
     match self {
       Self::Add { task, .. } => {
-        let _ = remove_task(tasks, task.id());
+        let _ = remove_task(tasks, task.1.id());
         None
       },
       Self::Remove { id_or_task } => {
@@ -309,10 +315,10 @@ impl Op<Db<Task>, Option<Id>> for TaskOp {
       },
       Self::Update { updated, before } => {
         let before = before.clone().unwrap();
-        debug_assert_eq!(updated.id, before.id);
-        let id = before.id;
-        let _task = update_task(tasks, before);
-        debug_assert_eq!(_task.id, updated.id());
+        debug_assert_eq!(updated.1.id, before.1.id);
+        let id = before.1.id;
+        let _task = update_task(tasks, before.1);
+        debug_assert_eq!(_task.id, updated.1.id());
         Some(id)
       },
       Self::Move { from, id, .. } => {
@@ -392,7 +398,7 @@ impl Tasks {
   pub fn add(&mut self, summary: String, tags: Vec<Tag>, after: Option<Id>) -> Id {
     let task = Task::with_summary_and_tags(summary, tags, self.templates.clone());
     let id = task.id;
-    let op = TaskOp::add(task, after);
+    let op = TaskOp::add(id, task, after);
     self.operations.exec(op, &mut self.tasks);
 
     id
@@ -406,7 +412,7 @@ impl Tasks {
 
   /// Update a task.
   pub fn update(&mut self, task: Task) {
-    let op = TaskOp::update(task);
+    let op = TaskOp::update(task.id, task);
     self.operations.exec(op, &mut self.tasks);
   }
 
@@ -464,7 +470,7 @@ pub mod tests {
     let mut ops = Ops::new(3);
 
     let task1 = Task::new("task1");
-    let op = TaskOp::add(task1, None);
+    let op = TaskOp::add(task1.id, task1, None);
     ops.exec(op, &mut tasks);
     assert_eq!(tasks.iter().len(), 1);
     assert_eq!(tasks.get(0).unwrap().summary, "task1");
@@ -484,14 +490,14 @@ pub mod tests {
     let mut tasks = Db::try_from_iter([Task::new("task1")]).unwrap();
     let mut ops = Ops::new(3);
     let task2 = Task::new("task2");
-    let op = TaskOp::add(task2, None);
+    let op = TaskOp::add(task2.id, task2, None);
     ops.exec(op, &mut tasks);
     assert_eq!(tasks.iter().len(), 2);
     assert_eq!(tasks.get(0).unwrap().summary, "task1");
     assert_eq!(tasks.get(1).unwrap().summary, "task2");
 
     let task3 = Task::new("task3");
-    let op = TaskOp::add(task3, Some(tasks.get(0).unwrap().id()));
+    let op = TaskOp::add(task3.id, task3, Some(tasks.get(0).unwrap().id()));
     ops.exec(op, &mut tasks);
     assert_eq!(tasks.iter().len(), 3);
     assert_eq!(tasks.get(0).unwrap().summary, "task1");
@@ -561,7 +567,7 @@ pub mod tests {
 
     let mut new = tasks.get(0).unwrap().clone();
     new.summary = "foo!".to_string();
-    let op = TaskOp::update(new);
+    let op = TaskOp::update(new.id, new);
     ops.exec(op, &mut tasks);
     assert_eq!(tasks.iter().len(), 2);
     assert_eq!(tasks.get(0).unwrap().summary, "foo!");
