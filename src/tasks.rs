@@ -184,22 +184,22 @@ fn update_task(tasks: &mut Db<Task>, task: Task) -> Task {
 enum IdOrTask {
   /// The ID of a task.
   Id(Id),
-  /// An actual task along with its position.
-  Task { task: Task, position: usize },
+  /// An actual task along with its ID and position.
+  Task { task: (Id, Task), position: usize },
 }
 
 impl IdOrTask {
   fn id(&self) -> Id {
     match self {
       Self::Id(id) => *id,
-      Self::Task { task, .. } => task.id,
+      Self::Task { task, .. } => task.0,
     }
   }
 
-  fn task(&self) -> (&Task, usize) {
+  fn task(&self) -> (Id, &Task, usize) {
     match self {
       Self::Id(..) => panic!("IdOrTask does not contain a task"),
-      Self::Task { task, position } => (task, *position),
+      Self::Task { task, position } => (task.0, &task.1, *position),
     }
   }
 }
@@ -278,9 +278,10 @@ impl Op<Db<Task>, Option<Id>> for TaskOp {
         Some(task.1.id)
       },
       Self::Remove { id_or_task } => {
-        let (task, idx) = remove_task(tasks, id_or_task.id());
+        let id = id_or_task.id();
+        let (task, idx) = remove_task(tasks, id);
         *id_or_task = IdOrTask::Task {
-          task,
+          task: (id, task),
           position: idx,
         };
         None
@@ -312,9 +313,9 @@ impl Op<Db<Task>, Option<Id>> for TaskOp {
         None
       },
       Self::Remove { id_or_task } => {
-        let (task, idx) = id_or_task.task();
+        let (id, task, idx) = id_or_task.task();
         tasks.insert(idx, task.clone());
-        Some(task.id)
+        Some(id)
       },
       Self::Update { updated, before } => {
         let before = before.clone().unwrap();
