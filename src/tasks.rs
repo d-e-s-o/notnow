@@ -157,7 +157,7 @@ fn add_task(tasks: &mut Db<Task>, task: Task, target: Option<Target>) {
       Target::Before(..) => idx,
       Target::After(..) => idx + 1,
     };
-    tasks.insert(idx, task);
+    tasks.insert(idx, None, task);
   } else {
     tasks.push(task);
   }
@@ -314,7 +314,7 @@ impl Op<Db<Task>, Option<Id>> for TaskOp {
       },
       Self::Remove { id_or_task } => {
         let (id, task, idx) = id_or_task.task();
-        tasks.insert(idx, task.clone());
+        tasks.insert(idx, Some(id), task.clone());
         Some(id)
       },
       Self::Update { updated, before } => {
@@ -329,7 +329,7 @@ impl Op<Db<Task>, Option<Id>> for TaskOp {
         let id = id.unwrap();
         let idx = tasks.find(id).unwrap();
         let removed = tasks.remove(idx);
-        tasks.insert(*from, removed);
+        tasks.insert(*from, Some(id), removed);
         Some(id)
       },
     }

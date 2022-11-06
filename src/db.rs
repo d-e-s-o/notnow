@@ -211,8 +211,14 @@ impl<T> Db<T> {
   }
 
   /// Insert an item into the database at the given `index`.
+  ///
+  /// If `id` is not [`None`], the item will be assigned the provided
+  /// ID.
+  ///
+  /// # Panics
+  /// This method panics if `id` is already used within the `Db`.
   #[inline]
-  pub fn insert(&mut self, index: usize, item: T)
+  pub fn insert(&mut self, index: usize, _id: Option<Id<T>>, item: T)
   where
     T: Idable<T>,
   {
