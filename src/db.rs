@@ -228,7 +228,7 @@ impl<T> Db<T> {
 
   /// Insert an item at the end of the database.
   #[inline]
-  pub fn push(&mut self, item: T)
+  pub fn push(&mut self, _id: Option<Id<T>>, item: T)
   where
     T: Idable<T>,
   {

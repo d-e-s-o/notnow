@@ -159,7 +159,7 @@ fn add_task(tasks: &mut Db<Task>, task: Task, target: Option<Target>) {
     };
     tasks.insert(idx, None, task);
   } else {
-    tasks.push(task);
+    tasks.push(None, task);
   }
 }
 
