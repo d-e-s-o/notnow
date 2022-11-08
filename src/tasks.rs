@@ -150,16 +150,16 @@ impl ToSerde<SerTask> for Task {
 
 
 /// Add a task to a vector of tasks.
-fn add_task(tasks: &mut Db<Task>, task: Task, target: Option<Target>) {
+fn add_task(tasks: &mut Db<Task>, task: Task, target: Option<Target>) -> Id {
   if let Some(target) = target {
     let idx = tasks.find(target.id()).unwrap();
     let idx = match target {
       Target::Before(..) => idx,
       Target::After(..) => idx + 1,
     };
-    tasks.insert(idx, None, task);
+    tasks.insert(idx, None, task)
   } else {
-    tasks.push(None, task);
+    tasks.push(None, task)
   }
 }
 
@@ -274,8 +274,8 @@ impl Op<Db<Task>, Option<Id>> for TaskOp {
   fn exec(&mut self, tasks: &mut Db<Task>) -> Option<Id> {
     match self {
       Self::Add { task, after } => {
-        add_task(tasks, task.1.clone(), after.map(Target::After));
-        Some(task.1.id)
+        let id = add_task(tasks, task.1.clone(), after.map(Target::After));
+        Some(id)
       },
       Self::Remove { id_or_task } => {
         let id = id_or_task.id();
