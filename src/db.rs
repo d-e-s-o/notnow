@@ -218,22 +218,24 @@ impl<T> Db<T> {
   /// # Panics
   /// This method panics if `id` is already used within the `Db`.
   #[inline]
-  pub fn insert(&mut self, index: usize, _id: Option<Id<T>>, item: T)
+  pub fn insert(&mut self, index: usize, _id: Option<Id<T>>, item: T) -> Id<T>
   where
     T: Idable<T>,
   {
     let id = self.reserve_id(item.id().id.get());
-    self.data.insert(index, (id, item))
+    let () = self.data.insert(index, (id, item));
+    id
   }
 
   /// Insert an item at the end of the database.
   #[inline]
-  pub fn push(&mut self, _id: Option<Id<T>>, item: T)
+  pub fn push(&mut self, _id: Option<Id<T>>, item: T) -> Id<T>
   where
     T: Idable<T>,
   {
     let id = self.reserve_id(item.id().id.get());
-    self.data.push((id, item))
+    let () = self.data.push((id, item));
+    id
   }
 
   /// Remove the item at the provided index.
