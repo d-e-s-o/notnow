@@ -45,8 +45,8 @@ where
   O: Op<D, T>,
 {
   /// Execute an operation and stash it away for later.
-  pub fn exec(&mut self, mut op: O, data: &mut D) {
-    op.exec(data);
+  pub fn exec(&mut self, mut op: O, data: &mut D) -> T {
+    let result = op.exec(data);
 
     self.ops.push_front(Some(op));
     // We just inserted a new element, which means that if we still have
@@ -55,10 +55,11 @@ where
     // operations, not a tree of sorts). Hence, insert a sentinel value
     // replacing the least recently executed operation.
     *self.ops.back_mut() = None;
+    result
   }
 
-  /// Undo the most recent operation, returning whether an action was
-  /// performed (`true`) or not (`false`).
+  /// Undo the most recent operation, returning the result of the action
+  /// if one was performed, or `None`.
   pub fn undo(&mut self, data: &mut D) -> Option<T> {
     if let Some(op) = self.ops.front_mut() {
       let result = op.undo(data);
@@ -76,8 +77,8 @@ where
     }
   }
 
-  /// Re-do the next operation, returning whether an action was
-  /// performed (`true`) or not (`false`).
+  /// Re-do the next operation, returning the result of the action
+  /// if one was performed, or `None`.
   pub fn redo(&mut self, data: &mut D) -> Option<T> {
     if let Some(op) = self.ops.back_mut() {
       let result = op.exec(data);
