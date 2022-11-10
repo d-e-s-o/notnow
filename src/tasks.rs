@@ -170,8 +170,8 @@ fn remove_task(tasks: &mut Db<Task>, id: Id) -> (Task, usize) {
 }
 
 /// Update a task in a vector of tasks.
-fn update_task(tasks: &mut Db<Task>, task: Task) -> Task {
-  let idx = tasks.find(task.id).unwrap();
+fn update_task(tasks: &mut Db<Task>, id: Id, task: Task) -> Task {
+  let idx = tasks.find(id).unwrap();
   replace(&mut tasks.get_mut(idx).unwrap(), task)
 }
 
@@ -287,9 +287,10 @@ impl Op<Db<Task>, Option<Id>> for TaskOp {
         None
       },
       Self::Update { updated, before } => {
-        let task = update_task(tasks, updated.1.clone());
-        *before = Some((task.id, task));
-        Some(updated.1.id)
+        let id = updated.0;
+        let task = update_task(tasks, id, updated.1.clone());
+        *before = Some((id, task));
+        Some(id)
       },
       Self::Move { from, to, id } => {
         let removed = tasks.remove(*from);
@@ -319,10 +320,9 @@ impl Op<Db<Task>, Option<Id>> for TaskOp {
       },
       Self::Update { updated, before } => {
         let before = before.clone().unwrap();
-        debug_assert_eq!(updated.1.id, before.1.id);
+        debug_assert_eq!(updated.0, before.0);
         let id = before.1.id;
-        let _task = update_task(tasks, before.1);
-        debug_assert_eq!(_task.id, updated.1.id());
+        let _task = update_task(tasks, id, before.1);
         Some(id)
       },
       Self::Move { from, id, .. } => {
