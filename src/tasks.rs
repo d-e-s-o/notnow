@@ -166,7 +166,8 @@ fn add_task(tasks: &mut Db<Task>, task: Task, target: Option<Target>) -> Id {
 /// Remove a task from a vector of tasks.
 fn remove_task(tasks: &mut Db<Task>, id: Id) -> (Task, usize) {
   let idx = tasks.find(id).unwrap();
-  (tasks.remove(idx), idx)
+  let (_, task) = tasks.remove(idx);
+  (task, idx)
 }
 
 /// Update a task in a vector of tasks.
@@ -297,12 +298,11 @@ impl Op<Db<Task>, Option<Id>> for TaskOp {
         // We do not support the case of moving a task with itself as a
         // target. Doing so should be prevented at a higher layer,
         // though.
-        debug_assert_ne!(removed.id, to.id());
-        add_task(tasks, removed.clone(), Some(*to));
+        debug_assert_ne!(removed.0, to.id());
+        add_task(tasks, removed.1.clone(), Some(*to));
 
-        let removed_id = removed.id;
-        *id = Some(removed_id);
-        Some(removed_id)
+        *id = Some(removed.0);
+        Some(removed.0)
       },
     }
   }
@@ -329,7 +329,7 @@ impl Op<Db<Task>, Option<Id>> for TaskOp {
         let id = id.unwrap();
         let idx = tasks.find(id).unwrap();
         let removed = tasks.remove(idx);
-        tasks.insert(*from, Some(id), removed);
+        tasks.insert(*from, Some(removed.0), removed.1);
         Some(id)
       },
     }

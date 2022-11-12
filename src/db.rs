@@ -240,13 +240,13 @@ impl<T> Db<T> {
 
   /// Remove the item at the provided index.
   #[inline]
-  pub fn remove(&mut self, index: usize) -> T
+  pub fn remove(&mut self, index: usize) -> (Id<T>, T)
   where
     T: Idable<T>,
   {
     let (id, item) = self.data.remove(index);
     self.free_id(id);
-    item
+    (id, item)
   }
 
   /// Retrieve an [`Entry`] representing the item at the given index in
