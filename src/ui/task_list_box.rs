@@ -410,7 +410,7 @@ impl Handleable<Event, Message> for TaskListBox {
               // altogether.
               if !text.is_empty() {
                 task.summary = text.clone();
-                data.tasks.borrow_mut().update(task);
+                data.tasks.borrow_mut().update(task_id, task);
                 self.select_task(cap, task_id).await.maybe_update(true)
               } else {
                 data.tasks.borrow_mut().remove(task_id);
@@ -423,7 +423,7 @@ impl Handleable<Event, Message> for TaskListBox {
         }
       },
       Message::UpdateTask(task_id, task) => {
-        data.tasks.borrow_mut().update(task);
+        data.tasks.borrow_mut().update(task_id, task);
 
         // Try to select the task now that something may have changed
         // (such as its tags).

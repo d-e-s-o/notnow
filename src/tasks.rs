@@ -415,8 +415,8 @@ impl Tasks {
   }
 
   /// Update a task.
-  pub fn update(&mut self, task: Task) {
-    let op = TaskOp::update(task.id, task);
+  pub fn update(&mut self, id: Id, task: Task) {
+    let op = TaskOp::update(id, task);
     self.operations.exec(op, &mut self.tasks);
   }
 
@@ -658,9 +658,9 @@ pub mod tests {
   #[test]
   fn update_task() {
     let mut tasks = Tasks::with_serde_tasks(make_tasks(3)).unwrap();
-    let mut task = tasks.iter().nth(1).unwrap().1.clone();
+    let (id, mut task) = tasks.iter().nth(1).unwrap().clone();
     task.summary = "amended".to_string();
-    tasks.update(task);
+    tasks.update(id, task);
 
     let mut expected = make_tasks(3);
     expected[1].summary = "amended".to_string();
