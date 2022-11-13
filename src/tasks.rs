@@ -229,7 +229,10 @@ impl Target {
 #[derive(Debug)]
 enum TaskOp {
   /// An operation adding a task.
-  Add { task: (Id, Task), after: Option<Id> },
+  Add {
+    task: (Option<Id>, Task),
+    after: Option<Id>,
+  },
   /// An operation removing a task.
   Remove { id_or_task: IdOrTask },
   /// An operation updating a task.
@@ -246,9 +249,9 @@ enum TaskOp {
 }
 
 impl TaskOp {
-  fn add(id: Id, task: Task, after: Option<Id>) -> Self {
+  fn add(task: Task, after: Option<Id>) -> Self {
     Self::Add {
-      task: (id, task),
+      task: (None, task),
       after,
     }
   }
@@ -274,8 +277,14 @@ impl TaskOp {
 impl Op<Db<Task>, Option<Id>> for TaskOp {
   fn exec(&mut self, tasks: &mut Db<Task>) -> Option<Id> {
     match self {
-      Self::Add { task, after } => {
+      Self::Add {
+        ref mut task,
+        after,
+      } => {
         let id = add_task(tasks, task.1.clone(), after.map(Target::After));
+        // Now that we know the task's ID, remember it in case we need
+        // to undo and redo.
+        task.0 = Some(id);
         Some(id)
       },
       Self::Remove { id_or_task } => {
@@ -401,9 +410,10 @@ impl Tasks {
   /// Add a new task.
   pub fn add(&mut self, summary: String, tags: Vec<Tag>, after: Option<Id>) -> Id {
     let task = Task::with_summary_and_tags(summary, tags, self.templates.clone());
-    let id = task.id;
-    let op = TaskOp::add(id, task, after);
-    self.operations.exec(op, &mut self.tasks);
+    let op = TaskOp::add(task, after);
+    // SANITY: We know that an "add" operation always returns an ID, so
+    //         this unwrap will never panic.
+    let id = self.operations.exec(op, &mut self.tasks).unwrap();
 
     id
   }
@@ -474,7 +484,7 @@ pub mod tests {
     let mut ops = Ops::new(3);
 
     let task1 = Task::new("task1");
-    let op = TaskOp::add(task1.id, task1, None);
+    let op = TaskOp::add(task1, None);
     ops.exec(op, &mut tasks);
     assert_eq!(tasks.iter().len(), 1);
     assert_eq!(tasks.get(0).unwrap().summary, "task1");
@@ -494,14 +504,14 @@ pub mod tests {
     let mut tasks = Db::try_from_iter([Task::new("task1")]).unwrap();
     let mut ops = Ops::new(3);
     let task2 = Task::new("task2");
-    let op = TaskOp::add(task2.id, task2, None);
+    let op = TaskOp::add(task2, None);
     ops.exec(op, &mut tasks);
     assert_eq!(tasks.iter().len(), 2);
     assert_eq!(tasks.get(0).unwrap().summary, "task1");
     assert_eq!(tasks.get(1).unwrap().summary, "task2");
 
     let task3 = Task::new("task3");
-    let op = TaskOp::add(task3.id, task3, Some(tasks.get(0).unwrap().id()));
+    let op = TaskOp::add(task3, Some(tasks.get(0).unwrap().id()));
     ops.exec(op, &mut tasks);
     assert_eq!(tasks.iter().len(), 3);
     assert_eq!(tasks.get(0).unwrap().summary, "task1");
