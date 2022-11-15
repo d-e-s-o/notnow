@@ -150,16 +150,16 @@ impl ToSerde<SerTask> for Task {
 
 
 /// Add a task to a vector of tasks.
-fn add_task(tasks: &mut Db<Task>, task: Task, target: Option<Target>) -> Id {
+fn add_task(tasks: &mut Db<Task>, id: Option<Id>, task: Task, target: Option<Target>) -> Id {
   if let Some(target) = target {
     let idx = tasks.find(target.id()).unwrap();
     let idx = match target {
       Target::Before(..) => idx,
       Target::After(..) => idx + 1,
     };
-    tasks.insert(idx, None, task)
+    tasks.insert(idx, id, task)
   } else {
-    tasks.push(None, task)
+    tasks.push(id, task)
   }
 }
 
@@ -281,7 +281,7 @@ impl Op<Db<Task>, Option<Id>> for TaskOp {
         ref mut task,
         after,
       } => {
-        let id = add_task(tasks, task.1.clone(), after.map(Target::After));
+        let id = add_task(tasks, task.0, task.1.clone(), after.map(Target::After));
         // Now that we know the task's ID, remember it in case we need
         // to undo and redo.
         task.0 = Some(id);
@@ -308,10 +308,9 @@ impl Op<Db<Task>, Option<Id>> for TaskOp {
         // target. Doing so should be prevented at a higher layer,
         // though.
         debug_assert_ne!(removed.0, to.id());
-        add_task(tasks, removed.1.clone(), Some(*to));
-
         *id = Some(removed.0);
-        Some(removed.0)
+        add_task(tasks, *id, removed.1, Some(*to));
+        *id
       },
     }
   }
