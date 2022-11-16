@@ -318,7 +318,9 @@ impl Op<Db<Task>, Option<Id>> for TaskOp {
   fn undo(&mut self, tasks: &mut Db<Task>) -> Option<Id> {
     match self {
       Self::Add { task, .. } => {
-        let _ = remove_task(tasks, task.1.id());
+        // SANITY: The ID will always be set at this point.
+        let id = task.0.unwrap();
+        let _ = remove_task(tasks, id);
         None
       },
       Self::Remove { id_or_task } => {
@@ -329,7 +331,7 @@ impl Op<Db<Task>, Option<Id>> for TaskOp {
       Self::Update { updated, before } => {
         let before = before.clone().unwrap();
         debug_assert_eq!(updated.0, before.0);
-        let id = before.1.id;
+        let id = before.0;
         let _task = update_task(tasks, id, before.1);
         Some(id)
       },
@@ -580,7 +582,7 @@ pub mod tests {
 
     let mut new = tasks.get(0).unwrap().clone();
     new.summary = "foo!".to_string();
-    let op = TaskOp::update(new.id, new);
+    let op = TaskOp::update(tasks.get(0).unwrap().id(), new);
     ops.exec(op, &mut tasks);
     assert_eq!(tasks.iter().len(), 2);
     assert_eq!(tasks.get(0).unwrap().summary, "foo!");
