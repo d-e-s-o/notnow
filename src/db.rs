@@ -203,11 +203,8 @@ impl<T> Db<T> {
 
   /// Look up an item's index given the item's ID.
   #[inline]
-  pub fn find(&self, id: Id<T>) -> Option<usize>
-  where
-    T: Idable<T>,
-  {
-    self.data.iter().position(|(_, task)| task.id() == id)
+  pub fn find(&self, id: Id<T>) -> Option<usize> {
+    self.data.iter().position(|(id_, _)| *id_ == id)
   }
 
   /// Insert an item into the database at the given `index`.
@@ -218,32 +215,31 @@ impl<T> Db<T> {
   /// # Panics
   /// This method panics if `id` is already used within the `Db`.
   #[inline]
-  pub fn insert(&mut self, index: usize, _id: Option<Id<T>>, item: T) -> Id<T>
-  where
-    T: Idable<T>,
-  {
-    let id = self.reserve_id(item.id().id.get());
+  pub fn insert(&mut self, index: usize, id: Option<Id<T>>, item: T) -> Id<T> {
+    let id = if let Some(id) = id {
+      self.reserve_id(id.id.get())
+    } else {
+      self.allocate_id()
+    };
     let () = self.data.insert(index, (id, item));
     id
   }
 
   /// Insert an item at the end of the database.
   #[inline]
-  pub fn push(&mut self, _id: Option<Id<T>>, item: T) -> Id<T>
-  where
-    T: Idable<T>,
-  {
-    let id = self.reserve_id(item.id().id.get());
+  pub fn push(&mut self, id: Option<Id<T>>, item: T) -> Id<T> {
+    let id = if let Some(id) = id {
+      self.reserve_id(id.id.get())
+    } else {
+      self.allocate_id()
+    };
     let () = self.data.push((id, item));
     id
   }
 
   /// Remove the item at the provided index.
   #[inline]
-  pub fn remove(&mut self, index: usize) -> (Id<T>, T)
-  where
-    T: Idable<T>,
-  {
+  pub fn remove(&mut self, index: usize) -> (Id<T>, T) {
     let (id, item) = self.data.remove(index);
     self.free_id(id);
     (id, item)
@@ -292,7 +288,6 @@ impl<T> Db<T> {
   }
 
   /// Allocate a new `Id`, unique to this `Db` instance.
-  #[allow(unused)]
   fn allocate_id(&mut self) -> Id<T> {
     let mut gaps = self.ids.gaps(1..=usize::MAX);
     let gap = gaps.next().expect("available ID space is exhausted");
