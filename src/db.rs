@@ -201,6 +201,24 @@ impl<T> Db<T> {
     Ok(slf)
   }
 
+  /// Create a database from an iterator of items, assigning new IDs in
+  /// the process.
+  #[cfg(test)]
+  pub fn from_iter<I, J>(iter: I) -> Self
+  where
+    I: IntoIterator<IntoIter = J>,
+    J: ExactSizeIterator<Item = T>,
+  {
+    let data = iter
+      .into_iter()
+      .enumerate()
+      .map(|(id, item)| (Id::from_unique_id(NonZeroUsize::new(id + 1).unwrap()), item))
+      .collect::<Vec<_>>();
+    let ids = data.iter().map(|(id, _)| id.id.get()).collect();
+
+    Self { data, ids }
+  }
+
   /// Look up an item's index given the item's ID.
   #[inline]
   pub fn find(&self, id: Id<T>) -> Option<usize> {

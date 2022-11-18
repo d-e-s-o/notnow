@@ -481,7 +481,7 @@ pub mod tests {
   /// task vector.
   #[test]
   fn exec_undo_task_add_empty() {
-    let mut tasks = Db::try_from_iter([]).unwrap();
+    let mut tasks = Db::from_iter([]);
     let mut ops = Ops::new(3);
 
     let task1 = Task::new("task1");
@@ -502,7 +502,7 @@ pub mod tests {
   /// non-empty task vector.
   #[test]
   fn exec_undo_task_add_non_empty() {
-    let mut tasks = Db::try_from_iter([Task::new("task1")]).unwrap();
+    let mut tasks = Db::from_iter([Task::new("task1")]);
     let mut ops = Ops::new(3);
     let task2 = Task::new("task2");
     let op = TaskOp::add(task2, None);
@@ -533,7 +533,7 @@ pub mod tests {
   /// task vector with only a single task.
   #[test]
   fn exec_undo_task_remove_single() {
-    let mut tasks = Db::try_from_iter([Task::new("task1")]).unwrap();
+    let mut tasks = Db::from_iter([Task::new("task1")]);
     let mut ops = Ops::new(3);
 
     let op = TaskOp::remove(tasks.get(0).unwrap().id());
@@ -552,8 +552,7 @@ pub mod tests {
   /// task vector with multiple tasks.
   #[test]
   fn exec_undo_task_remove_multi() {
-    let mut tasks =
-      Db::try_from_iter([Task::new("task1"), Task::new("task2"), Task::new("task3")]).unwrap();
+    let mut tasks = Db::from_iter([Task::new("task1"), Task::new("task2"), Task::new("task3")]);
     let mut ops = Ops::new(3);
 
     let op = TaskOp::remove(tasks.get(1).unwrap().id());
@@ -577,7 +576,7 @@ pub mod tests {
   /// Check that the `TaskOp::Update` variant works as expected.
   #[test]
   fn exec_undo_task_update() {
-    let mut tasks = Db::try_from_iter([Task::new("task1"), Task::new("task2")]).unwrap();
+    let mut tasks = Db::from_iter([Task::new("task1"), Task::new("task2")]);
     let mut ops = Ops::new(3);
 
     let mut new = tasks.get(0).unwrap().clone();
@@ -603,7 +602,7 @@ pub mod tests {
   /// only a single task is present and the operation is no-op.
   #[test]
   fn exec_undo_task_move() {
-    let mut tasks = Db::try_from_iter([Task::new("task1"), Task::new("task2")]).unwrap();
+    let mut tasks = Db::from_iter([Task::new("task1"), Task::new("task2")]);
     let mut ops = Ops::new(3);
 
     let op = TaskOp::move_(1, Target::Before(tasks.get(0).unwrap().id()));
