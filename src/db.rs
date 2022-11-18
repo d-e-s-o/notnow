@@ -170,9 +170,8 @@ impl<T> Db<T> {
   /// iterator.
   pub fn try_from_iter<I, J>(iter: I) -> Result<Self, usize>
   where
-    T: Idable<T>,
     I: IntoIterator<IntoIter = J>,
-    J: ExactSizeIterator<Item = T>,
+    J: ExactSizeIterator<Item = (usize, T)>,
   {
     let iter = iter.into_iter();
     // We work with a `HashSet` as opposed to a `BTreeSet` here, because
@@ -182,17 +181,18 @@ impl<T> Db<T> {
     // find unused IDs in it much more easily.
     let ids = HashSet::with_capacity(iter.len());
     let data = Vec::with_capacity(iter.len());
-    let (data, ids) = iter
-      .into_iter()
-      .try_fold((data, ids), |(mut data, mut ids), item| {
-        let id = item.id();
-        if !ids.insert(id.id.get()) {
-          return Err(id.id)
-        }
+    let (data, ids) =
+      iter
+        .into_iter()
+        .try_fold((data, ids), |(mut data, mut ids), (id, item)| {
+          let id = NonZeroUsize::new(id).ok_or(id)?;
+          if !ids.insert(id.get()) {
+            return Err(id.get())
+          }
 
-        data.push((id, item));
-        Ok((data, ids))
-      })?;
+          data.push((Id::from_unique_id(id), item));
+          Ok((data, ids))
+        })?;
 
     let slf = Self {
       data,

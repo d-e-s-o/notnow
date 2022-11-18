@@ -367,9 +367,11 @@ impl Tasks {
     let tasks = tasks
       .0
       .into_iter()
-      .try_fold(Vec::with_capacity(len), |mut vec, task| {
+      .enumerate()
+      .map(|(id, task)| (id + 1, task))
+      .try_fold(Vec::with_capacity(len), |mut vec, (id, task)| {
         let task = Task::with_serde(task, templates.clone(), map)?;
-        vec.push(task);
+        vec.push((id, task));
         Result::Ok(vec)
       })?;
     let tasks = Db::try_from_iter(tasks).map_err(|id| {
