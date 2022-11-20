@@ -414,9 +414,9 @@ impl Handleable<Event, Message> for Dialog {
 mod tests {
   use super::*;
 
-  use std::num::NonZeroUsize;
   use std::rc::Rc;
 
+  use crate::db::Db;
   use crate::tags::Template;
   use crate::tags::Templates;
   use crate::tags::COMPLETE_TAG;
@@ -478,9 +478,10 @@ mod tests {
 
     // The full list of tags will look like this:
     // a, d, h, b, c, c1, complete, z
-    let task_id = TaskId::from_unique_id(NonZeroUsize::new(1).unwrap());
-    let task = Task::with_summary_and_tags("task", tags, templates);
-    let mut data = Data::new(task_id, task);
+    let tasks = [Task::with_summary_and_tags("task", tags, templates)];
+    let db = Db::from_iter(tasks);
+    let entry = db.get(0).unwrap();
+    let mut data = Data::new(entry.id(), entry.clone());
     assert_eq!(data.selection, 0);
 
     assert!(!data.select_task_beginning_with('h', Direction::Backward));

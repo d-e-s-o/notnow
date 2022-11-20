@@ -43,7 +43,7 @@ impl<T> Id<T> {
   ///
   /// `id` is assumed to be unique with respect to the space that it
   /// is used in.
-  pub fn from_unique_id(id: NonZeroUsize) -> Self {
+  fn from_unique_id(id: NonZeroUsize) -> Self {
     Self {
       id,
       _phantom: PhantomData,
