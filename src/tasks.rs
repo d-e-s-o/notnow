@@ -1,20 +1,16 @@
 // Copyright (C) 2017-2022 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use std::cmp::PartialEq;
 use std::collections::BTreeMap;
 use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Result;
 use std::mem::replace;
-use std::num::NonZeroUsize;
 use std::rc::Rc;
 
 use crate::db::Db;
 use crate::db::Id as DbId;
-use crate::db::Idable;
 use crate::db::Iter as DbIter;
-use crate::id::Id as IdT;
 use crate::ops::Op;
 use crate::ops::Ops;
 use crate::ser::tasks::Task as SerTask;
@@ -32,16 +28,12 @@ use crate::tags::Templates;
 const MAX_UNDO_STEP_COUNT: usize = 64;
 
 
-#[derive(Copy, Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
-pub struct T(());
-
 pub type Id = DbId<Task>;
 
 
 /// A struct representing a task item.
 #[derive(Clone, Debug)]
 pub struct Task {
-  id: Id,
   pub summary: String,
   tags: BTreeMap<TagId, Tag>,
   templates: Rc<Templates>,
@@ -51,9 +43,7 @@ impl Task {
   /// Create a new task.
   #[cfg(test)]
   pub fn new(summary: impl Into<String>) -> Self {
-    let id = NonZeroUsize::new(IdT::<T>::new().get()).unwrap();
     Self {
-      id: DbId::from_unique_id(id),
       summary: summary.into(),
       tags: Default::default(),
       templates: Rc::new(Templates::new()),
@@ -65,9 +55,7 @@ impl Task {
   where
     S: Into<String>,
   {
-    let id = NonZeroUsize::new(IdT::<T>::new().get()).unwrap();
     Task {
-      id: DbId::from_unique_id(id),
       summary: summary.into(),
       tags: tags.into_iter().map(|x| (x.id(), x)).collect(),
       templates,
@@ -85,9 +73,7 @@ impl Task {
       tags.insert(*id, templates.instantiate(*id));
     }
 
-    let id = NonZeroUsize::new(IdT::<T>::new().get()).unwrap();
     Ok(Self {
-      id: DbId::from_unique_id(id),
       summary: task.summary,
       tags,
       templates,
@@ -129,12 +115,6 @@ impl Task {
       let tag = self.templates.instantiate(id);
       self.tags.insert(id, tag);
     }
-  }
-}
-
-impl<T> Idable<T> for Task {
-  fn id(&self) -> DbId<T> {
-    DbId::from_unique_id(self.id.get())
   }
 }
 

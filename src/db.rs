@@ -97,11 +97,6 @@ impl<T> Hash for Id<T> {
 }
 
 
-pub trait Idable<T> {
-  fn id(&self) -> Id<T>;
-}
-
-
 /// An iterator over the items in a `Db`.
 pub type Iter<'t, T> = slice::Iter<'t, T>;
 
