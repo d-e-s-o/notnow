@@ -329,3 +329,96 @@ impl<T> Db<T> {
     debug_assert!(_removed, "ID {id} was not allocated");
   }
 }
+
+
+#[cfg(test)]
+pub mod tests {
+  use super::*;
+
+
+  /// Make sure that we can create a [`Db`] from an iterator.
+  #[test]
+  fn create_from_iter() {
+    let mut items = [(1, "foo"), (2, "bar"), (3, "baz"), (4, "foobar")];
+
+    let db = Db::try_from_iter(items).unwrap();
+    assert_eq!(*db.get(0).unwrap(), "foo");
+    assert_eq!(*db.get(3).unwrap(), "foobar");
+
+    // Create duplicate ID in the array.
+    items[2].0 = 2;
+    let duplicate = Db::try_from_iter(items).unwrap_err();
+    assert_eq!(duplicate, 2);
+  }
+
+  /// Check that we can lookup an item based on its ID.
+  #[test]
+  fn find_item() {
+    let items = [(1, "foo"), (2, "bar"), (3, "baz"), (4, "foobar")];
+
+    let db = Db::try_from_iter(items).unwrap();
+    let id = db.get(1).unwrap().id();
+    let idx = db.find(id).unwrap();
+    assert_eq!(idx, 1);
+  }
+
+  /// Check that we can insert an item.
+  #[test]
+  fn insert_item() {
+    let items = [(1, "foo"), (2, "bar"), (3, "baz"), (4, "foobar")];
+
+    let mut db = Db::try_from_iter(items).unwrap();
+    let id = db.insert(0, None, "foobarbaz");
+    let idx = db.find(id).unwrap();
+    assert_eq!(idx, 0);
+
+    let id = db.insert(5, None, "outoffoos");
+    let idx = db.find(id).unwrap();
+    assert_eq!(idx, 5);
+  }
+
+  /// Check that we can insert an item at the end of a `Db`.
+  #[test]
+  fn push_item() {
+    let mut db = Db::try_from_iter([]).unwrap();
+    let id = db.push(None, "foo");
+    let idx = db.find(id).unwrap();
+    assert_eq!(idx, 0);
+
+    let id = db.push(None, "bar");
+    let idx = db.find(id).unwrap();
+    assert_eq!(idx, 1);
+
+    let removed = db.remove(0);
+    let id = db.push(Some(removed.0), "baz");
+    assert_eq!(id, removed.0);
+
+    let idx = db.find(id).unwrap();
+    assert_eq!(idx, 1);
+  }
+
+  /// Check that we can mutate items in a [`Db`].
+  #[test]
+  fn mutate_item() {
+    let items = [(1, "foo"), (2, "bar"), (3, "baz"), (4, "foobar")];
+
+    let mut db = Db::try_from_iter(items).unwrap();
+    let mut entry = db.get_mut(0).unwrap();
+    *entry = "bedazzle";
+
+    assert_eq!(*db.get(0).unwrap(), "bedazzle");
+  }
+
+  /// Check that we can iterate over the elements of a [`Db`].
+  #[test]
+  fn iteration() {
+    let items = [(1, "foo"), (2, "bar"), (3, "baz"), (4, "foobar")];
+
+    let db = Db::try_from_iter(items).unwrap();
+    let vec = db
+      .iter()
+      .map(|(id, item)| (id.get().get(), *item))
+      .collect::<Vec<_>>();
+    assert_eq!(vec, items);
+  }
+}
