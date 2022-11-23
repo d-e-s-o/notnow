@@ -52,7 +52,7 @@ where
 }
 
 /// Save some state into a file.
-fn save_state_to_file<T>(path: &Path, state: T) -> Result<()>
+fn save_state_to_file<T>(path: &Path, state: &T) -> Result<()>
 where
   T: Serialize,
 {
@@ -60,7 +60,7 @@ where
     create_dir_all(dir)?;
   }
 
-  let serialized = to_json(&state)?;
+  let serialized = to_json(state)?;
   OpenOptions::new()
     .create(true)
     .truncate(true)
@@ -90,7 +90,7 @@ impl UiState {
     let ui_state = load_state_from_file::<SerUiState>(self.path.as_ref()).unwrap_or_default();
     self.colors.set(Some(ui_state.colors));
 
-    save_state_to_file(&self.path, self.to_serde())
+    save_state_to_file(&self.path, &self.to_serde())
   }
 }
 
@@ -121,7 +121,7 @@ pub struct TaskState {
 impl TaskState {
   /// Persist the state into a file.
   pub fn save(&self) -> Result<()> {
-    save_state_to_file(&self.path, self.to_serde())
+    save_state_to_file(&self.path, &self.to_serde())
   }
 
   /// Retrieve the `Tasks` object associated with this `State` object.
@@ -241,7 +241,7 @@ pub mod tests {
     let base = temp_dir().join("dir1");
     let path = base.join("dir2").join("file");
 
-    save_state_to_file(&path, 42).unwrap();
+    save_state_to_file(&path, &42).unwrap();
     let mut file = File::open(path).unwrap();
     let mut content = Vec::new();
     file.read_to_end(&mut content).unwrap();
