@@ -40,6 +40,11 @@ where
       phantom: PhantomData,
     }
   }
+
+  /// Retrieve the underlying integer value.
+  pub fn get(&self) -> usize {
+    self.id.get()
+  }
 }
 
 impl<T> TryFrom<usize> for Id<T>

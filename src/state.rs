@@ -4,7 +4,9 @@
 //! Definitions pertaining UI and task state of the program.
 
 use std::cell::Cell;
+use std::collections::HashSet;
 use std::fs::create_dir_all;
+use std::fs::remove_file;
 use std::fs::File;
 use std::fs::OpenOptions;
 use std::io::ErrorKind;
@@ -25,12 +27,18 @@ use crate::colors::Colors;
 use crate::ser::state::TaskState as SerTaskState;
 use crate::ser::state::UiState as SerUiState;
 use crate::ser::tasks::Id as SerTaskId;
+use crate::ser::tasks::Task as SerTask;
 use crate::ser::tasks::TasksMeta as SerTasksMeta;
 use crate::ser::ToSerde;
 use crate::tags::Templates;
 use crate::tasks::Tasks;
 use crate::view::View;
 use crate::view::ViewBuilder;
+
+/// The ID we use for storing task meta data.
+// We use the reserved ID 0 for storing task meta data. Tasks are
+// guaranteed to never use this ID.
+const TASKS_META_ID: usize = 0;
 
 
 /// Load some serialized state from a file.
@@ -59,7 +67,7 @@ where
   T: Serialize,
 {
   if let Some(dir) = path.parent() {
-    create_dir_all(dir)?;
+    let () = create_dir_all(dir)?;
   }
 
   let serialized = to_json(state)?;
@@ -70,6 +78,62 @@ where
     .open(path)?
     .write_all(serialized.as_ref())?;
   Ok(())
+}
+
+/// Save a task into a file in the given directory.
+fn save_task_to_file(root: &Path, id: SerTaskId, task: &SerTask) -> Result<()> {
+  let path = root.join(id.to_string());
+  // TODO: It would be better if we were create a temporary file first
+  //       if one already exists and then rename atomically. But even
+  //       nicer would be if we somehow wrapped all saving in a
+  //       transaction of sorts. That would allow us to eliminate the
+  //       chance for *any* inconsistency, e.g., when saving UI state
+  //       before task state and the latter failing the operation.
+  save_state_to_file(&path, task)
+}
+
+/// Save a task meta data into a file in the provided directory.
+fn save_tasks_meta_to_dir(root: &Path, tasks_meta: &SerTasksMeta) -> Result<()> {
+  let path = root.join(TASKS_META_ID.to_string());
+  save_state_to_file(&path, tasks_meta)
+}
+
+/// Save tasks into files in the provided directory.
+fn save_tasks_to_dir(root: &Path, tasks: &SerTaskState) -> Result<()> {
+  let task_iter = tasks.tasks.0.iter();
+  let id_iter = tasks.tasks_meta.ids.iter().copied();
+
+  let () = id_iter
+    .clone()
+    .zip(task_iter)
+    .try_for_each(|(id, task)| save_task_to_file(root, id, task))?;
+
+  let () = save_tasks_meta_to_dir(root, &tasks.tasks_meta)?;
+
+  let ids = id_iter.map(|id| id.get()).collect::<HashSet<_>>();
+  // Remove all files that do not correspond to an ID we just saved.
+  root.read_dir()?.try_for_each(|result| {
+    let entry = result?;
+    let id = entry
+      .file_name()
+      .to_str()
+      .and_then(|id| id.parse::<usize>().ok());
+
+    let remove = if let Some(id) = id {
+      ids.get(&id).is_none()
+    } else {
+      true
+    };
+
+    if remove {
+      // Note that we purposefully do not support the case of having a
+      // directory inside the root directory, as we'd never create one
+      // there programmatically.
+      remove_file(entry.path())
+    } else {
+      Ok(())
+    }
+  })
 }
 
 
@@ -231,7 +295,6 @@ pub mod tests {
   use crate::ser::tags::Tag as SerTag;
   use crate::ser::tags::Template as SerTemplate;
   use crate::ser::tags::Templates as SerTemplates;
-  use crate::ser::tasks::Task as SerTask;
   use crate::ser::tasks::Tasks as SerTasks;
   use crate::test::make_tasks;
 
