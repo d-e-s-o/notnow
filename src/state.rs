@@ -24,6 +24,8 @@ use serde_json::to_string_pretty as to_json;
 use crate::colors::Colors;
 use crate::ser::state::TaskState as SerTaskState;
 use crate::ser::state::UiState as SerUiState;
+use crate::ser::tasks::Id as SerTaskId;
+use crate::ser::tasks::TasksMeta as SerTasksMeta;
 use crate::ser::ToSerde;
 use crate::tags::Templates;
 use crate::tasks::Tasks;
@@ -133,7 +135,18 @@ impl TaskState {
 impl ToSerde<SerTaskState> for TaskState {
   /// Convert this object into a serializable one.
   fn to_serde(&self) -> SerTaskState {
+    let ids = self
+      .tasks
+      .borrow()
+      .iter()
+      .map(|(id, _)| SerTaskId::new(id.get()))
+      .collect();
+
     SerTaskState {
+      tasks_meta: SerTasksMeta {
+        templates: self.templates.to_serde(),
+        ids,
+      },
       templates: self.templates.to_serde(),
       tasks: self.tasks.borrow().to_serde(),
     }
@@ -226,6 +239,7 @@ pub mod tests {
   /// Create a state object based off of two temporary configuration files.
   fn make_state(count: usize) -> (State, NamedTempFile, NamedTempFile) {
     let task_state = SerTaskState {
+      tasks_meta: Default::default(),
       templates: Default::default(),
       tasks: SerTasks(make_tasks(count)),
     };
@@ -292,13 +306,16 @@ pub mod tests {
 
   #[test]
   fn load_state_with_invalid_tag() {
-    let templates = SerTemplates(Default::default());
     let tasks = SerTasks(vec![SerTask::new("a task!").with_tags([SerTag {
       id: SerId::try_from(42).unwrap(),
     }])]);
     let ui_state = Default::default();
     let ui_config = PathBuf::default();
-    let task_state = SerTaskState { templates, tasks };
+    let task_state = SerTaskState {
+      tasks_meta: Default::default(),
+      templates: Default::default(),
+      tasks,
+    };
     let task_config = PathBuf::default();
 
     let err = State::with_serde(ui_state, ui_config, task_state, task_config).unwrap_err();
@@ -331,7 +348,14 @@ pub mod tests {
       SerTask::new("a doubly tagged task")
         .with_tags([SerTag { id: id_tag2 }, SerTag { id: id_tag1 }]),
     ]);
-    let task_state = SerTaskState { templates, tasks };
+    let task_state = SerTaskState {
+      tasks_meta: SerTasksMeta {
+        templates: templates.clone(),
+        ids: Default::default(),
+      },
+      templates,
+      tasks,
+    };
     let task_config = PathBuf::default();
 
     let state = State::with_serde(ui_state, ui_config, task_state, task_config).unwrap();

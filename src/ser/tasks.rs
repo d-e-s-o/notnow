@@ -4,7 +4,20 @@
 use serde::Deserialize;
 use serde::Serialize;
 
+use crate::ser::id::Id as IdT;
 use crate::ser::tags::Tag;
+use crate::ser::tags::Templates;
+
+
+#[derive(Copy, Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub struct T(());
+
+/// A serializable and deserializable task ID.
+///
+/// Note that tasks only have an ID when saved (i.e., in serialized
+/// form). In terms of in-memory representation, this ID corresponds
+/// most closely to a `db::Id`.
+pub type Id = IdT<T>;
 
 
 /// A task that can be serialized and deserialized.
@@ -36,6 +49,16 @@ impl Task {
     self.tags = tags.into_iter().collect();
     self
   }
+}
+
+
+/// Meta data for tasks.
+#[derive(Debug, Default, Deserialize, PartialEq, Serialize)]
+pub struct TasksMeta {
+  #[serde(default)]
+  pub templates: Templates,
+  /// IDs of tasks in the intended order.
+  pub ids: Vec<Id>,
 }
 
 

@@ -11,6 +11,7 @@ use crate::ser::tags::Template as SerTemplate;
 use crate::ser::tags::Templates as SerTemplates;
 use crate::ser::tasks::Task as SerTask;
 use crate::ser::tasks::Tasks as SerTasks;
+use crate::ser::tasks::TasksMeta as SerTasksMeta;
 use crate::ser::view::TagLit as SerTagLit;
 use crate::ser::view::View as SerView;
 use crate::tags::COMPLETE_TAG;
@@ -136,6 +137,10 @@ pub fn default_tasks_and_tags() -> (SerUiState, SerTaskState) {
     colors: Default::default(),
   };
   let task_state = SerTaskState {
+    tasks_meta: SerTasksMeta {
+      templates: SerTemplates(templates.clone()),
+      ids: Default::default(),
+    },
     templates: SerTemplates(templates),
     tasks: SerTasks(tasks),
   };

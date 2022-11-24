@@ -235,6 +235,7 @@ mod tests {
   use crate::ser::state::UiState as SerUiState;
   use crate::ser::tasks::Task as SerTask;
   use crate::ser::tasks::Tasks as SerTasks;
+  use crate::ser::tasks::TasksMeta as SerTasksMeta;
   use crate::ser::view::View as SerView;
   use crate::ser::ToSerde;
   use crate::state::State;
@@ -285,6 +286,7 @@ mod tests {
       Self {
         ui_state: Default::default(),
         task_state: SerTaskState {
+          tasks_meta: SerTasksMeta::default(),
           templates: Default::default(),
           tasks: SerTasks(tasks.into()),
         },

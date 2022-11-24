@@ -10,6 +10,7 @@ use serde::Serialize;
 use crate::colors::Colors;
 use crate::ser::tags::Templates;
 use crate::ser::tasks::Tasks;
+use crate::ser::tasks::TasksMeta;
 use crate::ser::view::View;
 
 
@@ -31,6 +32,9 @@ pub struct UiState {
 /// A struct comprising the task state of the program.
 #[derive(Debug, Default, Deserialize, PartialEq, Serialize)]
 pub struct TaskState {
+  /// Meta data about tasks.
+  #[serde(skip)]
+  pub tasks_meta: TasksMeta,
   #[serde(default)]
   pub templates: Templates,
   pub tasks: Tasks,
