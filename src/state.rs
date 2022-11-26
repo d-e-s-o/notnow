@@ -188,7 +188,9 @@ pub struct TaskState {
 impl TaskState {
   /// Persist the state into a file.
   pub fn save(&self) -> Result<()> {
-    save_state_to_file(&self.path, &self.to_serde())
+    let tasks = self.to_serde();
+    let () = save_tasks_to_dir(&self.tasks_root, &tasks)?;
+    save_state_to_file(&self.path, &tasks)
   }
 
   /// Retrieve the `Tasks` object associated with this `State` object.
