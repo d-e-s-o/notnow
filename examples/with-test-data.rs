@@ -9,17 +9,30 @@ use notnow::state::State;
 use notnow::test::default_tasks_and_tags;
 
 use tempfile::NamedTempFile;
+use tempfile::TempDir;
 
 
 fn main() -> Result<()> {
   let ui_file = NamedTempFile::new()?;
   let task_file = NamedTempFile::new()?;
+  let tasks_dir = TempDir::new()?;
   let (ui_state, task_state) = default_tasks_and_tags();
-  let state = State::with_serde(ui_state, ui_file.path(), task_state, task_file.path());
+  let state = State::with_serde(
+    ui_state,
+    ui_file.path(),
+    task_state,
+    task_file.path(),
+    tasks_dir.path(),
+  );
   let State(ui_state, task_state) = state?;
 
   ui_state.save()?;
   task_state.save()?;
 
-  run_prog(stdout().lock(), ui_file.path(), task_file.path())
+  run_prog(
+    stdout().lock(),
+    ui_file.path(),
+    task_file.path(),
+    tasks_dir.path(),
+  )
 }

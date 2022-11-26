@@ -144,6 +144,16 @@ fn task_config() -> Result<PathBuf> {
   )
 }
 
+/// Retrieve the path to the program's task directory.
+fn tasks_root() -> Result<PathBuf> {
+  Ok(
+    config_dir()
+      .ok_or_else(|| Error::new(ErrorKind::NotFound, "Unable to determine config directory"))?
+      .join("notnow")
+      .join("tasks"),
+  )
+}
+
 /// Instantiate a key receiver thread and have it send key events through the given channel.
 fn receive_keys(send_event: Sender<Result<Event>>) {
   thread::spawn(move || {
@@ -209,13 +219,13 @@ where
 }
 
 /// Run the program.
-pub fn run_prog<W>(out: W, ui_config: &Path, task_config: &Path) -> Result<()>
+pub fn run_prog<W>(out: W, ui_config: &Path, task_config: &Path, tasks_root: &Path) -> Result<()>
 where
   W: Write,
 {
   let rt = Builder::new_current_thread().build()?;
 
-  let state = State::new(ui_config, task_config)?;
+  let state = State::new(ui_config, task_config, tasks_root)?;
   let screen = AlternateScreen::from(out.into_raw_mode()?);
   let colors = state.0.colors.get().unwrap_or_default();
   let renderer = TermRenderer::new(screen, colors)?;
@@ -247,14 +257,15 @@ fn run_with_args() -> Result<()> {
 
   let ui_config = ui_config()?;
   let task_config = task_config()?;
+  let tasks_root = tasks_root()?;
 
   let mut it = args_os();
   match it.len() {
-    0 | 1 => run_prog(stdout().lock(), &ui_config, &task_config),
+    0 | 1 => run_prog(stdout().lock(), &ui_config, &task_config, &tasks_root),
     2 => {
       let path = it.nth(1).unwrap();
       let file = OpenOptions::new().read(false).write(true).open(path)?;
-      run_prog(file, &ui_config, &task_config)
+      run_prog(file, &ui_config, &task_config, &tasks_root)
     },
     _ => Err(Error::new(
       ErrorKind::InvalidInput,
