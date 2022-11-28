@@ -4,11 +4,14 @@
 //! Definitions pertaining UI and task state of the program.
 
 use std::cell::Cell;
+use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fs::create_dir_all;
 use std::fs::remove_file;
+use std::fs::DirEntry;
 use std::fs::File;
 use std::fs::OpenOptions;
+use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Result;
 use std::io::Write;
@@ -26,8 +29,10 @@ use serde_json::to_string_pretty as to_json;
 use crate::colors::Colors;
 use crate::ser::state::TaskState as SerTaskState;
 use crate::ser::state::UiState as SerUiState;
+use crate::ser::tags::Templates as SerTemplates;
 use crate::ser::tasks::Id as SerTaskId;
 use crate::ser::tasks::Task as SerTask;
+use crate::ser::tasks::Tasks as SerTasks;
 use crate::ser::tasks::TasksMeta as SerTasksMeta;
 use crate::ser::ToSerde;
 use crate::tags::Templates;
@@ -59,6 +64,83 @@ where
       }
     },
   }
+}
+
+/// Load a task from a directory entry.
+fn load_task_from_dir_entry(entry: &DirEntry) -> Result<(SerTaskId, SerTask)> {
+  let file_name = entry.file_name();
+  let path = entry.path();
+  let id = file_name
+    .to_str()
+    .and_then(|id| id.parse::<SerTaskId>().ok())
+    .ok_or_else(|| {
+      let error = format!("Filename {} is not a valid ID", path.display());
+      Error::new(ErrorKind::InvalidInput, error)
+    })?;
+
+  let file = File::open(&path)?;
+  let task = from_reader(file)?;
+  Ok((id, task))
+}
+
+/// Load task meta data from the provided file.
+fn create_task_lookup_table(ids: &[SerTaskId]) -> Result<HashMap<SerTaskId, usize>> {
+  let len = ids.len();
+  let table =
+    ids
+      .iter()
+      .enumerate()
+      .try_fold(HashMap::with_capacity(len), |mut map, (idx, id)| {
+        if map.insert(*id, idx).is_some() {
+          let error = format!("Encountered duplicate task ID {}", id);
+          return Err(Error::new(ErrorKind::InvalidInput, error))
+        }
+        Ok(map)
+      })?;
+
+  Ok(table)
+}
+
+/// Load tasks from a directory.
+///
+/// The function assumes that the directory *only* contains files
+/// representing tasks (along with one file for meta data).
+fn load_tasks_from_dir(root: &Path) -> Result<SerTaskState> {
+  let mut dir = match root.read_dir() {
+    Err(e) if e.kind() == ErrorKind::NotFound => return Ok(Default::default()),
+    result => result,
+  }?;
+
+  // Ideally we'd size the `Vec` as per the number of directory entries,
+  // but `fs::ReadDir` does not currently expose that number.
+  let (mut tasks, tasks_meta) =
+    dir.try_fold((Vec::new(), None), |(mut vec, tasks_meta), result| {
+      let entry = result?;
+      if entry.file_name().to_str().map(|id| id.parse::<usize>()) == Some(Ok(TASKS_META_ID)) {
+        debug_assert_eq!(
+          tasks_meta, None,
+          "encountered multiple task meta data files"
+        );
+        let tasks_meta = load_state_from_file::<SerTasksMeta>(&entry.path())?;
+        Result::Ok((vec, Some(tasks_meta)))
+      } else {
+        let data = load_task_from_dir_entry(&entry)?;
+        let () = vec.push(data);
+        Result::Ok((vec, tasks_meta))
+      }
+    })?;
+
+  let tasks_meta = tasks_meta.unwrap_or_default();
+  let table = create_task_lookup_table(&tasks_meta.ids)?;
+  // If a task ID is not contained in our table we will just silently
+  // sort it last.
+  tasks.sort_by_key(|(id, _)| table.get(id).copied().unwrap_or(usize::MAX));
+
+  Ok(SerTaskState {
+    templates: tasks_meta.templates.clone(),
+    tasks_meta,
+    tasks: SerTasks(tasks.into_iter().map(|(_id, task)| task).collect()),
+  })
 }
 
 /// Save some state into a file.
@@ -120,7 +202,7 @@ fn save_tasks_to_dir(root: &Path, tasks: &SerTaskState) -> Result<()> {
       .and_then(|id| id.parse::<usize>().ok());
 
     let remove = if let Some(id) = id {
-      ids.get(&id).is_none()
+      id != TASKS_META_ID && ids.get(&id).is_none()
     } else {
       true
     };
@@ -186,6 +268,22 @@ pub struct TaskState {
 }
 
 impl TaskState {
+  /// Create a `TaskState` object from serialized state.
+  ///
+  /// This constructor is intended for testing purposes.
+  #[allow(unused)]
+  fn with_serde(root: &Path, tasks: SerTasks, templates: SerTemplates) -> Self {
+    let (templates, map) = Templates::with_serde(templates);
+    let templates = Rc::new(templates);
+    let tasks = Tasks::with_serde(tasks, templates.clone(), &map).unwrap();
+    Self {
+      path: PathBuf::default(),
+      templates,
+      tasks_root: root.into(),
+      tasks: Rc::new(RefCell::new(tasks)),
+    }
+  }
+
   /// Persist the state into a file.
   pub fn save(&self) -> Result<()> {
     let tasks = self.to_serde();
@@ -300,8 +398,6 @@ pub mod tests {
   use crate::ser::tags::Id as SerId;
   use crate::ser::tags::Tag as SerTag;
   use crate::ser::tags::Template as SerTemplate;
-  use crate::ser::tags::Templates as SerTemplates;
-  use crate::ser::tasks::Tasks as SerTasks;
   use crate::test::make_tasks;
 
 
@@ -324,6 +420,48 @@ pub mod tests {
       tasks_dir.path(),
     );
     (state.unwrap(), ui_file, task_file, tasks_dir)
+  }
+
+  /// Check that we can save tasks into a directory and load them back
+  /// from there.
+  #[test]
+  fn save_load_tasks() {
+    fn test(root: &Path, tasks: Vec<SerTask>, templates: Option<SerTemplates>) {
+      let templates = templates.unwrap_or_default();
+      let tasks = SerTasks(tasks);
+      let task_state = TaskState::with_serde(root, tasks, templates).to_serde();
+      let () = save_tasks_to_dir(root, &task_state).unwrap();
+      let loaded = load_tasks_from_dir(root).unwrap();
+      assert_eq!(loaded, task_state);
+    }
+
+    // Note that we use a single temporary directory here for all tests.
+    // Doing so tests that the task saving logic removes files of tasks
+    // that have been deleted.
+    let root = TempDir::new().unwrap();
+    let tasks = Vec::new();
+    // Check that things work out even when no task is provided.
+    test(root.path(), tasks, None);
+
+    let tasks = make_tasks(3);
+    test(root.path(), tasks, None);
+
+    let id_tag = SerId::try_from(42).unwrap();
+    let templates = SerTemplates(vec![SerTemplate {
+      id: id_tag,
+      name: "tag1".to_string(),
+    }]);
+    // Test with a task with a tag as well.
+    let tasks = vec![SerTask::new("a task!").with_tags([SerTag { id: id_tag }])];
+    test(root.path(), tasks, Some(templates));
+
+    let tasks = make_tasks(25);
+    // Make sure that directories not yet present are created.
+    test(
+      &root.path().join("not").join("yet").join("present"),
+      tasks,
+      None,
+    );
   }
 
   #[test]

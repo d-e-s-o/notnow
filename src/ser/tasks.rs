@@ -9,7 +9,7 @@ use crate::ser::tags::Tag;
 use crate::ser::tags::Templates;
 
 
-#[derive(Copy, Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct T(());
 
 /// A serializable and deserializable task ID.

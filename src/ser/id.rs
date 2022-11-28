@@ -10,6 +10,7 @@ use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
 use std::marker::PhantomData;
 use std::num::NonZeroUsize;
+use std::str::FromStr;
 
 use serde::de::Deserialize;
 use serde::de::Deserializer;
@@ -20,7 +21,7 @@ use serde::ser::Serializer;
 
 
 /// An ID that can be serialized and deserialized.
-#[derive(Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct Id<T>
 where
   T: Copy,
@@ -74,6 +75,19 @@ where
   /// Format the `Id` into the given formatter.
   fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
     write!(f, "{}", self.id)
+  }
+}
+
+impl<T> FromStr for Id<T>
+where
+  T: Copy,
+{
+  type Err = ();
+
+  fn from_str(s: &str) -> Result<Self, Self::Err> {
+    let id = usize::from_str(s).map_err(|_| ())?;
+    let id = Id::try_from(id)?;
+    Ok(id)
   }
 }
 
