@@ -1,9 +1,12 @@
 Unreleased
 ----------
+- Changed task storage format:
+  - Switched from single-file-for-all-tasks scheme to having one task per
+    file
+  - Adjusted JSON serialized representation to be more compact
 - Added support for finding the currently selected task on other tabs
   via '*'
 - Added example program using automatically generated task data
-- Adjusted serialization format to be more compact
 - Re-select task after successfully editing tags
 - Use Unicode aware lowercase in task summary search
 - Fixed reverse task search not progressing under certain conditions

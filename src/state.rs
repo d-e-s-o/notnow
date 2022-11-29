@@ -335,7 +335,7 @@ impl State {
     P: Into<PathBuf> + AsRef<Path>,
   {
     let ui_state = load_state_from_file::<SerUiState>(ui_config.as_ref())?;
-    let task_state = load_state_from_file::<SerTaskState>(task_config.as_ref())?;
+    let task_state = load_tasks_from_dir(tasks_root.as_ref())?;
 
     Self::with_serde(ui_state, ui_config, task_state, task_config, tasks_root)
   }
