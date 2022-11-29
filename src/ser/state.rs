@@ -30,12 +30,16 @@ pub struct UiState {
 
 
 /// A struct comprising the task state of the program.
-#[derive(Debug, Default, Deserialize, PartialEq, Serialize)]
+///
+/// Note that this type is not actually serialized or deserialized in
+/// this form directly. It merely acts as a way of grouping
+/// functionality that is frequently used alongside each other.
+///
+#[derive(Debug, Default, PartialEq)]
 pub struct TaskState {
   /// Meta data about tasks.
-  #[serde(skip)]
   pub tasks_meta: TasksMeta,
-  #[serde(default)]
   pub templates: Templates,
+  /// A list of tasks.
   pub tasks: Tasks,
 }

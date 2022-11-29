@@ -286,9 +286,7 @@ impl TaskState {
 
   /// Persist the state into a file.
   pub fn save(&self) -> Result<()> {
-    let tasks = self.to_serde();
-    let () = save_tasks_to_dir(&self.tasks_root, &tasks)?;
-    save_state_to_file(&self.path, &tasks)
+    save_tasks_to_dir(&self.tasks_root, &self.to_serde())
   }
 
   /// Retrieve the `Tasks` object associated with this `State` object.
@@ -351,7 +349,7 @@ impl State {
   where
     P: Into<PathBuf>,
   {
-    let (templates, map) = Templates::with_serde(task_state.templates);
+    let (templates, map) = Templates::with_serde(task_state.tasks_meta.templates);
     let templates = Rc::new(templates);
     let tasks = Tasks::with_serde(task_state.tasks, templates.clone(), &map)?;
     let tasks = Rc::new(RefCell::new(tasks));
