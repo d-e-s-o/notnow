@@ -260,7 +260,6 @@ impl ToSerde<SerUiState> for UiState {
 /// A struct encapsulating the task state of the program.
 #[derive(Debug)]
 pub struct TaskState {
-  path: PathBuf,
   templates: Rc<Templates>,
   tasks_root: PathBuf,
   tasks: Rc<RefCell<Tasks>>,
@@ -276,7 +275,6 @@ impl TaskState {
     let templates = Rc::new(templates);
     let tasks = Tasks::with_serde(tasks, templates.clone(), &map).unwrap();
     Self {
-      path: PathBuf::default(),
       templates,
       tasks_root: root.into(),
       tasks: Rc::new(RefCell::new(tasks)),
@@ -326,14 +324,14 @@ pub struct State(pub UiState, pub TaskState);
 
 impl State {
   /// Create a new `State` object, loaded from files.
-  pub fn new<P>(ui_config: P, task_config: P, tasks_root: P) -> Result<Self>
+  pub fn new<P>(ui_config: P, tasks_root: P) -> Result<Self>
   where
     P: Into<PathBuf> + AsRef<Path>,
   {
     let ui_state = load_state_from_file::<SerUiState>(ui_config.as_ref())?;
     let task_state = load_tasks_from_dir(tasks_root.as_ref())?;
 
-    Self::with_serde(ui_state, ui_config, task_state, task_config, tasks_root)
+    Self::with_serde(ui_state, ui_config, task_state, tasks_root)
   }
 
   /// Create a new `State` object from a serializable one.
@@ -341,7 +339,6 @@ impl State {
     ui_state: SerUiState,
     ui_config: P,
     task_state: SerTaskState,
-    task_config: P,
     tasks_root: P,
   ) -> Result<Self>
   where
@@ -369,7 +366,6 @@ impl State {
       selected: ui_state.selected,
     };
     let task_state = TaskState {
-      path: task_config.into(),
       templates,
       tasks_root: tasks_root.into(),
       tasks,
@@ -398,23 +394,16 @@ pub mod tests {
 
 
   /// Create a `State` object based off of temporary configuration data.
-  fn make_state(count: usize) -> (State, NamedTempFile, NamedTempFile, TempDir) {
+  fn make_state(count: usize) -> (State, NamedTempFile, TempDir) {
     let task_state = SerTaskState {
       tasks_meta: Default::default(),
       tasks: SerTasks(make_tasks(count)),
     };
     let ui_state = Default::default();
     let ui_file = NamedTempFile::new().unwrap();
-    let task_file = NamedTempFile::new().unwrap();
     let tasks_dir = TempDir::new().unwrap();
-    let state = State::with_serde(
-      ui_state,
-      ui_file.path(),
-      task_state,
-      task_file.path(),
-      tasks_dir.path(),
-    );
-    (state.unwrap(), ui_file, task_file, tasks_dir)
+    let state = State::with_serde(ui_state, ui_file.path(), task_state, tasks_dir.path());
+    (state.unwrap(), ui_file, tasks_dir)
   }
 
   /// Check that we can save tasks into a directory and load them back
@@ -475,11 +464,11 @@ pub mod tests {
 
   #[test]
   fn save_and_load_state() {
-    let (state, ui_file, task_file, tasks_root) = make_state(3);
+    let (state, ui_file, tasks_root) = make_state(3);
     state.0.save().unwrap();
     state.1.save().unwrap();
 
-    let new_state = State::new(ui_file.path(), task_file.path(), tasks_root.path()).unwrap();
+    let new_state = State::new(ui_file.path(), tasks_root.path()).unwrap();
     let new_task_vec = new_state
       .1
       .tasks
@@ -492,21 +481,17 @@ pub mod tests {
 
   #[test]
   fn load_state_file_not_found() {
-    let (ui_config, task_config, tasks_root) = {
-      let (state, ui_file, task_file, tasks_dir) = make_state(1);
+    let (ui_config, tasks_root) = {
+      let (state, ui_file, tasks_dir) = make_state(1);
       state.0.save().unwrap();
       state.1.save().unwrap();
 
-      (
-        ui_file.path().to_path_buf(),
-        task_file.path().to_path_buf(),
-        tasks_dir.path().to_path_buf(),
-      )
+      (ui_file.path().to_path_buf(), tasks_dir.path().to_path_buf())
     };
 
     // The files are removed by now, so we can test that `State` handles
     // such missing files gracefully.
-    let new_state = State::new(ui_config, task_config, tasks_root).unwrap();
+    let new_state = State::new(ui_config, tasks_root).unwrap();
     let new_task_vec = new_state
       .1
       .tasks
@@ -528,11 +513,9 @@ pub mod tests {
       tasks_meta: Default::default(),
       tasks,
     };
-    let task_config = PathBuf::default();
     let tasks_root = PathBuf::default();
 
-    let err =
-      State::with_serde(ui_state, ui_config, task_state, task_config, tasks_root).unwrap_err();
+    let err = State::with_serde(ui_state, ui_config, task_state, tasks_root).unwrap_err();
     assert_eq!(err.to_string(), "Encountered invalid tag Id 42")
   }
 
@@ -569,11 +552,9 @@ pub mod tests {
       },
       tasks,
     };
-    let task_config = PathBuf::default();
     let tasks_root = PathBuf::default();
 
-    let state =
-      State::with_serde(ui_state, ui_config, task_state, task_config, tasks_root).unwrap();
+    let state = State::with_serde(ui_state, ui_config, task_state, tasks_root).unwrap();
     let tasks = state.1.tasks.borrow();
     let mut it = tasks.iter().map(|(_, task)| task);
 

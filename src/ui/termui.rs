@@ -306,13 +306,11 @@ mod tests {
     /// Build the actual UI object that we can test with.
     fn build(self) -> TestUi {
       let ui_file = NamedTempFile::new().unwrap();
-      let task_file = NamedTempFile::new().unwrap();
       let tasks_dir = TempDir::new().unwrap();
       let state = State::with_serde(
         self.ui_state,
         ui_file.path(),
         self.task_state,
-        task_file.path(),
         tasks_dir.path(),
       );
       let State(ui_state, task_state) = state.unwrap();
@@ -326,7 +324,6 @@ mod tests {
       TestUi {
         ui,
         ui_file,
-        task_file,
         tasks_root: tasks_dir,
       }
     }
@@ -338,7 +335,6 @@ mod tests {
   struct TestUi {
     ui: Ui<Event, Message>,
     ui_file: NamedTempFile,
-    task_file: NamedTempFile,
     tasks_root: TempDir,
   }
 
@@ -409,11 +405,7 @@ mod tests {
     /// Load the UI's state from a file. Note that unless the state has
     /// been saved, the result will probably just be the default state.
     fn load_state(&self) -> Result<State> {
-      State::new(
-        self.ui_file.path(),
-        self.task_file.path(),
-        self.tasks_root.path(),
-      )
+      State::new(self.ui_file.path(), self.tasks_root.path())
     }
   }
 
