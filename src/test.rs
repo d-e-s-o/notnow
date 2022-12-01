@@ -138,10 +138,9 @@ pub fn default_tasks_and_tags() -> (SerUiState, SerTaskState) {
   };
   let task_state = SerTaskState {
     tasks_meta: SerTasksMeta {
-      templates: SerTemplates(templates.clone()),
+      templates: SerTemplates(templates),
       ids: Default::default(),
     },
-    templates: SerTemplates(templates),
     tasks: SerTasks(tasks),
   };
 

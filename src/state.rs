@@ -137,7 +137,6 @@ fn load_tasks_from_dir(root: &Path) -> Result<SerTaskState> {
   tasks.sort_by_key(|(id, _)| table.get(id).copied().unwrap_or(usize::MAX));
 
   Ok(SerTaskState {
-    templates: tasks_meta.templates.clone(),
     tasks_meta,
     tasks: SerTasks(tasks.into_iter().map(|(_id, task)| task).collect()),
   })
@@ -310,7 +309,6 @@ impl ToSerde<SerTaskState> for TaskState {
         templates: self.templates.to_serde(),
         ids,
       },
-      templates: self.templates.to_serde(),
       tasks: self.tasks.borrow().to_serde(),
     }
   }
@@ -403,7 +401,6 @@ pub mod tests {
   fn make_state(count: usize) -> (State, NamedTempFile, NamedTempFile, TempDir) {
     let task_state = SerTaskState {
       tasks_meta: Default::default(),
-      templates: Default::default(),
       tasks: SerTasks(make_tasks(count)),
     };
     let ui_state = Default::default();
@@ -529,7 +526,6 @@ pub mod tests {
     let ui_config = PathBuf::default();
     let task_state = SerTaskState {
       tasks_meta: Default::default(),
-      templates: Default::default(),
       tasks,
     };
     let task_config = PathBuf::default();
@@ -568,10 +564,9 @@ pub mod tests {
     ]);
     let task_state = SerTaskState {
       tasks_meta: SerTasksMeta {
-        templates: templates.clone(),
+        templates,
         ids: Default::default(),
       },
-      templates,
       tasks,
     };
     let task_config = PathBuf::default();

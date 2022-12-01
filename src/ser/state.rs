@@ -8,7 +8,6 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use crate::colors::Colors;
-use crate::ser::tags::Templates;
 use crate::ser::tasks::Tasks;
 use crate::ser::tasks::TasksMeta;
 use crate::ser::view::View;
@@ -39,7 +38,6 @@ pub struct UiState {
 pub struct TaskState {
   /// Meta data about tasks.
   pub tasks_meta: TasksMeta,
-  pub templates: Templates,
   /// A list of tasks.
   pub tasks: Tasks,
 }
