@@ -288,7 +288,7 @@ mod tests {
         ui_state: Default::default(),
         task_state: SerTaskState {
           tasks_meta: SerTasksMeta::default(),
-          tasks: SerTasks(tasks.into()),
+          tasks: SerTasks::from(tasks.into()),
         },
       }
     }

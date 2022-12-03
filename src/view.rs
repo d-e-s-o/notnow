@@ -357,7 +357,7 @@ mod tests {
     let (_, templates, tasks) = make_tasks_with_tags(count);
     let (templates, map) = Templates::with_serde(SerTemplates(templates));
     let templates = Rc::new(templates);
-    let tasks = SerTasks(tasks);
+    let tasks = SerTasks::from(tasks);
     let tasks = Tasks::with_serde(tasks, templates.clone(), &map).unwrap();
     let tasks = Rc::new(RefCell::new(tasks));
 

@@ -64,7 +64,28 @@ pub struct TasksMeta {
 
 /// A struct comprising a list of tasks.
 #[derive(Debug, Default, Deserialize, PartialEq, Serialize)]
-pub struct Tasks(pub Vec<Task>);
+pub struct Tasks(pub Vec<(Id, Task)>);
+
+#[cfg(test)]
+impl Tasks {
+  /// Convert this object into a vector of task objects.
+  pub fn into_task_vec(self) -> Vec<Task> {
+    self.0.into_iter().map(|(_id, task)| task).collect()
+  }
+}
+
+#[cfg(any(test, feature = "test"))]
+impl From<Vec<Task>> for Tasks {
+  fn from(tasks: Vec<Task>) -> Self {
+    let tasks = tasks
+      .into_iter()
+      .enumerate()
+      .map(|(id, task)| (Id::try_from(id + 1).unwrap(), task))
+      .collect();
+
+    Self(tasks)
+  }
+}
 
 
 #[cfg(test)]
@@ -123,7 +144,7 @@ mod tests {
         },
       ]),
     ];
-    let tasks = Tasks(task_vec);
+    let tasks = Tasks::from(task_vec);
     let serialized = to_json(&tasks).unwrap();
     let deserialized = from_json::<Tasks>(&serialized).unwrap();
 

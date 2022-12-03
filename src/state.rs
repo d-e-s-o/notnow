@@ -138,7 +138,7 @@ fn load_tasks_from_dir(root: &Path) -> Result<SerTaskState> {
 
   Ok(SerTaskState {
     tasks_meta,
-    tasks: SerTasks(tasks.into_iter().map(|(_id, task)| task).collect()),
+    tasks: SerTasks(tasks),
   })
 }
 
@@ -181,17 +181,21 @@ fn save_tasks_meta_to_dir(root: &Path, tasks_meta: &SerTasksMeta) -> Result<()> 
 
 /// Save tasks into files in the provided directory.
 fn save_tasks_to_dir(root: &Path, tasks: &SerTaskState) -> Result<()> {
-  let task_iter = tasks.tasks.0.iter();
-  let id_iter = tasks.tasks_meta.ids.iter().copied();
-
-  let () = id_iter
-    .clone()
-    .zip(task_iter)
-    .try_for_each(|(id, task)| save_task_to_file(root, id, task))?;
+  let () = tasks
+    .tasks
+    .0
+    .iter()
+    .try_for_each(|(id, task)| save_task_to_file(root, *id, task))?;
 
   let () = save_tasks_meta_to_dir(root, &tasks.tasks_meta)?;
 
-  let ids = id_iter.map(|id| id.get()).collect::<HashSet<_>>();
+  let ids = tasks
+    .tasks_meta
+    .ids
+    .iter()
+    .map(|id| id.get())
+    .collect::<HashSet<_>>();
+
   // Remove all files that do not correspond to an ID we just saved.
   root.read_dir()?.try_for_each(|result| {
     let entry = result?;
@@ -397,7 +401,7 @@ pub mod tests {
   fn make_state(count: usize) -> (State, NamedTempFile, TempDir) {
     let task_state = SerTaskState {
       tasks_meta: Default::default(),
-      tasks: SerTasks(make_tasks(count)),
+      tasks: SerTasks::from(make_tasks(count)),
     };
     let ui_state = Default::default();
     let ui_file = NamedTempFile::new().unwrap();
@@ -412,7 +416,7 @@ pub mod tests {
   fn save_load_tasks() {
     fn test(root: &Path, tasks: Vec<SerTask>, templates: Option<SerTemplates>) {
       let templates = templates.unwrap_or_default();
-      let tasks = SerTasks(tasks);
+      let tasks = SerTasks::from(tasks);
       let task_state = TaskState::with_serde(root, tasks, templates).to_serde();
       let () = save_tasks_to_dir(root, &task_state).unwrap();
       let loaded = load_tasks_from_dir(root).unwrap();
@@ -446,6 +450,43 @@ pub mod tests {
       tasks,
       None,
     );
+  }
+
+  /// Check that IDs are preserved when serializing and deserializing
+  /// again.
+  #[test]
+  fn loaded_tasks_use_saved_ids() {
+    let root = TempDir::new().unwrap();
+    let root = root.path();
+    let tasks = make_tasks(15);
+    let templates = SerTemplates::default();
+    let tasks = SerTasks::from(tasks);
+    let task_state = TaskState::with_serde(root, tasks, templates);
+
+    let tasks = {
+      let tasks = task_state.tasks();
+      let mut tasks = tasks.borrow_mut();
+      let mut task_iter = tasks.iter();
+      // Remove the first three tasks. If IDs were to not be preserved
+      // on serialization, the IDs of these tasks would (likely) be
+      // reassigned again to others on load and we would fail below.
+      let id1 = task_iter.next().unwrap().0;
+      let id2 = task_iter.next().unwrap().0;
+      let id3 = task_iter.next().unwrap().0;
+      let () = tasks.remove(id1);
+      let () = tasks.remove(id2);
+      let () = tasks.remove(id3);
+
+      tasks.iter().map(|(id, _task)| *id).collect::<Vec<_>>()
+    };
+
+    let () = task_state.save().unwrap();
+    let task_state = load_tasks_from_dir(root).unwrap();
+    let (templates, map) = Templates::with_serde(task_state.tasks_meta.templates);
+    let templates = Rc::new(templates);
+    let loaded = Tasks::with_serde(task_state.tasks, templates, &map).unwrap();
+    let loaded = loaded.iter().map(|(id, _task)| *id).collect::<Vec<_>>();
+    assert_eq!(loaded, tasks);
   }
 
   #[test]
@@ -504,14 +545,14 @@ pub mod tests {
 
   #[test]
   fn load_state_with_invalid_tag() {
-    let tasks = SerTasks(vec![SerTask::new("a task!").with_tags([SerTag {
+    let tasks = vec![SerTask::new("a task!").with_tags([SerTag {
       id: SerId::try_from(42).unwrap(),
-    }])]);
+    }])];
     let ui_state = Default::default();
     let ui_config = PathBuf::default();
     let task_state = SerTaskState {
       tasks_meta: Default::default(),
-      tasks,
+      tasks: SerTasks::from(tasks),
     };
     let tasks_root = PathBuf::default();
 
@@ -538,19 +579,19 @@ pub mod tests {
       },
     ]);
 
-    let tasks = SerTasks(vec![
+    let tasks = vec![
       SerTask::new("a task!").with_tags([SerTag { id: id_tag2 }]),
       SerTask::new("an untagged task"),
       SerTask::new("a tag1 task").with_tags([SerTag { id: id_tag1 }]),
       SerTask::new("a doubly tagged task")
         .with_tags([SerTag { id: id_tag2 }, SerTag { id: id_tag1 }]),
-    ]);
+    ];
     let task_state = SerTaskState {
       tasks_meta: SerTasksMeta {
         templates,
         ids: Default::default(),
       },
-      tasks,
+      tasks: SerTasks::from(tasks),
     };
     let tasks_root = PathBuf::default();
 

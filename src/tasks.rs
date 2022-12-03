@@ -13,6 +13,7 @@ use crate::db::Id as DbId;
 use crate::db::Iter as DbIter;
 use crate::ops::Op;
 use crate::ops::Ops;
+use crate::ser::tasks::Id as SerTaskId;
 use crate::ser::tasks::Task as SerTask;
 use crate::ser::tasks::Tasks as SerTasks;
 use crate::ser::ToSerde;
@@ -29,6 +30,13 @@ const MAX_UNDO_STEP_COUNT: usize = 64;
 
 
 pub type Id = DbId<Task>;
+
+impl ToSerde<SerTaskId> for Id {
+  /// Convert this task ID into a serializable one.
+  fn to_serde(&self) -> SerTaskId {
+    SerTaskId::new(self.get())
+  }
+}
 
 
 /// A struct representing a task item.
@@ -347,11 +355,9 @@ impl Tasks {
     let tasks = tasks
       .0
       .into_iter()
-      .enumerate()
-      .map(|(id, task)| (id + 1, task))
       .try_fold(Vec::with_capacity(len), |mut vec, (id, task)| {
         let task = Task::with_serde(task, templates.clone(), map)?;
-        vec.push((id, task));
+        vec.push((id.get(), task));
         Result::Ok(vec)
       })?;
     let tasks = Db::try_from_iter(tasks).map_err(|id| {
@@ -373,16 +379,23 @@ impl Tasks {
     // that have no tags.
     tasks.iter().for_each(|x| assert!(x.tags.is_empty()));
 
+    let tasks = SerTasks::from(tasks);
     let templates = Rc::new(Templates::new());
     let map = Default::default();
 
-    Self::with_serde(SerTasks(tasks), templates, &map)
+    Self::with_serde(tasks, templates, &map)
   }
 
   /// Convert this object into a serializable one.
   pub fn to_serde(&self) -> SerTasks {
     // TODO: We should consider including the operations here as well.
-    SerTasks(self.tasks.iter().map(|(_, task)| task.to_serde()).collect())
+    SerTasks(
+      self
+        .tasks
+        .iter()
+        .map(|(id, task)| (id.to_serde(), task.to_serde()))
+        .collect(),
+    )
   }
 
   /// Retrieve an iterator over the tasks.
@@ -616,7 +629,8 @@ pub mod tests {
     let tags = Default::default();
     tasks.add("4".to_string(), tags, None);
 
-    assert_eq!(tasks.to_serde().0, make_tasks(4));
+    let tasks = tasks.to_serde().into_task_vec();
+    assert_eq!(tasks, make_tasks(4));
   }
 
   /// Check that adding a task after another works correctly.
@@ -628,11 +642,12 @@ pub mod tests {
     let tags = Default::default();
     tasks.add("4".to_string(), tags, Some(id));
 
+    let tasks = tasks.to_serde().into_task_vec();
     let mut expected = make_tasks(4);
     let task = expected.remove(3);
     expected.insert(1, task);
 
-    assert_eq!(tasks.to_serde().0, expected);
+    assert_eq!(tasks, expected);
   }
 
   #[test]
@@ -641,10 +656,11 @@ pub mod tests {
     let id = tasks.iter().nth(1).unwrap().0;
     tasks.remove(id);
 
+    let tasks = tasks.to_serde().into_task_vec();
     let mut expected = make_tasks(3);
     expected.remove(1);
 
-    assert_eq!(tasks.to_serde().0, expected);
+    assert_eq!(tasks, expected);
   }
 
   #[test]
@@ -654,10 +670,11 @@ pub mod tests {
     task.summary = "amended".to_string();
     tasks.update(id, task);
 
+    let tasks = tasks.to_serde().into_task_vec();
     let mut expected = make_tasks(3);
     expected[1].summary = "amended".to_string();
 
-    assert_eq!(tasks.to_serde().0, expected);
+    assert_eq!(tasks, expected);
   }
 
   #[test]
@@ -667,8 +684,9 @@ pub mod tests {
     let id2 = tasks.iter().nth(1).unwrap().0;
     tasks.move_before(id1, id2);
 
+    let tasks = tasks.to_serde().into_task_vec();
     let expected = make_tasks(3);
-    assert_eq!(tasks.to_serde().0, expected);
+    assert_eq!(tasks, expected);
   }
 
   #[test]
@@ -679,7 +697,8 @@ pub mod tests {
     tasks.move_after(id1, id2);
 
     let expected = make_tasks(3);
-    assert_eq!(tasks.to_serde().0, expected);
+    let tasks = tasks.to_serde().into_task_vec();
+    assert_eq!(tasks, expected);
   }
 
   #[test]
@@ -689,10 +708,11 @@ pub mod tests {
     let id2 = tasks.iter().nth(1).unwrap().0;
     tasks.move_before(id1, id2);
 
+    let tasks = tasks.to_serde().into_task_vec();
     let mut expected = make_tasks(4);
     expected.swap(2, 1);
 
-    assert_eq!(tasks.to_serde().0, expected);
+    assert_eq!(tasks, expected);
   }
 
   #[test]
@@ -702,9 +722,10 @@ pub mod tests {
     let id2 = tasks.iter().nth(2).unwrap().0;
     tasks.move_after(id1, id2);
 
+    let tasks = tasks.to_serde().into_task_vec();
     let mut expected = make_tasks(4);
     expected.swap(1, 2);
-    assert_eq!(tasks.to_serde().0, expected);
+    assert_eq!(tasks, expected);
   }
 
   #[test]
@@ -731,8 +752,11 @@ pub mod tests {
     let tasks = Tasks::with_serde_tasks(make_tasks(3)).unwrap();
     let serialized = to_json(&tasks.to_serde()).unwrap();
     let deserialized = from_json::<SerTasks>(&serialized).unwrap();
-    let tasks = Tasks::with_serde(deserialized, templates, &map).unwrap();
+    let tasks = Tasks::with_serde(deserialized, templates, &map)
+      .unwrap()
+      .to_serde()
+      .into_task_vec();
 
-    assert_eq!(tasks.to_serde().0, make_tasks(3));
+    assert_eq!(tasks, make_tasks(3));
   }
 }

@@ -141,7 +141,7 @@ pub fn default_tasks_and_tags() -> (SerUiState, SerTaskState) {
       templates: SerTemplates(templates),
       ids: Default::default(),
     },
-    tasks: SerTasks(tasks),
+    tasks: SerTasks::from(tasks),
   };
 
   (ui_state, task_state)
