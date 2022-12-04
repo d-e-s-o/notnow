@@ -6,7 +6,6 @@
 // avoid build breakages when upgrading to new Rust versions.
 #![warn(
   bad_style,
-  broken_intra_doc_links,
   dead_code,
   future_incompatible,
   illegal_floating_point_literal_pattern,
@@ -43,7 +42,8 @@
   unused_lifetimes,
   unused_qualifications,
   where_clauses_object_safety,
-  while_true
+  while_true,
+  rustdoc::broken_intra_doc_links
 )]
 #![allow(
   deref_into_dyn_supertrait,
