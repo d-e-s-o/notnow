@@ -219,9 +219,9 @@ impl Templates {
     }
   }
 
-  /// Retrieve a reference to the 'complete' tag template.
-  pub fn complete_tag(&self) -> &Template {
-    &self.complete
+  /// Retrieve an instance of the 'complete' tag.
+  pub fn complete_tag(&self) -> Tag {
+    self.instantiate(self.complete.id())
   }
 
   /// Retrieve an iterator over all the tag templates.
