@@ -135,6 +135,8 @@ pub fn default_tasks_and_tags() -> (SerUiState, SerTaskState) {
     ],
     selected: None,
     colors: Default::default(),
+    // The UI can be used to toggle completion state.
+    toggle_tag: Some(tags[0]),
   };
   let task_state = SerTaskState {
     tasks_meta: SerTasksMeta {

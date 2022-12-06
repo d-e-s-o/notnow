@@ -35,6 +35,7 @@ use crate::ser::tasks::Task as SerTask;
 use crate::ser::tasks::Tasks as SerTasks;
 use crate::ser::tasks::TasksMeta as SerTasksMeta;
 use crate::ser::ToSerde;
+use crate::tags::Tag;
 use crate::tags::Templates;
 use crate::tasks::Tasks;
 use crate::view::View;
@@ -229,6 +230,8 @@ pub struct UiState {
   pub path: PathBuf,
   /// The configured colors.
   pub colors: Cell<Option<Colors>>,
+  /// The tag to toggle on user initiated action.
+  pub toggle_tag: Option<Tag>,
   /// The views used in the UI.
   pub views: Vec<(View, Option<usize>)>,
   /// The currently selected `View`.
@@ -254,6 +257,7 @@ impl ToSerde<SerUiState> for UiState {
 
     SerUiState {
       colors: self.colors.get().unwrap_or_default(),
+      toggle_tag: self.toggle_tag.as_ref().map(|x| x.to_serde()),
       views,
       selected: self.selected,
     }
@@ -363,8 +367,20 @@ impl State {
       views.push((ViewBuilder::new(tasks.clone()).build("all"), None))
     }
 
+    let toggle_tag = if let Some(toggle_tag) = ui_state.toggle_tag {
+      let toggle_tag = map.get(&toggle_tag.id).ok_or_else(|| {
+        let error = format!("Encountered invalid toggle tag Id {}", toggle_tag.id);
+        Error::new(ErrorKind::InvalidInput, error)
+      })?;
+
+      Some(templates.instantiate(*toggle_tag))
+    } else {
+      None
+    };
+
     let ui_state = UiState {
       colors: Cell::new(Some(ui_state.colors)),
+      toggle_tag,
       path: ui_config.into(),
       views,
       selected: ui_state.selected,

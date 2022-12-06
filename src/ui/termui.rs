@@ -14,6 +14,7 @@ use gui::Widget;
 
 use crate::state::TaskState;
 use crate::state::UiState;
+use crate::tags::Tag;
 #[cfg(all(test, not(feature = "readline")))]
 use crate::tasks::Task;
 
@@ -53,6 +54,8 @@ pub struct TermUi {
   id: Id,
   in_out: Id,
   tab_bar: Id,
+  /// The tag to toggle on user initiated action.
+  toggle_tag: Option<Tag>,
 }
 
 
@@ -61,7 +64,10 @@ impl TermUi {
   pub fn new(id: Id, cap: &mut dyn MutCap<Event, Message>, state: UiState) -> Self {
     let termui_id = id;
     let UiState {
-      views, selected, ..
+      toggle_tag,
+      views,
+      selected,
+      ..
     } = state;
 
     // TODO: Ideally, widgets that need a modal dialog could just create
@@ -96,6 +102,7 @@ impl TermUi {
       id,
       in_out,
       tab_bar,
+      toggle_tag,
     }
   }
 
@@ -143,7 +150,16 @@ impl TermUi {
       path: data.ui_config.clone(),
       views,
       selected,
+      // TODO: Currently we do not allow in-program modification of
+      //       certain state, such as colors. So we just use the default
+      //       representation here, which is `None`. That, in
+      //       combination with the fact that we skip serialization on
+      //       `None` means that we do not overwrite user configured
+      //       colors. However, a much cleaner way is to actually
+      //       collect the in-program state and just persist it as
+      //       everything else.
       colors: Default::default(),
+      toggle_tag: self.toggle_tag.clone(),
     };
     self.save_and_report(cap, &ui_state).await
   }
@@ -2004,6 +2020,7 @@ mod tests {
       )],
       selected: Some(0),
       colors: Default::default(),
+      toggle_tag: None,
     };
     assert_eq!(state, expected)
   }
@@ -2031,6 +2048,7 @@ mod tests {
       )],
       selected: Some(0),
       colors: Default::default(),
+      toggle_tag: None,
     };
     assert_eq!(state, expected)
   }

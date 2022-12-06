@@ -8,6 +8,7 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use crate::colors::Colors;
+use crate::ser::tags::Tag;
 use crate::ser::tasks::Tasks;
 use crate::ser::tasks::TasksMeta;
 use crate::ser::view::View;
@@ -21,6 +22,9 @@ pub struct UiState {
   // to be modified by a user.
   #[serde(default)]
   pub colors: Colors,
+  /// The tag to toggle on user initiated action.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub toggle_tag: Option<Tag>,
   #[serde(default, skip_serializing_if = "Vec::is_empty")]
   pub views: Vec<(View, Option<usize>)>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
