@@ -70,6 +70,7 @@ impl TermUi {
       ..
     } = state;
 
+    let toggle_tag_copy = toggle_tag.clone();
     // TODO: Ideally, widgets that need a modal dialog could just create
     //       one on-the-fly. But doing so will also require support for
     //       destroying widgets, which is something that the `gui` crate
@@ -94,7 +95,16 @@ impl TermUi {
       Box::new(move |id, cap| {
         let data = cap.data(termui_id).downcast_ref::<TermUiData>().unwrap();
         let tasks = data.task_state.tasks();
-        Box::new(TabBar::new(id, cap, dialog, in_out, tasks, views, selected))
+        Box::new(TabBar::new(
+          id,
+          cap,
+          dialog,
+          in_out,
+          tasks,
+          views,
+          toggle_tag_copy.clone(),
+          selected,
+        ))
       }),
     );
 

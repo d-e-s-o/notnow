@@ -18,6 +18,7 @@ use gui::Id;
 use gui::MutCap;
 use gui::Widget;
 
+use crate::tags::Tag;
 use crate::tasks::Tasks;
 use crate::view::View;
 
@@ -189,6 +190,7 @@ pub struct TabBar {
 
 impl TabBar {
   /// Create a new `TabBar` widget.
+  #[allow(clippy::too_many_arguments)]
   pub fn new(
     id: Id,
     cap: &mut dyn MutCap<Event, Message>,
@@ -196,6 +198,7 @@ impl TabBar {
     in_out: Id,
     tasks: Rc<RefCell<Tasks>>,
     views: Vec<(View, Option<usize>)>,
+    toggle_tag: Option<Tag>,
     selected: Option<usize>,
   ) -> Self {
     let count = views.len();
@@ -209,9 +212,10 @@ impl TabBar {
       .map(|(i, (view, task))| {
         let name = view.name().to_string();
         let tasks = tasks.clone();
+        let toggle_tag = toggle_tag.clone();
         let task_list = cap.add_widget(
           id,
-          Box::new(|| Box::new(TaskListBoxData::new(tasks, view))),
+          Box::new(|| Box::new(TaskListBoxData::new(tasks, view, toggle_tag))),
           Box::new(move |id, cap| {
             Box::new(TaskListBox::new(id, cap, tab_bar, dialog, in_out, task))
           }),

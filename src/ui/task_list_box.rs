@@ -16,6 +16,7 @@ use gui::Id;
 use gui::MutCap;
 use gui::Widget;
 
+use crate::tags::Tag;
 use crate::tasks::Id as TaskId;
 use crate::tasks::Task;
 use crate::tasks::Tasks;
@@ -45,6 +46,8 @@ pub struct TaskListBoxData {
   tasks: Rc<RefCell<Tasks>>,
   /// The view represented by the `TaskListBox`.
   view: View,
+  /// The tag to toggle on a task on press of the respective key.
+  toggle_tag: Option<Tag>,
   /// The currently selected task.
   selection: isize,
   /// The state the `TaskListBox` is in.
@@ -53,10 +56,11 @@ pub struct TaskListBoxData {
 
 impl TaskListBoxData {
   /// Create a new `TaskListBoxData` object.
-  pub fn new(tasks: Rc<RefCell<Tasks>>, view: View) -> Self {
+  pub fn new(tasks: Rc<RefCell<Tasks>>, view: View, toggle_tag: Option<Tag>) -> Self {
     Self {
       tasks,
       view,
+      toggle_tag,
       selection: 0,
       state: None,
     }
