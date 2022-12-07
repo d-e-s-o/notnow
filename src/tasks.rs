@@ -20,7 +20,6 @@ use crate::ser::ToSerde;
 use crate::tags::Id as TagId;
 use crate::tags::Tag;
 use crate::tags::TagMap;
-use crate::tags::Template;
 use crate::tags::Templates;
 
 
@@ -101,9 +100,9 @@ impl Task {
     self.tags = tags.map(|x| (x.id(), x)).collect();
   }
 
-  /// Retrieve an iterator over all tag templates.
-  pub fn templates(&self) -> impl Iterator<Item = Template> + '_ {
-    self.templates.iter()
+  /// Retrieve the `Templates` object associated with this task.
+  pub fn templates(&self) -> &Templates {
+    &self.templates
   }
 
   /// Check whether the task is tagged as complete or not.

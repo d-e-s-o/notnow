@@ -77,6 +77,7 @@ fn prepare_tags(task: &Task) -> Vec<SetUnsetTag> {
 
   let mut unset = task
     .templates()
+    .iter()
     .filter(|template| !set.contains(&template.id()))
     .map(Tag::new)
     .collect::<Vec<_>>();
