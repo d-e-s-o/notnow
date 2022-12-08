@@ -98,7 +98,7 @@ impl ToSerde<SerTemplate> for Template {
 
 
 /// An actual tag instance, which may be associated with a task.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
 pub struct Tag {
   /// The underlying shared template.
   template: Template,
@@ -257,6 +257,22 @@ mod tests {
   use serde_json::from_str as from_json;
   use serde_json::to_string as to_json;
 
+
+  /// Check that different `Tag` objects instantiated from the same
+  /// `Template` are considered equal.
+  #[test]
+  fn different_instantiated_tags_are_equal() {
+    let template = SerTemplate {
+      id: SerTagId::try_from(42).unwrap(),
+      name: "test-tag".to_string(),
+    };
+
+    let (templates, _map) = Templates::with_serde(SerTemplates(vec![template]));
+    let tag1 = templates.instantiate_from_name("test-tag");
+    let tag2 = templates.instantiate_from_name("test-tag");
+
+    assert_eq!(tag1, tag2)
+  }
 
   #[test]
   fn ensure_complete_tag_exists() {

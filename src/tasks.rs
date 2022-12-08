@@ -1,7 +1,7 @@
 // Copyright (C) 2017-2022 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Result;
@@ -17,7 +17,6 @@ use crate::ser::tasks::Id as SerTaskId;
 use crate::ser::tasks::Task as SerTask;
 use crate::ser::tasks::Tasks as SerTasks;
 use crate::ser::ToSerde;
-use crate::tags::Id as TagId;
 use crate::tags::Tag;
 use crate::tags::TagMap;
 use crate::tags::Templates;
@@ -42,7 +41,7 @@ impl ToSerde<SerTaskId> for Id {
 #[derive(Clone, Debug)]
 pub struct Task {
   pub summary: String,
-  tags: BTreeMap<TagId, Tag>,
+  tags: BTreeSet<Tag>,
   templates: Rc<Templates>,
 }
 
@@ -64,20 +63,20 @@ impl Task {
   {
     Task {
       summary: summary.into(),
-      tags: tags.into_iter().map(|x| (x.id(), x)).collect(),
+      tags: tags.into_iter().collect(),
       templates,
     }
   }
 
   /// Create a new task from a serializable one.
   fn with_serde(task: SerTask, templates: Rc<Templates>, map: &TagMap) -> Result<Task> {
-    let mut tags = BTreeMap::new();
+    let mut tags = BTreeSet::new();
     for tag in task.tags.into_iter() {
       let id = map.get(&tag.id).ok_or_else(|| {
         let error = format!("Encountered invalid tag Id {}", tag.id);
         Error::new(ErrorKind::InvalidInput, error)
       })?;
-      tags.insert(*id, templates.instantiate(*id));
+      tags.insert(templates.instantiate(*id));
     }
 
     Ok(Self {
@@ -89,7 +88,7 @@ impl Task {
 
   /// Retrieve an iterator over this task's tags.
   pub fn tags(&self) -> impl Iterator<Item = &Tag> + Clone {
-    self.tags.values()
+    self.tags.iter()
   }
 
   /// Set the tags of the task.
@@ -97,7 +96,7 @@ impl Task {
   where
     I: Iterator<Item = Tag>,
   {
-    self.tags = tags.map(|x| (x.id(), x)).collect();
+    self.tags = tags.collect();
   }
 
   /// Retrieve the `Templates` object associated with this task.
@@ -107,20 +106,18 @@ impl Task {
 
   /// Check whether the task is tagged as complete or not.
   pub fn is_complete(&self) -> bool {
-    let id = self.templates.complete_tag().id();
-    self.tags.contains_key(&id)
+    self.tags.contains(&self.templates.complete_tag())
   }
 
   /// Toggle the completion state of the task.
   pub fn toggle_complete(&mut self) {
-    let id = self.templates.complete_tag().id();
+    let complete = self.templates.complete_tag();
 
     // Try removing the complete tag, if that succeeds we are done (as
     // the tag was present and got removed), otherwise insert it (as it
     // was not present).
-    if self.tags.remove(&id).is_none() {
-      let tag = self.templates.instantiate(id);
-      self.tags.insert(id, tag);
+    if !self.tags.remove(&complete) {
+      self.tags.insert(complete);
     }
   }
 }
@@ -130,7 +127,7 @@ impl ToSerde<SerTask> for Task {
   fn to_serde(&self) -> SerTask {
     SerTask {
       summary: self.summary.clone(),
-      tags: self.tags.values().map(|x| x.to_serde()).collect(),
+      tags: self.tags.iter().map(Tag::to_serde).collect(),
     }
   }
 }
