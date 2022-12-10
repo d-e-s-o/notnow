@@ -99,6 +99,24 @@ impl Task {
     self.tags = tags.collect();
   }
 
+  /// Check whether the task has the provided `tag` set.
+  #[inline]
+  pub fn has_tag(&self, tag: &Tag) -> bool {
+    self.tags.get(tag).is_some()
+  }
+
+  /// Ensure that the provided tag is set on this task.
+  #[inline]
+  pub fn set_tag(&mut self, tag: Tag) -> bool {
+    self.tags.insert(tag)
+  }
+
+  /// Ensure that the provided tag is not set on this task.
+  #[inline]
+  pub fn unset_tag(&mut self, tag: &Tag) -> bool {
+    self.tags.remove(tag)
+  }
+
   /// Retrieve the `Templates` object associated with this task.
   pub fn templates(&self) -> &Templates {
     &self.templates
@@ -461,12 +479,41 @@ impl Tasks {
 pub mod tests {
   use super::*;
 
+  use std::num::NonZeroUsize;
+
   use serde_json::from_str as from_json;
   use serde_json::to_string_pretty as to_json;
 
+  use crate::ser::tags::Id as SerTemplateId;
+  use crate::ser::tags::Template as SerTemplate;
   use crate::ser::tags::Templates as SerTemplates;
+  use crate::tags::COMPLETE_TAG;
   use crate::test::make_tasks;
 
+
+  /// Check that we can query and set/unset tags on a task.
+  #[test]
+  fn task_tag_query_and_adjustment() {
+    let templates = vec![SerTemplate {
+      id: SerTemplateId::new(NonZeroUsize::new(42).unwrap()),
+      name: COMPLETE_TAG.to_string(),
+    }];
+    let (templates, _map) = Templates::with_serde(SerTemplates(templates));
+    let complete = templates.instantiate_from_name(COMPLETE_TAG);
+
+    let mut task = Task::new("test task");
+    assert!(!task.has_tag(&complete));
+
+    assert!(task.set_tag(complete.clone()));
+    assert!(task.has_tag(&complete));
+    assert!(!task.set_tag(complete.clone()));
+    assert!(task.has_tag(&complete));
+
+    assert!(task.unset_tag(&complete));
+    assert!(!task.has_tag(&complete));
+    assert!(!task.unset_tag(&complete));
+    assert!(!task.has_tag(&complete));
+  }
 
   /// Check that the `TaskOp::Add` variant works as expected on an empty
   /// task vector.
