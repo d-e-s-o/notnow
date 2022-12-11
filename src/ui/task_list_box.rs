@@ -261,6 +261,12 @@ impl TaskListBox {
     data.view.clone()
   }
 
+  /// Retrieve the "toggle tag", if any is configured.
+  pub fn toggle_tag(&self, cap: &dyn Cap) -> Option<Tag> {
+    let data = self.data::<TaskListBoxData>(cap);
+    data.toggle_tag.clone()
+  }
+
   /// Retrieve the current selection index.
   ///
   /// The selection index indicates the currently selected task.
@@ -279,12 +285,18 @@ impl Handleable<Event, Message> for TaskListBox {
       Event::Key(key, _) => match key {
         Key::Char(' ') => {
           if let Some((task_id, task)) = data.selected_task() {
-            let mut task = task.clone();
-            task.toggle_complete();
-            cap
-              .send(self.id, Message::UpdateTask(task_id, task))
-              .await
-              .into_event()
+            if let Some(toggle_tag) = &data.toggle_tag {
+              let mut task = task.clone();
+              if !task.unset_tag(toggle_tag) {
+                task.set_tag(toggle_tag.clone());
+              }
+              cap
+                .send(self.id, Message::UpdateTask(task_id, task))
+                .await
+                .into_event()
+            } else {
+              None
+            }
           } else {
             None
           }
@@ -380,12 +392,13 @@ impl Handleable<Event, Message> for TaskListBox {
             State::Add => {
               if !text.is_empty() {
                 let tags = if let Some((_, task)) = data.selected_task() {
-                  let mut task = task.clone();
-                  if task.is_complete() {
-                    task.toggle_complete()
-                  }
-                  let tags = task.tags().cloned().collect();
-                  tags
+                  // Copy all tags except for the one that we allow
+                  // toggling.
+                  task
+                    .tags()
+                    .filter(|tag| Some(*tag) != data.toggle_tag.as_ref())
+                    .cloned()
+                    .collect()
                 } else {
                   Default::default()
                 };

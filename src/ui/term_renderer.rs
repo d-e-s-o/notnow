@@ -361,8 +361,11 @@ where
     let offset = sanitize_offset(data.offset, selection, limit);
 
     for (i, (_, task)) in view.iter().clone().enumerate().skip(offset).take(limit) {
-      let complete = task.is_complete();
-      let (state, state_fg, state_bg) = if !complete {
+      let tagged = task_list
+        .toggle_tag(cap)
+        .map(|toggle_tag| task.has_tag(&toggle_tag))
+        .unwrap_or(false);
+      let (state, state_fg, state_bg) = if !tagged {
         (
           "[ ]",
           self.colors.task_not_started_fg,

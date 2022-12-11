@@ -7,6 +7,8 @@ Unreleased
 - Added support for finding the currently selected task on other tabs
   via '*'
 - Added example program using automatically generated task data
+- Made tag to toggle through UI user-configurable and no longer hard
+  wired to task completion
 - Re-select task after successfully editing tags
 - Use Unicode aware lowercase in task summary search
 - Fixed reverse task search not progressing under certain conditions

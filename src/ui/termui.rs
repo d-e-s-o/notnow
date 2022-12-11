@@ -266,6 +266,7 @@ mod tests {
   use crate::ser::view::View as SerView;
   use crate::ser::ToSerde;
   use crate::state::State;
+  use crate::tags::COMPLETE_TAG;
   use crate::test::default_tasks_and_tags;
   use crate::test::make_tasks;
   use crate::test::make_tasks_with_tags;
@@ -850,8 +851,9 @@ mod tests {
 
   #[test]
   async fn complete_task() {
-    let tasks = make_tasks(3);
     let events = vec![
+      Event::from('j'),
+      Event::from(' '),
       Event::from('j'),
       Event::from(' '),
       Event::from('j'),
@@ -859,16 +861,20 @@ mod tests {
       Event::from(' '),
     ];
 
-    let tasks = TestUiBuilder::with_ser_tasks(tasks)
-      .build()
-      .handle(events)
-      .await
-      .tasks()
-      .await;
+    let mut ui = TestUiBuilder::with_default_tasks_and_tags().build();
+    let tasks = ui.tasks().await;
+    let complete_tag = tasks[0].templates().instantiate_from_name(COMPLETE_TAG);
+    assert!(!tasks[0].has_tag(&complete_tag));
+    assert!(tasks[1].has_tag(&complete_tag));
+    assert!(!tasks[2].has_tag(&complete_tag));
+    assert!(tasks[3].has_tag(&complete_tag));
 
-    assert!(!tasks[0].is_complete());
-    assert!(tasks[1].is_complete());
-    assert!(!tasks[2].is_complete());
+    let tasks = ui.handle(events).await.tasks().await;
+
+    assert!(!tasks[0].has_tag(&complete_tag));
+    assert!(!tasks[1].has_tag(&complete_tag));
+    assert!(tasks[2].has_tag(&complete_tag));
+    assert!(tasks[3].has_tag(&complete_tag));
   }
 
   #[test]
