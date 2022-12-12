@@ -266,10 +266,10 @@ mod tests {
   use crate::ser::view::View as SerView;
   use crate::ser::ToSerde;
   use crate::state::State;
-  use crate::tags::COMPLETE_TAG;
   use crate::test::default_tasks_and_tags;
   use crate::test::make_tasks;
   use crate::test::make_tasks_with_tags;
+  use crate::test::COMPLETE_TAG;
 
 
   impl From<Key> for Event {

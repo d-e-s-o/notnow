@@ -420,12 +420,13 @@ mod tests {
   use crate::db::Db;
   use crate::tags::Template;
   use crate::tags::Templates;
-  use crate::tags::COMPLETE_TAG;
+  use crate::test::COMPLETE_TAG;
 
 
   #[test]
   fn tag_preparation() {
     let template_list = vec![
+      Template::new(COMPLETE_TAG),
       Template::new("foobaz"),
       Template::new("Z"),
       Template::new("a"),
@@ -457,6 +458,7 @@ mod tests {
   #[test]
   fn data_tag_selection() {
     let template_list = vec![
+      Template::new(COMPLETE_TAG),
       Template::new("a"),
       Template::new("b"),
       Template::new("c"),

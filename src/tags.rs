@@ -18,9 +18,6 @@ pub struct T(());
 
 pub type Id = IdT<T>;
 
-/// The name of a tag describing the completion state of a task.
-pub const COMPLETE_TAG: &str = "complete";
-
 
 #[derive(Debug, Eq)]
 struct TemplateInner {
@@ -141,30 +138,11 @@ impl ToSerde<SerTag> for Tag {
 pub type TagMap = BTreeMap<SerTagId, Id>;
 
 
-/// Ensure the given template set contains a tag with the given name.
-fn ensure_contains<S>(templates: &mut BTreeSet<Template>, name: S) -> Template
-where
-  S: Into<String> + AsRef<str>,
-{
-  let found = templates.iter().find(|x| x.name() == name.as_ref());
-
-  if let Some(found) = found {
-    found.clone()
-  } else {
-    let template = Template::new(name.into());
-    let inserted = templates.insert(template.clone());
-    debug_assert!(inserted);
-    template
-  }
-}
-
 /// A management structure for tag templates.
 #[derive(Debug)]
 pub struct Templates {
   /// A set of all the tag templates.
   templates: BTreeSet<Template>,
-  /// Reference to the tag template representing task completion.
-  complete: Template,
 }
 
 impl Templates {
@@ -179,7 +157,7 @@ impl Templates {
   /// The conversion also creates a "lookup" table mapping from the IDs
   /// as they were persisted to the in-memory ones.
   pub fn with_serde(templates: SerTemplates) -> (Self, TagMap) {
-    let (mut templates, map) = templates
+    let (templates, map) = templates
       .0
       .into_iter()
       .map(|x| {
@@ -190,11 +168,7 @@ impl Templates {
       })
       .unzip();
 
-    let complete = ensure_contains(&mut templates, COMPLETE_TAG);
-    let templates = Self {
-      templates,
-      complete,
-    };
+    let templates = Self { templates };
     (templates, map)
   }
 
@@ -217,11 +191,6 @@ impl Templates {
       Some(template) => Tag::new(template.clone()),
       None => panic!("Attempt to create tag from invalid name: {}", name),
     }
-  }
-
-  /// Retrieve an instance of the 'complete' tag.
-  pub fn complete_tag(&self) -> Tag {
-    self.instantiate(self.complete.id())
   }
 
   /// Retrieve an iterator over all the tag templates.
@@ -254,9 +223,6 @@ impl ToSerde<SerTemplates> for Templates {
 mod tests {
   use super::*;
 
-  use serde_json::from_str as from_json;
-  use serde_json::to_string as to_json;
-
 
   /// Check that different `Tag` objects instantiated from the same
   /// `Template` are considered equal.
@@ -272,25 +238,5 @@ mod tests {
     let tag2 = templates.instantiate_from_name("test-tag");
 
     assert_eq!(tag1, tag2)
-  }
-
-  #[test]
-  fn ensure_complete_tag_exists() {
-    let templates = Templates::new();
-    let template = templates.iter().find(|x| x.name() == COMPLETE_TAG).unwrap();
-    assert_eq!(template.id(), templates.complete_tag().id());
-  }
-
-  #[test]
-  fn ensure_complete_tag_is_not_duplicated() {
-    let templates = Templates::new();
-    let serialized = to_json(&templates.to_serde()).unwrap();
-    let deserialized = from_json::<SerTemplates>(&serialized).unwrap();
-    let (new_templates, _) = Templates::with_serde(deserialized);
-
-    let count = new_templates
-      .iter()
-      .fold(0, |c, x| if x.name() == COMPLETE_TAG { c + 1 } else { c });
-    assert_eq!(count, 1);
   }
 }

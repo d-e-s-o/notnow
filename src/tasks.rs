@@ -121,23 +121,6 @@ impl Task {
   pub fn templates(&self) -> &Templates {
     &self.templates
   }
-
-  /// Check whether the task is tagged as complete or not.
-  pub fn is_complete(&self) -> bool {
-    self.tags.contains(&self.templates.complete_tag())
-  }
-
-  /// Toggle the completion state of the task.
-  pub fn toggle_complete(&mut self) {
-    let complete = self.templates.complete_tag();
-
-    // Try removing the complete tag, if that succeeds we are done (as
-    // the tag was present and got removed), otherwise insert it (as it
-    // was not present).
-    if !self.tags.remove(&complete) {
-      self.tags.insert(complete);
-    }
-  }
 }
 
 impl ToSerde<SerTask> for Task {
@@ -487,8 +470,8 @@ pub mod tests {
   use crate::ser::tags::Id as SerTemplateId;
   use crate::ser::tags::Template as SerTemplate;
   use crate::ser::tags::Templates as SerTemplates;
-  use crate::tags::COMPLETE_TAG;
   use crate::test::make_tasks;
+  use crate::test::COMPLETE_TAG;
 
 
   /// Check that we can query and set/unset tags on a task.
@@ -769,14 +752,6 @@ pub mod tests {
     let mut expected = make_tasks(4);
     expected.swap(1, 2);
     assert_eq!(tasks, expected);
-  }
-
-  #[test]
-  fn task_completion() {
-    let mut task = Task::new("test task");
-    assert!(!task.is_complete());
-    task.toggle_complete();
-    assert!(task.is_complete());
   }
 
   #[test]

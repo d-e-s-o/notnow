@@ -14,7 +14,9 @@ use crate::ser::tasks::Tasks as SerTasks;
 use crate::ser::tasks::TasksMeta as SerTasksMeta;
 use crate::ser::view::TagLit as SerTagLit;
 use crate::ser::view::View as SerView;
-use crate::tags::COMPLETE_TAG;
+
+/// The name of a tag describing the completion state of a task.
+pub const COMPLETE_TAG: &str = "complete";
 
 
 /// Create `count` task objects.
