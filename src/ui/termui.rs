@@ -2146,7 +2146,7 @@ mod tests {
       .await;
 
     let tags = tasks[0].tags().map(|x| x.name()).collect::<Vec<_>>();
-    let expected = vec!["complete"];
+    let expected = vec![COMPLETE_TAG];
     assert_eq!(tags, expected);
   }
 
@@ -2208,7 +2208,7 @@ mod tests {
       .await;
 
     let tags = tasks[2].tags().map(|x| x.name()).collect::<Vec<_>>();
-    let expected = vec!["complete", "tag1", "tag2", "tag3"];
+    let expected = vec![COMPLETE_TAG, "tag1", "tag2", "tag3"];
     assert_eq!(tags, expected);
   }
 
@@ -2234,7 +2234,7 @@ mod tests {
       .await;
 
     let tags = tasks[0].tags().map(|x| x.name()).collect::<Vec<_>>();
-    let expected = vec!["complete", "tag3"];
+    let expected = vec![COMPLETE_TAG, "tag3"];
     assert_eq!(tags, expected);
   }
 
@@ -2259,7 +2259,7 @@ mod tests {
       .await;
 
     let tags = tasks[0].tags().map(|x| x.name()).collect::<Vec<_>>();
-    let expected = vec!["complete", "tag1"];
+    let expected = vec![COMPLETE_TAG, "tag1"];
     assert_eq!(tags, expected);
   }
 
@@ -2282,7 +2282,7 @@ mod tests {
       .await;
 
     let tags = tasks[0].tags().map(|x| x.name()).collect::<Vec<_>>();
-    let expected = vec!["complete"];
+    let expected = vec![COMPLETE_TAG];
     assert_eq!(tags, expected);
   }
 
