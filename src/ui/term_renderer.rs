@@ -386,7 +386,7 @@ where
 
       self.writer.write(x, y, state_fg, state_bg, state)?;
       let x = x + state.len() as u16 + 1;
-      self.writer.write(x, y, task_fg, task_bg, &task.summary)?;
+      self.writer.write(x, y, task_fg, task_bg, task.summary())?;
 
       if i == selection && cap.is_focused(task_list.id()) {
         cursor = Some((x, y));

@@ -805,7 +805,7 @@ mod tests {
     // completed tasks (which is every other). So we expect the new task
     // to show up past the second one in the list of all tests, at index
     // 2.
-    assert_eq!(tasks[2].summary, "test");
+    assert_eq!(tasks[2].summary(), "test");
 
     // Check that the 'complete' tag, which was present on the original
     // task, has been cleared.
@@ -815,7 +815,7 @@ mod tests {
 
     // The second task should have been created on the third tab,
     // which shows tasks with tag2 or tag3 present.
-    assert_eq!(tasks[11].summary, "hi");
+    assert_eq!(tasks[11].summary(), "hi");
 
     let tags = tasks[11].tags().map(|x| x.name()).collect::<Vec<_>>();
     let expected = vec!["tag2"];
@@ -842,7 +842,7 @@ mod tests {
       .tasks()
       .await;
 
-    assert_eq!(tasks[15].summary, "foo");
+    assert_eq!(tasks[15].summary(), "foo");
 
     let tags = tasks[15].tags().map(|x| x.name()).collect::<Vec<_>>();
     let expected = vec!["tag1".to_string(), "tag2".to_string(), "tag3".to_string()];
@@ -1034,7 +1034,7 @@ mod tests {
       .tasks()
       .await
       .into_iter()
-      .map(|x| x.summary)
+      .map(|x| x.summary().to_owned())
       .collect::<Vec<_>>();
 
     let (.., mut expected) = make_tasks_with_tags(15);
@@ -1238,7 +1238,7 @@ mod tests {
       .tasks()
       .await
       .into_iter()
-      .map(|x| x.summary)
+      .map(|x| x.summary().to_owned())
       .collect::<Vec<_>>();
 
     let (.., mut expected) = make_tasks_with_tags(15);
@@ -1273,7 +1273,7 @@ mod tests {
       .tasks()
       .await
       .into_iter()
-      .map(|x| x.summary)
+      .map(|x| x.summary().to_owned())
       .collect::<Vec<_>>();
 
     let (.., mut expected) = make_tasks_with_tags(15);
@@ -1296,7 +1296,7 @@ mod tests {
       .tasks()
       .await
       .into_iter()
-      .map(|x| x.summary)
+      .map(|x| x.summary().to_owned())
       .collect::<Vec<_>>();
 
     let (.., mut expected) = make_tasks_with_tags(15);
@@ -1751,7 +1751,7 @@ mod tests {
         .tasks()
         .await
         .into_iter()
-        .map(|x| x.summary)
+        .map(|x| x.summary().to_owned())
         .collect::<Vec<_>>();
 
       let (.., mut expected) = make_tasks_with_tags(15);
@@ -1804,7 +1804,7 @@ mod tests {
       .tasks()
       .await
       .into_iter()
-      .map(|x| x.summary)
+      .map(|x| x.summary().to_owned())
       .collect::<Vec<_>>();
 
     let (.., mut expected) = make_tasks_with_tags(15);
@@ -1846,7 +1846,7 @@ mod tests {
       .tasks()
       .await
       .into_iter()
-      .map(|x| x.summary)
+      .map(|x| x.summary().to_owned())
       .collect::<Vec<_>>();
 
     let (.., mut expected) = make_tasks_with_tags(15);
@@ -1910,7 +1910,7 @@ mod tests {
         .tasks()
         .await
         .into_iter()
-        .map(|x| x.summary)
+        .map(|x| x.summary().to_owned())
         .collect::<Vec<_>>();
 
       let (.., mut expected) = make_tasks_with_tags(15);
@@ -1955,7 +1955,7 @@ mod tests {
         .tasks()
         .await
         .into_iter()
-        .map(|x| x.summary)
+        .map(|x| x.summary().to_owned())
         .collect::<Vec<_>>();
 
       assert_eq!(tasks, expected);
@@ -2314,7 +2314,7 @@ mod tests {
       .tasks()
       .await;
 
-    assert_eq!(tasks[9].summary, "10ab");
+    assert_eq!(tasks[9].summary(), "10ab");
   }
 
   /// Check that we can undo a task removal.

@@ -40,7 +40,7 @@ impl ToSerde<SerTaskId> for Id {
 /// A struct representing a task item.
 #[derive(Clone, Debug)]
 pub struct Task {
-  pub summary: String,
+  summary: String,
   tags: BTreeSet<Tag>,
   templates: Rc<Templates>,
 }
@@ -84,6 +84,18 @@ impl Task {
       tags,
       templates,
     })
+  }
+
+  /// Get a reference to this [Task]'s summary.
+  #[inline]
+  pub fn summary(&self) -> &str {
+    &self.summary
+  }
+
+  /// Change this [Task]'s summary.
+  #[inline]
+  pub fn set_summary(&mut self, summary: String) {
+    self.summary = summary
   }
 
   /// Retrieve an iterator over this task's tags.

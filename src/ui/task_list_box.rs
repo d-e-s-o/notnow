@@ -200,8 +200,8 @@ impl TaskListBox {
       SearchState::Done => unreachable!(),
     };
 
-    let cmp_exact = |task: &Task| task.summary == string;
-    let cmp_vague = |task: &Task| task.summary.to_lowercase().contains(string);
+    let cmp_exact = |task: &Task| task.summary() == string;
+    let cmp_vague = |task: &Task| task.summary().to_lowercase().contains(string);
 
     let check = if exact {
       &cmp_exact as &dyn Fn(&Task) -> bool
@@ -316,7 +316,7 @@ impl Handleable<Event, Message> for TaskListBox {
         },
         Key::Char('e') => {
           if let Some((task_id, task)) = data.selected_task() {
-            let string = task.summary.clone();
+            let string = task.summary().to_owned();
             let idx = string.len();
             data.state = Some(State::Edit(task_id, task.clone()));
 
@@ -370,7 +370,7 @@ impl Handleable<Event, Message> for TaskListBox {
         Key::Char('k') => MessageExt::maybe_update(None, data.change_selection(-1)).into_event(),
         Key::Char('*') => {
           if let Some((_, selected)) = data.selected_task() {
-            let message = Message::StartTaskSearch(selected.summary.clone());
+            let message = Message::StartTaskSearch(selected.summary().to_owned());
             cap.send(self.tab_bar, message).await.into_event()
           } else {
             None
@@ -426,7 +426,7 @@ impl Handleable<Event, Message> for TaskListBox {
               // Editing a task to empty just removes the task
               // altogether.
               if !text.is_empty() {
-                task.summary = text.clone();
+                task.set_summary(text.clone());
                 data.tasks.borrow_mut().update(task_id, task);
                 self.select_task(cap, task_id).await.maybe_update(true)
               } else {
