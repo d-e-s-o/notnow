@@ -13,6 +13,7 @@ use std::fs::File;
 use std::fs::OpenOptions;
 use std::io::Error;
 use std::io::ErrorKind;
+use std::io::Read as _;
 use std::io::Result;
 use std::io::Write;
 use std::path::Path;
@@ -23,7 +24,7 @@ use cell::RefCell;
 
 use serde::Deserialize;
 use serde::Serialize;
-use serde_json::from_reader;
+use serde_json::from_slice as from_json;
 use serde_json::to_string_pretty as to_json;
 
 use crate::colors::Colors;
@@ -54,7 +55,11 @@ where
   for<'de> T: Deserialize<'de>,
 {
   match File::open(path) {
-    Ok(file) => Ok(from_reader::<File, T>(file)?),
+    Ok(mut file) => {
+      let mut content = Vec::new();
+      let _count = file.read_to_end(&mut content)?;
+      Ok(from_json::<T>(&content)?)
+    },
     Err(e) => {
       // If the file does not exist we create an empty object and work
       // with that.
@@ -79,8 +84,10 @@ fn load_task_from_dir_entry(entry: &DirEntry) -> Result<(SerTaskId, SerTask)> {
       Error::new(ErrorKind::InvalidInput, error)
     })?;
 
-  let file = File::open(&path)?;
-  let task = from_reader(file)?;
+  let mut content = Vec::new();
+  let mut file = File::open(&path)?;
+  let _count = file.read_to_end(&mut content)?;
+  let task = from_json(&content)?;
   Ok((id, task))
 }
 
@@ -402,7 +409,6 @@ pub mod tests {
   use std::env::temp_dir;
   use std::fs::remove_dir_all;
   use std::fs::File;
-  use std::io::Read;
 
   use tempfile::NamedTempFile;
   use tempfile::TempDir;
