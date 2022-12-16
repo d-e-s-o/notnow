@@ -12,7 +12,8 @@ use tempfile::NamedTempFile;
 use tempfile::TempDir;
 
 
-fn main() -> Result<()> {
+#[tokio::main(flavor = "current_thread")]
+async fn main() -> Result<()> {
   let ui_file = NamedTempFile::new()?;
   let tasks_dir = TempDir::new()?;
   let (ui_state, task_state) = default_tasks_and_tags();
@@ -22,5 +23,5 @@ fn main() -> Result<()> {
   ui_state.save()?;
   task_state.save()?;
 
-  run_prog(stdout().lock(), ui_file.path(), tasks_dir.path())
+  run_prog(stdout().lock(), ui_file.path(), tasks_dir.path()).await
 }

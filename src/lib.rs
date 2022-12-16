@@ -209,12 +209,10 @@ where
 }
 
 /// Run the program.
-pub fn run_prog<W>(out: W, ui_config: &Path, tasks_root: &Path) -> Result<()>
+pub async fn run_prog<W>(out: W, ui_config: &Path, tasks_root: &Path) -> Result<()>
 where
   W: Write,
 {
-  let rt = Builder::new_current_thread().build()?;
-
   let state = State::new(ui_config, tasks_root)?;
   let screen = AlternateScreen::from(out.into_raw_mode()?);
   let colors = state.0.colors.get().unwrap_or_default();
@@ -234,7 +232,8 @@ where
   // Initially we need to trigger a render in order to have the most
   // recent data presented.
   ui.render(&renderer);
-  rt.block_on(run_loop(ui, &renderer, &recv_event))
+
+  run_loop(ui, &renderer, &recv_event).await
 }
 
 /// Parse the arguments and run the program.
@@ -247,14 +246,20 @@ fn run_with_args() -> Result<()> {
 
   let ui_config = ui_config()?;
   let tasks_root = tasks_root()?;
+  let rt = Builder::new_current_thread().build()?;
 
   let mut it = args_os();
   match it.len() {
-    0 | 1 => run_prog(stdout().lock(), &ui_config, &tasks_root),
+    0 | 1 => {
+      let stdout = stdout();
+      let future = run_prog(stdout.lock(), &ui_config, &tasks_root);
+      rt.block_on(future)
+    },
     2 => {
       let path = it.nth(1).unwrap();
       let file = OpenOptions::new().read(false).write(true).open(path)?;
-      run_prog(file, &ui_config, &tasks_root)
+      let future = run_prog(file, &ui_config, &tasks_root);
+      rt.block_on(future)
     },
     _ => Err(Error::new(
       ErrorKind::InvalidInput,
