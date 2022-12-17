@@ -11,6 +11,7 @@ use std::fs::remove_file;
 use std::fs::DirEntry;
 use std::fs::File;
 use std::fs::OpenOptions;
+use std::fs::ReadDir;
 use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Read as _;
@@ -109,35 +110,44 @@ fn create_task_lookup_table(ids: &[SerTaskId]) -> Result<HashMap<SerTaskId, usiz
   Ok(table)
 }
 
+/// Load tasks by iterating over the entries of a `ReadDir` object.
+#[allow(clippy::type_complexity)]
+fn load_tasks_from_read_dir(
+  dir: ReadDir,
+) -> Result<(Vec<(SerTaskId, SerTask)>, Option<SerTasksMeta>)> {
+  // Ideally we'd size the `Vec` as per the number of directory entries,
+  // but `fs::ReadDir` does not currently expose that number.
+  let mut tasks = Vec::new();
+  let mut tasks_meta = None;
+
+  for result in dir {
+    let entry = result?;
+    if entry.file_name().to_str().map(|id| id.parse::<usize>()) == Some(Ok(TASKS_META_ID)) {
+      debug_assert_eq!(
+        tasks_meta, None,
+        "encountered multiple task meta data files"
+      );
+      tasks_meta = Some(load_state_from_file::<SerTasksMeta>(&entry.path())?);
+    } else {
+      let data = load_task_from_dir_entry(&entry)?;
+      let () = tasks.push(data);
+    }
+  }
+
+  Ok((tasks, tasks_meta))
+}
+
 /// Load tasks from a directory.
 ///
 /// The function assumes that the directory *only* contains files
 /// representing tasks (along with one file for meta data).
 fn load_tasks_from_dir(root: &Path) -> Result<SerTaskState> {
-  let mut dir = match root.read_dir() {
+  let dir = match root.read_dir() {
     Err(e) if e.kind() == ErrorKind::NotFound => return Ok(Default::default()),
     result => result,
   }?;
 
-  // Ideally we'd size the `Vec` as per the number of directory entries,
-  // but `fs::ReadDir` does not currently expose that number.
-  let (mut tasks, tasks_meta) =
-    dir.try_fold((Vec::new(), None), |(mut vec, tasks_meta), result| {
-      let entry = result?;
-      if entry.file_name().to_str().map(|id| id.parse::<usize>()) == Some(Ok(TASKS_META_ID)) {
-        debug_assert_eq!(
-          tasks_meta, None,
-          "encountered multiple task meta data files"
-        );
-        let tasks_meta = load_state_from_file::<SerTasksMeta>(&entry.path())?;
-        Result::Ok((vec, Some(tasks_meta)))
-      } else {
-        let data = load_task_from_dir_entry(&entry)?;
-        let () = vec.push(data);
-        Result::Ok((vec, tasks_meta))
-      }
-    })?;
-
+  let (mut tasks, tasks_meta) = load_tasks_from_read_dir(dir)?;
   let tasks_meta = tasks_meta.unwrap_or_default();
   let table = create_task_lookup_table(&tasks_meta.ids)?;
   // If a task ID is not contained in our table we will just silently
