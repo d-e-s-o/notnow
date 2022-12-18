@@ -50,7 +50,7 @@ const TASKS_META_ID: usize = 0;
 
 
 /// Load some serialized state from a file.
-fn load_state_from_file<T>(path: &Path) -> Result<T>
+async fn load_state_from_file<T>(path: &Path) -> Result<T>
 where
   T: Default,
   for<'de> T: Deserialize<'de>,
@@ -74,7 +74,7 @@ where
 }
 
 /// Load a task from a directory entry.
-fn load_task_from_dir_entry(entry: &DirEntry) -> Result<(SerTaskId, SerTask)> {
+async fn load_task_from_dir_entry(entry: &DirEntry) -> Result<(SerTaskId, SerTask)> {
   let file_name = entry.file_name();
   let path = entry.path();
   let id = file_name
@@ -112,7 +112,7 @@ fn create_task_lookup_table(ids: &[SerTaskId]) -> Result<HashMap<SerTaskId, usiz
 
 /// Load tasks by iterating over the entries of a `ReadDir` object.
 #[allow(clippy::type_complexity)]
-fn load_tasks_from_read_dir(
+async fn load_tasks_from_read_dir(
   dir: ReadDir,
 ) -> Result<(Vec<(SerTaskId, SerTask)>, Option<SerTasksMeta>)> {
   // Ideally we'd size the `Vec` as per the number of directory entries,
@@ -127,9 +127,9 @@ fn load_tasks_from_read_dir(
         tasks_meta, None,
         "encountered multiple task meta data files"
       );
-      tasks_meta = Some(load_state_from_file::<SerTasksMeta>(&entry.path())?);
+      tasks_meta = Some(load_state_from_file::<SerTasksMeta>(&entry.path()).await?);
     } else {
-      let data = load_task_from_dir_entry(&entry)?;
+      let data = load_task_from_dir_entry(&entry).await?;
       let () = tasks.push(data);
     }
   }
@@ -141,13 +141,13 @@ fn load_tasks_from_read_dir(
 ///
 /// The function assumes that the directory *only* contains files
 /// representing tasks (along with one file for meta data).
-fn load_tasks_from_dir(root: &Path) -> Result<SerTaskState> {
+async fn load_tasks_from_dir(root: &Path) -> Result<SerTaskState> {
   let dir = match root.read_dir() {
     Err(e) if e.kind() == ErrorKind::NotFound => return Ok(Default::default()),
     result => result,
   }?;
 
-  let (mut tasks, tasks_meta) = load_tasks_from_read_dir(dir)?;
+  let (mut tasks, tasks_meta) = load_tasks_from_read_dir(dir).await?;
   let tasks_meta = tasks_meta.unwrap_or_default();
   let table = create_task_lookup_table(&tasks_meta.ids)?;
   // If a task ID is not contained in our table we will just silently
@@ -161,7 +161,7 @@ fn load_tasks_from_dir(root: &Path) -> Result<SerTaskState> {
 }
 
 /// Save some state into a file.
-fn save_state_to_file<T>(path: &Path, state: &T) -> Result<()>
+async fn save_state_to_file<T>(path: &Path, state: &T) -> Result<()>
 where
   T: Serialize,
 {
@@ -180,7 +180,7 @@ where
 }
 
 /// Save a task into a file in the given directory.
-fn save_task_to_file(root: &Path, id: SerTaskId, task: &SerTask) -> Result<()> {
+async fn save_task_to_file(root: &Path, id: SerTaskId, task: &SerTask) -> Result<()> {
   let path = root.join(id.to_string());
   // TODO: It would be better if we were create a temporary file first
   //       if one already exists and then rename atomically. But even
@@ -188,22 +188,22 @@ fn save_task_to_file(root: &Path, id: SerTaskId, task: &SerTask) -> Result<()> {
   //       transaction of sorts. That would allow us to eliminate the
   //       chance for *any* inconsistency, e.g., when saving UI state
   //       before task state and the latter failing the operation.
-  save_state_to_file(&path, task)
+  save_state_to_file(&path, task).await
 }
 
 /// Save a task meta data into a file in the provided directory.
-fn save_tasks_meta_to_dir(root: &Path, tasks_meta: &SerTasksMeta) -> Result<()> {
+async fn save_tasks_meta_to_dir(root: &Path, tasks_meta: &SerTasksMeta) -> Result<()> {
   let path = root.join(TASKS_META_ID.to_string());
-  save_state_to_file(&path, tasks_meta)
+  save_state_to_file(&path, tasks_meta).await
 }
 
 /// Save tasks into files in the provided directory.
-fn save_tasks_to_dir(root: &Path, tasks: &SerTaskState) -> Result<()> {
+async fn save_tasks_to_dir(root: &Path, tasks: &SerTaskState) -> Result<()> {
   for (id, task) in tasks.tasks.0.iter() {
-    let () = save_task_to_file(root, *id, task)?;
+    let () = save_task_to_file(root, *id, task).await?;
   }
 
-  let () = save_tasks_meta_to_dir(root, &tasks.tasks_meta)?;
+  let () = save_tasks_meta_to_dir(root, &tasks.tasks_meta).await?;
 
   let ids = tasks
     .tasks_meta
@@ -255,11 +255,13 @@ pub struct UiState {
 
 impl UiState {
   /// Persist the state into a file.
-  pub fn save(&self) -> Result<()> {
-    let ui_state = load_state_from_file::<SerUiState>(self.path.as_ref()).unwrap_or_default();
+  pub async fn save(&self) -> Result<()> {
+    let ui_state = load_state_from_file::<SerUiState>(self.path.as_ref())
+      .await
+      .unwrap_or_default();
     self.colors.set(Some(ui_state.colors));
 
-    save_state_to_file(&self.path, &self.to_serde())
+    save_state_to_file(&self.path, &self.to_serde()).await
   }
 }
 
@@ -305,8 +307,8 @@ impl TaskState {
   }
 
   /// Persist the state into a file.
-  pub fn save(&self) -> Result<()> {
-    save_tasks_to_dir(&self.tasks_root, &self.to_serde())
+  pub async fn save(&self) -> Result<()> {
+    save_tasks_to_dir(&self.tasks_root, &self.to_serde()).await
   }
 
   /// Retrieve the `Tasks` object associated with this `State` object.
@@ -347,12 +349,12 @@ pub struct State(pub UiState, pub TaskState);
 
 impl State {
   /// Create a new `State` object, loaded from files.
-  pub fn new<P>(ui_config: P, tasks_root: P) -> Result<Self>
+  pub async fn new<P>(ui_config: P, tasks_root: P) -> Result<Self>
   where
     P: Into<PathBuf> + AsRef<Path>,
   {
-    let ui_state = load_state_from_file::<SerUiState>(ui_config.as_ref())?;
-    let task_state = load_tasks_from_dir(tasks_root.as_ref())?;
+    let ui_state = load_state_from_file::<SerUiState>(ui_config.as_ref()).await?;
+    let task_state = load_tasks_from_dir(tasks_root.as_ref()).await?;
 
     Self::with_serde(ui_state, ui_config, task_state, tasks_root)
   }
@@ -421,6 +423,8 @@ pub mod tests {
   use tempfile::NamedTempFile;
   use tempfile::TempDir;
 
+  use tokio::test;
+
   use crate::ser::tags::Id as SerId;
   use crate::ser::tags::Tag as SerTag;
   use crate::ser::tags::Template as SerTemplate;
@@ -443,13 +447,13 @@ pub mod tests {
   /// Check that we can save tasks into a directory and load them back
   /// from there.
   #[test]
-  fn save_load_tasks() {
-    fn test(root: &Path, tasks: Vec<SerTask>, templates: Option<SerTemplates>) {
+  async fn save_load_tasks() {
+    async fn test(root: &Path, tasks: Vec<SerTask>, templates: Option<SerTemplates>) {
       let templates = templates.unwrap_or_default();
       let tasks = SerTasks::from(tasks);
       let task_state = TaskState::with_serde(root, tasks, templates).to_serde();
-      let () = save_tasks_to_dir(root, &task_state).unwrap();
-      let loaded = load_tasks_from_dir(root).unwrap();
+      let () = save_tasks_to_dir(root, &task_state).await.unwrap();
+      let loaded = load_tasks_from_dir(root).await.unwrap();
       assert_eq!(loaded, task_state);
     }
 
@@ -459,10 +463,10 @@ pub mod tests {
     let root = TempDir::new().unwrap();
     let tasks = Vec::new();
     // Check that things work out even when no task is provided.
-    test(root.path(), tasks, None);
+    let () = test(root.path(), tasks, None).await;
 
     let tasks = make_tasks(3);
-    test(root.path(), tasks, None);
+    let () = test(root.path(), tasks, None).await;
 
     let id_tag = SerId::try_from(42).unwrap();
     let templates = SerTemplates(vec![SerTemplate {
@@ -471,21 +475,22 @@ pub mod tests {
     }]);
     // Test with a task with a tag as well.
     let tasks = vec![SerTask::new("a task!").with_tags([SerTag { id: id_tag }])];
-    test(root.path(), tasks, Some(templates));
+    let () = test(root.path(), tasks, Some(templates)).await;
 
     let tasks = make_tasks(25);
     // Make sure that directories not yet present are created.
-    test(
+    let () = test(
       &root.path().join("not").join("yet").join("present"),
       tasks,
       None,
-    );
+    )
+    .await;
   }
 
   /// Check that IDs are preserved when serializing and deserializing
   /// again.
   #[test]
-  fn loaded_tasks_use_saved_ids() {
+  async fn loaded_tasks_use_saved_ids() {
     let root = TempDir::new().unwrap();
     let root = root.path();
     let tasks = make_tasks(15);
@@ -510,8 +515,8 @@ pub mod tests {
       tasks.iter().map(|(id, _task)| *id).collect::<Vec<_>>()
     };
 
-    let () = task_state.save().unwrap();
-    let task_state = load_tasks_from_dir(root).unwrap();
+    let () = task_state.save().await.unwrap();
+    let task_state = load_tasks_from_dir(root).await.unwrap();
     let (templates, map) = Templates::with_serde(task_state.tasks_meta.templates);
     let templates = Rc::new(templates);
     let loaded = Tasks::with_serde(task_state.tasks, templates, &map).unwrap();
@@ -519,12 +524,14 @@ pub mod tests {
     assert_eq!(loaded, tasks);
   }
 
+  /// Check that `save_state_to_file` correctly creates non-existing
+  /// directories.
   #[test]
-  fn create_dirs_for_state() {
+  async fn create_dirs_for_state() {
     let base = temp_dir().join("dir1");
     let path = base.join("dir2").join("file");
 
-    save_state_to_file(&path, &42).unwrap();
+    save_state_to_file(&path, &42).await.unwrap();
     let mut file = File::open(path).unwrap();
     let mut content = Vec::new();
     file.read_to_end(&mut content).unwrap();
@@ -533,13 +540,14 @@ pub mod tests {
     assert_eq!(content, b"42")
   }
 
+  /// Check that we can save `State` and load it back.
   #[test]
-  fn save_and_load_state() {
+  async fn save_and_load_state() {
     let (state, ui_file, tasks_root) = make_state(3);
-    state.0.save().unwrap();
-    state.1.save().unwrap();
+    state.0.save().await.unwrap();
+    state.1.save().await.unwrap();
 
-    let new_state = State::new(ui_file.path(), tasks_root.path()).unwrap();
+    let new_state = State::new(ui_file.path(), tasks_root.path()).await.unwrap();
     let new_task_vec = new_state
       .1
       .tasks
@@ -550,19 +558,21 @@ pub mod tests {
     assert_eq!(new_task_vec, make_tasks(3));
   }
 
+  /// Verify that loading `State` succeeds even if the file to load from
+  /// is not present.
   #[test]
-  fn load_state_file_not_found() {
+  async fn load_state_file_not_found() {
     let (ui_config, tasks_root) = {
       let (state, ui_file, tasks_dir) = make_state(1);
-      state.0.save().unwrap();
-      state.1.save().unwrap();
+      state.0.save().await.unwrap();
+      state.1.save().await.unwrap();
 
       (ui_file.path().to_path_buf(), tasks_dir.path().to_path_buf())
     };
 
     // The files are removed by now, so we can test that `State` handles
     // such missing files gracefully.
-    let new_state = State::new(ui_config, tasks_root).unwrap();
+    let new_state = State::new(ui_config, tasks_root).await.unwrap();
     let new_task_vec = new_state
       .1
       .tasks
@@ -573,8 +583,10 @@ pub mod tests {
     assert_eq!(new_task_vec, make_tasks(0));
   }
 
+  /// Test that we fail `State` construction when an invalid tag is
+  /// encountered.
   #[test]
-  fn load_state_with_invalid_tag() {
+  async fn load_state_with_invalid_tag() {
     let tasks = vec![SerTask::new("a task!").with_tags([SerTag {
       id: SerId::try_from(42).unwrap(),
     }])];
@@ -590,8 +602,10 @@ pub mod tests {
     assert_eq!(err.to_string(), "Encountered invalid tag Id 42")
   }
 
+  /// Check that we can correctly instantiate a `State` object from
+  /// serialized state.
   #[test]
-  fn load_state() {
+  async fn load_state() {
     let ui_state = Default::default();
     let ui_config = PathBuf::default();
 

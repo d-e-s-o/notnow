@@ -117,11 +117,11 @@ impl TermUi {
   }
 
   /// Persist the state into a file.
-  fn save_all(&self, ui_state: &UiState, task_state: &TaskState) -> Result<()> {
+  async fn save_all(&self, ui_state: &UiState, task_state: &TaskState) -> Result<()> {
     // TODO: We risk data inconsistencies if the second save operation
     //       fails.
-    ui_state.save()?;
-    task_state.save()?;
+    ui_state.save().await?;
+    task_state.save().await?;
     Ok(())
   }
 
@@ -132,7 +132,7 @@ impl TermUi {
     ui_state: &UiState,
   ) -> Option<Message> {
     let data = self.data::<TermUiData>(cap);
-    let in_out = match self.save_all(ui_state, &data.task_state) {
+    let in_out = match self.save_all(ui_state, &data.task_state).await {
       Ok(_) => InOut::Saved,
       Err(err) => InOut::Error(format!("{}", err)),
     };
@@ -431,8 +431,8 @@ mod tests {
 
     /// Load the UI's state from a file. Note that unless the state has
     /// been saved, the result will probably just be the default state.
-    fn load_state(&self) -> Result<State> {
-      State::new(self.ui_file.path(), self.tasks_root.path())
+    async fn load_state(&self) -> Result<State> {
+      State::new(self.ui_file.path(), self.tasks_root.path()).await
     }
   }
 
@@ -2022,6 +2022,7 @@ mod tests {
       .handle(events)
       .await
       .load_state()
+      .await
       .unwrap()
       .0
       .to_serde();
@@ -2050,6 +2051,7 @@ mod tests {
       .handle(events)
       .await
       .load_state()
+      .await
       .unwrap()
       .0
       .to_serde();
@@ -2077,6 +2079,7 @@ mod tests {
       .handle(events)
       .await
       .load_state()
+      .await
       .unwrap()
       .0
       .to_serde();
@@ -2110,6 +2113,7 @@ mod tests {
       .handle(events)
       .await
       .load_state()
+      .await
       .unwrap()
       .0
       .to_serde();

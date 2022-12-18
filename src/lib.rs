@@ -213,7 +213,7 @@ pub async fn run_prog<W>(out: W, ui_config: &Path, tasks_root: &Path) -> Result<
 where
   W: Write,
 {
-  let state = State::new(ui_config, tasks_root)?;
+  let state = State::new(ui_config, tasks_root).await?;
   let screen = AlternateScreen::from(out.into_raw_mode()?);
   let colors = state.0.colors.get().unwrap_or_default();
   let renderer = TermRenderer::new(screen, colors)?;

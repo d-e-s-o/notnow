@@ -20,8 +20,8 @@ async fn main() -> Result<()> {
   let state = State::with_serde(ui_state, ui_file.path(), task_state, tasks_dir.path());
   let State(ui_state, task_state) = state?;
 
-  ui_state.save()?;
-  task_state.save()?;
+  ui_state.save().await?;
+  task_state.save().await?;
 
   run_prog(stdout().lock(), ui_file.path(), tasks_dir.path()).await
 }
