@@ -199,11 +199,9 @@ fn save_tasks_meta_to_dir(root: &Path, tasks_meta: &SerTasksMeta) -> Result<()> 
 
 /// Save tasks into files in the provided directory.
 fn save_tasks_to_dir(root: &Path, tasks: &SerTaskState) -> Result<()> {
-  let () = tasks
-    .tasks
-    .0
-    .iter()
-    .try_for_each(|(id, task)| save_task_to_file(root, *id, task))?;
+  for (id, task) in tasks.tasks.0.iter() {
+    let () = save_task_to_file(root, *id, task)?;
+  }
 
   let () = save_tasks_meta_to_dir(root, &tasks.tasks_meta)?;
 
