@@ -6,17 +6,9 @@
 use std::cell::Cell;
 use std::collections::HashMap;
 use std::collections::HashSet;
-use std::fs::create_dir_all;
-use std::fs::remove_file;
-use std::fs::DirEntry;
-use std::fs::File;
-use std::fs::OpenOptions;
-use std::fs::ReadDir;
 use std::io::Error;
 use std::io::ErrorKind;
-use std::io::Read as _;
 use std::io::Result;
-use std::io::Write;
 use std::path::Path;
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -27,6 +19,16 @@ use serde::Deserialize;
 use serde::Serialize;
 use serde_json::from_slice as from_json;
 use serde_json::to_string_pretty as to_json;
+
+use tokio::fs::create_dir_all;
+use tokio::fs::read_dir;
+use tokio::fs::remove_file;
+use tokio::fs::DirEntry;
+use tokio::fs::File;
+use tokio::fs::OpenOptions;
+use tokio::fs::ReadDir;
+use tokio::io::AsyncReadExt as _;
+use tokio::io::AsyncWriteExt as _;
 
 use crate::colors::Colors;
 use crate::ser::state::TaskState as SerTaskState;
@@ -55,10 +57,10 @@ where
   T: Default,
   for<'de> T: Deserialize<'de>,
 {
-  match File::open(path) {
+  match File::open(path).await {
     Ok(mut file) => {
       let mut content = Vec::new();
-      let _count = file.read_to_end(&mut content)?;
+      let _count = file.read_to_end(&mut content).await?;
       Ok(from_json::<T>(&content)?)
     },
     Err(e) => {
@@ -86,8 +88,8 @@ async fn load_task_from_dir_entry(entry: &DirEntry) -> Result<(SerTaskId, SerTas
     })?;
 
   let mut content = Vec::new();
-  let mut file = File::open(&path)?;
-  let _count = file.read_to_end(&mut content)?;
+  let mut file = File::open(&path).await?;
+  let _count = file.read_to_end(&mut content).await?;
   let task = from_json(&content)?;
   Ok((id, task))
 }
@@ -115,13 +117,13 @@ fn create_task_lookup_table(ids: &[SerTaskId]) -> Result<HashMap<SerTaskId, usiz
 async fn load_tasks_from_read_dir(
   dir: ReadDir,
 ) -> Result<(Vec<(SerTaskId, SerTask)>, Option<SerTasksMeta>)> {
+  let mut dir = dir;
   // Ideally we'd size the `Vec` as per the number of directory entries,
   // but `fs::ReadDir` does not currently expose that number.
   let mut tasks = Vec::new();
   let mut tasks_meta = None;
 
-  for result in dir {
-    let entry = result?;
+  while let Some(entry) = dir.next_entry().await? {
     if entry.file_name().to_str().map(|id| id.parse::<usize>()) == Some(Ok(TASKS_META_ID)) {
       debug_assert_eq!(
         tasks_meta, None,
@@ -142,7 +144,7 @@ async fn load_tasks_from_read_dir(
 /// The function assumes that the directory *only* contains files
 /// representing tasks (along with one file for meta data).
 async fn load_tasks_from_dir(root: &Path) -> Result<SerTaskState> {
-  let dir = match root.read_dir() {
+  let dir = match read_dir(root).await {
     Err(e) if e.kind() == ErrorKind::NotFound => return Ok(Default::default()),
     result => result,
   }?;
@@ -166,7 +168,7 @@ where
   T: Serialize,
 {
   if let Some(dir) = path.parent() {
-    let () = create_dir_all(dir)?;
+    let () = create_dir_all(dir).await?;
   }
 
   let serialized = to_json(state)?;
@@ -174,8 +176,10 @@ where
     .create(true)
     .truncate(true)
     .write(true)
-    .open(path)?
-    .write_all(serialized.as_ref())?;
+    .open(path)
+    .await?
+    .write_all(serialized.as_ref())
+    .await?;
   Ok(())
 }
 
@@ -213,8 +217,8 @@ async fn save_tasks_to_dir(root: &Path, tasks: &SerTaskState) -> Result<()> {
     .collect::<HashSet<_>>();
 
   // Remove all files that do not correspond to an ID we just saved.
-  root.read_dir()?.try_for_each(|result| {
-    let entry = result?;
+  let mut dir = read_dir(root).await?;
+  while let Some(entry) = dir.next_entry().await? {
     let id = entry
       .file_name()
       .to_str()
@@ -230,11 +234,11 @@ async fn save_tasks_to_dir(root: &Path, tasks: &SerTaskState) -> Result<()> {
       // Note that we purposefully do not support the case of having a
       // directory inside the root directory, as we'd never create one
       // there programmatically.
-      remove_file(entry.path())
-    } else {
-      Ok(())
+      let () = remove_file(entry.path()).await?;
     }
-  })
+  }
+
+  Ok(())
 }
 
 
@@ -417,12 +421,11 @@ pub mod tests {
   use super::*;
 
   use std::env::temp_dir;
-  use std::fs::remove_dir_all;
-  use std::fs::File;
 
   use tempfile::NamedTempFile;
   use tempfile::TempDir;
 
+  use tokio::fs::remove_dir_all;
   use tokio::test;
 
   use crate::ser::tags::Id as SerId;
@@ -531,11 +534,11 @@ pub mod tests {
     let base = temp_dir().join("dir1");
     let path = base.join("dir2").join("file");
 
-    save_state_to_file(&path, &42).await.unwrap();
-    let mut file = File::open(path).unwrap();
+    let () = save_state_to_file(&path, &42).await.unwrap();
+    let mut file = File::open(path).await.unwrap();
     let mut content = Vec::new();
-    file.read_to_end(&mut content).unwrap();
-    remove_dir_all(&base).unwrap();
+    let _count = file.read_to_end(&mut content).await.unwrap();
+    let () = remove_dir_all(&base).await.unwrap();
 
     assert_eq!(content, b"42")
   }

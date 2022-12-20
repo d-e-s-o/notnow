@@ -77,7 +77,7 @@ version = "1.5"
 [dependencies.tokio]
 version = "1.8"
 default-features = false
-features = ["macros", "rt"]
+features = ["fs", "io-util", "macros", "rt"]
 
 [dependencies.uid]
 version = "0.1"
