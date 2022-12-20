@@ -52,26 +52,18 @@ const TASKS_META_ID: usize = 0;
 
 
 /// Load some serialized state from a file.
-async fn load_state_from_file<T>(path: &Path) -> Result<T>
+async fn load_state_from_file<T>(path: &Path) -> Result<Option<T>>
 where
-  T: Default,
   for<'de> T: Deserialize<'de>,
 {
   match File::open(path).await {
     Ok(mut file) => {
       let mut content = Vec::new();
       let _count = file.read_to_end(&mut content).await?;
-      Ok(from_json::<T>(&content)?)
+      Ok(Some(from_json::<T>(&content)?))
     },
-    Err(e) => {
-      // If the file does not exist we create an empty object and work
-      // with that.
-      if e.kind() == ErrorKind::NotFound {
-        Ok(Default::default())
-      } else {
-        Err(e)
-      }
-    },
+    Err(e) if e.kind() == ErrorKind::NotFound => Ok(None),
+    Err(e) => Err(e),
   }
 }
 
@@ -129,7 +121,7 @@ async fn load_tasks_from_read_dir(
         tasks_meta, None,
         "encountered multiple task meta data files"
       );
-      tasks_meta = Some(load_state_from_file::<SerTasksMeta>(&entry.path()).await?);
+      tasks_meta = load_state_from_file::<SerTasksMeta>(&entry.path()).await?;
     } else {
       let data = load_task_from_dir_entry(&entry).await?;
       let () = tasks.push(data);
@@ -262,6 +254,7 @@ impl UiState {
   pub async fn save(&self) -> Result<()> {
     let ui_state = load_state_from_file::<SerUiState>(self.path.as_ref())
       .await
+      .unwrap_or_default()
       .unwrap_or_default();
     self.colors.set(Some(ui_state.colors));
 
@@ -357,7 +350,9 @@ impl State {
   where
     P: Into<PathBuf> + AsRef<Path>,
   {
-    let ui_state = load_state_from_file::<SerUiState>(ui_config.as_ref()).await?;
+    let ui_state = load_state_from_file::<SerUiState>(ui_config.as_ref())
+      .await?
+      .unwrap_or_default();
     let task_state = load_tasks_from_dir(tasks_root.as_ref()).await?;
 
     Self::with_serde(ui_state, ui_config, task_state, tasks_root)
