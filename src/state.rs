@@ -157,14 +157,23 @@ async fn load_tasks_from_dir(root: &Path) -> Result<SerTaskState> {
 /// Save some state into a file.
 async fn save_state_to_file<T>(path: &Path, state: &T) -> Result<()>
 where
-  T: Serialize,
+  T: PartialEq + Serialize,
+  for<'de> T: Deserialize<'de>,
 {
+  if let Ok(Some(existing)) = load_state_from_file::<T>(path).await {
+    if &existing == state {
+      // If the file already contains the expected state there is no need
+      // for us to write it again.
+      return Ok(())
+    }
+  }
+
   if let Some(dir) = path.parent() {
     let () = create_dir_all(dir).await?;
   }
 
   let serialized = to_json(state)?;
-  OpenOptions::new()
+  let () = OpenOptions::new()
     .create(true)
     .truncate(true)
     .write(true)

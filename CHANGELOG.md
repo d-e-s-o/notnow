@@ -3,6 +3,7 @@ Unreleased
 - Changed task storage format:
   - Switched from single-file-for-all-tasks scheme to having one task per
     file
+  - Added support for only saving tasks that were changed
   - Adjusted JSON serialized representation to be more compact
 - Added support for finding the currently selected task on other tabs
   via '*'
