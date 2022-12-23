@@ -68,7 +68,7 @@ where
 }
 
 /// Load a task from a directory entry.
-async fn load_task_from_dir_entry(entry: &DirEntry) -> Result<(SerTaskId, SerTask)> {
+async fn load_task_from_dir_entry(entry: &DirEntry) -> Result<Option<(SerTaskId, SerTask)>> {
   let file_name = entry.file_name();
   let path = entry.path();
   let id = file_name
@@ -79,11 +79,8 @@ async fn load_task_from_dir_entry(entry: &DirEntry) -> Result<(SerTaskId, SerTas
       Error::new(ErrorKind::InvalidInput, error)
     })?;
 
-  let mut content = Vec::new();
-  let mut file = File::open(&path).await?;
-  let _count = file.read_to_end(&mut content).await?;
-  let task = from_json(&content)?;
-  Ok((id, task))
+  let result = load_state_from_file(&path).await?;
+  Ok(result.map(|task| (id, task)))
 }
 
 /// Load task meta data from the provided file.
@@ -122,8 +119,7 @@ async fn load_tasks_from_read_dir(
         "encountered multiple task meta data files"
       );
       tasks_meta = load_state_from_file::<SerTasksMeta>(&entry.path()).await?;
-    } else {
-      let data = load_task_from_dir_entry(&entry).await?;
+    } else if let Some(data) = load_task_from_dir_entry(&entry).await? {
       let () = tasks.push(data);
     }
   }
