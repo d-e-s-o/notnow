@@ -194,10 +194,7 @@ impl Templates {
   }
 }
 
-impl Extend<Template> for Templates
-where
-  T: Ord,
-{
+impl Extend<Template> for Templates {
   fn extend<I>(&mut self, iter: I)
   where
     I: IntoIterator<Item = Template>,
