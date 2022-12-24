@@ -107,11 +107,6 @@ impl Tag {
     Self { template }
   }
 
-  /// Retrieve the tag's ID.
-  pub fn id(&self) -> Id {
-    self.template.id()
-  }
-
   /// Retrieve the tag's name.
   pub fn name(&self) -> &str {
     self.template.name()
