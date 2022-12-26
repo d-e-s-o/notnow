@@ -64,6 +64,11 @@ impl Template {
     Self(Rc::new(inner))
   }
 
+  /// Create a `Template` object from a `SerTemplate`.
+  fn with_serde(template: SerTemplate) -> Self {
+    Self::new(template.name)
+  }
+
   /// Retrieve this template's ID.
   #[inline]
   pub fn id(&self) -> Id {
@@ -74,12 +79,6 @@ impl Template {
   #[inline]
   pub fn name(&self) -> &str {
     &self.0.name
-  }
-}
-
-impl From<SerTemplate> for Template {
-  fn from(template: SerTemplate) -> Self {
-    Self::new(template.name)
   }
 }
 
@@ -157,7 +156,7 @@ impl Templates {
       .into_iter()
       .map(|x| {
         let serde_id = x.id;
-        let template = Template::from(x);
+        let template = Template::with_serde(x);
         let id = template.id();
         (template, (serde_id, id))
       })
