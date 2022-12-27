@@ -418,21 +418,13 @@ mod tests {
   use std::rc::Rc;
 
   use crate::db::Db;
-  use crate::tags::Template;
   use crate::tags::Templates;
   use crate::test::COMPLETE_TAG;
 
 
   #[test]
   fn tag_preparation() {
-    let template_list = vec![
-      Template::new(COMPLETE_TAG),
-      Template::new("foobaz"),
-      Template::new("Z"),
-      Template::new("a"),
-      Template::new("foobar"),
-    ];
-
+    let template_list = vec![COMPLETE_TAG, "foobaz", "Z", "a", "foobar"];
     let mut templates = Templates::new();
     templates.extend(template_list);
     let templates = Rc::new(templates);
@@ -457,17 +449,7 @@ mod tests {
 
   #[test]
   fn data_tag_selection() {
-    let template_list = vec![
-      Template::new(COMPLETE_TAG),
-      Template::new("a"),
-      Template::new("b"),
-      Template::new("c"),
-      Template::new("c1"),
-      Template::new("d"),
-      Template::new("h"),
-      Template::new("z"),
-    ];
-
+    let template_list = vec![COMPLETE_TAG, "a", "b", "c", "c1", "d", "h", "z"];
     let mut templates = Templates::new();
     templates.extend(template_list);
     let templates = Rc::new(templates);

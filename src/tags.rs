@@ -52,7 +52,7 @@ pub struct Template(Rc<TemplateInner>);
 
 impl Template {
   /// Create a new tag template with the given name.
-  pub fn new<S>(name: S) -> Self
+  fn new<S>(name: S) -> Self
   where
     S: Into<String>,
   {
@@ -193,12 +193,16 @@ impl Templates {
   }
 }
 
-impl Extend<Template> for Templates {
+#[cfg(test)]
+impl<S> Extend<S> for Templates
+where
+  S: Into<String>,
+{
   fn extend<I>(&mut self, iter: I)
   where
-    I: IntoIterator<Item = Template>,
+    I: IntoIterator<Item = S>,
   {
-    self.templates.extend(iter.into_iter())
+    self.templates.extend(iter.into_iter().map(Template::new))
   }
 }
 
