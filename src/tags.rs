@@ -11,12 +11,12 @@ use crate::ser::tags::Tag as SerTag;
 use crate::ser::tags::Template as SerTemplate;
 use crate::ser::tags::Templates as SerTemplates;
 use crate::ser::ToSerde;
-use crate::uid::Id as IdT;
+use crate::uid::Uid as UidT;
 
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct T(());
 
-pub type Id = IdT<T>;
+pub type Id = UidT<T>;
 
 
 #[derive(Debug, Eq)]
