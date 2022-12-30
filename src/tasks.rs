@@ -9,8 +9,8 @@ use std::mem::replace;
 use std::rc::Rc;
 
 use crate::db::Db;
-use crate::db::Id as DbId;
 use crate::db::Iter as DbIter;
+use crate::id::Id as DbId;
 use crate::ops::Op;
 use crate::ops::Ops;
 use crate::ser::tasks::Id as SerTaskId;

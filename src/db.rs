@@ -1,15 +1,8 @@
 // Copyright (C) 2022 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use std::cmp::Ordering;
 use std::collections::BTreeSet;
 use std::collections::HashSet;
-use std::fmt::Display;
-use std::fmt::Formatter;
-use std::fmt::Result as FmtResult;
-use std::hash::Hash;
-use std::hash::Hasher;
-use std::marker::PhantomData;
 use std::num::NonZeroUsize;
 use std::ops::Bound;
 use std::ops::Deref;
@@ -18,83 +11,7 @@ use std::slice;
 
 use gaps::RangeGappable as _;
 
-
-/// An ID used by `Db` instances to uniquely identify an item in it.
-///
-/// An `Id` is guaranteed to be unique per `Db` instance (but not
-/// necessarily program-wide).
-#[derive(Debug)]
-#[repr(transparent)]
-pub struct Id<T> {
-  /// The unique identifier.
-  id: NonZeroUsize,
-  /// Phantom data for `T`.
-  _phantom: PhantomData<T>,
-}
-
-impl<T> Display for Id<T> {
-  fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-    Display::fmt(&self.id, f)
-  }
-}
-
-impl<T> Id<T> {
-  /// Construct a new `Id` item given the provided identifier.
-  ///
-  /// `id` is assumed to be unique with respect to the space that it
-  /// is used in.
-  fn from_unique_id(id: NonZeroUsize) -> Self {
-    Self {
-      id,
-      _phantom: PhantomData,
-    }
-  }
-
-  /// Retrieve the numeric value of the `Id`.
-  pub fn get(&self) -> NonZeroUsize {
-    self.id
-  }
-}
-
-impl<T> Clone for Id<T> {
-  fn clone(&self) -> Self {
-    Self {
-      id: self.id,
-      _phantom: PhantomData,
-    }
-  }
-}
-
-impl<T> Copy for Id<T> {}
-
-impl<T> PartialOrd<Self> for Id<T> {
-  fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-    self.id.partial_cmp(&other.id)
-  }
-}
-
-impl<T> Ord for Id<T> {
-  fn cmp(&self, other: &Self) -> Ordering {
-    self.id.cmp(&other.id)
-  }
-}
-
-impl<T> PartialEq<Self> for Id<T> {
-  fn eq(&self, other: &Self) -> bool {
-    self.id.eq(&other.id)
-  }
-}
-
-impl<T> Eq for Id<T> {}
-
-impl<T> Hash for Id<T> {
-  fn hash<H>(&self, state: &mut H)
-  where
-    H: Hasher,
-  {
-    self.id.hash(state)
-  }
-}
+use crate::id::Id;
 
 
 /// An iterator over the items in a `Db`.
@@ -209,7 +126,7 @@ impl<T> Db<T> {
       .enumerate()
       .map(|(id, item)| (Id::from_unique_id(NonZeroUsize::new(id + 1).unwrap()), item))
       .collect::<Vec<_>>();
-    let ids = data.iter().map(|(id, _)| id.id.get()).collect();
+    let ids = data.iter().map(|(id, _)| id.get().get()).collect();
 
     Self { data, ids }
   }
@@ -230,7 +147,7 @@ impl<T> Db<T> {
   #[inline]
   pub fn insert(&mut self, index: usize, id: Option<Id<T>>, item: T) -> Id<T> {
     let id = if let Some(id) = id {
-      self.reserve_id(id.id.get())
+      self.reserve_id(id.get().get())
     } else {
       self.allocate_id()
     };
@@ -242,7 +159,7 @@ impl<T> Db<T> {
   #[inline]
   pub fn push(&mut self, id: Option<Id<T>>, item: T) -> Id<T> {
     let id = if let Some(id) = id {
-      self.reserve_id(id.id.get())
+      self.reserve_id(id.get().get())
     } else {
       self.allocate_id()
     };
@@ -325,7 +242,7 @@ impl<T> Db<T> {
 
   /// Free the given `Id` for future use.
   fn free_id(&mut self, id: Id<T>) {
-    let _removed = self.ids.remove(&id.id.get());
+    let _removed = self.ids.remove(&id.get().get());
     debug_assert!(_removed, "ID {id} was not allocated");
   }
 }
