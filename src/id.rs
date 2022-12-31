@@ -164,3 +164,61 @@ impl<T> AllocId<T> for BTreeSet<usize> {
     debug_assert!(_removed, "ID {id} was not allocated");
   }
 }
+
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+
+  /// Check that we can allocate and free `Id`'s in a `BTreeSet`.
+  #[test]
+  fn allocate_and_free_id_btreeset() {
+    let mut set = BTreeSet::<usize>::new();
+
+    assert_eq!(set.get(&1), None);
+    let id1 = AllocId::<()>::allocate_id(&mut set);
+    assert_eq!(id1.get().get(), 1);
+    assert_eq!(set.get(&1), Some(&1));
+
+    assert_eq!(set.get(&2), None);
+    let id2 = AllocId::<()>::allocate_id(&mut set);
+    assert_eq!(id2.get().get(), 2);
+    assert_eq!(set.get(&2), Some(&2));
+
+    let () = set.free_id(id1);
+    assert_eq!(set.get(&1), None);
+
+    let () = set.free_id(id2);
+    assert_eq!(set.get(&2), None);
+
+    assert!(set.is_empty());
+  }
+
+
+  /// Check that we can reserve and free `Id`'s in a `BTreeSet`.
+  #[test]
+  fn reserve_free_id_btreeset() {
+    let mut set = BTreeSet::<usize>::new();
+
+    let id1 = AllocId::<()>::reserve_id(&mut set, 1);
+    assert_eq!(id1.get().get(), 1);
+    assert_eq!(set.get(&1), Some(&1));
+
+    assert_eq!(AllocId::<()>::try_reserve_id(&mut set, 1), None);
+
+    let () = set.free_id(id1);
+    assert_eq!(set.get(&1), None);
+
+    assert!(set.is_empty());
+
+    let id1 = AllocId::<()>::try_reserve_id(&mut set, 1).unwrap();
+    assert_eq!(id1.get().get(), 1);
+    assert_eq!(set.get(&1), Some(&1));
+
+    let () = set.free_id(id1);
+    assert_eq!(set.get(&1), None);
+
+    assert!(set.is_empty());
+  }
+}
