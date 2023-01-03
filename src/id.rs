@@ -93,23 +93,26 @@ impl<T> Hash for Id<T> {
 /// A trait for allocating `Id`'s.
 pub trait AllocId<T> {
   type Id;
+  type Entry<'e>
+  where
+    Self: 'e;
 
   /// Allocate an unused `Id`.
   ///
   /// # Panics
   ///
   /// This method panics if the available ID space is exhausted.
-  fn allocate_id(&mut self) -> Self::Id;
+  fn allocate_id(&mut self) -> (Self::Id, Self::Entry<'_>);
 
   /// Attempt to reserve an `Id`.
-  fn try_reserve_id(&mut self, id: usize) -> Option<Self::Id>;
+  fn try_reserve_id(&mut self, id: usize) -> Option<(Self::Id, Self::Entry<'_>)>;
 
   /// Reserve an `Id` and panic if it is already in use.
   ///
   /// # Panics
   ///
   /// This method panics if the provided `id` is already in use.
-  fn reserve_id(&mut self, id: usize) -> Self::Id {
+  fn reserve_id(&mut self, id: usize) -> (Self::Id, Self::Entry<'_>) {
     self
       .try_reserve_id(id)
       .unwrap_or_else(|| panic!("ID {id} is already in use"))
@@ -121,8 +124,9 @@ pub trait AllocId<T> {
 
 impl<T> AllocId<T> for BTreeSet<usize> {
   type Id = Id<T>;
+  type Entry<'e> = ();
 
-  fn allocate_id(&mut self) -> Self::Id {
+  fn allocate_id(&mut self) -> (Self::Id, Self::Entry<'_>) {
     let mut gaps = self.gaps(1..=usize::MAX);
     let gap = gaps.next().expect("available ID space is exhausted");
     let id = match gap {
@@ -141,19 +145,19 @@ impl<T> AllocId<T> for BTreeSet<usize> {
     // SANITY: `id` will never be zero here, because we start gap
     //         detection above at 1.
     let id = NonZeroUsize::new(id).unwrap();
-    Id::from_unique_id(id)
+    (Id::from_unique_id(id), ())
   }
 
-  fn try_reserve_id(&mut self, id: usize) -> Option<Self::Id> {
+  fn try_reserve_id(&mut self, id: usize) -> Option<(Self::Id, ())> {
     let id = NonZeroUsize::new(id)?;
     if !self.insert(id.get()) {
       None
     } else {
-      Some(Id::from_unique_id(id))
+      Some((Id::from_unique_id(id), ()))
     }
   }
 
-  fn reserve_id(&mut self, id: usize) -> Self::Id {
+  fn reserve_id(&mut self, id: usize) -> (Self::Id, ()) {
     self
       .try_reserve_id(id)
       .unwrap_or_else(|| panic!("ID {id} is already in use"))
@@ -177,16 +181,16 @@ mod tests {
     let mut set = BTreeSet::<usize>::new();
 
     assert_eq!(set.get(&1), None);
-    let id1 = AllocId::<()>::allocate_id(&mut set);
+    let (id1, ()) = AllocId::<()>::allocate_id(&mut set);
     assert_eq!(id1.get().get(), 1);
     assert_eq!(set.get(&1), Some(&1));
 
     assert_eq!(set.get(&2), None);
-    let id2 = AllocId::<()>::allocate_id(&mut set);
+    let (id2, ()) = AllocId::<()>::allocate_id(&mut set);
     assert_eq!(id2.get().get(), 2);
     assert_eq!(set.get(&2), Some(&2));
 
-    let () = set.free_id(id1);
+    let () = AllocId::<()>::free_id(&mut set, id1);
     assert_eq!(set.get(&1), None);
 
     let () = set.free_id(id2);
@@ -201,22 +205,22 @@ mod tests {
   fn reserve_free_id_btreeset() {
     let mut set = BTreeSet::<usize>::new();
 
-    let id1 = AllocId::<()>::reserve_id(&mut set, 1);
+    let (id1, ()) = AllocId::<()>::reserve_id(&mut set, 1);
     assert_eq!(id1.get().get(), 1);
     assert_eq!(set.get(&1), Some(&1));
 
     assert_eq!(AllocId::<()>::try_reserve_id(&mut set, 1), None);
 
-    let () = set.free_id(id1);
+    let () = AllocId::<()>::free_id(&mut set, id1);
     assert_eq!(set.get(&1), None);
 
     assert!(set.is_empty());
 
-    let id1 = AllocId::<()>::try_reserve_id(&mut set, 1).unwrap();
+    let (id1, ()) = AllocId::<()>::try_reserve_id(&mut set, 1).unwrap();
     assert_eq!(id1.get().get(), 1);
     assert_eq!(set.get(&1), Some(&1));
 
-    let () = set.free_id(id1);
+    let () = AllocId::<()>::free_id(&mut set, id1);
     assert_eq!(set.get(&1), None);
 
     assert!(set.is_empty());

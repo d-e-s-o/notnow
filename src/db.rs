@@ -144,7 +144,7 @@ impl<T> Db<T> {
   /// This method panics if `id` is already used within the `Db`.
   #[inline]
   pub fn insert(&mut self, index: usize, id: Option<Id<T>>, item: T) -> Id<T> {
-    let id = if let Some(id) = id {
+    let (id, ()) = if let Some(id) = id {
       self.ids.reserve_id(id.get().get())
     } else {
       self.ids.allocate_id()
@@ -156,7 +156,7 @@ impl<T> Db<T> {
   /// Insert an item at the end of the database.
   #[inline]
   pub fn push(&mut self, id: Option<Id<T>>, item: T) -> Id<T> {
-    let id = if let Some(id) = id {
+    let (id, ()) = if let Some(id) = id {
       self.ids.reserve_id(id.get().get())
     } else {
       self.ids.allocate_id()
