@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::cmp::Ordering;
+use std::collections::btree_map::Entry;
+use std::collections::btree_map::VacantEntry;
+use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use std::fmt::Display;
 use std::fmt::Formatter;
@@ -169,6 +172,57 @@ impl<T> AllocId<T> for BTreeSet<usize> {
   }
 }
 
+impl<T, V> AllocId<T> for BTreeMap<usize, V> {
+  type Id = Id<T>;
+  type Entry<'e> = VacantEntry<'e, usize, V>
+    where
+      V: 'e;
+
+  fn allocate_id(&mut self) -> (Self::Id, Self::Entry<'_>) {
+    let mut gaps = self.gaps(1..=usize::MAX);
+    let gap = gaps.next().expect("available ID space is exhausted");
+    let id = match gap {
+      (Bound::Included(lower), _) => lower,
+      (Bound::Excluded(lower), _) => lower + 1,
+      (Bound::Unbounded, _) => {
+        // SANITY: We should never hit this case by virtue of the lower
+        //         bound we provide.
+        unreachable!()
+      },
+    };
+
+    match self.entry(id) {
+      Entry::Vacant(vacancy) => {
+        // SANITY: `id` will never be zero here, because we start gap
+        //         detection above at 1.
+        let id = NonZeroUsize::new(id).unwrap();
+        (Id::from_unique_id(id), vacancy)
+      },
+      Entry::Occupied(_) => panic!("ID {id} already present"),
+    }
+  }
+
+  fn try_reserve_id(&mut self, id: usize) -> Option<(Self::Id, Self::Entry<'_>)> {
+    let id = NonZeroUsize::new(id)?;
+
+    match self.entry(id.get()) {
+      Entry::Vacant(vacancy) => Some((Id::from_unique_id(id), vacancy)),
+      Entry::Occupied(_) => None,
+    }
+  }
+
+  fn reserve_id(&mut self, id: usize) -> (Self::Id, Self::Entry<'_>) {
+    self
+      .try_reserve_id(id)
+      .unwrap_or_else(|| panic!("ID {id} is already in use"))
+  }
+
+  fn free_id(&mut self, id: Self::Id) {
+    let _removed = self.remove(&id.get().get());
+    debug_assert!(_removed.is_some());
+  }
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -224,5 +278,65 @@ mod tests {
     assert_eq!(set.get(&1), None);
 
     assert!(set.is_empty());
+  }
+
+
+  /// Check that we can allocate and free `Id`'s in a `BTreeMap`.
+  #[test]
+  fn allocate_and_free_id_btreemap() {
+    let mut map = BTreeMap::<usize, &'static str>::new();
+
+    assert_eq!(map.get(&1), None);
+    let (id1, entry) = AllocId::<()>::allocate_id(&mut map);
+    let _value_ref = entry.insert("foobar");
+    assert_eq!(id1.get().get(), 1);
+    assert_eq!(map.get(&1), Some(&"foobar"));
+
+    assert_eq!(map.get(&2), None);
+    let (id2, entry) = AllocId::<()>::allocate_id(&mut map);
+    let _value_ref = entry.insert("alloc'd");
+    assert_eq!(id2.get().get(), 2);
+    assert_eq!(map.get(&2), Some(&"alloc'd"));
+
+    let () = AllocId::<()>::free_id(&mut map, id1);
+    assert_eq!(map.get(&1), None);
+
+    let () = map.free_id(id2);
+    assert_eq!(map.get(&2), None);
+
+    assert!(map.is_empty());
+  }
+
+
+  /// Check that we can reserve and free `Id`'s in a `BTreeMap`.
+  #[test]
+  fn reserve_free_id_btreemap() {
+    let mut map = BTreeMap::<usize, &'static str>::new();
+
+    // Reserve an ID but don't ever actually set an entry. In this case
+    // the reservation should end up just being ignored later.
+    let (_id1, _entry) = AllocId::<()>::reserve_id(&mut map, 1);
+
+    let (id1, entry) = AllocId::<()>::reserve_id(&mut map, 1);
+    let _value_ref = entry.insert("foo");
+    assert_eq!(id1.get().get(), 1);
+    assert_eq!(map.get(&1), Some(&"foo"));
+
+    assert!(AllocId::<()>::try_reserve_id(&mut map, 1).is_none());
+
+    let () = AllocId::<()>::free_id(&mut map, id1);
+    assert_eq!(map.get(&1), None);
+
+    assert!(map.is_empty());
+
+    let (id1, entry) = AllocId::<()>::try_reserve_id(&mut map, 1).unwrap();
+    let _value_ref = entry.insert("success");
+    assert_eq!(id1.get().get(), 1);
+    assert_eq!(map.get(&1), Some(&"success"));
+
+    let () = AllocId::<()>::free_id(&mut map, id1);
+    assert_eq!(map.get(&1), None);
+
+    assert!(map.is_empty());
   }
 }
