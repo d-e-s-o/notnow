@@ -3,7 +3,6 @@
 
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
-use std::collections::BTreeSet;
 use std::rc::Rc;
 
 use crate::ser::tags::Id as SerTagId;
@@ -135,8 +134,9 @@ pub type TagMap = BTreeMap<SerTagId, Id>;
 /// A management structure for tag templates.
 #[derive(Debug)]
 pub struct Templates {
-  /// A set of all the tag templates.
-  templates: BTreeSet<Template>,
+  /// A mapping of all the tag templates, indexed by each one's `Id`,
+  /// converted to `usize`.
+  templates: BTreeMap<usize, Template>,
 }
 
 impl Templates {
@@ -158,7 +158,7 @@ impl Templates {
         let serde_id = x.id;
         let template = Template::with_serde(x);
         let id = template.id();
-        (template, (serde_id, id))
+        ((id.get(), template), (serde_id, id))
       })
       .unzip();
 
@@ -168,28 +168,27 @@ impl Templates {
 
   /// Instantiate a new tag from the referenced template.
   pub fn instantiate(&self, id: Id) -> Tag {
-    let result = self.templates.iter().find(|x| x.id() == id);
-
-    match result {
-      Some(template) => Tag::new(template.clone()),
-      None => panic!("Attempt to create tag from invalid Id {}", id),
-    }
+    self
+      .templates
+      .get(&id.get())
+      .map(|template| Tag::new(template.clone()))
+      .unwrap_or_else(|| panic!("Attempt to create tag from invalid Id {}", id))
   }
 
   /// Instantiate a new tag based on a name.
   #[cfg(test)]
   pub fn instantiate_from_name(&self, name: &str) -> Tag {
-    let result = self.templates.iter().find(|x| x.name() == name);
-
-    match result {
-      Some(template) => Tag::new(template.clone()),
-      None => panic!("Attempt to create tag from invalid name: {}", name),
-    }
+    self
+      .templates
+      .values()
+      .find(|template| template.name() == name)
+      .map(|template| Tag::new(template.clone()))
+      .unwrap_or_else(|| panic!("Attempt to create tag from invalid name: {}", name))
   }
 
   /// Retrieve an iterator over all the tag templates.
   pub fn iter(&self) -> impl Iterator<Item = Template> + '_ {
-    self.templates.iter().cloned()
+    self.templates.values().cloned()
   }
 }
 
@@ -202,14 +201,25 @@ where
   where
     I: IntoIterator<Item = S>,
   {
-    self.templates.extend(iter.into_iter().map(Template::new))
+    let iter = iter.into_iter().map(|name| {
+      let template = Template::new(name);
+      (template.id().get(), template)
+    });
+
+    self.templates.extend(iter)
   }
 }
 
 impl ToSerde<SerTemplates> for Templates {
   /// Convert the tag templates object into a serializable form.
   fn to_serde(&self) -> SerTemplates {
-    SerTemplates(self.templates.iter().map(|x| x.to_serde()).collect())
+    SerTemplates(
+      self
+        .templates
+        .values()
+        .map(|template| template.to_serde())
+        .collect(),
+    )
   }
 }
 
