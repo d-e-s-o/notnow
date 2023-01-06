@@ -5,6 +5,7 @@ use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::rc::Rc;
 
+use crate::id::AllocId;
 use crate::ser::tags::Id as SerTagId;
 use crate::ser::tags::Tag as SerTag;
 use crate::ser::tags::Template as SerTemplate;
@@ -151,16 +152,22 @@ impl Templates {
   /// The conversion also creates a "lookup" table mapping from the IDs
   /// as they were persisted to the in-memory ones.
   pub fn with_serde(templates: SerTemplates) -> Result<(Self, TagMap), SerTagId> {
-    let (templates, map) = templates
-      .0
-      .into_iter()
-      .map(|x| {
-        let serde_id = x.id;
-        let template = Template::with_serde(x);
-        let id = template.id();
-        ((id.get(), template), (serde_id, id))
-      })
-      .unzip();
+    let (templates, map) = templates.0.into_iter().try_fold(
+      (BTreeMap::new(), TagMap::new()),
+      |(mut templates, mut map), template| {
+        let serde_id = template.id;
+        let template = Template::with_serde(template);
+        let template_id = template.id();
+        let (_id, entry) =
+          AllocId::<T>::try_reserve_id(&mut templates, template_id.get()).ok_or(serde_id)?;
+        let _value_ref = entry.insert(template);
+
+        let _previous = map.insert(serde_id, template_id);
+        debug_assert_eq!(_previous, None);
+
+        Ok((templates, map))
+      },
+    )?;
 
     let templates = Self { templates };
     Ok((templates, map))
@@ -201,12 +208,11 @@ where
   where
     I: IntoIterator<Item = S>,
   {
-    let iter = iter.into_iter().map(|name| {
+    let () = iter.into_iter().for_each(|name| {
       let template = Template::new(name);
-      (template.id().get(), template)
+      let (_id, entry) = AllocId::<T>::reserve_id(&mut self.templates, template.id().get());
+      let _value_ref = entry.insert(template);
     });
-
-    self.templates.extend(iter)
   }
 }
 
