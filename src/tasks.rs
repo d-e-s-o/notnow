@@ -493,7 +493,7 @@ pub mod tests {
       id: SerTemplateId::new(NonZeroUsize::new(42).unwrap()),
       name: COMPLETE_TAG.to_string(),
     }];
-    let (templates, _map) = Templates::with_serde(SerTemplates(templates));
+    let (templates, _map) = Templates::with_serde(SerTemplates(templates)).unwrap();
     let complete = templates.instantiate_from_name(COMPLETE_TAG);
 
     let mut task = Task::new("test task");
@@ -777,7 +777,7 @@ pub mod tests {
 
   #[test]
   fn serialize_deserialize_tasks() {
-    let (templates, map) = Templates::with_serde(SerTemplates(Default::default()));
+    let (templates, map) = Templates::with_serde(SerTemplates::default()).unwrap();
     let templates = Rc::new(templates);
     let tasks = Tasks::with_serde_tasks(make_tasks(3)).unwrap();
     let serialized = to_json(&tasks.to_serde()).unwrap();

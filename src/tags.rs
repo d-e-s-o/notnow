@@ -143,14 +143,14 @@ impl Templates {
   /// Create an empty `Templates` object.
   #[cfg(test)]
   pub fn new() -> Self {
-    Self::with_serde(Default::default()).0
+    Self::with_serde(SerTemplates::default()).unwrap().0
   }
 
   /// Create a `Templates` object from a `SerTemplates` object.
   ///
   /// The conversion also creates a "lookup" table mapping from the IDs
   /// as they were persisted to the in-memory ones.
-  pub fn with_serde(templates: SerTemplates) -> (Self, TagMap) {
+  pub fn with_serde(templates: SerTemplates) -> Result<(Self, TagMap), SerTagId> {
     let (templates, map) = templates
       .0
       .into_iter()
@@ -163,7 +163,7 @@ impl Templates {
       .unzip();
 
     let templates = Self { templates };
-    (templates, map)
+    Ok((templates, map))
   }
 
   /// Instantiate a new tag from the referenced template.
@@ -238,7 +238,7 @@ mod tests {
       name: "test-tag".to_string(),
     };
 
-    let (templates, _map) = Templates::with_serde(SerTemplates(vec![template]));
+    let (templates, _map) = Templates::with_serde(SerTemplates(vec![template])).unwrap();
     let tag1 = templates.instantiate_from_name("test-tag");
     let tag2 = templates.instantiate_from_name("test-tag");
 
