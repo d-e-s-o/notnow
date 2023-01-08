@@ -22,18 +22,12 @@ use serde::ser::Serializer;
 
 /// An ID that can be serialized and deserialized.
 #[derive(Clone, Copy, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct Id<T>
-where
-  T: Copy,
-{
+pub struct Id<T> {
   id: NonZeroUsize,
   phantom: PhantomData<T>,
 }
 
-impl<T> Id<T>
-where
-  T: Copy,
-{
+impl<T> Id<T> {
   /// Create a new `Id` object from a "raw" integer.
   pub fn new(id: NonZeroUsize) -> Self {
     Self {
@@ -48,10 +42,7 @@ where
   }
 }
 
-impl<T> TryFrom<usize> for Id<T>
-where
-  T: Copy,
-{
+impl<T> TryFrom<usize> for Id<T> {
   type Error = ();
 
   fn try_from(other: usize) -> Result<Self, Self::Error> {
@@ -59,29 +50,20 @@ where
   }
 }
 
-impl<T> Debug for Id<T>
-where
-  T: Copy,
-{
+impl<T> Debug for Id<T> {
   fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
     write!(f, "Id {{ id: {} }}", self.id)
   }
 }
 
-impl<T> Display for Id<T>
-where
-  T: Copy,
-{
+impl<T> Display for Id<T> {
   /// Format the `Id` into the given formatter.
   fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
     write!(f, "{}", self.id)
   }
 }
 
-impl<T> FromStr for Id<T>
-where
-  T: Copy,
-{
+impl<T> FromStr for Id<T> {
   type Err = ();
 
   fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -93,10 +75,7 @@ where
 
 // We manually implement Serialize and Deserialize in order to have the
 // ID represented as a literal value, and not some structured type.
-impl<T> Serialize for Id<T>
-where
-  T: Copy,
-{
+impl<T> Serialize for Id<T> {
   fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
   where
     S: Serializer,
@@ -105,10 +84,7 @@ where
   }
 }
 
-impl<'de, T> Deserialize<'de> for Id<T>
-where
-  T: Copy,
-{
+impl<'de, T> Deserialize<'de> for Id<T> {
   fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
   where
     D: Deserializer<'de>,
