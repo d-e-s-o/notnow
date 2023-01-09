@@ -17,6 +17,9 @@ use std::ops::Bound;
 
 use gaps::RangeGappable as _;
 
+use crate::ser::id::Id as SerId;
+use crate::ser::ToSerde;
+
 
 /// An ID used to uniquely identify an item in some defined space.
 #[derive(Debug)]
@@ -89,6 +92,13 @@ impl<T> Hash for Id<T> {
     H: Hasher,
   {
     self.id.hash(state)
+  }
+}
+
+impl<T, U> ToSerde<SerId<U>> for Id<T> {
+  /// Convert this [`Id`] into a serializable one.
+  fn to_serde(&self) -> SerId<U> {
+    SerId::new(self.get())
   }
 }
 

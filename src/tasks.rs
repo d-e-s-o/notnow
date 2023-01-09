@@ -13,7 +13,6 @@ use crate::db::Iter as DbIter;
 use crate::id::Id as DbId;
 use crate::ops::Op;
 use crate::ops::Ops;
-use crate::ser::tasks::Id as SerTaskId;
 use crate::ser::tasks::Task as SerTask;
 use crate::ser::tasks::Tasks as SerTasks;
 use crate::ser::ToSerde;
@@ -28,13 +27,6 @@ const MAX_UNDO_STEP_COUNT: usize = 64;
 
 
 pub type Id = DbId<Task>;
-
-impl ToSerde<SerTaskId> for Id {
-  /// Convert this task ID into a serializable one.
-  fn to_serde(&self) -> SerTaskId {
-    SerTaskId::new(self.get())
-  }
-}
 
 
 /// A struct representing a task item.
