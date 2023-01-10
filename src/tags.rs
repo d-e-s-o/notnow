@@ -6,17 +6,17 @@ use std::collections::BTreeMap;
 use std::rc::Rc;
 
 use crate::id::AllocId;
+use crate::id::Id as IdT;
 use crate::ser::tags::Id as SerTagId;
 use crate::ser::tags::Tag as SerTag;
 use crate::ser::tags::Template as SerTemplate;
 use crate::ser::tags::Templates as SerTemplates;
 use crate::ser::ToSerde;
-use crate::uid::Uid as UidT;
 
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct T(());
 
-pub type Id = UidT<T>;
+pub type Id = IdT<T>;
 
 
 #[derive(Debug, Eq)]
@@ -52,12 +52,12 @@ pub struct Template(Rc<TemplateInner>);
 
 impl Template {
   /// Create a new tag template with the given name.
-  fn new<S>(name: S) -> Self
+  fn new<S>(id: Id, name: S) -> Self
   where
     S: Into<String>,
   {
     let inner = TemplateInner {
-      id: Id::new(),
+      id,
       name: name.into(),
     };
 
@@ -65,8 +65,8 @@ impl Template {
   }
 
   /// Create a `Template` object from a `SerTemplate`.
-  fn with_serde(template: SerTemplate) -> Self {
-    Self::new(template.name)
+  fn with_serde(id: Id, template: SerTemplate) -> Self {
+    Self::new(id, template.name)
   }
 
   /// Retrieve this template's ID.
@@ -156,10 +156,9 @@ impl Templates {
       (BTreeMap::new(), TagMap::new()),
       |(mut templates, mut map), template| {
         let serde_id = template.id;
-        let template = Template::with_serde(template);
+        let (id, entry) = templates.try_reserve_id(serde_id.get()).ok_or(serde_id)?;
+        let template = Template::with_serde(id, template);
         let template_id = template.id();
-        let (_id, entry) =
-          AllocId::<T>::try_reserve_id(&mut templates, template_id.get()).ok_or(serde_id)?;
         let _value_ref = entry.insert(template);
 
         let _previous = map.insert(serde_id, template_id);
@@ -177,7 +176,7 @@ impl Templates {
   pub fn instantiate(&self, id: Id) -> Tag {
     self
       .templates
-      .get(&id.get())
+      .get(&id.get().get())
       .map(|template| Tag::new(template.clone()))
       .unwrap_or_else(|| panic!("Attempt to create tag from invalid Id {}", id))
   }
@@ -209,8 +208,8 @@ where
     I: IntoIterator<Item = S>,
   {
     let () = iter.into_iter().for_each(|name| {
-      let template = Template::new(name);
-      let (_id, entry) = AllocId::<T>::reserve_id(&mut self.templates, template.id().get());
+      let (id, entry) = self.templates.allocate_id();
+      let template = Template::new(id, name);
       let _value_ref = entry.insert(template);
     });
   }
