@@ -72,7 +72,6 @@ mod tasks;
 #[allow(unsafe_code)]
 pub mod test;
 mod ui;
-mod uid;
 mod view;
 
 use std::env::args_os;
