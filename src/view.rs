@@ -14,7 +14,6 @@ use crate::ser::view::TagLit as SerTagLit;
 use crate::ser::view::View as SerView;
 use crate::ser::ToSerde;
 use crate::tags::Tag;
-use crate::tags::TagMap;
 use crate::tags::Templates;
 use crate::tasks::Id as TaskId;
 use crate::tasks::Task;
@@ -271,18 +270,16 @@ impl View {
   pub fn with_serde(
     view: SerView,
     templates: &Rc<Templates>,
-    map: &TagMap,
     tasks: Rc<RefCell<Tasks>>,
   ) -> IoResult<Self> {
     let mut and_lits = Vec::with_capacity(view.lits.len());
     for lits in view.lits.into_iter() {
       let mut or_lits = Vec::with_capacity(lits.len());
       for lit in lits.into_iter() {
-        let id = map.get(&lit.id()).ok_or_else(|| {
+        let tag = templates.instantiate_serde(lit.id()).ok_or_else(|| {
           let error = format!("Encountered invalid tag Id {}", lit.id());
           Error::new(ErrorKind::InvalidInput, error)
         })?;
-        let tag = templates.instantiate(*id);
         let lit = match lit {
           SerTagLit::Pos(_) => TagLit::Pos(tag),
           SerTagLit::Neg(_) => TagLit::Neg(tag),
@@ -356,10 +353,10 @@ mod tests {
 
   fn make_tagged_tasks(count: usize) -> (Rc<Templates>, Rc<RefCell<Tasks>>) {
     let (_, templates, tasks) = make_tasks_with_tags(count);
-    let (templates, map) = Templates::with_serde(SerTemplates(templates)).unwrap();
+    let (templates, _map) = Templates::with_serde(SerTemplates(templates)).unwrap();
     let templates = Rc::new(templates);
     let tasks = SerTasks::from(tasks);
-    let tasks = Tasks::with_serde(tasks, templates.clone(), &map).unwrap();
+    let tasks = Tasks::with_serde(tasks, templates.clone()).unwrap();
     let tasks = Rc::new(RefCell::new(tasks));
 
     (templates, tasks)

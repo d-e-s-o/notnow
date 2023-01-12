@@ -181,6 +181,17 @@ impl Templates {
       .unwrap_or_else(|| panic!("Attempt to create tag from invalid Id {}", id))
   }
 
+  /// Instantiate a tag from the given serialized tag ID.
+  ///
+  /// This methods return `None` if the provided `id` does not represent
+  /// a known tag.
+  pub fn instantiate_serde(&self, id: SerTagId) -> Option<Tag> {
+    self
+      .templates
+      .get(&id.get())
+      .map(|template| Tag::new(template.clone()))
+  }
+
   /// Instantiate a new tag based on a name.
   #[cfg(test)]
   pub fn instantiate_from_name(&self, name: &str) -> Tag {

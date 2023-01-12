@@ -17,7 +17,6 @@ use crate::ser::tasks::Task as SerTask;
 use crate::ser::tasks::Tasks as SerTasks;
 use crate::ser::ToSerde;
 use crate::tags::Tag;
-use crate::tags::TagMap;
 use crate::tags::Templates;
 
 
@@ -61,14 +60,14 @@ impl Task {
   }
 
   /// Create a new task from a serializable one.
-  fn with_serde(task: SerTask, templates: Rc<Templates>, map: &TagMap) -> Result<Task> {
+  fn with_serde(task: SerTask, templates: Rc<Templates>) -> Result<Self> {
     let mut tags = BTreeSet::new();
     for tag in task.tags.into_iter() {
-      let id = map.get(&tag.id).ok_or_else(|| {
+      let tag = templates.instantiate_serde(tag.id).ok_or_else(|| {
         let error = format!("Encountered invalid tag Id {}", tag.id);
         Error::new(ErrorKind::InvalidInput, error)
       })?;
-      tags.insert(templates.instantiate(*id));
+      tags.insert(tag);
     }
 
     Ok(Self {
@@ -351,13 +350,13 @@ pub struct Tasks {
 
 impl Tasks {
   /// Create a new `Tasks` object from a serializable one.
-  pub fn with_serde(tasks: SerTasks, templates: Rc<Templates>, map: &TagMap) -> Result<Self> {
+  pub fn with_serde(tasks: SerTasks, templates: Rc<Templates>) -> Result<Self> {
     let len = tasks.0.len();
     let tasks = tasks
       .0
       .into_iter()
       .try_fold(Vec::with_capacity(len), |mut vec, (id, task)| {
-        let task = Task::with_serde(task, templates.clone(), map)?;
+        let task = Task::with_serde(task, templates.clone())?;
         vec.push((id.get(), task));
         Result::Ok(vec)
       })?;
@@ -382,9 +381,8 @@ impl Tasks {
 
     let tasks = SerTasks::from(tasks);
     let templates = Rc::new(Templates::new());
-    let map = Default::default();
 
-    Self::with_serde(tasks, templates, &map)
+    Self::with_serde(tasks, templates)
   }
 
   /// Convert this object into a serializable one.
@@ -769,12 +767,12 @@ pub mod tests {
 
   #[test]
   fn serialize_deserialize_tasks() {
-    let (templates, map) = Templates::with_serde(SerTemplates::default()).unwrap();
+    let (templates, _map) = Templates::with_serde(SerTemplates::default()).unwrap();
     let templates = Rc::new(templates);
     let tasks = Tasks::with_serde_tasks(make_tasks(3)).unwrap();
     let serialized = to_json(&tasks.to_serde()).unwrap();
     let deserialized = from_json::<SerTasks>(&serialized).unwrap();
-    let tasks = Tasks::with_serde(deserialized, templates, &map)
+    let tasks = Tasks::with_serde(deserialized, templates)
       .unwrap()
       .to_serde()
       .into_task_vec();

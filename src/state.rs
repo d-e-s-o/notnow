@@ -298,9 +298,9 @@ impl TaskState {
   /// This constructor is intended for testing purposes.
   #[allow(unused)]
   fn with_serde(root: &Path, tasks: SerTasks, templates: SerTemplates) -> Self {
-    let (templates, map) = Templates::with_serde(templates).unwrap();
+    let (templates, _map) = Templates::with_serde(templates).unwrap();
     let templates = Rc::new(templates);
-    let tasks = Tasks::with_serde(tasks, templates.clone(), &map).unwrap();
+    let tasks = Tasks::with_serde(tasks, templates.clone()).unwrap();
     Self {
       templates,
       tasks_root: root.into(),
@@ -373,17 +373,17 @@ impl State {
   where
     P: Into<PathBuf>,
   {
-    let (templates, map) =
+    let (templates, _map) =
       Templates::with_serde(task_state.tasks_meta.templates).map_err(|id| {
         let error = format!("Encountered duplicate tag Id {}", id);
         Error::new(ErrorKind::InvalidInput, error)
       })?;
     let templates = Rc::new(templates);
-    let tasks = Tasks::with_serde(task_state.tasks, templates.clone(), &map)?;
+    let tasks = Tasks::with_serde(task_state.tasks, templates.clone())?;
     let tasks = Rc::new(RefCell::new(tasks));
     let mut views = Vec::new();
     for (view, selected) in ui_state.views.into_iter() {
-      let view = View::with_serde(view, &templates, &map, tasks.clone())?;
+      let view = View::with_serde(view, &templates, tasks.clone())?;
       views.push((view, selected))
     }
     // For convenience for the user, we add a default view capturing
@@ -393,12 +393,12 @@ impl State {
     }
 
     let toggle_tag = if let Some(toggle_tag) = ui_state.toggle_tag {
-      let toggle_tag = map.get(&toggle_tag.id).ok_or_else(|| {
+      let toggle_tag = templates.instantiate_serde(toggle_tag.id).ok_or_else(|| {
         let error = format!("Encountered invalid toggle tag Id {}", toggle_tag.id);
         Error::new(ErrorKind::InvalidInput, error)
       })?;
 
-      Some(templates.instantiate(*toggle_tag))
+      Some(toggle_tag)
     } else {
       None
     };
@@ -524,9 +524,9 @@ pub mod tests {
 
     let () = task_state.save().await.unwrap();
     let task_state = load_tasks_from_dir(root).await.unwrap();
-    let (templates, map) = Templates::with_serde(task_state.tasks_meta.templates).unwrap();
+    let (templates, _map) = Templates::with_serde(task_state.tasks_meta.templates).unwrap();
     let templates = Rc::new(templates);
-    let loaded = Tasks::with_serde(task_state.tasks, templates, &map).unwrap();
+    let loaded = Tasks::with_serde(task_state.tasks, templates).unwrap();
     let loaded = loaded.iter().map(|(id, _task)| *id).collect::<Vec<_>>();
     assert_eq!(loaded, tasks);
   }
