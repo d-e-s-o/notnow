@@ -393,7 +393,7 @@ impl State {
     }
 
     let toggle_tag = if let Some(toggle_tag) = ui_state.toggle_tag {
-      let toggle_tag = templates.instantiate_serde(toggle_tag.id).ok_or_else(|| {
+      let toggle_tag = templates.instantiate(toggle_tag.id).ok_or_else(|| {
         let error = format!("Encountered invalid toggle tag Id {}", toggle_tag.id);
         Error::new(ErrorKind::InvalidInput, error)
       })?;

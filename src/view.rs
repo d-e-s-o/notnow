@@ -276,7 +276,7 @@ impl View {
     for lits in view.lits.into_iter() {
       let mut or_lits = Vec::with_capacity(lits.len());
       for lit in lits.into_iter() {
-        let tag = templates.instantiate_serde(lit.id()).ok_or_else(|| {
+        let tag = templates.instantiate(lit.id()).ok_or_else(|| {
           let error = format!("Encountered invalid tag Id {}", lit.id());
           Error::new(ErrorKind::InvalidInput, error)
         })?;

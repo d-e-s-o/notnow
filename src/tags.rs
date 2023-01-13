@@ -176,7 +176,7 @@ impl Templates {
   ///
   /// This methods return `None` if the provided `id` does not represent
   /// a known tag.
-  pub fn instantiate_serde(&self, id: SerTagId) -> Option<Tag> {
+  pub fn instantiate(&self, id: SerTagId) -> Option<Tag> {
     self
       .templates
       .get(&id.get())
