@@ -422,8 +422,8 @@ mod tests {
   #[test]
   fn filter_tag1_and_tag2() {
     let (templates, tasks) = make_tagged_tasks(20);
-    let tag1 = templates.instantiate(templates.iter().nth(1).unwrap().id());
-    let tag2 = templates.instantiate(templates.iter().nth(2).unwrap().id());
+    let tag1 = templates.instantiate_from_name(templates.iter().nth(1).unwrap().name());
+    let tag2 = templates.instantiate_from_name(templates.iter().nth(2).unwrap().name());
     let view = ViewBuilder::new(tasks).and(tag1).and(tag2).build("test");
 
     let mut iter = view.iter();
@@ -439,8 +439,8 @@ mod tests {
   #[test]
   fn filter_tag3_or_tag1() {
     let (templates, tasks) = make_tagged_tasks(20);
-    let tag1 = templates.instantiate(templates.iter().nth(1).unwrap().id());
-    let tag3 = templates.instantiate(templates.iter().nth(3).unwrap().id());
+    let tag1 = templates.instantiate_from_name(templates.iter().nth(1).unwrap().name());
+    let tag3 = templates.instantiate_from_name(templates.iter().nth(3).unwrap().name());
     let view = ViewBuilder::new(tasks).or(tag3).or(tag1).build("test");
 
     let mut iter = view.iter();
@@ -463,8 +463,8 @@ mod tests {
   fn filter_tag1_and_complete_or_tag4() {
     let (templates, tasks) = make_tagged_tasks(20);
     let complete_tag = templates.instantiate_from_name(COMPLETE_TAG);
-    let tag1 = templates.instantiate(templates.iter().nth(1).unwrap().id());
-    let tag4 = templates.instantiate(templates.iter().nth(4).unwrap().id());
+    let tag1 = templates.instantiate_from_name(templates.iter().nth(1).unwrap().name());
+    let tag4 = templates.instantiate_from_name(templates.iter().nth(4).unwrap().name());
     let view = ViewBuilder::new(tasks)
       .and(tag1)
       .and(complete_tag)
@@ -485,7 +485,7 @@ mod tests {
   fn filter_tag2_and_not_complete() {
     let (templates, tasks) = make_tagged_tasks(20);
     let complete_tag = templates.instantiate_from_name(COMPLETE_TAG);
-    let tag2 = templates.instantiate(templates.iter().nth(2).unwrap().id());
+    let tag2 = templates.instantiate_from_name(templates.iter().nth(2).unwrap().name());
     let view = ViewBuilder::new(tasks)
       .and_not(tag2)
       .and_not(complete_tag)
@@ -505,8 +505,8 @@ mod tests {
   fn filter_tag2_or_not_complete_and_tag3() {
     let (templates, tasks) = make_tagged_tasks(20);
     let complete_tag = templates.instantiate_from_name(COMPLETE_TAG);
-    let tag2 = templates.instantiate(templates.iter().nth(2).unwrap().id());
-    let tag3 = templates.instantiate(templates.iter().nth(3).unwrap().id());
+    let tag2 = templates.instantiate_from_name(templates.iter().nth(2).unwrap().name());
+    let tag3 = templates.instantiate_from_name(templates.iter().nth(3).unwrap().name());
     let view = ViewBuilder::new(tasks)
       .or_not(tag2)
       .or_not(complete_tag)

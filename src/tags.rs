@@ -172,15 +172,6 @@ impl Templates {
     Ok((templates, map))
   }
 
-  /// Instantiate a new tag from the referenced template.
-  pub fn instantiate(&self, id: Id) -> Tag {
-    self
-      .templates
-      .get(&id.get().get())
-      .map(|template| Tag::new(template.clone()))
-      .unwrap_or_else(|| panic!("Attempt to create tag from invalid Id {}", id))
-  }
-
   /// Instantiate a tag from the given serialized tag ID.
   ///
   /// This methods return `None` if the provided `id` does not represent
