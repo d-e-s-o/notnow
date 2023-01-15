@@ -127,11 +127,6 @@ impl ToSerde<SerTag> for Tag {
 }
 
 
-/// A map used for converting tags as they were persisted to the
-/// in-memory form, preserving the correct mapping to templates.
-pub type TagMap = BTreeMap<SerTagId, Id>;
-
-
 /// A management structure for tag templates.
 #[derive(Debug)]
 pub struct Templates {
@@ -144,32 +139,26 @@ impl Templates {
   /// Create an empty `Templates` object.
   #[cfg(test)]
   pub fn new() -> Self {
-    Self::with_serde(SerTemplates::default()).unwrap().0
+    Self::with_serde(SerTemplates::default()).unwrap()
   }
 
   /// Create a `Templates` object from a `SerTemplates` object.
-  ///
-  /// The conversion also creates a "lookup" table mapping from the IDs
-  /// as they were persisted to the in-memory ones.
-  pub fn with_serde(templates: SerTemplates) -> Result<(Self, TagMap), SerTagId> {
-    let (templates, map) = templates.0.into_iter().try_fold(
-      (BTreeMap::new(), TagMap::new()),
-      |(mut templates, mut map), template| {
-        let serde_id = template.id;
-        let (id, entry) = templates.try_reserve_id(serde_id.get()).ok_or(serde_id)?;
-        let template = Template::with_serde(id, template);
-        let template_id = template.id();
-        let _value_ref = entry.insert(template);
+  pub fn with_serde(templates: SerTemplates) -> Result<Self, SerTagId> {
+    let templates =
+      templates
+        .0
+        .into_iter()
+        .try_fold(BTreeMap::new(), |mut templates, template| {
+          let (id, entry) = templates
+            .try_reserve_id(template.id.get())
+            .ok_or(template.id)?;
+          let template = Template::with_serde(id, template);
+          let _value_ref = entry.insert(template);
 
-        let _previous = map.insert(serde_id, template_id);
-        debug_assert_eq!(_previous, None);
+          Ok(templates)
+        })?;
 
-        Ok((templates, map))
-      },
-    )?;
-
-    let templates = Self { templates };
-    Ok((templates, map))
+    Ok(Self { templates })
   }
 
   /// Instantiate a tag from the given serialized tag ID.
@@ -245,7 +234,7 @@ mod tests {
       name: "test-tag".to_string(),
     };
 
-    let (templates, _map) = Templates::with_serde(SerTemplates(vec![template])).unwrap();
+    let templates = Templates::with_serde(SerTemplates(vec![template])).unwrap();
     let tag1 = templates.instantiate_from_name("test-tag");
     let tag2 = templates.instantiate_from_name("test-tag");
 

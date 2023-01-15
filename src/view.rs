@@ -353,8 +353,7 @@ mod tests {
 
   fn make_tagged_tasks(count: usize) -> (Rc<Templates>, Rc<RefCell<Tasks>>) {
     let (_, templates, tasks) = make_tasks_with_tags(count);
-    let (templates, _map) = Templates::with_serde(SerTemplates(templates)).unwrap();
-    let templates = Rc::new(templates);
+    let templates = Rc::new(Templates::with_serde(SerTemplates(templates)).unwrap());
     let tasks = SerTasks::from(tasks);
     let tasks = Tasks::with_serde(tasks, templates.clone()).unwrap();
     let tasks = Rc::new(RefCell::new(tasks));

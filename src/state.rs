@@ -298,8 +298,7 @@ impl TaskState {
   /// This constructor is intended for testing purposes.
   #[allow(unused)]
   fn with_serde(root: &Path, tasks: SerTasks, templates: SerTemplates) -> Self {
-    let (templates, _map) = Templates::with_serde(templates).unwrap();
-    let templates = Rc::new(templates);
+    let templates = Rc::new(Templates::with_serde(templates).unwrap());
     let tasks = Tasks::with_serde(tasks, templates.clone()).unwrap();
     Self {
       templates,
@@ -373,11 +372,10 @@ impl State {
   where
     P: Into<PathBuf>,
   {
-    let (templates, _map) =
-      Templates::with_serde(task_state.tasks_meta.templates).map_err(|id| {
-        let error = format!("Encountered duplicate tag Id {}", id);
-        Error::new(ErrorKind::InvalidInput, error)
-      })?;
+    let templates = Templates::with_serde(task_state.tasks_meta.templates).map_err(|id| {
+      let error = format!("Encountered duplicate tag Id {}", id);
+      Error::new(ErrorKind::InvalidInput, error)
+    })?;
     let templates = Rc::new(templates);
     let tasks = Tasks::with_serde(task_state.tasks, templates.clone())?;
     let tasks = Rc::new(RefCell::new(tasks));
@@ -524,8 +522,7 @@ pub mod tests {
 
     let () = task_state.save().await.unwrap();
     let task_state = load_tasks_from_dir(root).await.unwrap();
-    let (templates, _map) = Templates::with_serde(task_state.tasks_meta.templates).unwrap();
-    let templates = Rc::new(templates);
+    let templates = Rc::new(Templates::with_serde(task_state.tasks_meta.templates).unwrap());
     let loaded = Tasks::with_serde(task_state.tasks, templates).unwrap();
     let loaded = loaded.iter().map(|(id, _task)| *id).collect::<Vec<_>>();
     assert_eq!(loaded, tasks);
