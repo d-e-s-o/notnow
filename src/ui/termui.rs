@@ -246,7 +246,6 @@ impl Handleable<Event, Message> for TermUi {
 // support. Readline can be configured outside of this program's control
 // and so key bindings could be arbitrary.
 #[cfg(all(test, not(feature = "readline")))]
-#[allow(unused_results)]
 mod tests {
   use super::*;
 
@@ -372,7 +371,6 @@ mod tests {
     }
 
     /// Send the given list of events to the UI.
-    #[allow(unused_lifetimes)]
     async fn handle<E, I>(&mut self, events: I) -> &mut Self
     where
       E: Into<Event>,

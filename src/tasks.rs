@@ -446,20 +446,17 @@ impl Tasks {
   }
 
   /// Undo the "most recent" operation.
-  #[allow(clippy::option_option)]
   pub fn undo(&mut self) -> Option<Option<Id>> {
     self.operations.undo(&mut self.tasks)
   }
 
   /// Redo the last undone operation.
-  #[allow(clippy::option_option)]
   pub fn redo(&mut self) -> Option<Option<Id>> {
     self.operations.redo(&mut self.tasks)
   }
 }
 
 
-#[allow(unused_results)]
 #[cfg(test)]
 pub mod tests {
   use super::*;

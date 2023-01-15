@@ -69,7 +69,6 @@ pub mod state;
 mod tags;
 mod tasks;
 #[cfg(any(test, feature = "test"))]
-#[allow(unsafe_code)]
 pub mod test;
 mod ui;
 mod view;

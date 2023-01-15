@@ -233,7 +233,6 @@ impl InOutArea {
   }
 
   /// Handle a key press.
-  #[allow(clippy::trivially_copy_pass_by_ref)]
   #[cfg(not(feature = "readline"))]
   async fn handle_key(
     &self,
@@ -312,7 +311,6 @@ impl InOutArea {
   }
 
   /// Handle a key press.
-  #[allow(clippy::needless_pass_by_value)]
   #[cfg(feature = "readline")]
   async fn handle_key(
     &self,

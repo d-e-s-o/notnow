@@ -314,7 +314,6 @@ impl Dialog {
   }
 
   /// Handle any "jump to" action.
-  #[allow(clippy::option_option)]
   fn handle_jump_to(
     &self,
     cap: &mut dyn MutCap<Event, Message>,
