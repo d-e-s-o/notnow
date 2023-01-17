@@ -3,6 +3,8 @@
 
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
+use std::hash::Hash;
+use std::hash::Hasher;
 use std::rc::Rc;
 
 use crate::id::AllocId;
@@ -14,15 +16,24 @@ use crate::ser::tags::Templates as SerTemplates;
 use crate::ser::ToSerde;
 
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct T(());
+struct T(());
 
-pub type Id = IdT<T>;
+type Id = IdT<T>;
 
 
 #[derive(Debug, Eq)]
 struct TemplateInner {
   id: Id,
   name: String,
+}
+
+impl Hash for TemplateInner {
+  fn hash<H>(&self, hasher: &mut H)
+  where
+    H: Hasher,
+  {
+    self.id.hash(hasher)
+  }
 }
 
 impl PartialEq for TemplateInner {
@@ -47,7 +58,7 @@ impl Ord for TemplateInner {
 
 
 /// A struct defining a particular tag.
-#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct Template(Rc<TemplateInner>);
 
 impl Template {
@@ -69,12 +80,6 @@ impl Template {
     Self::new(id, template.name)
   }
 
-  /// Retrieve this template's ID.
-  #[inline]
-  pub fn id(&self) -> Id {
-    self.0.id
-  }
-
   /// Retrieve the tag template's name.
   #[inline]
   pub fn name(&self) -> &str {
@@ -94,7 +99,7 @@ impl ToSerde<SerTemplate> for Template {
 
 
 /// An actual tag instance, which may be associated with a task.
-#[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
 pub struct Tag {
   /// The underlying shared template.
   template: Template,
@@ -121,7 +126,7 @@ impl ToSerde<SerTag> for Tag {
   /// Convert the tag into a serializable one.
   fn to_serde(&self) -> SerTag {
     SerTag {
-      id: self.template.id().to_serde(),
+      id: self.template.0.id.to_serde(),
     }
   }
 }

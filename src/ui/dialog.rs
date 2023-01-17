@@ -72,13 +72,13 @@ fn cmp_template(lhs: &Tag, rhs: &Tag) -> Ordering {
 fn prepare_tags(task: &Task) -> Vec<SetUnsetTag> {
   let set = task
     .tags()
-    .map(|tag| tag.template().id())
+    .map(|tag| tag.template())
     .collect::<HashSet<_>>();
 
   let mut unset = task
     .templates()
     .iter()
-    .filter(|template| !set.contains(&template.id()))
+    .filter(|template| !set.contains(template))
     .map(Tag::new)
     .collect::<Vec<_>>();
   unset.sort_by(cmp_template);
