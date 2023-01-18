@@ -21,45 +21,12 @@ struct T(());
 type Id = IdT<T>;
 
 
+/// A type representing a template for a tag.
 #[derive(Debug, Eq)]
-struct TemplateInner {
+pub struct Template {
   id: Id,
   name: String,
 }
-
-impl Hash for TemplateInner {
-  fn hash<H>(&self, hasher: &mut H)
-  where
-    H: Hasher,
-  {
-    self.id.hash(hasher)
-  }
-}
-
-impl PartialEq for TemplateInner {
-  fn eq(&self, other: &TemplateInner) -> bool {
-    let result = self.id == other.id;
-    debug_assert!(!result || self.name == other.name);
-    result
-  }
-}
-
-impl PartialOrd for TemplateInner {
-  fn partial_cmp(&self, other: &TemplateInner) -> Option<Ordering> {
-    self.id.partial_cmp(&other.id)
-  }
-}
-
-impl Ord for TemplateInner {
-  fn cmp(&self, other: &TemplateInner) -> Ordering {
-    self.id.cmp(&other.id)
-  }
-}
-
-
-/// A struct defining a particular tag.
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct Template(Rc<TemplateInner>);
 
 impl Template {
   /// Create a new tag template with the given name.
@@ -67,12 +34,10 @@ impl Template {
   where
     S: Into<String>,
   {
-    let inner = TemplateInner {
+    Self {
       id,
       name: name.into(),
-    };
-
-    Self(Rc::new(inner))
+    }
   }
 
   /// Create a `Template` object from a `SerTemplate`.
@@ -83,7 +48,36 @@ impl Template {
   /// Retrieve the tag template's name.
   #[inline]
   pub fn name(&self) -> &str {
-    &self.0.name
+    &self.name
+  }
+}
+
+impl Hash for Template {
+  fn hash<H>(&self, hasher: &mut H)
+  where
+    H: Hasher,
+  {
+    self.id.hash(hasher)
+  }
+}
+
+impl PartialEq for Template {
+  fn eq(&self, other: &Template) -> bool {
+    let result = self.id == other.id;
+    debug_assert!(!result || self.name == other.name);
+    result
+  }
+}
+
+impl PartialOrd for Template {
+  fn partial_cmp(&self, other: &Template) -> Option<Ordering> {
+    self.id.partial_cmp(&other.id)
+  }
+}
+
+impl Ord for Template {
+  fn cmp(&self, other: &Template) -> Ordering {
+    self.id.cmp(&other.id)
   }
 }
 
@@ -91,8 +85,8 @@ impl ToSerde<SerTemplate> for Template {
   /// Convert the template into a serializable one.
   fn to_serde(&self) -> SerTemplate {
     SerTemplate {
-      id: self.0.id.to_serde(),
-      name: self.0.name.clone(),
+      id: self.id.to_serde(),
+      name: self.name.clone(),
     }
   }
 }
@@ -102,12 +96,12 @@ impl ToSerde<SerTemplate> for Template {
 #[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
 pub struct Tag {
   /// The underlying shared template.
-  template: Template,
+  template: Rc<Template>,
 }
 
 impl Tag {
   /// Create a new tag referencing the given template.
-  pub fn new(template: Template) -> Tag {
+  pub fn new(template: Rc<Template>) -> Self {
     Self { template }
   }
 
@@ -117,7 +111,7 @@ impl Tag {
   }
 
   /// Retrieve the tag's underlying template.
-  pub fn template(&self) -> Template {
+  pub fn template(&self) -> Rc<Template> {
     self.template.clone()
   }
 }
@@ -126,7 +120,7 @@ impl ToSerde<SerTag> for Tag {
   /// Convert the tag into a serializable one.
   fn to_serde(&self) -> SerTag {
     SerTag {
-      id: self.template.0.id.to_serde(),
+      id: self.template.id.to_serde(),
     }
   }
 }
@@ -137,7 +131,7 @@ impl ToSerde<SerTag> for Tag {
 pub struct Templates {
   /// A mapping of all the tag templates, indexed by each one's `Id`,
   /// converted to `usize`.
-  templates: BTreeMap<usize, Template>,
+  templates: BTreeMap<usize, Rc<Template>>,
 }
 
 impl Templates {
@@ -157,7 +151,7 @@ impl Templates {
           let (id, entry) = templates
             .try_reserve_id(template.id.get())
             .ok_or(template.id)?;
-          let template = Template::with_serde(id, template);
+          let template = Rc::new(Template::with_serde(id, template));
           let _value_ref = entry.insert(template);
 
           Ok(templates)
@@ -189,7 +183,7 @@ impl Templates {
   }
 
   /// Retrieve an iterator over all the tag templates.
-  pub fn iter(&self) -> impl Iterator<Item = Template> + '_ {
+  pub fn iter(&self) -> impl Iterator<Item = Rc<Template>> + '_ {
     self.templates.values().cloned()
   }
 }
@@ -205,7 +199,7 @@ where
   {
     let () = iter.into_iter().for_each(|name| {
       let (id, entry) = self.templates.allocate_id();
-      let template = Template::new(id, name);
+      let template = Rc::new(Template::new(id, name));
       let _value_ref = entry.insert(template);
     });
   }
