@@ -67,14 +67,11 @@ impl TaskListBoxData {
   }
 
   /// Retrieve the selected task and its ID, if any.
-  fn selected_task(&self) -> Option<(TaskId, &Task)> {
+  fn selected_task(&self) -> Option<(TaskId, Task)> {
     let selection = self.selection(0);
     self
       .view
-      .iter()
-      .clone()
-      .nth(selection)
-      .map(|(id, task)| (*id, task))
+      .iter(|mut iter| iter.nth(selection).map(|(id, task)| (*id, task.clone())))
   }
 }
 
@@ -88,7 +85,7 @@ impl Selectable for TaskListBoxData {
   }
 
   fn count(&self) -> usize {
-    self.view.iter().clone().count()
+    self.view.iter(|iter| iter.count())
   }
 }
 
@@ -139,7 +136,9 @@ impl TaskListBox {
     done: Option<&mut bool>,
   ) -> Option<Message> {
     let data = self.data_mut::<TaskListBoxData>(cap);
-    let idx = data.view.iter().position(|(id, _)| *id == task_id);
+    let idx = data
+      .view
+      .iter(|mut iter| iter.position(|(id, _)| *id == task_id));
 
     if let Some(idx) = idx {
       let update = data.select(idx as isize);
@@ -182,7 +181,7 @@ impl TaskListBox {
     let data = self.data::<TaskListBoxData>(cap);
     // Note that because we use the count for index calculation
     // purposes, we subtract one below on every use.
-    let count = data.view.iter().clone().count();
+    let count = data.count();
     // First figure out from where we start the search. If we have
     // visited this `TaskListBox` beforehand we may have already visited
     // the first couple of tasks matching the given string and we should
@@ -213,24 +212,22 @@ impl TaskListBox {
     // would require us to work with an `ExactSizeIterator`, which is
     // not something that we can provide.
     if reverse {
-      data
-        .view
-        .iter()
-        .clone()
-        .rev()
-        .skip(start_idx)
-        .map(|(_, task)| task)
-        .position(check)
-        .map(|idx| count.saturating_sub(start_idx + idx + 1))
+      data.view.iter(|iter| {
+        iter
+          .rev()
+          .skip(start_idx)
+          .map(|(_, task)| task)
+          .position(check)
+          .map(|idx| count.saturating_sub(start_idx + idx + 1))
+      })
     } else {
-      data
-        .view
-        .iter()
-        .clone()
-        .skip(start_idx)
-        .map(|(_, task)| task)
-        .position(check)
-        .map(|idx| start_idx + idx)
+      data.view.iter(|iter| {
+        iter
+          .skip(start_idx)
+          .map(|(_, task)| task)
+          .position(check)
+          .map(|idx| start_idx + idx)
+      })
     }
   }
 
@@ -336,9 +333,11 @@ impl Handleable<Event, Message> for TaskListBox {
         },
         Key::Char('J') => {
           if let Some((to_move_id, _)) = data.selected_task() {
-            let other = data.view.iter().nth(data.selection(1));
-            if let Some((other_id, _)) = other {
-              data.tasks.borrow_mut().move_after(to_move_id, *other_id);
+            let other_id = data
+              .view
+              .iter(|mut iter| iter.nth(data.selection(1)).map(|(id, _task)| *id));
+            if let Some(other_id) = other_id {
+              data.tasks.borrow_mut().move_after(to_move_id, other_id);
               MessageExt::maybe_update(None, data.change_selection(1)).into_event()
             } else {
               None
@@ -350,9 +349,11 @@ impl Handleable<Event, Message> for TaskListBox {
         Key::Char('K') => {
           if let Some((to_move_id, _)) = data.selected_task() {
             if data.selection(0) > 0 {
-              let other = data.view.iter().nth(data.selection(-1));
-              if let Some((other_id, _)) = other {
-                data.tasks.borrow_mut().move_before(to_move_id, *other_id);
+              let other_id = data
+                .view
+                .iter(|mut iter| iter.nth(data.selection(-1)).map(|(id, _task)| *id));
+              if let Some(other_id) = other_id {
+                data.tasks.borrow_mut().move_before(to_move_id, other_id);
                 MessageExt::maybe_update(None, data.change_selection(-1)).into_event()
               } else {
                 None

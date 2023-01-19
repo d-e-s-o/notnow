@@ -6,9 +6,7 @@ use std::io::ErrorKind;
 use std::io::Result as IoResult;
 use std::rc::Rc;
 
-use cell::Ref;
 use cell::RefCell;
-use cell::RefVal;
 
 use crate::ser::view::TagLit as SerTagLit;
 use crate::ser::view::View as SerView;
@@ -297,15 +295,24 @@ impl View {
     })
   }
 
-  /// Retrieve an iterator over the tasks represented by this view.
-  pub fn iter<'t, 's: 't>(&'s self) -> RefVal<'t, Filter<'t>> {
-    Ref::map_val(self.tasks.borrow(), |x| Filter::new(x.iter(), &self.lits))
+  /// Invoke a user-provided function on an iterator over the tasks
+  /// represented by this view.
+  #[inline]
+  pub fn iter<F, R>(&self, f: F) -> R
+  where
+    F: FnMut(Filter<'_>) -> R,
+  {
+    let mut f = f;
+    let tasks = self.tasks.borrow();
+    let filter = Filter::new(tasks.iter(), &self.lits);
+
+    f(filter)
   }
 
   /// Check whether the view is empty or not.
   #[cfg(test)]
   pub fn is_empty(&self) -> bool {
-    self.iter().next().is_none()
+    self.iter(|mut iter| iter.next().is_none())
   }
 
   /// Retrieve the view's name.
@@ -376,21 +383,21 @@ mod tests {
       .and(complete_tag.clone())
       .build("test");
 
-    view
-      .iter()
-      .clone()
-      .for_each(|(_, task)| assert!(task.has_tag(&complete_tag)));
+    let () = view.iter(|mut iter| {
+      let () = iter
+        .clone()
+        .for_each(|(_, task)| assert!(task.has_tag(&complete_tag)));
 
-    let mut iter = view.iter();
-    assert_eq!(iter.next().unwrap().1.summary(), "2");
-    assert_eq!(iter.next().unwrap().1.summary(), "4");
-    assert_eq!(iter.next().unwrap().1.summary(), "6");
-    assert_eq!(iter.next().unwrap().1.summary(), "8");
-    assert_eq!(iter.next().unwrap().1.summary(), "10");
-    assert_eq!(iter.next().unwrap().1.summary(), "12");
-    assert_eq!(iter.next().unwrap().1.summary(), "14");
-    assert_eq!(iter.next().unwrap().1.summary(), "16");
-    assert!(iter.next().is_none());
+      assert_eq!(iter.next().unwrap().1.summary(), "2");
+      assert_eq!(iter.next().unwrap().1.summary(), "4");
+      assert_eq!(iter.next().unwrap().1.summary(), "6");
+      assert_eq!(iter.next().unwrap().1.summary(), "8");
+      assert_eq!(iter.next().unwrap().1.summary(), "10");
+      assert_eq!(iter.next().unwrap().1.summary(), "12");
+      assert_eq!(iter.next().unwrap().1.summary(), "14");
+      assert_eq!(iter.next().unwrap().1.summary(), "16");
+      assert!(iter.next().is_none());
+    });
   }
 
   #[test]
@@ -401,21 +408,21 @@ mod tests {
       .and_not(complete_tag.clone())
       .build("test");
 
-    view
-      .iter()
-      .clone()
-      .for_each(|(_, task)| assert!(!task.has_tag(&complete_tag)));
+    view.iter(|mut iter| {
+      let () = iter
+        .clone()
+        .for_each(|(_, task)| assert!(!task.has_tag(&complete_tag)));
 
-    let mut iter = view.iter();
-    assert_eq!(iter.next().unwrap().1.summary(), "1");
-    assert_eq!(iter.next().unwrap().1.summary(), "3");
-    assert_eq!(iter.next().unwrap().1.summary(), "5");
-    assert_eq!(iter.next().unwrap().1.summary(), "7");
-    assert_eq!(iter.next().unwrap().1.summary(), "9");
-    assert_eq!(iter.next().unwrap().1.summary(), "11");
-    assert_eq!(iter.next().unwrap().1.summary(), "13");
-    assert_eq!(iter.next().unwrap().1.summary(), "15");
-    assert!(iter.next().is_none());
+      assert_eq!(iter.next().unwrap().1.summary(), "1");
+      assert_eq!(iter.next().unwrap().1.summary(), "3");
+      assert_eq!(iter.next().unwrap().1.summary(), "5");
+      assert_eq!(iter.next().unwrap().1.summary(), "7");
+      assert_eq!(iter.next().unwrap().1.summary(), "9");
+      assert_eq!(iter.next().unwrap().1.summary(), "11");
+      assert_eq!(iter.next().unwrap().1.summary(), "13");
+      assert_eq!(iter.next().unwrap().1.summary(), "15");
+      assert!(iter.next().is_none());
+    })
   }
 
   #[test]
@@ -425,14 +432,15 @@ mod tests {
     let tag2 = templates.instantiate_from_name(templates.iter().nth(2).unwrap().name());
     let view = ViewBuilder::new(tasks).and(tag1).and(tag2).build("test");
 
-    let mut iter = view.iter();
-    assert_eq!(iter.next().unwrap().1.summary(), "11");
-    assert_eq!(iter.next().unwrap().1.summary(), "12");
-    assert_eq!(iter.next().unwrap().1.summary(), "15");
-    assert_eq!(iter.next().unwrap().1.summary(), "16");
-    assert_eq!(iter.next().unwrap().1.summary(), "19");
-    assert_eq!(iter.next().unwrap().1.summary(), "20");
-    assert!(iter.next().is_none());
+    let () = view.iter(|mut iter| {
+      assert_eq!(iter.next().unwrap().1.summary(), "11");
+      assert_eq!(iter.next().unwrap().1.summary(), "12");
+      assert_eq!(iter.next().unwrap().1.summary(), "15");
+      assert_eq!(iter.next().unwrap().1.summary(), "16");
+      assert_eq!(iter.next().unwrap().1.summary(), "19");
+      assert_eq!(iter.next().unwrap().1.summary(), "20");
+      assert!(iter.next().is_none());
+    });
   }
 
   #[test]
@@ -442,20 +450,21 @@ mod tests {
     let tag3 = templates.instantiate_from_name(templates.iter().nth(3).unwrap().name());
     let view = ViewBuilder::new(tasks).or(tag3).or(tag1).build("test");
 
-    let mut iter = view.iter();
-    assert_eq!(iter.next().unwrap().1.summary(), "5");
-    assert_eq!(iter.next().unwrap().1.summary(), "6");
-    assert_eq!(iter.next().unwrap().1.summary(), "7");
-    assert_eq!(iter.next().unwrap().1.summary(), "8");
-    assert_eq!(iter.next().unwrap().1.summary(), "11");
-    assert_eq!(iter.next().unwrap().1.summary(), "12");
-    assert_eq!(iter.next().unwrap().1.summary(), "13");
-    assert_eq!(iter.next().unwrap().1.summary(), "14");
-    assert_eq!(iter.next().unwrap().1.summary(), "15");
-    assert_eq!(iter.next().unwrap().1.summary(), "16");
-    assert_eq!(iter.next().unwrap().1.summary(), "19");
-    assert_eq!(iter.next().unwrap().1.summary(), "20");
-    assert!(iter.next().is_none());
+    let () = view.iter(|mut iter| {
+      assert_eq!(iter.next().unwrap().1.summary(), "5");
+      assert_eq!(iter.next().unwrap().1.summary(), "6");
+      assert_eq!(iter.next().unwrap().1.summary(), "7");
+      assert_eq!(iter.next().unwrap().1.summary(), "8");
+      assert_eq!(iter.next().unwrap().1.summary(), "11");
+      assert_eq!(iter.next().unwrap().1.summary(), "12");
+      assert_eq!(iter.next().unwrap().1.summary(), "13");
+      assert_eq!(iter.next().unwrap().1.summary(), "14");
+      assert_eq!(iter.next().unwrap().1.summary(), "15");
+      assert_eq!(iter.next().unwrap().1.summary(), "16");
+      assert_eq!(iter.next().unwrap().1.summary(), "19");
+      assert_eq!(iter.next().unwrap().1.summary(), "20");
+      assert!(iter.next().is_none());
+    });
   }
 
   #[test]
@@ -470,14 +479,15 @@ mod tests {
       .or(tag4)
       .build("test");
 
-    let mut iter = view.iter();
-    assert_eq!(iter.next().unwrap().1.summary(), "6");
-    assert_eq!(iter.next().unwrap().1.summary(), "8");
-    assert_eq!(iter.next().unwrap().1.summary(), "12");
-    assert_eq!(iter.next().unwrap().1.summary(), "16");
-    assert_eq!(iter.next().unwrap().1.summary(), "19");
-    assert_eq!(iter.next().unwrap().1.summary(), "20");
-    assert!(iter.next().is_none());
+    let () = view.iter(|mut iter| {
+      assert_eq!(iter.next().unwrap().1.summary(), "6");
+      assert_eq!(iter.next().unwrap().1.summary(), "8");
+      assert_eq!(iter.next().unwrap().1.summary(), "12");
+      assert_eq!(iter.next().unwrap().1.summary(), "16");
+      assert_eq!(iter.next().unwrap().1.summary(), "19");
+      assert_eq!(iter.next().unwrap().1.summary(), "20");
+      assert!(iter.next().is_none());
+    });
   }
 
   #[test]
@@ -490,14 +500,15 @@ mod tests {
       .and_not(complete_tag)
       .build("test");
 
-    let mut iter = view.iter();
-    assert_eq!(iter.next().unwrap().1.summary(), "1");
-    assert_eq!(iter.next().unwrap().1.summary(), "3");
-    assert_eq!(iter.next().unwrap().1.summary(), "5");
-    assert_eq!(iter.next().unwrap().1.summary(), "7");
-    assert_eq!(iter.next().unwrap().1.summary(), "13");
-    assert_eq!(iter.next().unwrap().1.summary(), "17");
-    assert!(iter.next().is_none());
+    let () = view.iter(|mut iter| {
+      assert_eq!(iter.next().unwrap().1.summary(), "1");
+      assert_eq!(iter.next().unwrap().1.summary(), "3");
+      assert_eq!(iter.next().unwrap().1.summary(), "5");
+      assert_eq!(iter.next().unwrap().1.summary(), "7");
+      assert_eq!(iter.next().unwrap().1.summary(), "13");
+      assert_eq!(iter.next().unwrap().1.summary(), "17");
+      assert!(iter.next().is_none());
+    });
   }
 
   #[test]
@@ -512,11 +523,12 @@ mod tests {
       .and(tag3)
       .build("test");
 
-    let mut iter = view.iter();
-    assert_eq!(iter.next().unwrap().1.summary(), "13");
-    assert_eq!(iter.next().unwrap().1.summary(), "14");
-    assert_eq!(iter.next().unwrap().1.summary(), "15");
-    assert_eq!(iter.next().unwrap().1.summary(), "19");
-    assert!(iter.next().is_none());
+    let () = view.iter(|mut iter| {
+      assert_eq!(iter.next().unwrap().1.summary(), "13");
+      assert_eq!(iter.next().unwrap().1.summary(), "14");
+      assert_eq!(iter.next().unwrap().1.summary(), "15");
+      assert_eq!(iter.next().unwrap().1.summary(), "19");
+      assert!(iter.next().is_none());
+    });
   }
 }

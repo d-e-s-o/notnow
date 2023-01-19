@@ -360,40 +360,44 @@ where
     let selection = task_list.selection(cap);
     let offset = sanitize_offset(data.offset, selection, limit);
 
-    for (i, (_, task)) in view.iter().clone().enumerate().skip(offset).take(limit) {
-      let tagged = task_list
-        .toggle_tag(cap)
-        .map(|toggle_tag| task.has_tag(&toggle_tag))
-        .unwrap_or(false);
-      let (state, state_fg, state_bg) = if !tagged {
-        (
-          "[ ]",
-          self.colors.task_not_started_fg,
-          self.colors.task_not_started_bg,
-        )
-      } else {
-        ("[X]", self.colors.task_done_fg, self.colors.task_done_bg)
-      };
+    let () = view.iter(|iter| {
+      for (i, (_, task)) in iter.enumerate().skip(offset).take(limit) {
+        let tagged = task_list
+          .toggle_tag(cap)
+          .map(|toggle_tag| task.has_tag(&toggle_tag))
+          .unwrap_or(false);
+        let (state, state_fg, state_bg) = if !tagged {
+          (
+            "[ ]",
+            self.colors.task_not_started_fg,
+            self.colors.task_not_started_bg,
+          )
+        } else {
+          ("[X]", self.colors.task_done_fg, self.colors.task_done_bg)
+        };
 
-      let (task_fg, task_bg) = if i == selection {
-        (self.colors.selected_task_fg, self.colors.selected_task_bg)
-      } else {
-        (
-          self.colors.unselected_task_fg,
-          self.colors.unselected_task_bg,
-        )
-      };
+        let (task_fg, task_bg) = if i == selection {
+          (self.colors.selected_task_fg, self.colors.selected_task_bg)
+        } else {
+          (
+            self.colors.unselected_task_fg,
+            self.colors.unselected_task_bg,
+          )
+        };
 
-      self.writer.write(x, y, state_fg, state_bg, state)?;
-      let x = x + state.len() as u16 + 1;
-      self.writer.write(x, y, task_fg, task_bg, task.summary())?;
+        self.writer.write(x, y, state_fg, state_bg, state)?;
+        let x = x + state.len() as u16 + 1;
+        self.writer.write(x, y, task_fg, task_bg, task.summary())?;
 
-      if i == selection && cap.is_focused(task_list.id()) {
-        cursor = Some((x, y));
+        if i == selection && cap.is_focused(task_list.id()) {
+          cursor = Some((x, y));
+        }
+
+        y += TASK_SPACE;
       }
 
-      y += TASK_SPACE;
-    }
+      Result::Ok(())
+    })?;
 
     // Set the cursor to the first character of the selected item. This
     // allows for more convenient copying of the currently selected task
