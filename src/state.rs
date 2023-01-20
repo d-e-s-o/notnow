@@ -4,6 +4,7 @@
 //! Definitions pertaining UI and task state of the program.
 
 use std::cell::Cell;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::io::Error;
@@ -12,8 +13,6 @@ use std::io::Result;
 use std::path::Path;
 use std::path::PathBuf;
 use std::rc::Rc;
-
-use cell::RefCell;
 
 use serde::Deserialize;
 use serde::Serialize;

@@ -36,9 +36,6 @@ required-features = ["test"]
 [dependencies.async-trait]
 version = "0.1.41"
 
-[dependencies.cell]
-version = "0.1"
-
 [dependencies.cdump]
 version = "0.1"
 package = "coredump"

@@ -1,13 +1,12 @@
 // Copyright (C) 2018-2022 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+use std::cell::RefCell;
 use std::cmp::min;
 use std::isize;
 use std::rc::Rc;
 
 use async_trait::async_trait;
-
-use cell::RefCell;
 
 use gui::derive::Widget;
 use gui::Cap;

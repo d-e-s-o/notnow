@@ -1,12 +1,11 @@
 // Copyright (C) 2017-2022 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+use std::cell::RefCell;
 use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Result as IoResult;
 use std::rc::Rc;
-
-use cell::RefCell;
 
 use crate::ser::view::TagLit as SerTagLit;
 use crate::ser::view::View as SerView;
