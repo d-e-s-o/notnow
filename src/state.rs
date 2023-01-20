@@ -320,19 +320,15 @@ impl TaskState {
 impl ToSerde<SerTaskState> for TaskState {
   /// Convert this object into a serializable one.
   fn to_serde(&self) -> SerTaskState {
-    let ids = self
-      .tasks
-      .borrow()
-      .iter()
-      .map(|(id, _)| SerTaskId::new(id.get()))
-      .collect();
+    let tasks = self.tasks.borrow().to_serde();
+    let ids = tasks.0.iter().map(|(id, _)| *id).collect();
 
     SerTaskState {
       tasks_meta: SerTasksMeta {
         templates: self.templates.to_serde(),
         ids,
       },
-      tasks: self.tasks.borrow().to_serde(),
+      tasks,
     }
   }
 }
