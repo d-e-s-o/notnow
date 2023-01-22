@@ -501,25 +501,28 @@ pub mod tests {
     let tasks = {
       let tasks = task_state.tasks();
       let mut tasks = tasks.borrow_mut();
-      let mut task_iter = tasks.iter();
-      // Remove the first three tasks. If IDs were to not be preserved
-      // on serialization, the IDs of these tasks would (likely) be
-      // reassigned again to others on load and we would fail below.
-      let id1 = task_iter.next().unwrap().0;
-      let id2 = task_iter.next().unwrap().0;
-      let id3 = task_iter.next().unwrap().0;
+      let (id1, id2, id3) = tasks.iter(|mut iter| {
+        // Remove the first three tasks. If IDs were to not be preserved
+        // on serialization, the IDs of these tasks would (likely) be
+        // reassigned again to others on load and we would fail below.
+        let id1 = iter.next().unwrap().0;
+        let id2 = iter.next().unwrap().0;
+        let id3 = iter.next().unwrap().0;
+        (id1, id2, id3)
+      });
+
       let () = tasks.remove(id1);
       let () = tasks.remove(id2);
       let () = tasks.remove(id3);
 
-      tasks.iter().map(|(id, _task)| *id).collect::<Vec<_>>()
+      tasks.iter(|iter| iter.map(|(id, _task)| *id).collect::<Vec<_>>())
     };
 
     let () = task_state.save().await.unwrap();
     let task_state = load_tasks_from_dir(root).await.unwrap();
     let templates = Rc::new(Templates::with_serde(task_state.tasks_meta.templates).unwrap());
     let loaded = Tasks::with_serde(task_state.tasks, templates).unwrap();
-    let loaded = loaded.iter().map(|(id, _task)| *id).collect::<Vec<_>>();
+    let loaded = loaded.iter(|iter| iter.map(|(id, _task)| *id).collect::<Vec<_>>());
     assert_eq!(loaded, tasks);
   }
 
@@ -551,9 +554,7 @@ pub mod tests {
       .1
       .tasks
       .borrow()
-      .iter()
-      .map(|(_, task)| task.to_serde())
-      .collect::<Vec<_>>();
+      .iter(|iter| iter.map(|(_, task)| task.to_serde()).collect::<Vec<_>>());
     assert_eq!(new_task_vec, make_tasks(3));
   }
 
@@ -576,9 +577,7 @@ pub mod tests {
       .1
       .tasks
       .borrow()
-      .iter()
-      .map(|(_, task)| task.to_serde())
-      .collect::<Vec<_>>();
+      .iter(|iter| iter.map(|(_, task)| task.to_serde()).collect::<Vec<_>>());
     assert_eq!(new_task_vec, make_tasks(0));
   }
 
@@ -640,7 +639,8 @@ pub mod tests {
 
     let state = State::with_serde(ui_state, ui_config, task_state, tasks_root).unwrap();
     let tasks = state.1.tasks.borrow();
-    let mut it = tasks.iter().map(|(_, task)| task);
+    let vec = tasks.iter(|iter| iter.map(|(_, task)| task.clone()).collect::<Vec<_>>());
+    let mut it = vec.iter();
 
     let task1 = it.next().unwrap();
     let mut tags = task1.tags();

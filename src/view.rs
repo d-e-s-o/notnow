@@ -303,9 +303,8 @@ impl View {
   {
     let mut f = f;
     let tasks = self.tasks.borrow();
-    let filter = Filter::new(tasks.iter(), &self.lits);
 
-    f(filter)
+    tasks.iter(|iter| f(Filter::new(iter, &self.lits)))
   }
 
   /// Check whether the view is empty or not.

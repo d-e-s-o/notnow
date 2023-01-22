@@ -225,9 +225,8 @@ impl Handleable<Event, Message> for TermUi {
         let tasks = data.task_state.tasks();
         let tasks = tasks
           .borrow()
-          .iter()
-          .map(|(_, task)| task.clone())
-          .collect();
+          .iter(|iter| iter.map(|(_, task)| task.clone()).collect());
+
         Some(Message::GotTasks(tasks))
       },
       #[cfg(all(test, not(feature = "readline")))]

@@ -397,9 +397,13 @@ impl Tasks {
     )
   }
 
-  /// Retrieve an iterator over the tasks.
-  pub fn iter(&self) -> TaskIter<'_> {
-    self.tasks.iter()
+  /// Invoke a user-provided function on an iterator over all tasks.
+  #[inline]
+  pub fn iter<F, R>(&self, mut f: F) -> R
+  where
+    F: FnMut(TaskIter<'_>) -> R,
+  {
+    f(self.tasks.iter())
   }
 
   /// Add a new task.
@@ -678,7 +682,7 @@ pub mod tests {
   #[test]
   fn remove_task() {
     let mut tasks = Tasks::with_serde_tasks(make_tasks(3)).unwrap();
-    let id = tasks.iter().nth(1).unwrap().0;
+    let id = tasks.iter(|mut iter| iter.nth(1).unwrap().0);
     tasks.remove(id);
 
     let tasks = tasks.to_serde().into_task_vec();
@@ -691,7 +695,7 @@ pub mod tests {
   #[test]
   fn update_task() {
     let mut tasks = Tasks::with_serde_tasks(make_tasks(3)).unwrap();
-    let (id, mut task) = tasks.iter().nth(1).unwrap().clone();
+    let (id, mut task) = tasks.iter(|mut iter| iter.nth(1).unwrap().clone());
     task.summary = "amended".to_string();
     tasks.update(id, task);
 
@@ -705,8 +709,8 @@ pub mod tests {
   #[test]
   fn move_before_for_first() {
     let mut tasks = Tasks::with_serde_tasks(make_tasks(3)).unwrap();
-    let id1 = tasks.iter().next().unwrap().0;
-    let id2 = tasks.iter().nth(1).unwrap().0;
+    let id1 = tasks.iter(|mut iter| iter.next().unwrap().0);
+    let id2 = tasks.iter(|mut iter| iter.nth(1).unwrap().0);
     tasks.move_before(id1, id2);
 
     let tasks = tasks.to_serde().into_task_vec();
@@ -717,8 +721,8 @@ pub mod tests {
   #[test]
   fn move_after_for_last() {
     let mut tasks = Tasks::with_serde_tasks(make_tasks(3)).unwrap();
-    let id1 = tasks.iter().nth(2).unwrap().0;
-    let id2 = tasks.iter().nth(1).unwrap().0;
+    let id1 = tasks.iter(|mut iter| iter.nth(2).unwrap().0);
+    let id2 = tasks.iter(|mut iter| iter.nth(1).unwrap().0);
     tasks.move_after(id1, id2);
 
     let expected = make_tasks(3);
@@ -729,8 +733,8 @@ pub mod tests {
   #[test]
   fn move_before() {
     let mut tasks = Tasks::with_serde_tasks(make_tasks(4)).unwrap();
-    let id1 = tasks.iter().nth(2).unwrap().0;
-    let id2 = tasks.iter().nth(1).unwrap().0;
+    let id1 = tasks.iter(|mut iter| iter.nth(2).unwrap().0);
+    let id2 = tasks.iter(|mut iter| iter.nth(1).unwrap().0);
     tasks.move_before(id1, id2);
 
     let tasks = tasks.to_serde().into_task_vec();
@@ -743,8 +747,8 @@ pub mod tests {
   #[test]
   fn move_after() {
     let mut tasks = Tasks::with_serde_tasks(make_tasks(4)).unwrap();
-    let id1 = tasks.iter().nth(1).unwrap().0;
-    let id2 = tasks.iter().nth(2).unwrap().0;
+    let id1 = tasks.iter(|mut iter| iter.nth(1).unwrap().0);
+    let id2 = tasks.iter(|mut iter| iter.nth(2).unwrap().0);
     tasks.move_after(id1, id2);
 
     let tasks = tasks.to_serde().into_task_vec();
