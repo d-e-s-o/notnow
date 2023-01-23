@@ -1,11 +1,13 @@
 // Copyright (C) 2017-2022 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+use std::cell::RefCell;
 use std::collections::BTreeSet;
 use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Result;
 use std::mem::replace;
+use std::ops::DerefMut as _;
 use std::rc::Rc;
 
 use crate::db::Db;
@@ -338,15 +340,19 @@ impl Op<Db<Task>, Option<Id>> for TaskOp {
 pub type TaskIter<'a> = DbIter<'a, (Id, Task)>;
 
 
-/// A management struct for tasks and their associated data.
 #[derive(Debug)]
-pub struct Tasks {
+struct TasksInner {
   templates: Rc<Templates>,
   /// The managed tasks.
   tasks: Db<Task>,
   /// A record of operations in the order they were performed.
   operations: Ops<TaskOp, Db<Task>, Option<Id>>,
 }
+
+
+/// A management struct for tasks and their associated data.
+#[derive(Debug)]
+pub struct Tasks(RefCell<TasksInner>);
 
 impl Tasks {
   /// Create a new `Tasks` object from a serializable one.
@@ -365,11 +371,13 @@ impl Tasks {
       Error::new(ErrorKind::InvalidInput, error)
     })?;
 
-    Ok(Self {
+    let inner = TasksInner {
       templates,
       tasks,
       operations: Ops::new(MAX_UNDO_STEP_COUNT),
-    })
+    };
+
+    Ok(Self(RefCell::new(inner)))
   }
 
   /// Create a new `Tasks` object from a serializable one without any tags.
@@ -387,14 +395,20 @@ impl Tasks {
 
   /// Convert this object into a serializable one.
   pub fn to_serde(&self) -> SerTasks {
+    // SANITY: The type's API surface prevents any borrows from escaping
+    //         a function call and we don't call methods on `self` while
+    //         a borrow is active.
+    let tasks = self
+      .0
+      .try_borrow()
+      .unwrap()
+      .tasks
+      .iter()
+      .map(|(id, task)| (id.to_serde(), task.to_serde()))
+      .collect();
+
     // TODO: We should consider including the operations here as well.
-    SerTasks(
-      self
-        .tasks
-        .iter()
-        .map(|(id, task)| (id.to_serde(), task.to_serde()))
-        .collect(),
-    )
+    SerTasks(tasks)
   }
 
   /// Invoke a user-provided function on an iterator over all tasks.
@@ -403,60 +417,134 @@ impl Tasks {
   where
     F: FnMut(TaskIter<'_>) -> R,
   {
-    f(self.tasks.iter())
+    // SANITY: The type's API surface prevents any borrows from escaping
+    //         a function call and we don't call methods on `self` while
+    //         a borrow is active.
+    f(self.0.try_borrow().unwrap().tasks.iter())
   }
 
   /// Add a new task.
   pub fn add(&mut self, summary: String, tags: Vec<Tag>, after: Option<Id>) -> Id {
-    let task = Task::with_summary_and_tags(summary, tags, self.templates.clone());
+    // SANITY: The type's API surface prevents any borrows from escaping
+    //         a function call and we don't call methods on `self` while
+    //         a borrow is active.
+    let mut borrow = self.0.try_borrow_mut().unwrap();
+    let TasksInner {
+      ref mut templates,
+      ref mut operations,
+      ref mut tasks,
+      ..
+    } = borrow.deref_mut();
+
+    let task = Task::with_summary_and_tags(summary, tags, templates.clone());
     let op = TaskOp::add(task, after);
     // SANITY: We know that an "add" operation always returns an ID, so
     //         this unwrap will never panic.
-    let id = self.operations.exec(op, &mut self.tasks).unwrap();
+    let id = operations.exec(op, tasks).unwrap();
 
     id
   }
 
   /// Remove a task.
   pub fn remove(&mut self, id: Id) {
+    // SANITY: The type's API surface prevents any borrows from escaping
+    //         a function call and we don't call methods on `self` while
+    //         a borrow is active.
+    let mut borrow = self.0.try_borrow_mut().unwrap();
+    let TasksInner {
+      ref mut operations,
+      ref mut tasks,
+      ..
+    } = borrow.deref_mut();
+
     let op = TaskOp::remove(id);
-    self.operations.exec(op, &mut self.tasks);
+    operations.exec(op, tasks);
   }
 
   /// Update a task.
   pub fn update(&mut self, id: Id, task: Task) {
+    // SANITY: The type's API surface prevents any borrows from escaping
+    //         a function call and we don't call methods on `self` while
+    //         a borrow is active.
+    let mut borrow = self.0.try_borrow_mut().unwrap();
+    let TasksInner {
+      ref mut operations,
+      ref mut tasks,
+      ..
+    } = borrow.deref_mut();
+
     let op = TaskOp::update(id, task);
-    self.operations.exec(op, &mut self.tasks);
+    operations.exec(op, tasks);
   }
 
   /// Reorder the tasks referenced by `to_move` before `other`.
   pub fn move_before(&mut self, to_move: Id, other: Id) {
     if to_move != other {
-      let idx = self.tasks.find(to_move).unwrap();
+      // SANITY: The type's API surface prevents any borrows from escaping
+      //         a function call and we don't call methods on `self` while
+      //         a borrow is active.
+      let mut borrow = self.0.try_borrow_mut().unwrap();
+      let TasksInner {
+        ref mut operations,
+        ref mut tasks,
+        ..
+      } = borrow.deref_mut();
+
+      let idx = tasks.find(to_move).unwrap();
       let to = Target::Before(other);
       let op = TaskOp::move_(idx, to);
-      self.operations.exec(op, &mut self.tasks);
+      operations.exec(op, tasks);
     }
   }
 
   /// Reorder the tasks referenced by `to_move` after `other`.
   pub fn move_after(&mut self, to_move: Id, other: Id) {
     if to_move != other {
-      let idx = self.tasks.find(to_move).unwrap();
+      // SANITY: The type's API surface prevents any borrows from escaping
+      //         a function call and we don't call methods on `self` while
+      //         a borrow is active.
+      let mut borrow = self.0.try_borrow_mut().unwrap();
+      let TasksInner {
+        ref mut operations,
+        ref mut tasks,
+        ..
+      } = borrow.deref_mut();
+
+      let idx = tasks.find(to_move).unwrap();
       let to = Target::After(other);
       let op = TaskOp::move_(idx, to);
-      self.operations.exec(op, &mut self.tasks);
+      operations.exec(op, tasks);
     }
   }
 
   /// Undo the "most recent" operation.
   pub fn undo(&mut self) -> Option<Option<Id>> {
-    self.operations.undo(&mut self.tasks)
+    // SANITY: The type's API surface prevents any borrows from escaping
+    //         a function call and we don't call methods on `self` while
+    //         a borrow is active.
+    let mut borrow = self.0.try_borrow_mut().unwrap();
+    let TasksInner {
+      ref mut operations,
+      ref mut tasks,
+      ..
+    } = borrow.deref_mut();
+
+    operations.undo(tasks)
   }
 
   /// Redo the last undone operation.
   pub fn redo(&mut self) -> Option<Option<Id>> {
-    self.operations.redo(&mut self.tasks)
+    // SANITY: The type's API surface prevents any borrows from escaping
+    //         a function call and we don't call methods on `self` while
+    //         a borrow is active.
+    let mut borrow = self.0.try_borrow_mut().unwrap();
+    let TasksInner {
+      ref mut operations,
+      ref mut tasks,
+      ..
+    } = borrow.deref_mut();
+
+    operations.redo(tasks)
   }
 }
 
@@ -667,7 +755,7 @@ pub mod tests {
   fn add_task_after() {
     let tasks = make_tasks(3);
     let mut tasks = Tasks::with_serde_tasks(tasks).unwrap();
-    let id = tasks.tasks.get(0).unwrap().id();
+    let id = tasks.0.borrow().tasks.get(0).unwrap().id();
     let tags = Default::default();
     tasks.add("4".to_string(), tags, Some(id));
 
