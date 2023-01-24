@@ -4,7 +4,6 @@
 //! Definitions pertaining UI and task state of the program.
 
 use std::cell::Cell;
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::io::Error;
@@ -288,7 +287,7 @@ impl ToSerde<SerUiState> for UiState {
 pub struct TaskState {
   templates: Rc<Templates>,
   tasks_root: PathBuf,
-  tasks: Rc<RefCell<Tasks>>,
+  tasks: Rc<Tasks>,
 }
 
 impl TaskState {
@@ -302,7 +301,7 @@ impl TaskState {
     Self {
       templates,
       tasks_root: root.into(),
-      tasks: Rc::new(RefCell::new(tasks)),
+      tasks: Rc::new(tasks),
     }
   }
 
@@ -312,7 +311,7 @@ impl TaskState {
   }
 
   /// Retrieve the `Tasks` object associated with this `State` object.
-  pub fn tasks(&self) -> Rc<RefCell<Tasks>> {
+  pub fn tasks(&self) -> Rc<Tasks> {
     self.tasks.clone()
   }
 }
@@ -320,7 +319,7 @@ impl TaskState {
 impl ToSerde<SerTaskState> for TaskState {
   /// Convert this object into a serializable one.
   fn to_serde(&self) -> SerTaskState {
-    let tasks = self.tasks.borrow().to_serde();
+    let tasks = self.tasks.to_serde();
     let ids = tasks.0.iter().map(|(id, _)| *id).collect();
 
     SerTaskState {
@@ -373,7 +372,7 @@ impl State {
     })?;
     let templates = Rc::new(templates);
     let tasks = Tasks::with_serde(task_state.tasks, templates.clone())?;
-    let tasks = Rc::new(RefCell::new(tasks));
+    let tasks = Rc::new(tasks);
     let mut views = Vec::new();
     for (view, selected) in ui_state.views.into_iter() {
       let view = View::with_serde(view, &templates, tasks.clone())?;
@@ -500,7 +499,6 @@ pub mod tests {
 
     let tasks = {
       let tasks = task_state.tasks();
-      let tasks = tasks.borrow_mut();
       let (id1, id2, id3) = tasks.iter(|mut iter| {
         // Remove the first three tasks. If IDs were to not be preserved
         // on serialization, the IDs of these tasks would (likely) be
@@ -553,7 +551,6 @@ pub mod tests {
     let new_task_vec = new_state
       .1
       .tasks
-      .borrow()
       .iter(|iter| iter.map(|(_, task)| task.to_serde()).collect::<Vec<_>>());
     assert_eq!(new_task_vec, make_tasks(3));
   }
@@ -576,7 +573,6 @@ pub mod tests {
     let new_task_vec = new_state
       .1
       .tasks
-      .borrow()
       .iter(|iter| iter.map(|(_, task)| task.to_serde()).collect::<Vec<_>>());
     assert_eq!(new_task_vec, make_tasks(0));
   }
@@ -638,7 +634,7 @@ pub mod tests {
     let tasks_root = PathBuf::default();
 
     let state = State::with_serde(ui_state, ui_config, task_state, tasks_root).unwrap();
-    let tasks = state.1.tasks.borrow();
+    let tasks = state.1.tasks;
     let vec = tasks.iter(|iter| iter.map(|(_, task)| task.clone()).collect::<Vec<_>>());
     let mut it = vec.iter();
 

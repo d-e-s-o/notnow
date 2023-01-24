@@ -1,7 +1,6 @@
 // Copyright (C) 2017-2022 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use std::cell::RefCell;
 use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Result as IoResult;
@@ -145,13 +144,13 @@ impl<'t> DoubleEndedIterator for Filter<'t> {
 // the API would be rather unnatural and non-obvious. A `View` is
 // supposed to be something that does not change over its lifetime.
 pub struct ViewBuilder {
-  tasks: Rc<RefCell<Tasks>>,
+  tasks: Rc<Tasks>,
   lits: Vec<Vec<TagLit>>,
 }
 
 impl ViewBuilder {
   /// Create a new `ViewBuilder` object.
-  pub fn new(tasks: Rc<RefCell<Tasks>>) -> ViewBuilder {
+  pub fn new(tasks: Rc<Tasks>) -> ViewBuilder {
     Self {
       tasks,
       lits: Default::default(),
@@ -255,7 +254,7 @@ pub struct View {
   name: String,
   /// A reference to the `Tasks` object we use for retrieving the set of
   /// available tasks.
-  tasks: Rc<RefCell<Tasks>>,
+  tasks: Rc<Tasks>,
   /// Tags are stored in Conjunctive Normal Form, meaning we have a
   /// large AND (all elements in the outer vector) of ORs (all the
   /// elements in the inner vector).
@@ -264,11 +263,7 @@ pub struct View {
 
 impl View {
   /// Create a new `View` object from a serializable one.
-  pub fn with_serde(
-    view: SerView,
-    templates: &Rc<Templates>,
-    tasks: Rc<RefCell<Tasks>>,
-  ) -> IoResult<Self> {
+  pub fn with_serde(view: SerView, templates: &Rc<Templates>, tasks: Rc<Tasks>) -> IoResult<Self> {
     let mut and_lits = Vec::with_capacity(view.lits.len());
     for lits in view.lits.into_iter() {
       let mut or_lits = Vec::with_capacity(lits.len());
@@ -297,14 +292,11 @@ impl View {
   /// Invoke a user-provided function on an iterator over the tasks
   /// represented by this view.
   #[inline]
-  pub fn iter<F, R>(&self, f: F) -> R
+  pub fn iter<F, R>(&self, mut f: F) -> R
   where
     F: FnMut(Filter<'_>) -> R,
   {
-    let mut f = f;
-    let tasks = self.tasks.borrow();
-
-    tasks.iter(|iter| f(Filter::new(iter, &self.lits)))
+    self.tasks.iter(|iter| f(Filter::new(iter, &self.lits)))
   }
 
   /// Check whether the view is empty or not.
@@ -351,17 +343,17 @@ mod tests {
   /// Create a view with the given number of tasks in it.
   fn make_view(count: usize) -> View {
     let tasks = Tasks::with_serde_tasks(make_tasks(count));
-    let tasks = Rc::new(RefCell::new(tasks.unwrap()));
+    let tasks = Rc::new(tasks.unwrap());
     let view = ViewBuilder::new(tasks).build("test");
     view
   }
 
-  fn make_tagged_tasks(count: usize) -> (Rc<Templates>, Rc<RefCell<Tasks>>) {
+  fn make_tagged_tasks(count: usize) -> (Rc<Templates>, Rc<Tasks>) {
     let (_, templates, tasks) = make_tasks_with_tags(count);
     let templates = Rc::new(Templates::with_serde(SerTemplates(templates)).unwrap());
     let tasks = SerTasks::from(tasks);
     let tasks = Tasks::with_serde(tasks, templates.clone()).unwrap();
-    let tasks = Rc::new(RefCell::new(tasks));
+    let tasks = Rc::new(tasks);
 
     (templates, tasks)
   }

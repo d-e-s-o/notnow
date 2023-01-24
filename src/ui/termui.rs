@@ -186,9 +186,9 @@ impl Handleable<Event, Message> for TermUi {
           let tasks = data.task_state.tasks();
 
           let to_select = if key == Key::Char('u') {
-            tasks.borrow_mut().undo()
+            tasks.undo()
           } else {
-            tasks.borrow_mut().redo()
+            tasks.redo()
           }?;
           if let Some(id) = to_select {
             // Ask the tab bar to select the task that was the target of
@@ -223,9 +223,7 @@ impl Handleable<Event, Message> for TermUi {
       Message::GetTasks => {
         let data = self.data::<TermUiData>(cap);
         let tasks = data.task_state.tasks();
-        let tasks = tasks
-          .borrow()
-          .iter(|iter| iter.map(|(_, task)| task.clone()).collect());
+        let tasks = tasks.iter(|iter| iter.map(|(_, task)| task.clone()).collect());
 
         Some(Message::GotTasks(tasks))
       },

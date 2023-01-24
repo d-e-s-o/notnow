@@ -1,7 +1,6 @@
 // Copyright (C) 2018-2022 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use std::cell::RefCell;
 use std::cmp::min;
 use std::isize;
 use std::rc::Rc;
@@ -42,7 +41,7 @@ enum State {
 /// The data associated with a `TaskListBox`.
 pub struct TaskListBoxData {
   /// The tasks database.
-  tasks: Rc<RefCell<Tasks>>,
+  tasks: Rc<Tasks>,
   /// The view represented by the `TaskListBox`.
   view: View,
   /// The tag to toggle on a task on press of the respective key.
@@ -55,7 +54,7 @@ pub struct TaskListBoxData {
 
 impl TaskListBoxData {
   /// Create a new `TaskListBoxData` object.
-  pub fn new(tasks: Rc<RefCell<Tasks>>, view: View, toggle_tag: Option<Tag>) -> Self {
+  pub fn new(tasks: Rc<Tasks>, view: View, toggle_tag: Option<Tag>) -> Self {
     Self {
       tasks,
       view,
@@ -304,7 +303,7 @@ impl Handleable<Event, Message> for TaskListBox {
         },
         Key::Char('d') => {
           if let Some((task_id, _)) = data.selected_task() {
-            data.tasks.borrow_mut().remove(task_id);
+            data.tasks.remove(task_id);
             MessageExt::maybe_update(None, true).into_event()
           } else {
             None
@@ -336,7 +335,7 @@ impl Handleable<Event, Message> for TaskListBox {
               .view
               .iter(|mut iter| iter.nth(data.selection(1)).map(|(id, _task)| *id));
             if let Some(other_id) = other_id {
-              data.tasks.borrow_mut().move_after(to_move_id, other_id);
+              data.tasks.move_after(to_move_id, other_id);
               MessageExt::maybe_update(None, data.change_selection(1)).into_event()
             } else {
               None
@@ -352,7 +351,7 @@ impl Handleable<Event, Message> for TaskListBox {
                 .view
                 .iter(|mut iter| iter.nth(data.selection(-1)).map(|(id, _task)| *id));
               if let Some(other_id) = other_id {
-                data.tasks.borrow_mut().move_before(to_move_id, other_id);
+                data.tasks.move_before(to_move_id, other_id);
                 MessageExt::maybe_update(None, data.change_selection(-1)).into_event()
               } else {
                 None
@@ -416,7 +415,7 @@ impl Handleable<Event, Message> for TaskListBox {
                 //       it. Eventually we may want to remove the
                 //       special case logic for the 'complete' tag.
                 let after = data.selected_task().map(|(id, _)| id);
-                let id = data.tasks.borrow_mut().add(text.clone(), tags, after);
+                let id = data.tasks.add(text.clone(), tags, after);
                 self.select_task(cap, id).await
               } else {
                 None
@@ -427,10 +426,10 @@ impl Handleable<Event, Message> for TaskListBox {
               // altogether.
               if !text.is_empty() {
                 task.set_summary(text.clone());
-                data.tasks.borrow_mut().update(task_id, task);
+                data.tasks.update(task_id, task);
                 self.select_task(cap, task_id).await.maybe_update(true)
               } else {
-                data.tasks.borrow_mut().remove(task_id);
+                data.tasks.remove(task_id);
                 Some(Message::Updated)
               }
             },
@@ -440,7 +439,7 @@ impl Handleable<Event, Message> for TaskListBox {
         }
       },
       Message::UpdateTask(task_id, task) => {
-        data.tasks.borrow_mut().update(task_id, task);
+        data.tasks.update(task_id, task);
 
         // Try to select the task now that something may have changed
         // (such as its tags).

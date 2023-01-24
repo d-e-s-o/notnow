@@ -1,7 +1,6 @@
 // Copyright (C) 2018-2022 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use std::cell::RefCell;
 use std::cmp::max;
 use std::cmp::min;
 use std::isize;
@@ -195,7 +194,7 @@ impl TabBar {
     cap: &mut dyn MutCap<Event, Message>,
     dialog: Id,
     in_out: Id,
-    tasks: Rc<RefCell<Tasks>>,
+    tasks: Rc<Tasks>,
     views: Vec<(View, Option<usize>)>,
     toggle_tag: Option<Tag>,
     selected: Option<usize>,
