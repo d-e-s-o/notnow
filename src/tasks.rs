@@ -424,7 +424,7 @@ impl Tasks {
   }
 
   /// Add a new task.
-  pub fn add(&mut self, summary: String, tags: Vec<Tag>, after: Option<Id>) -> Id {
+  pub fn add(&self, summary: String, tags: Vec<Tag>, after: Option<Id>) -> Id {
     // SANITY: The type's API surface prevents any borrows from escaping
     //         a function call and we don't call methods on `self` while
     //         a borrow is active.
@@ -446,7 +446,7 @@ impl Tasks {
   }
 
   /// Remove a task.
-  pub fn remove(&mut self, id: Id) {
+  pub fn remove(&self, id: Id) {
     // SANITY: The type's API surface prevents any borrows from escaping
     //         a function call and we don't call methods on `self` while
     //         a borrow is active.
@@ -462,7 +462,7 @@ impl Tasks {
   }
 
   /// Update a task.
-  pub fn update(&mut self, id: Id, task: Task) {
+  pub fn update(&self, id: Id, task: Task) {
     // SANITY: The type's API surface prevents any borrows from escaping
     //         a function call and we don't call methods on `self` while
     //         a borrow is active.
@@ -478,7 +478,7 @@ impl Tasks {
   }
 
   /// Reorder the tasks referenced by `to_move` before `other`.
-  pub fn move_before(&mut self, to_move: Id, other: Id) {
+  pub fn move_before(&self, to_move: Id, other: Id) {
     if to_move != other {
       // SANITY: The type's API surface prevents any borrows from escaping
       //         a function call and we don't call methods on `self` while
@@ -498,7 +498,7 @@ impl Tasks {
   }
 
   /// Reorder the tasks referenced by `to_move` after `other`.
-  pub fn move_after(&mut self, to_move: Id, other: Id) {
+  pub fn move_after(&self, to_move: Id, other: Id) {
     if to_move != other {
       // SANITY: The type's API surface prevents any borrows from escaping
       //         a function call and we don't call methods on `self` while
@@ -518,7 +518,7 @@ impl Tasks {
   }
 
   /// Undo the "most recent" operation.
-  pub fn undo(&mut self) -> Option<Option<Id>> {
+  pub fn undo(&self) -> Option<Option<Id>> {
     // SANITY: The type's API surface prevents any borrows from escaping
     //         a function call and we don't call methods on `self` while
     //         a borrow is active.
@@ -533,7 +533,7 @@ impl Tasks {
   }
 
   /// Redo the last undone operation.
-  pub fn redo(&mut self) -> Option<Option<Id>> {
+  pub fn redo(&self) -> Option<Option<Id>> {
     // SANITY: The type's API surface prevents any borrows from escaping
     //         a function call and we don't call methods on `self` while
     //         a borrow is active.
@@ -742,7 +742,7 @@ pub mod tests {
 
   #[test]
   fn add_task() {
-    let mut tasks = Tasks::with_serde_tasks(make_tasks(3)).unwrap();
+    let tasks = Tasks::with_serde_tasks(make_tasks(3)).unwrap();
     let tags = Default::default();
     tasks.add("4".to_string(), tags, None);
 
@@ -754,7 +754,7 @@ pub mod tests {
   #[test]
   fn add_task_after() {
     let tasks = make_tasks(3);
-    let mut tasks = Tasks::with_serde_tasks(tasks).unwrap();
+    let tasks = Tasks::with_serde_tasks(tasks).unwrap();
     let id = tasks.0.borrow().tasks.get(0).unwrap().id();
     let tags = Default::default();
     tasks.add("4".to_string(), tags, Some(id));
@@ -769,7 +769,7 @@ pub mod tests {
 
   #[test]
   fn remove_task() {
-    let mut tasks = Tasks::with_serde_tasks(make_tasks(3)).unwrap();
+    let tasks = Tasks::with_serde_tasks(make_tasks(3)).unwrap();
     let id = tasks.iter(|mut iter| iter.nth(1).unwrap().0);
     tasks.remove(id);
 
@@ -782,7 +782,7 @@ pub mod tests {
 
   #[test]
   fn update_task() {
-    let mut tasks = Tasks::with_serde_tasks(make_tasks(3)).unwrap();
+    let tasks = Tasks::with_serde_tasks(make_tasks(3)).unwrap();
     let (id, mut task) = tasks.iter(|mut iter| iter.nth(1).unwrap().clone());
     task.summary = "amended".to_string();
     tasks.update(id, task);
@@ -796,7 +796,7 @@ pub mod tests {
 
   #[test]
   fn move_before_for_first() {
-    let mut tasks = Tasks::with_serde_tasks(make_tasks(3)).unwrap();
+    let tasks = Tasks::with_serde_tasks(make_tasks(3)).unwrap();
     let id1 = tasks.iter(|mut iter| iter.next().unwrap().0);
     let id2 = tasks.iter(|mut iter| iter.nth(1).unwrap().0);
     tasks.move_before(id1, id2);
@@ -808,7 +808,7 @@ pub mod tests {
 
   #[test]
   fn move_after_for_last() {
-    let mut tasks = Tasks::with_serde_tasks(make_tasks(3)).unwrap();
+    let tasks = Tasks::with_serde_tasks(make_tasks(3)).unwrap();
     let id1 = tasks.iter(|mut iter| iter.nth(2).unwrap().0);
     let id2 = tasks.iter(|mut iter| iter.nth(1).unwrap().0);
     tasks.move_after(id1, id2);
@@ -820,7 +820,7 @@ pub mod tests {
 
   #[test]
   fn move_before() {
-    let mut tasks = Tasks::with_serde_tasks(make_tasks(4)).unwrap();
+    let tasks = Tasks::with_serde_tasks(make_tasks(4)).unwrap();
     let id1 = tasks.iter(|mut iter| iter.nth(2).unwrap().0);
     let id2 = tasks.iter(|mut iter| iter.nth(1).unwrap().0);
     tasks.move_before(id1, id2);
@@ -834,7 +834,7 @@ pub mod tests {
 
   #[test]
   fn move_after() {
-    let mut tasks = Tasks::with_serde_tasks(make_tasks(4)).unwrap();
+    let tasks = Tasks::with_serde_tasks(make_tasks(4)).unwrap();
     let id1 = tasks.iter(|mut iter| iter.nth(1).unwrap().0);
     let id2 = tasks.iter(|mut iter| iter.nth(2).unwrap().0);
     tasks.move_after(id1, id2);

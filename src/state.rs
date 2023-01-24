@@ -500,7 +500,7 @@ pub mod tests {
 
     let tasks = {
       let tasks = task_state.tasks();
-      let mut tasks = tasks.borrow_mut();
+      let tasks = tasks.borrow_mut();
       let (id1, id2, id3) = tasks.iter(|mut iter| {
         // Remove the first three tasks. If IDs were to not be preserved
         // on serialization, the IDs of these tasks would (likely) be
