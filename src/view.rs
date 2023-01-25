@@ -112,7 +112,7 @@ impl<'t> Iterator for Filter<'t> {
     loop {
       match self.iter.next() {
         Some((id, task)) => {
-          if self.matched_by(&task.tags()) {
+          if task.tags(|iter| self.matched_by(&iter)) {
             return Some((id, task))
           }
         },
@@ -127,7 +127,7 @@ impl<'t> DoubleEndedIterator for Filter<'t> {
     loop {
       match self.iter.next_back() {
         Some((id, task)) => {
-          if self.matched_by(&task.tags()) {
+          if task.tags(|iter| self.matched_by(&iter)) {
             return Some((id, task))
           }
         },

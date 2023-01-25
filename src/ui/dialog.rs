@@ -70,11 +70,7 @@ fn cmp_template(lhs: &Tag, rhs: &Tag) -> Ordering {
 /// Prepare a properly sorted list of tags mirroring those of the
 /// provided task.
 fn prepare_tags(task: &Task) -> Vec<SetUnsetTag> {
-  let set = task
-    .tags()
-    .map(|tag| tag.template())
-    .collect::<HashSet<_>>();
-
+  let set = task.tags(|iter| iter.map(|tag| tag.template()).collect::<HashSet<_>>());
   let mut unset = task
     .templates()
     .iter()
@@ -83,7 +79,7 @@ fn prepare_tags(task: &Task) -> Vec<SetUnsetTag> {
     .collect::<Vec<_>>();
   unset.sort_by(cmp_template);
 
-  let mut set = task.tags().cloned().collect::<Vec<_>>();
+  let mut set = task.tags(|iter| iter.cloned().collect::<Vec<_>>());
   set.sort_by(cmp_template);
 
   set

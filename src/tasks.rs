@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::cell::RefCell;
+use std::collections::btree_set::Iter as BTreeSetIter;
 use std::collections::BTreeSet;
 use std::io::Error;
 use std::io::ErrorKind;
@@ -91,9 +92,14 @@ impl Task {
     self.summary = summary
   }
 
-  /// Retrieve an iterator over this task's tags.
-  pub fn tags(&self) -> impl Iterator<Item = &Tag> + Clone {
-    self.tags.iter()
+  /// Invoke a user-provided function on an iterator over all the task's
+  /// tags.
+  #[inline]
+  pub fn tags<F, R>(&self, mut f: F) -> R
+  where
+    F: FnMut(BTreeSetIter<'_, Tag>) -> R,
+  {
+    f(self.tags.iter())
   }
 
   /// Set the tags of the task.

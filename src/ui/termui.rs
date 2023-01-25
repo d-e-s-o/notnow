@@ -804,7 +804,7 @@ mod tests {
 
     // Check that the 'complete' tag, which was present on the original
     // task, has been cleared.
-    let tags = tasks[2].tags().map(|x| x.name()).collect::<Vec<_>>();
+    let tags = tasks[2].tags(|iter| iter.map(|x| x.name().to_string()).collect::<Vec<_>>());
     let expected = Vec::<String>::new();
     assert_eq!(tags, expected);
 
@@ -812,7 +812,7 @@ mod tests {
     // which shows tasks with tag2 or tag3 present.
     assert_eq!(tasks[11].summary(), "hi");
 
-    let tags = tasks[11].tags().map(|x| x.name()).collect::<Vec<_>>();
+    let tags = tasks[11].tags(|iter| iter.map(|x| x.name().to_string()).collect::<Vec<_>>());
     let expected = vec!["tag2"];
     assert_eq!(tags, expected);
   }
@@ -839,7 +839,7 @@ mod tests {
 
     assert_eq!(tasks[15].summary(), "foo");
 
-    let tags = tasks[15].tags().map(|x| x.name()).collect::<Vec<_>>();
+    let tags = tasks[15].tags(|iter| iter.map(|x| x.name().to_string()).collect::<Vec<_>>());
     let expected = vec!["tag1".to_string(), "tag2".to_string(), "tag3".to_string()];
     assert_eq!(tags, expected);
   }
@@ -2144,7 +2144,7 @@ mod tests {
       .tasks()
       .await;
 
-    let tags = tasks[0].tags().map(|x| x.name()).collect::<Vec<_>>();
+    let tags = tasks[0].tags(|iter| iter.map(|x| x.name().to_string()).collect::<Vec<_>>());
     let expected = vec![COMPLETE_TAG];
     assert_eq!(tags, expected);
   }
@@ -2178,7 +2178,7 @@ mod tests {
       .tasks()
       .await;
 
-    let tags = tasks[10].tags().map(|x| x.name()).collect::<Vec<_>>();
+    let tags = tasks[10].tags(|iter| iter.map(|x| x.name().to_string()).collect::<Vec<_>>());
     assert_eq!(tags, Vec::<&str>::new());
   }
 
@@ -2206,7 +2206,7 @@ mod tests {
       .tasks()
       .await;
 
-    let tags = tasks[2].tags().map(|x| x.name()).collect::<Vec<_>>();
+    let tags = tasks[2].tags(|iter| iter.map(|x| x.name().to_string()).collect::<Vec<_>>());
     let expected = vec![COMPLETE_TAG, "tag1", "tag2", "tag3"];
     assert_eq!(tags, expected);
   }
@@ -2232,7 +2232,7 @@ mod tests {
       .tasks()
       .await;
 
-    let tags = tasks[0].tags().map(|x| x.name()).collect::<Vec<_>>();
+    let tags = tasks[0].tags(|iter| iter.map(|x| x.name().to_string()).collect::<Vec<_>>());
     let expected = vec![COMPLETE_TAG, "tag3"];
     assert_eq!(tags, expected);
   }
@@ -2257,7 +2257,7 @@ mod tests {
       .tasks()
       .await;
 
-    let tags = tasks[0].tags().map(|x| x.name()).collect::<Vec<_>>();
+    let tags = tasks[0].tags(|iter| iter.map(|x| x.name().to_string()).collect::<Vec<_>>());
     let expected = vec![COMPLETE_TAG, "tag1"];
     assert_eq!(tags, expected);
   }
@@ -2280,7 +2280,7 @@ mod tests {
       .tasks()
       .await;
 
-    let tags = tasks[0].tags().map(|x| x.name()).collect::<Vec<_>>();
+    let tags = tasks[0].tags(|iter| iter.map(|x| x.name().to_string()).collect::<Vec<_>>());
     let expected = vec![COMPLETE_TAG];
     assert_eq!(tags, expected);
   }

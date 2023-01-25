@@ -393,11 +393,12 @@ impl Handleable<Event, Message> for TaskListBox {
                 let tags = if let Some((_, task)) = data.selected_task() {
                   // Copy all tags except for the one that we allow
                   // toggling.
-                  task
-                    .tags()
-                    .filter(|tag| Some(*tag) != data.toggle_tag.as_ref())
-                    .cloned()
-                    .collect()
+                  task.tags(|iter| {
+                    iter
+                      .filter(|tag| Some(*tag) != data.toggle_tag.as_ref())
+                      .cloned()
+                      .collect()
+                  })
                 } else {
                   Default::default()
                 };

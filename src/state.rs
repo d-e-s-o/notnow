@@ -639,22 +639,25 @@ pub mod tests {
     let mut it = vec.iter();
 
     let task1 = it.next().unwrap();
-    let mut tags = task1.tags();
-    assert_eq!(tags.next().unwrap().name(), "tag2");
-    assert!(tags.next().is_none());
+    let () = task1.tags(|mut iter| {
+      assert_eq!(iter.next().unwrap().name(), "tag2");
+      assert!(iter.next().is_none());
+    });
 
     let task2 = it.next().unwrap();
-    assert!(task2.tags().next().is_none());
+    assert!(task2.tags(|mut iter| iter.next().is_none()));
 
     let task3 = it.next().unwrap();
-    let mut tags = task3.tags();
-    assert_eq!(tags.next().unwrap().name(), "tag1");
-    assert!(tags.next().is_none());
+    let () = task3.tags(|mut iter| {
+      assert_eq!(iter.next().unwrap().name(), "tag1");
+      assert!(iter.next().is_none());
+    });
 
     let task4 = it.next().unwrap();
-    let mut tags = task4.tags();
-    assert!(tags.next().is_some());
-    assert!(tags.next().is_some());
-    assert!(tags.next().is_none());
+    let () = task4.tags(|mut iter| {
+      assert!(iter.next().is_some());
+      assert!(iter.next().is_some());
+      assert!(iter.next().is_none());
+    });
   }
 }
