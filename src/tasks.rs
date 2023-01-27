@@ -129,8 +129,8 @@ impl Task {
   }
 
   /// Retrieve the `Templates` object associated with this task.
-  pub fn templates(&self) -> &Templates {
-    &self.templates
+  pub fn templates(&self) -> Rc<Templates> {
+    self.templates.clone()
   }
 }
 
