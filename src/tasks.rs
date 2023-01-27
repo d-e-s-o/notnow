@@ -80,10 +80,10 @@ impl Task {
     })
   }
 
-  /// Get a reference to this [Task]'s summary.
+  /// Retrieve the [`Task`]'s summary.
   #[inline]
-  pub fn summary(&self) -> &str {
-    &self.summary
+  pub fn summary(&self) -> String {
+    self.summary.clone()
   }
 
   /// Change this [Task]'s summary.

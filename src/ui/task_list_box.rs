@@ -369,7 +369,7 @@ impl Handleable<Event, Message> for TaskListBox {
         Key::Char('k') => MessageExt::maybe_update(None, data.change_selection(-1)).into_event(),
         Key::Char('*') => {
           if let Some((_, selected)) = data.selected_task() {
-            let message = Message::StartTaskSearch(selected.summary().to_owned());
+            let message = Message::StartTaskSearch(selected.summary());
             cap.send(self.tab_bar, message).await.into_event()
           } else {
             None

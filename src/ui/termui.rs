@@ -1029,7 +1029,7 @@ mod tests {
       .tasks()
       .await
       .into_iter()
-      .map(|x| x.summary().to_owned())
+      .map(|x| x.summary())
       .collect::<Vec<_>>();
 
     let (.., mut expected) = make_tasks_with_tags(15);
@@ -1233,7 +1233,7 @@ mod tests {
       .tasks()
       .await
       .into_iter()
-      .map(|x| x.summary().to_owned())
+      .map(|x| x.summary())
       .collect::<Vec<_>>();
 
     let (.., mut expected) = make_tasks_with_tags(15);
@@ -1268,7 +1268,7 @@ mod tests {
       .tasks()
       .await
       .into_iter()
-      .map(|x| x.summary().to_owned())
+      .map(|x| x.summary())
       .collect::<Vec<_>>();
 
     let (.., mut expected) = make_tasks_with_tags(15);
@@ -1291,7 +1291,7 @@ mod tests {
       .tasks()
       .await
       .into_iter()
-      .map(|x| x.summary().to_owned())
+      .map(|x| x.summary())
       .collect::<Vec<_>>();
 
     let (.., mut expected) = make_tasks_with_tags(15);
@@ -1746,7 +1746,7 @@ mod tests {
         .tasks()
         .await
         .into_iter()
-        .map(|x| x.summary().to_owned())
+        .map(|x| x.summary())
         .collect::<Vec<_>>();
 
       let (.., mut expected) = make_tasks_with_tags(15);
@@ -1799,7 +1799,7 @@ mod tests {
       .tasks()
       .await
       .into_iter()
-      .map(|x| x.summary().to_owned())
+      .map(|x| x.summary())
       .collect::<Vec<_>>();
 
     let (.., mut expected) = make_tasks_with_tags(15);
@@ -1841,7 +1841,7 @@ mod tests {
       .tasks()
       .await
       .into_iter()
-      .map(|x| x.summary().to_owned())
+      .map(|x| x.summary())
       .collect::<Vec<_>>();
 
     let (.., mut expected) = make_tasks_with_tags(15);
@@ -1905,7 +1905,7 @@ mod tests {
         .tasks()
         .await
         .into_iter()
-        .map(|x| x.summary().to_owned())
+        .map(|x| x.summary())
         .collect::<Vec<_>>();
 
       let (.., mut expected) = make_tasks_with_tags(15);
@@ -1950,7 +1950,7 @@ mod tests {
         .tasks()
         .await
         .into_iter()
-        .map(|x| x.summary().to_owned())
+        .map(|x| x.summary())
         .collect::<Vec<_>>();
 
       assert_eq!(tasks, expected);
