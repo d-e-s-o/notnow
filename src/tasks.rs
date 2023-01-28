@@ -8,6 +8,7 @@ use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Result;
 use std::mem::replace;
+use std::ops::Deref as _;
 use std::ops::DerefMut as _;
 use std::rc::Rc;
 
@@ -31,23 +32,33 @@ const MAX_UNDO_STEP_COUNT: usize = 64;
 pub type Id = DbId<Task>;
 
 
-/// A struct representing a task item.
 #[derive(Clone, Debug)]
-pub struct Task {
+struct TaskInner {
+  /// The task's summary.
   summary: String,
+  /// The task's tags.
   tags: BTreeSet<Tag>,
+  /// Reference to the shared `Templates` object from which tags were
+  /// instantiated.
   templates: Rc<Templates>,
 }
+
+
+/// A struct representing a task item.
+#[derive(Clone, Debug)]
+pub struct Task(RefCell<TaskInner>);
 
 impl Task {
   /// Create a new task.
   #[cfg(test)]
   pub fn new(summary: impl Into<String>) -> Self {
-    Self {
+    let inner = TaskInner {
       summary: summary.into(),
       tags: Default::default(),
       templates: Rc::new(Templates::new()),
-    }
+    };
+
+    Self(RefCell::new(inner))
   }
 
   /// Create a task using the given summary.
@@ -55,11 +66,13 @@ impl Task {
   where
     S: Into<String>,
   {
-    Task {
+    let inner = TaskInner {
       summary: summary.into(),
       tags: tags.into_iter().collect(),
       templates,
-    }
+    };
+
+    Self(RefCell::new(inner))
   }
 
   /// Create a new task from a serializable one.
@@ -73,23 +86,30 @@ impl Task {
       tags.insert(tag);
     }
 
-    Ok(Self {
+    let inner = TaskInner {
       summary: task.summary,
       tags,
       templates,
-    })
+    };
+    Ok(Self(RefCell::new(inner)))
   }
 
   /// Retrieve the [`Task`]'s summary.
   #[inline]
   pub fn summary(&self) -> String {
-    self.summary.clone()
+    // SANITY: The type's API surface prevents any borrows from escaping
+    //         a function call and we don't call methods on `self` while
+    //         a borrow is active.
+    self.0.try_borrow().unwrap().summary.clone()
   }
 
   /// Change this [Task]'s summary.
   #[inline]
   pub fn set_summary(&mut self, summary: String) {
-    self.summary = summary
+    // SANITY: The type's API surface prevents any borrows from escaping
+    //         a function call and we don't call methods on `self` while
+    //         a borrow is active.
+    self.0.try_borrow_mut().unwrap().summary = summary
   }
 
   /// Invoke a user-provided function on an iterator over all the task's
@@ -99,7 +119,10 @@ impl Task {
   where
     F: FnMut(BTreeSetIter<'_, Tag>) -> R,
   {
-    f(self.tags.iter())
+    // SANITY: The type's API surface prevents any borrows from escaping
+    //         a function call and we don't call methods on `self` while
+    //         a borrow is active.
+    f(self.0.try_borrow().unwrap().tags.iter())
   }
 
   /// Set the tags of the task.
@@ -107,39 +130,58 @@ impl Task {
   where
     I: Iterator<Item = Tag>,
   {
-    self.tags = tags.collect();
+    // SANITY: The type's API surface prevents any borrows from escaping
+    //         a function call and we don't call methods on `self` while
+    //         a borrow is active.
+    self.0.try_borrow_mut().unwrap().tags = tags.collect();
   }
 
   /// Check whether the task has the provided `tag` set.
   #[inline]
   pub fn has_tag(&self, tag: &Tag) -> bool {
-    self.tags.get(tag).is_some()
+    // SANITY: The type's API surface prevents any borrows from escaping
+    //         a function call and we don't call methods on `self` while
+    //         a borrow is active.
+    self.0.try_borrow().unwrap().tags.get(tag).is_some()
   }
 
   /// Ensure that the provided tag is set on this task.
   #[inline]
   pub fn set_tag(&mut self, tag: Tag) -> bool {
-    self.tags.insert(tag)
+    // SANITY: The type's API surface prevents any borrows from escaping
+    //         a function call and we don't call methods on `self` while
+    //         a borrow is active.
+    self.0.try_borrow_mut().unwrap().tags.insert(tag)
   }
 
   /// Ensure that the provided tag is not set on this task.
   #[inline]
   pub fn unset_tag(&mut self, tag: &Tag) -> bool {
-    self.tags.remove(tag)
+    // SANITY: The type's API surface prevents any borrows from escaping
+    //         a function call and we don't call methods on `self` while
+    //         a borrow is active.
+    self.0.try_borrow_mut().unwrap().tags.remove(tag)
   }
 
   /// Retrieve the `Templates` object associated with this task.
   pub fn templates(&self) -> Rc<Templates> {
-    self.templates.clone()
+    self.0.try_borrow().unwrap().templates.clone()
   }
 }
 
 impl ToSerde<SerTask> for Task {
   /// Convert this task into a serializable one.
   fn to_serde(&self) -> SerTask {
+    let borrow = self.0.try_borrow().unwrap();
+    let TaskInner {
+      ref summary,
+      ref tags,
+      ..
+    } = borrow.deref();
+
     SerTask {
-      summary: self.summary.clone(),
-      tags: self.tags.iter().map(Tag::to_serde).collect(),
+      summary: summary.clone(),
+      tags: tags.iter().map(Tag::to_serde).collect(),
     }
   }
 }
@@ -606,14 +648,14 @@ pub mod tests {
     let op = TaskOp::add(task1, None);
     ops.exec(op, &mut tasks);
     assert_eq!(tasks.iter().len(), 1);
-    assert_eq!(tasks.get(0).unwrap().summary, "task1");
+    assert_eq!(tasks.get(0).unwrap().summary(), "task1");
 
     ops.undo(&mut tasks);
     assert_eq!(tasks.iter().len(), 0);
 
     ops.redo(&mut tasks);
     assert_eq!(tasks.iter().len(), 1);
-    assert_eq!(tasks.get(0).unwrap().summary, "task1");
+    assert_eq!(tasks.get(0).unwrap().summary(), "task1");
   }
 
   /// Check that the `TaskOp::Add` variant works as expected on a
@@ -626,25 +668,25 @@ pub mod tests {
     let op = TaskOp::add(task2, None);
     ops.exec(op, &mut tasks);
     assert_eq!(tasks.iter().len(), 2);
-    assert_eq!(tasks.get(0).unwrap().summary, "task1");
-    assert_eq!(tasks.get(1).unwrap().summary, "task2");
+    assert_eq!(tasks.get(0).unwrap().summary(), "task1");
+    assert_eq!(tasks.get(1).unwrap().summary(), "task2");
 
     let task3 = Task::new("task3");
     let op = TaskOp::add(task3, Some(tasks.get(0).unwrap().id()));
     ops.exec(op, &mut tasks);
     assert_eq!(tasks.iter().len(), 3);
-    assert_eq!(tasks.get(0).unwrap().summary, "task1");
-    assert_eq!(tasks.get(1).unwrap().summary, "task3");
-    assert_eq!(tasks.get(2).unwrap().summary, "task2");
+    assert_eq!(tasks.get(0).unwrap().summary(), "task1");
+    assert_eq!(tasks.get(1).unwrap().summary(), "task3");
+    assert_eq!(tasks.get(2).unwrap().summary(), "task2");
 
     ops.undo(&mut tasks);
     assert_eq!(tasks.iter().len(), 2);
-    assert_eq!(tasks.get(0).unwrap().summary, "task1");
-    assert_eq!(tasks.get(1).unwrap().summary, "task2");
+    assert_eq!(tasks.get(0).unwrap().summary(), "task1");
+    assert_eq!(tasks.get(1).unwrap().summary(), "task2");
 
     ops.undo(&mut tasks);
     assert_eq!(tasks.iter().len(), 1);
-    assert_eq!(tasks.get(0).unwrap().summary, "task1");
+    assert_eq!(tasks.get(0).unwrap().summary(), "task1");
   }
 
   /// Check that the `TaskOp::Remove` variant works as expected on a
@@ -660,7 +702,7 @@ pub mod tests {
 
     ops.undo(&mut tasks);
     assert_eq!(tasks.iter().len(), 1);
-    assert_eq!(tasks.get(0).unwrap().summary, "task1");
+    assert_eq!(tasks.get(0).unwrap().summary(), "task1");
 
     ops.redo(&mut tasks);
     assert_eq!(tasks.iter().len(), 0);
@@ -676,19 +718,19 @@ pub mod tests {
     let op = TaskOp::remove(tasks.get(1).unwrap().id());
     ops.exec(op, &mut tasks);
     assert_eq!(tasks.iter().len(), 2);
-    assert_eq!(tasks.get(0).unwrap().summary, "task1");
-    assert_eq!(tasks.get(1).unwrap().summary, "task3");
+    assert_eq!(tasks.get(0).unwrap().summary(), "task1");
+    assert_eq!(tasks.get(1).unwrap().summary(), "task3");
 
     ops.undo(&mut tasks);
     assert_eq!(tasks.iter().len(), 3);
-    assert_eq!(tasks.get(0).unwrap().summary, "task1");
-    assert_eq!(tasks.get(1).unwrap().summary, "task2");
-    assert_eq!(tasks.get(2).unwrap().summary, "task3");
+    assert_eq!(tasks.get(0).unwrap().summary(), "task1");
+    assert_eq!(tasks.get(1).unwrap().summary(), "task2");
+    assert_eq!(tasks.get(2).unwrap().summary(), "task3");
 
     ops.redo(&mut tasks);
     assert_eq!(tasks.iter().len(), 2);
-    assert_eq!(tasks.get(0).unwrap().summary, "task1");
-    assert_eq!(tasks.get(1).unwrap().summary, "task3");
+    assert_eq!(tasks.get(0).unwrap().summary(), "task1");
+    assert_eq!(tasks.get(1).unwrap().summary(), "task3");
   }
 
   /// Check that the `TaskOp::Update` variant works as expected.
@@ -698,22 +740,22 @@ pub mod tests {
     let mut ops = Ops::new(3);
 
     let mut new = tasks.get(0).unwrap().clone();
-    new.summary = "foo!".to_string();
+    new.set_summary("foo!".to_string());
     let op = TaskOp::update(tasks.get(0).unwrap().id(), new);
     ops.exec(op, &mut tasks);
     assert_eq!(tasks.iter().len(), 2);
-    assert_eq!(tasks.get(0).unwrap().summary, "foo!");
-    assert_eq!(tasks.get(1).unwrap().summary, "task2");
+    assert_eq!(tasks.get(0).unwrap().summary(), "foo!");
+    assert_eq!(tasks.get(1).unwrap().summary(), "task2");
 
     ops.undo(&mut tasks);
     assert_eq!(tasks.iter().len(), 2);
-    assert_eq!(tasks.get(0).unwrap().summary, "task1");
-    assert_eq!(tasks.get(1).unwrap().summary, "task2");
+    assert_eq!(tasks.get(0).unwrap().summary(), "task1");
+    assert_eq!(tasks.get(1).unwrap().summary(), "task2");
 
     ops.redo(&mut tasks);
     assert_eq!(tasks.iter().len(), 2);
-    assert_eq!(tasks.get(0).unwrap().summary, "foo!");
-    assert_eq!(tasks.get(1).unwrap().summary, "task2");
+    assert_eq!(tasks.get(0).unwrap().summary(), "foo!");
+    assert_eq!(tasks.get(1).unwrap().summary(), "task2");
   }
 
   /// Check that the `TaskOp::Update` variant works as expected when
@@ -726,24 +768,24 @@ pub mod tests {
     let op = TaskOp::move_(1, Target::Before(tasks.get(0).unwrap().id()));
     ops.exec(op, &mut tasks);
     assert_eq!(tasks.iter().len(), 2);
-    assert_eq!(tasks.get(0).unwrap().summary, "task2");
-    assert_eq!(tasks.get(1).unwrap().summary, "task1");
+    assert_eq!(tasks.get(0).unwrap().summary(), "task2");
+    assert_eq!(tasks.get(1).unwrap().summary(), "task1");
 
     ops.undo(&mut tasks);
     assert_eq!(tasks.iter().len(), 2);
-    assert_eq!(tasks.get(0).unwrap().summary, "task1");
-    assert_eq!(tasks.get(1).unwrap().summary, "task2");
+    assert_eq!(tasks.get(0).unwrap().summary(), "task1");
+    assert_eq!(tasks.get(1).unwrap().summary(), "task2");
 
     let op = TaskOp::move_(1, Target::After(tasks.get(0).unwrap().id()));
     ops.exec(op, &mut tasks);
     assert_eq!(tasks.iter().len(), 2);
-    assert_eq!(tasks.get(0).unwrap().summary, "task1");
-    assert_eq!(tasks.get(1).unwrap().summary, "task2");
+    assert_eq!(tasks.get(0).unwrap().summary(), "task1");
+    assert_eq!(tasks.get(1).unwrap().summary(), "task2");
 
     ops.undo(&mut tasks);
     assert_eq!(tasks.iter().len(), 2);
-    assert_eq!(tasks.get(0).unwrap().summary, "task1");
-    assert_eq!(tasks.get(1).unwrap().summary, "task2");
+    assert_eq!(tasks.get(0).unwrap().summary(), "task1");
+    assert_eq!(tasks.get(1).unwrap().summary(), "task2");
   }
 
   #[test]
@@ -790,7 +832,7 @@ pub mod tests {
   fn update_task() {
     let tasks = Tasks::with_serde_tasks(make_tasks(3)).unwrap();
     let (id, mut task) = tasks.iter(|mut iter| iter.nth(1).unwrap().clone());
-    task.summary = "amended".to_string();
+    task.set_summary("amended".to_string());
     tasks.update(id, task);
 
     let tasks = tasks.to_serde().into_task_vec();
@@ -857,7 +899,7 @@ pub mod tests {
     let serialized = to_json(&task.to_serde()).unwrap();
     let deserialized = from_json::<SerTask>(&serialized).unwrap();
 
-    assert_eq!(deserialized.summary, task.summary);
+    assert_eq!(deserialized.summary, task.summary());
   }
 
   #[test]
