@@ -175,7 +175,6 @@ impl<T> Db<T> {
 
   /// Retrieve an [`Entry`] representing the item at the given index in
   /// the database.
-  #[allow(unused)]
   #[inline]
   pub fn get(&self, index: usize) -> Option<Entry<'_, T>> {
     self.data.get(index).map(Entry)
@@ -183,6 +182,7 @@ impl<T> Db<T> {
 
   /// Retrieve an [`EntryMut`] representing the item at the given index
   /// in the database.
+  #[allow(unused)]
   #[inline]
   pub fn get_mut(&mut self, index: usize) -> Option<EntryMut<'_, T>> {
     self.data.get_mut(index).map(EntryMut)

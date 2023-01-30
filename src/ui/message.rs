@@ -1,6 +1,9 @@
 // Copyright (C) 2020-2022 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#[cfg(all(test, not(feature = "readline")))]
+use std::rc::Rc;
+
 use crate::tasks::Id as TaskId;
 use crate::tasks::Task;
 
@@ -49,7 +52,7 @@ pub enum Message {
   GetTasks,
   /// The response to the `GetTasks` message.
   #[cfg(all(test, not(feature = "readline")))]
-  GotTasks(Vec<Task>),
+  GotTasks(Vec<Rc<Task>>),
   /// Retrieve the current state of the input/output area.
   #[cfg(all(test, not(feature = "readline")))]
   GetInOut,

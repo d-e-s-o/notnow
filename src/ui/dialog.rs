@@ -410,6 +410,7 @@ impl Handleable<Event, Message> for Dialog {
 mod tests {
   use super::*;
 
+  use std::ops::Deref as _;
   use std::rc::Rc;
 
   use crate::db::Db;
@@ -458,10 +459,12 @@ mod tests {
 
     // The full list of tags will look like this:
     // a, d, h, b, c, c1, complete, z
-    let tasks = [Task::with_summary_and_tags("task", tags, templates)];
-    let db = Db::from_iter(tasks);
+    let iter = [Task::with_summary_and_tags("task", tags, templates)].map(Rc::new);
+    let db = Db::from_iter(iter);
     let entry = db.get(0).unwrap();
-    let mut data = Data::new(entry.id(), entry.clone());
+    // Make a deep copy of the task.
+    let task = entry.deref().deref().clone();
+    let mut data = Data::new(entry.id(), task);
     assert_eq!(data.selection, 0);
 
     assert!(!data.select_task_beginning_with('h', Direction::Backward));

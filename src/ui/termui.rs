@@ -246,6 +246,8 @@ impl Handleable<Event, Message> for TermUi {
 mod tests {
   use super::*;
 
+  use std::rc::Rc;
+
   use gui::Cap;
   use gui::Ui;
 
@@ -409,7 +411,7 @@ mod tests {
     }
 
     /// Retrieve the current set of tasks from the UI.
-    async fn tasks(&mut self) -> Vec<Task> {
+    async fn tasks(&mut self) -> Vec<Rc<Task>> {
       let root = self.ui.root_id();
       let resp = self.ui.send(root, Message::GetTasks).await.unwrap();
       if let Message::GotTasks(tasks) = resp {

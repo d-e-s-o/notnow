@@ -3,6 +3,7 @@
 
 use std::cmp::min;
 use std::isize;
+use std::ops::Deref as _;
 use std::rc::Rc;
 
 use async_trait::async_trait;
@@ -65,7 +66,7 @@ impl TaskListBoxData {
   }
 
   /// Retrieve the selected task and its ID, if any.
-  fn selected_task(&self) -> Option<(TaskId, Task)> {
+  fn selected_task(&self) -> Option<(TaskId, Rc<Task>)> {
     let selection = self.selection(0);
     self
       .view
@@ -197,13 +198,13 @@ impl TaskListBox {
       SearchState::Done => unreachable!(),
     };
 
-    let cmp_exact = |task: &Task| task.summary() == string;
-    let cmp_vague = |task: &Task| task.summary().to_lowercase().contains(string);
+    let cmp_exact = |task: &Rc<Task>| task.summary() == string;
+    let cmp_vague = |task: &Rc<Task>| task.summary().to_lowercase().contains(string);
 
     let check = if exact {
-      &cmp_exact as &dyn Fn(&Task) -> bool
+      &cmp_exact as &dyn Fn(&Rc<Task>) -> bool
     } else {
-      &cmp_vague as &dyn Fn(&Task) -> bool
+      &cmp_vague as &dyn Fn(&Rc<Task>) -> bool
     };
     // Note that a simpler version of this find magic would just use
     // the `enumerate` functionality. However, for some reason that
@@ -281,7 +282,8 @@ impl Handleable<Event, Message> for TaskListBox {
         Key::Char(' ') => {
           if let Some((task_id, task)) = data.selected_task() {
             if let Some(toggle_tag) = &data.toggle_tag {
-              let mut task = task.clone();
+              // Make a deep copy of the task to work on.
+              let mut task = task.deref().clone();
               if !task.unset_tag(toggle_tag) {
                 task.set_tag(toggle_tag.clone());
               }
@@ -311,9 +313,11 @@ impl Handleable<Event, Message> for TaskListBox {
         },
         Key::Char('e') => {
           if let Some((task_id, task)) = data.selected_task() {
+            // Make a deep copy of the task.
+            let task = task.deref().clone();
             let string = task.summary().to_owned();
             let idx = string.len();
-            data.state = Some(State::Edit(task_id, task.clone()));
+            data.state = Some(State::Edit(task_id, task));
 
             let message = Message::SetInOut(InOut::Input(string, idx));
             cap.send(self.in_out, message).await.into_event()
@@ -323,7 +327,9 @@ impl Handleable<Event, Message> for TaskListBox {
         },
         Key::Char('t') => {
           if let Some((task_id, task)) = data.selected_task() {
-            let message = Message::EditTags(task_id, task.clone());
+            // Make a deep copy of the task to work on.
+            let task = task.deref().clone();
+            let message = Message::EditTags(task_id, task);
             cap.send(self.dialog, message).await.into_event()
           } else {
             None

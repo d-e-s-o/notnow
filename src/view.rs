@@ -102,7 +102,7 @@ impl<'t> Filter<'t> {
 }
 
 impl<'t> Iterator for Filter<'t> {
-  type Item = (&'t TaskId, &'t Task);
+  type Item = (&'t TaskId, &'t Rc<Task>);
 
   /// Advance the iterator yielding the next matching task or None.
   fn next(&mut self) -> Option<Self::Item> {

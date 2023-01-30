@@ -7,7 +7,6 @@ use std::collections::BTreeSet;
 use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Result;
-use std::mem::replace;
 use std::ops::Deref as _;
 use std::ops::DerefMut as _;
 use std::rc::Rc;
@@ -29,7 +28,7 @@ use crate::tags::Templates;
 const MAX_UNDO_STEP_COUNT: usize = 64;
 
 
-pub type Id = DbId<Task>;
+pub type Id = DbId<Rc<Task>>;
 
 
 #[derive(Clone, Debug)]
@@ -45,6 +44,14 @@ struct TaskInner {
 
 
 /// A struct representing a task item.
+// Note that while conceptually this type could be fully internally
+// mutable, in practice most modifying functions still have a &mut self
+// receiver. The reason is that we want to force task update (the update
+// of the entity in the `Tasks` object) to go through [`Tasks::update`],
+// in order to hook into our `Ops` infrastructure and make changes
+// reversible. That's enabled through [`Task::update_from`], which makes
+// use of internal mutability, to work on a shared reference as stored
+// inside `Tasks`.
 #[derive(Clone, Debug)]
 pub struct Task(RefCell<TaskInner>);
 
@@ -163,6 +170,15 @@ impl Task {
     self.0.try_borrow_mut().unwrap().tags.remove(tag)
   }
 
+  /// Update this task with the contents of `other`.
+  fn update_from(&self, other: Task) {
+    // SANITY: The type's API surface prevents any borrows from escaping
+    //         a function call and we don't call methods on `self` while
+    //         a borrow is active.
+    let mut borrow = self.0.try_borrow_mut().unwrap();
+    *borrow.deref_mut() = other.0.into_inner();
+  }
+
   /// Retrieve the `Templates` object associated with this task.
   pub fn templates(&self) -> Rc<Templates> {
     self.0.try_borrow().unwrap().templates.clone()
@@ -188,7 +204,7 @@ impl ToSerde<SerTask> for Task {
 
 
 /// Add a task to a vector of tasks.
-fn add_task(tasks: &mut Db<Task>, id: Option<Id>, task: Task, target: Option<Target>) -> Id {
+fn add_task(tasks: &mut Db<Rc<Task>>, id: Option<Id>, task: Rc<Task>, target: Option<Target>) -> Id {
   if let Some(target) = target {
     let idx = tasks.find(target.id()).unwrap();
     let idx = match target {
@@ -202,16 +218,20 @@ fn add_task(tasks: &mut Db<Task>, id: Option<Id>, task: Task, target: Option<Tar
 }
 
 /// Remove a task from a vector of tasks.
-fn remove_task(tasks: &mut Db<Task>, id: Id) -> (Task, usize) {
+fn remove_task(tasks: &mut Db<Rc<Task>>, id: Id) -> (Rc<Task>, usize) {
   let idx = tasks.find(id).unwrap();
   let (_, task) = tasks.remove(idx);
   (task, idx)
 }
 
 /// Update a task in a vector of tasks.
-fn update_task(tasks: &mut Db<Task>, id: Id, task: Task) -> Task {
+fn update_task(tasks: &mut Db<Rc<Task>>, id: Id, other: Task) -> Task {
   let idx = tasks.find(id).unwrap();
-  replace(&mut tasks.get_mut(idx).unwrap(), task)
+  let task = tasks.get(idx).unwrap();
+  // Make a deep copy of the task.
+  let before = task.deref().deref().clone();
+  let () = task.update_from(other);
+  before
 }
 
 
@@ -224,7 +244,10 @@ enum IdOrTask {
   /// The ID of a task.
   Id(Id),
   /// An actual task along with its ID and position.
-  Task { task: (Id, Task), position: usize },
+  Task {
+    task: (Id, Rc<Task>),
+    position: usize,
+  },
 }
 
 impl IdOrTask {
@@ -235,7 +258,7 @@ impl IdOrTask {
     }
   }
 
-  fn task(&self) -> (Id, &Task, usize) {
+  fn task(&self) -> (Id, &Rc<Task>, usize) {
     match self {
       Self::Id(..) => panic!("IdOrTask does not contain a task"),
       Self::Task { task, position } => (task.0, &task.1, *position),
@@ -268,7 +291,7 @@ impl Target {
 enum TaskOp {
   /// An operation adding a task.
   Add {
-    task: (Option<Id>, Task),
+    task: (Option<Id>, Rc<Task>),
     after: Option<Id>,
   },
   /// An operation removing a task.
@@ -287,7 +310,7 @@ enum TaskOp {
 }
 
 impl TaskOp {
-  fn add(task: Task, after: Option<Id>) -> Self {
+  fn add(task: Rc<Task>, after: Option<Id>) -> Self {
     Self::Add {
       task: (None, task),
       after,
@@ -312,8 +335,8 @@ impl TaskOp {
   }
 }
 
-impl Op<Db<Task>, Option<Id>> for TaskOp {
-  fn exec(&mut self, tasks: &mut Db<Task>) -> Option<Id> {
+impl Op<Db<Rc<Task>>, Option<Id>> for TaskOp {
+  fn exec(&mut self, tasks: &mut Db<Rc<Task>>) -> Option<Id> {
     match self {
       Self::Add {
         ref mut task,
@@ -353,7 +376,7 @@ impl Op<Db<Task>, Option<Id>> for TaskOp {
     }
   }
 
-  fn undo(&mut self, tasks: &mut Db<Task>) -> Option<Id> {
+  fn undo(&mut self, tasks: &mut Db<Rc<Task>>) -> Option<Id> {
     match self {
       Self::Add { task, .. } => {
         // SANITY: The ID will always be set at this point.
@@ -385,16 +408,16 @@ impl Op<Db<Task>, Option<Id>> for TaskOp {
 }
 
 
-pub type TaskIter<'a> = DbIter<'a, (Id, Task)>;
+pub type TaskIter<'a> = DbIter<'a, (Id, Rc<Task>)>;
 
 
 #[derive(Debug)]
 struct TasksInner {
   templates: Rc<Templates>,
   /// The managed tasks.
-  tasks: Db<Task>,
+  tasks: Db<Rc<Task>>,
   /// A record of operations in the order they were performed.
-  operations: Ops<TaskOp, Db<Task>, Option<Id>>,
+  operations: Ops<TaskOp, Db<Rc<Task>>, Option<Id>>,
 }
 
 
@@ -410,7 +433,7 @@ impl Tasks {
       .0
       .into_iter()
       .try_fold(Vec::with_capacity(len), |mut vec, (id, task)| {
-        let task = Task::with_serde(task, templates.clone())?;
+        let task = Rc::new(Task::with_serde(task, templates.clone())?);
         vec.push((id.get(), task));
         Result::Ok(vec)
       })?;
@@ -484,7 +507,11 @@ impl Tasks {
       ..
     } = borrow.deref_mut();
 
-    let task = Task::with_summary_and_tags(summary, tags, templates.clone());
+    let task = Rc::new(Task::with_summary_and_tags(
+      summary,
+      tags,
+      templates.clone(),
+    ));
     let op = TaskOp::add(task, after);
     // SANITY: We know that an "add" operation always returns an ID, so
     //         this unwrap will never panic.
@@ -644,7 +671,7 @@ pub mod tests {
     let mut tasks = Db::from_iter([]);
     let mut ops = Ops::new(3);
 
-    let task1 = Task::new("task1");
+    let task1 = Rc::new(Task::new("task1"));
     let op = TaskOp::add(task1, None);
     ops.exec(op, &mut tasks);
     assert_eq!(tasks.iter().len(), 1);
@@ -662,16 +689,17 @@ pub mod tests {
   /// non-empty task vector.
   #[test]
   fn exec_undo_task_add_non_empty() {
-    let mut tasks = Db::from_iter([Task::new("task1")]);
+    let iter = [Task::new("task1")].map(Rc::new);
+    let mut tasks = Db::from_iter(iter);
     let mut ops = Ops::new(3);
-    let task2 = Task::new("task2");
+    let task2 = Rc::new(Task::new("task2"));
     let op = TaskOp::add(task2, None);
     ops.exec(op, &mut tasks);
     assert_eq!(tasks.iter().len(), 2);
     assert_eq!(tasks.get(0).unwrap().summary(), "task1");
     assert_eq!(tasks.get(1).unwrap().summary(), "task2");
 
-    let task3 = Task::new("task3");
+    let task3 = Rc::new(Task::new("task3"));
     let op = TaskOp::add(task3, Some(tasks.get(0).unwrap().id()));
     ops.exec(op, &mut tasks);
     assert_eq!(tasks.iter().len(), 3);
@@ -693,7 +721,7 @@ pub mod tests {
   /// task vector with only a single task.
   #[test]
   fn exec_undo_task_remove_single() {
-    let mut tasks = Db::from_iter([Task::new("task1")]);
+    let mut tasks = Db::from_iter([Rc::new(Task::new("task1"))]);
     let mut ops = Ops::new(3);
 
     let op = TaskOp::remove(tasks.get(0).unwrap().id());
@@ -712,7 +740,8 @@ pub mod tests {
   /// task vector with multiple tasks.
   #[test]
   fn exec_undo_task_remove_multi() {
-    let mut tasks = Db::from_iter([Task::new("task1"), Task::new("task2"), Task::new("task3")]);
+    let iter = [Task::new("task1"), Task::new("task2"), Task::new("task3")].map(Rc::new);
+    let mut tasks = Db::from_iter(iter);
     let mut ops = Ops::new(3);
 
     let op = TaskOp::remove(tasks.get(1).unwrap().id());
@@ -736,10 +765,12 @@ pub mod tests {
   /// Check that the `TaskOp::Update` variant works as expected.
   #[test]
   fn exec_undo_task_update() {
-    let mut tasks = Db::from_iter([Task::new("task1"), Task::new("task2")]);
+    let iter = [Task::new("task1"), Task::new("task2")].map(Rc::new);
+    let mut tasks = Db::from_iter(iter);
     let mut ops = Ops::new(3);
 
-    let mut new = tasks.get(0).unwrap().clone();
+    // Make a deep copy of the task.
+    let mut new = tasks.get(0).unwrap().deref().deref().clone();
     new.set_summary("foo!".to_string());
     let op = TaskOp::update(tasks.get(0).unwrap().id(), new);
     ops.exec(op, &mut tasks);
@@ -762,7 +793,8 @@ pub mod tests {
   /// only a single task is present and the operation is no-op.
   #[test]
   fn exec_undo_task_move() {
-    let mut tasks = Db::from_iter([Task::new("task1"), Task::new("task2")]);
+    let iter = [Task::new("task1"), Task::new("task2")].map(Rc::new);
+    let mut tasks = Db::from_iter(iter);
     let mut ops = Ops::new(3);
 
     let op = TaskOp::move_(1, Target::Before(tasks.get(0).unwrap().id()));
@@ -831,7 +863,9 @@ pub mod tests {
   #[test]
   fn update_task() {
     let tasks = Tasks::with_serde_tasks(make_tasks(3)).unwrap();
-    let (id, mut task) = tasks.iter(|mut iter| iter.nth(1).unwrap().clone());
+    let (id, task) = tasks.iter(|mut iter| iter.nth(1).unwrap().clone());
+    // Make a deep copy of the task.
+    let mut task = task.deref().clone();
     task.set_summary("amended".to_string());
     tasks.update(id, task);
 
