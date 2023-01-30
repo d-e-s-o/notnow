@@ -414,6 +414,7 @@ mod tests {
   use std::rc::Rc;
 
   use crate::db::Db;
+  use crate::db::UseDefault;
   use crate::tags::Templates;
   use crate::test::COMPLETE_TAG;
 
@@ -460,7 +461,7 @@ mod tests {
     // The full list of tags will look like this:
     // a, d, h, b, c, c1, complete, z
     let iter = [Task::with_summary_and_tags("task", tags, templates)].map(Rc::new);
-    let db = Db::from_iter(iter);
+    let db = Db::<_, UseDefault>::from_iter(iter);
     let entry = db.get(0).unwrap();
     // Make a deep copy of the task.
     let task = entry.deref().deref().clone();

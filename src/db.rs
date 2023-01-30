@@ -3,6 +3,7 @@
 
 use std::collections::BTreeSet;
 use std::collections::HashSet;
+use std::marker::PhantomData;
 use std::num::NonZeroUsize;
 use std::ops::Deref;
 use std::ops::DerefMut;
@@ -14,6 +15,29 @@ use crate::id::Id;
 
 /// An iterator over the items in a `Db`.
 pub type Iter<'t, T> = slice::Iter<'t, T>;
+
+
+/// A trait for comparing two items in a `Db` instance.
+pub trait Cmp<T> {
+  /// Check whether two items are equal.
+  fn eq(lhs: &T, rhs: &T) -> bool;
+}
+
+
+/// A type implementing the [`Cmp`] trait, forwarding to an existing
+/// [`Eq`] implementation.
+#[derive(Debug)]
+pub struct UseDefault;
+
+impl<T> Cmp<T> for UseDefault
+where
+  T: Eq,
+{
+  #[inline]
+  fn eq(lhs: &T, rhs: &T) -> bool {
+    lhs.eq(rhs)
+  }
+}
 
 
 /// An object wrapping an item contained in a `Db`, along with its `Id`,
@@ -68,14 +92,16 @@ impl<T> DerefMut for EntryMut<'_, T> {
 
 /// A database for storing arbitrary but fixed data items.
 #[derive(Debug)]
-pub struct Db<T> {
+pub struct Db<T, C = UseDefault> {
   /// The data along with its ID, in a well-defined order.
   data: Vec<(Id<T>, T)>,
   /// The IDs currently in use.
   ids: BTreeSet<usize>,
+  /// Phantom data for the comparator to use.
+  _comparator: PhantomData<C>,
 }
 
-impl<T> Db<T> {
+impl<T, C> Db<T, C> {
   /// Create a database from the items contained in the provided
   /// iterator.
   pub fn try_from_iter<I, J>(iter: I) -> Result<Self, usize>
@@ -107,6 +133,7 @@ impl<T> Db<T> {
     let slf = Self {
       data,
       ids: ids.into_iter().collect(),
+      _comparator: PhantomData,
     };
     Ok(slf)
   }
@@ -126,13 +153,26 @@ impl<T> Db<T> {
       .collect::<Vec<_>>();
     let ids = data.iter().map(|(id, _)| id.get().get()).collect();
 
-    Self { data, ids }
+    Self {
+      data,
+      ids,
+      _comparator: PhantomData,
+    }
   }
 
   /// Look up an item's index given the item's ID.
   #[inline]
   pub fn find(&self, id: Id<T>) -> Option<usize> {
     self.data.iter().position(|(id_, _)| *id_ == id)
+  }
+
+  /// Look up an item's index in the `Db`.
+  #[inline]
+  pub fn find_item(&self, item: &T) -> Option<usize>
+  where
+    C: Cmp<T>,
+  {
+    self.data.iter().position(|(_, item_)| C::eq(item_, item))
   }
 
   /// Insert an item into the database at the given `index`.
@@ -206,25 +246,37 @@ pub mod tests {
   fn create_from_iter() {
     let mut items = [(1, "foo"), (2, "bar"), (3, "baz"), (4, "foobar")];
 
-    let db = Db::try_from_iter(items).unwrap();
+    let db = Db::<_, UseDefault>::try_from_iter(items).unwrap();
     assert_eq!(*db.get(0).unwrap(), "foo");
     assert_eq!(*db.get(3).unwrap(), "foobar");
 
     // Create duplicate ID in the array.
     items[2].0 = 2;
-    let duplicate = Db::try_from_iter(items).unwrap_err();
+    let duplicate = Db::<_, UseDefault>::try_from_iter(items).unwrap_err();
     assert_eq!(duplicate, 2);
   }
 
   /// Check that we can lookup an item based on its ID.
   #[test]
-  fn find_item() {
+  fn find_by_id() {
     let items = [(1, "foo"), (2, "bar"), (3, "baz"), (4, "foobar")];
 
-    let db = Db::try_from_iter(items).unwrap();
+    let db = Db::<_, UseDefault>::try_from_iter(items).unwrap();
     let id = db.get(1).unwrap().id();
     let idx = db.find(id).unwrap();
     assert_eq!(idx, 1);
+  }
+
+  /// Check that we can lookup an item.
+  #[test]
+  fn find_item() {
+    let items = [(1, "foo"), (2, "bar"), (3, "baz"), (4, "foobar")];
+
+    let db = Db::<_, UseDefault>::try_from_iter(items).unwrap();
+    assert_eq!(db.find_item(&"bar"), Some(1));
+
+    let db = Db::<_, UseDefault>::try_from_iter(items).unwrap();
+    assert_eq!(db.find_item(&"hihi"), None);
   }
 
   /// Check that we can insert an item.
@@ -232,7 +284,7 @@ pub mod tests {
   fn insert_item() {
     let items = [(1, "foo"), (2, "bar"), (3, "baz"), (4, "foobar")];
 
-    let mut db = Db::try_from_iter(items).unwrap();
+    let mut db = Db::<_, UseDefault>::try_from_iter(items).unwrap();
     let id = db.insert(0, None, "foobarbaz");
     let idx = db.find(id).unwrap();
     assert_eq!(idx, 0);
@@ -245,7 +297,7 @@ pub mod tests {
   /// Check that we can insert an item at the end of a `Db`.
   #[test]
   fn push_item() {
-    let mut db = Db::try_from_iter([]).unwrap();
+    let mut db = Db::<_, UseDefault>::try_from_iter([]).unwrap();
     let id = db.push(None, "foo");
     let idx = db.find(id).unwrap();
     assert_eq!(idx, 0);
@@ -267,7 +319,7 @@ pub mod tests {
   fn mutate_item() {
     let items = [(1, "foo"), (2, "bar"), (3, "baz"), (4, "foobar")];
 
-    let mut db = Db::try_from_iter(items).unwrap();
+    let mut db = Db::<_, UseDefault>::try_from_iter(items).unwrap();
     let mut entry = db.get_mut(0).unwrap();
     *entry = "bedazzle";
 
@@ -279,7 +331,7 @@ pub mod tests {
   fn iteration() {
     let items = [(1, "foo"), (2, "bar"), (3, "baz"), (4, "foobar")];
 
-    let db = Db::try_from_iter(items).unwrap();
+    let db = Db::<_, UseDefault>::try_from_iter(items).unwrap();
     let vec = db
       .iter()
       .map(|(id, item)| (id.get().get(), *item))
