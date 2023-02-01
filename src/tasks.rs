@@ -11,6 +11,7 @@ use std::ops::Deref as _;
 use std::ops::DerefMut as _;
 use std::rc::Rc;
 
+use crate::db::Cmp;
 use crate::db::Db;
 use crate::db::Iter as DbIter;
 use crate::id::Id as DbId;
@@ -204,7 +205,12 @@ impl ToSerde<SerTask> for Task {
 
 
 /// Add a task to a vector of tasks.
-fn add_task(tasks: &mut Db<Rc<Task>>, id: Option<Id>, task: Rc<Task>, target: Option<Target>) -> Id {
+fn add_task(
+  tasks: &mut Db<Rc<Task>, CmpRc>,
+  id: Option<Id>,
+  task: Rc<Task>,
+  target: Option<Target>,
+) -> Id {
   if let Some(target) = target {
     let idx = tasks.find(target.id()).unwrap();
     let idx = match target {
@@ -218,14 +224,14 @@ fn add_task(tasks: &mut Db<Rc<Task>>, id: Option<Id>, task: Rc<Task>, target: Op
 }
 
 /// Remove a task from a vector of tasks.
-fn remove_task(tasks: &mut Db<Rc<Task>>, id: Id) -> (Rc<Task>, usize) {
+fn remove_task(tasks: &mut Db<Rc<Task>, CmpRc>, id: Id) -> (Rc<Task>, usize) {
   let idx = tasks.find(id).unwrap();
   let (_, task) = tasks.remove(idx);
   (task, idx)
 }
 
 /// Update a task in a vector of tasks.
-fn update_task(tasks: &mut Db<Rc<Task>>, id: Id, other: Task) -> Task {
+fn update_task(tasks: &mut Db<Rc<Task>, CmpRc>, id: Id, other: Task) -> Task {
   let idx = tasks.find(id).unwrap();
   let task = tasks.get(idx).unwrap();
   // Make a deep copy of the task.
@@ -335,8 +341,8 @@ impl TaskOp {
   }
 }
 
-impl Op<Db<Rc<Task>>, Option<Id>> for TaskOp {
-  fn exec(&mut self, tasks: &mut Db<Rc<Task>>) -> Option<Id> {
+impl Op<Db<Rc<Task>, CmpRc>, Option<Id>> for TaskOp {
+  fn exec(&mut self, tasks: &mut Db<Rc<Task>, CmpRc>) -> Option<Id> {
     match self {
       Self::Add {
         ref mut task,
@@ -376,7 +382,7 @@ impl Op<Db<Rc<Task>>, Option<Id>> for TaskOp {
     }
   }
 
-  fn undo(&mut self, tasks: &mut Db<Rc<Task>>) -> Option<Id> {
+  fn undo(&mut self, tasks: &mut Db<Rc<Task>, CmpRc>) -> Option<Id> {
     match self {
       Self::Add { task, .. } => {
         // SANITY: The ID will always be set at this point.
@@ -408,6 +414,17 @@ impl Op<Db<Rc<Task>>, Option<Id>> for TaskOp {
 }
 
 
+#[derive(Debug)]
+struct CmpRc;
+
+impl Cmp<Rc<Task>> for CmpRc {
+  #[inline]
+  fn eq(lhs: &Rc<Task>, rhs: &Rc<Task>) -> bool {
+    Rc::ptr_eq(lhs, rhs)
+  }
+}
+
+
 pub type TaskIter<'a> = DbIter<'a, (Id, Rc<Task>)>;
 
 
@@ -415,9 +432,9 @@ pub type TaskIter<'a> = DbIter<'a, (Id, Rc<Task>)>;
 struct TasksInner {
   templates: Rc<Templates>,
   /// The managed tasks.
-  tasks: Db<Rc<Task>>,
+  tasks: Db<Rc<Task>, CmpRc>,
   /// A record of operations in the order they were performed.
-  operations: Ops<TaskOp, Db<Rc<Task>>, Option<Id>>,
+  operations: Ops<TaskOp, Db<Rc<Task>, CmpRc>, Option<Id>>,
 }
 
 
