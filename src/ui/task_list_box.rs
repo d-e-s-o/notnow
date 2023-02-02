@@ -336,12 +336,12 @@ impl Handleable<Event, Message> for TaskListBox {
           }
         },
         Key::Char('J') => {
-          if let Some((to_move_id, _)) = data.selected_task() {
-            let other_id = data
+          if let Some((_id, to_move)) = data.selected_task() {
+            let other = data
               .view
-              .iter(|mut iter| iter.nth(data.selection(1)).map(|(id, _task)| *id));
-            if let Some(other_id) = other_id {
-              data.tasks.move_after(to_move_id, other_id);
+              .iter(|mut iter| iter.nth(data.selection(1)).map(|(_id, task)| task.clone()));
+            if let Some(other) = other {
+              data.tasks.move_after(to_move, other);
               MessageExt::maybe_update(None, data.change_selection(1)).into_event()
             } else {
               None
@@ -351,13 +351,13 @@ impl Handleable<Event, Message> for TaskListBox {
           }
         },
         Key::Char('K') => {
-          if let Some((to_move_id, _)) = data.selected_task() {
+          if let Some((_id, to_move)) = data.selected_task() {
             if data.selection(0) > 0 {
-              let other_id = data
+              let other = data
                 .view
-                .iter(|mut iter| iter.nth(data.selection(-1)).map(|(id, _task)| *id));
-              if let Some(other_id) = other_id {
-                data.tasks.move_before(to_move_id, other_id);
+                .iter(|mut iter| iter.nth(data.selection(-1)).map(|(_id, task)| task.clone()));
+              if let Some(other) = other {
+                data.tasks.move_before(to_move, other);
                 MessageExt::maybe_update(None, data.change_selection(-1)).into_event()
               } else {
                 None
@@ -421,7 +421,7 @@ impl Handleable<Event, Message> for TaskListBox {
                 //       at a rather random seeming location because of
                 //       it. Eventually we may want to remove the
                 //       special case logic for the 'complete' tag.
-                let after = data.selected_task().map(|(id, _)| id);
+                let after = data.selected_task().map(|(_id, task)| task);
                 let id = data.tasks.add(text.clone(), tags, after);
                 self.select_task(cap, id).await
               } else {

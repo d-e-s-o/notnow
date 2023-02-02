@@ -212,7 +212,7 @@ fn add_task(
   target: Option<Target>,
 ) -> Id {
   if let Some(target) = target {
-    let idx = tasks.find(target.id()).unwrap();
+    let idx = tasks.find_item(target.task()).unwrap();
     let idx = match target {
       Target::Before(..) => idx,
       Target::After(..) => idx + 1,
@@ -275,18 +275,18 @@ impl IdOrTask {
 
 /// An enum encoding the target location of a task: before or after a
 /// task with a given ID.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 enum Target {
   /// The target is the spot before the given task.
-  Before(Id),
+  Before(Rc<Task>),
   /// The target is the spot after the given task.
-  After(Id),
+  After(Rc<Task>),
 }
 
 impl Target {
-  fn id(&self) -> Id {
+  fn task(&self) -> &Rc<Task> {
     match self {
-      Self::Before(id) | Self::After(id) => *id,
+      Self::Before(task) | Self::After(task) => task,
     }
   }
 }
@@ -298,7 +298,7 @@ enum TaskOp {
   /// An operation adding a task.
   Add {
     task: (Option<Id>, Rc<Task>),
-    after: Option<Id>,
+    after: Option<Rc<Task>>,
   },
   /// An operation removing a task.
   Remove { id_or_task: IdOrTask },
@@ -316,7 +316,7 @@ enum TaskOp {
 }
 
 impl TaskOp {
-  fn add(task: Rc<Task>, after: Option<Id>) -> Self {
+  fn add(task: Rc<Task>, after: Option<Rc<Task>>) -> Self {
     Self::Add {
       task: (None, task),
       after,
@@ -348,7 +348,12 @@ impl Op<Db<Rc<Task>, CmpRc>, Option<Id>> for TaskOp {
         ref mut task,
         after,
       } => {
-        let id = add_task(tasks, task.0, task.1.clone(), after.map(Target::After));
+        let id = add_task(
+          tasks,
+          task.0,
+          task.1.clone(),
+          after.clone().map(Target::After),
+        );
         // Now that we know the task's ID, remember it in case we need
         // to undo and redo.
         task.0 = Some(id);
@@ -374,9 +379,9 @@ impl Op<Db<Rc<Task>, CmpRc>, Option<Id>> for TaskOp {
         // We do not support the case of moving a task with itself as a
         // target. Doing so should be prevented at a higher layer,
         // though.
-        debug_assert_ne!(removed.0, to.id());
+        debug_assert!(!CmpRc::eq(&removed.1, to.task()));
         *id = Some(removed.0);
-        add_task(tasks, *id, removed.1, Some(*to));
+        add_task(tasks, *id, removed.1, Some(to.clone()));
         *id
       },
     }
@@ -512,7 +517,7 @@ impl Tasks {
   }
 
   /// Add a new task.
-  pub fn add(&self, summary: String, tags: Vec<Tag>, after: Option<Id>) -> Id {
+  pub fn add(&self, summary: String, tags: Vec<Tag>, after: Option<Rc<Task>>) -> Id {
     // SANITY: The type's API surface prevents any borrows from escaping
     //         a function call and we don't call methods on `self` while
     //         a borrow is active.
@@ -569,9 +574,9 @@ impl Tasks {
     operations.exec(op, tasks);
   }
 
-  /// Reorder the tasks referenced by `to_move` before `other`.
-  pub fn move_before(&self, to_move: Id, other: Id) {
-    if to_move != other {
+  /// Reorder the task referenced by `to_move` before `other`.
+  pub fn move_before(&self, to_move: Rc<Task>, other: Rc<Task>) {
+    if !CmpRc::eq(&to_move, &other) {
       // SANITY: The type's API surface prevents any borrows from escaping
       //         a function call and we don't call methods on `self` while
       //         a borrow is active.
@@ -582,7 +587,7 @@ impl Tasks {
         ..
       } = borrow.deref_mut();
 
-      let idx = tasks.find(to_move).unwrap();
+      let idx = tasks.find_item(&to_move).unwrap();
       let to = Target::Before(other);
       let op = TaskOp::move_(idx, to);
       operations.exec(op, tasks);
@@ -590,8 +595,8 @@ impl Tasks {
   }
 
   /// Reorder the tasks referenced by `to_move` after `other`.
-  pub fn move_after(&self, to_move: Id, other: Id) {
-    if to_move != other {
+  pub fn move_after(&self, to_move: Rc<Task>, other: Rc<Task>) {
+    if !CmpRc::eq(&to_move, &other) {
       // SANITY: The type's API surface prevents any borrows from escaping
       //         a function call and we don't call methods on `self` while
       //         a borrow is active.
@@ -602,7 +607,7 @@ impl Tasks {
         ..
       } = borrow.deref_mut();
 
-      let idx = tasks.find(to_move).unwrap();
+      let idx = tasks.find_item(&to_move).unwrap();
       let to = Target::After(other);
       let op = TaskOp::move_(idx, to);
       operations.exec(op, tasks);
@@ -717,7 +722,8 @@ pub mod tests {
     assert_eq!(tasks.get(1).unwrap().summary(), "task2");
 
     let task3 = Rc::new(Task::new("task3"));
-    let op = TaskOp::add(task3, Some(tasks.get(0).unwrap().id()));
+    let after = tasks.get(0).unwrap().deref().clone();
+    let op = TaskOp::add(task3, Some(after));
     ops.exec(op, &mut tasks);
     assert_eq!(tasks.iter().len(), 3);
     assert_eq!(tasks.get(0).unwrap().summary(), "task1");
@@ -814,7 +820,8 @@ pub mod tests {
     let mut tasks = Db::from_iter(iter);
     let mut ops = Ops::new(3);
 
-    let op = TaskOp::move_(1, Target::Before(tasks.get(0).unwrap().id()));
+    let before = tasks.get(0).unwrap().deref().clone();
+    let op = TaskOp::move_(1, Target::Before(before));
     ops.exec(op, &mut tasks);
     assert_eq!(tasks.iter().len(), 2);
     assert_eq!(tasks.get(0).unwrap().summary(), "task2");
@@ -825,7 +832,8 @@ pub mod tests {
     assert_eq!(tasks.get(0).unwrap().summary(), "task1");
     assert_eq!(tasks.get(1).unwrap().summary(), "task2");
 
-    let op = TaskOp::move_(1, Target::After(tasks.get(0).unwrap().id()));
+    let after = tasks.get(0).unwrap().deref().clone();
+    let op = TaskOp::move_(1, Target::After(after));
     ops.exec(op, &mut tasks);
     assert_eq!(tasks.iter().len(), 2);
     assert_eq!(tasks.get(0).unwrap().summary(), "task1");
@@ -852,9 +860,9 @@ pub mod tests {
   fn add_task_after() {
     let tasks = make_tasks(3);
     let tasks = Tasks::with_serde_tasks(tasks).unwrap();
-    let id = tasks.0.borrow().tasks.get(0).unwrap().id();
+    let after = tasks.0.borrow().tasks.get(0).unwrap().deref().clone();
     let tags = Default::default();
-    tasks.add("4".to_string(), tags, Some(id));
+    tasks.add("4".to_string(), tags, Some(after));
 
     let tasks = tasks.to_serde().into_task_vec();
     let mut expected = make_tasks(4);
@@ -893,36 +901,39 @@ pub mod tests {
     assert_eq!(tasks, expected);
   }
 
+  /// Check that moving a task before the first one works as expected.
   #[test]
   fn move_before_for_first() {
     let tasks = Tasks::with_serde_tasks(make_tasks(3)).unwrap();
-    let id1 = tasks.iter(|mut iter| iter.next().unwrap().0);
-    let id2 = tasks.iter(|mut iter| iter.nth(1).unwrap().0);
-    tasks.move_before(id1, id2);
+    let task1 = tasks.iter(|mut iter| iter.next().unwrap().1.clone());
+    let task2 = tasks.iter(|mut iter| iter.nth(1).unwrap().1.clone());
+    tasks.move_before(task1, task2);
 
     let tasks = tasks.to_serde().into_task_vec();
     let expected = make_tasks(3);
     assert_eq!(tasks, expected);
   }
 
+  /// Check that moving a task after the last one works as expected.
   #[test]
   fn move_after_for_last() {
     let tasks = Tasks::with_serde_tasks(make_tasks(3)).unwrap();
-    let id1 = tasks.iter(|mut iter| iter.nth(2).unwrap().0);
-    let id2 = tasks.iter(|mut iter| iter.nth(1).unwrap().0);
-    tasks.move_after(id1, id2);
+    let task1 = tasks.iter(|mut iter| iter.nth(2).unwrap().1.clone());
+    let task2 = tasks.iter(|mut iter| iter.nth(1).unwrap().1.clone());
+    tasks.move_after(task1, task2);
 
     let expected = make_tasks(3);
     let tasks = tasks.to_serde().into_task_vec();
     assert_eq!(tasks, expected);
   }
 
+  /// Check that moving a task before another works as expected.
   #[test]
   fn move_before() {
     let tasks = Tasks::with_serde_tasks(make_tasks(4)).unwrap();
-    let id1 = tasks.iter(|mut iter| iter.nth(2).unwrap().0);
-    let id2 = tasks.iter(|mut iter| iter.nth(1).unwrap().0);
-    tasks.move_before(id1, id2);
+    let task1 = tasks.iter(|mut iter| iter.nth(2).unwrap().1.clone());
+    let task2 = tasks.iter(|mut iter| iter.nth(1).unwrap().1.clone());
+    tasks.move_before(task1, task2);
 
     let tasks = tasks.to_serde().into_task_vec();
     let mut expected = make_tasks(4);
@@ -931,12 +942,13 @@ pub mod tests {
     assert_eq!(tasks, expected);
   }
 
+  /// Check that moving a task after another works as expected.
   #[test]
   fn move_after() {
     let tasks = Tasks::with_serde_tasks(make_tasks(4)).unwrap();
-    let id1 = tasks.iter(|mut iter| iter.nth(1).unwrap().0);
-    let id2 = tasks.iter(|mut iter| iter.nth(2).unwrap().0);
-    tasks.move_after(id1, id2);
+    let task1 = tasks.iter(|mut iter| iter.nth(1).unwrap().1.clone());
+    let task2 = tasks.iter(|mut iter| iter.nth(2).unwrap().1.clone());
+    tasks.move_after(task1, task2);
 
     let tasks = tasks.to_serde().into_task_vec();
     let mut expected = make_tasks(4);
