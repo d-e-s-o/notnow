@@ -305,7 +305,7 @@ enum TaskOp {
   /// An operation updating a task.
   Update {
     updated: (Id, Task),
-    before: Option<(Id, Task)>,
+    before: Option<Task>,
   },
   /// An operation changing a task's position.
   Move {
@@ -371,7 +371,7 @@ impl Op<Db<Rc<Task>, CmpRc>, Option<Id>> for TaskOp {
       Self::Update { updated, before } => {
         let id = updated.0;
         let task = update_task(tasks, id, updated.1.clone());
-        *before = Some((id, task));
+        *before = Some(task);
         Some(id)
       },
       Self::Move { from, to, id } => {
@@ -402,9 +402,8 @@ impl Op<Db<Rc<Task>, CmpRc>, Option<Id>> for TaskOp {
       },
       Self::Update { updated, before } => {
         let before = before.clone().unwrap();
-        debug_assert_eq!(updated.0, before.0);
-        let id = before.0;
-        let _task = update_task(tasks, id, before.1);
+        let id = updated.0;
+        let _task = update_task(tasks, id, before);
         Some(id)
       },
       Self::Move { from, id, .. } => {
