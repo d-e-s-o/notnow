@@ -108,7 +108,7 @@ struct Data {
   /// The ID of the task for which to configure the tags.
   task_id: TaskId,
   /// The task for which to configure the tags.
-  task: Task,
+  to_edit: Task,
   /// The tags to configure.
   tags: Vec<SetUnsetTag>,
   /// The currently selected tag.
@@ -119,13 +119,13 @@ struct Data {
 
 impl Data {
   /// Create a new `Data` object from the given `Task` object.
-  fn new(task_id: TaskId, task: Task) -> Self {
-    let tags = prepare_tags(&task);
+  fn new(task_id: TaskId, to_edit: Task) -> Self {
+    let tags = prepare_tags(&to_edit);
 
     Self {
       prev_focused: None,
       task_id,
-      task,
+      to_edit,
       tags,
       selection: 0,
       jump_to: None,
@@ -167,8 +167,8 @@ impl Data {
       SetUnsetTag::Unset(_) => None,
     });
 
-    self.task.set_tags(tags);
-    (self.task_id, self.task)
+    self.to_edit.set_tags(tags);
+    (self.task_id, self.to_edit)
   }
 }
 
@@ -278,10 +278,12 @@ impl Dialog {
         let data = data.data.take();
 
         if key == Key::Char('\n') {
-          let (task_id, task) = data
+          let (task_id, updated) = data
             .map(|data| data.into_task())
             .expect("dialog has no data set");
-          cap.send(widget, Message::UpdateTask(task_id, task)).await;
+          cap
+            .send(widget, Message::UpdateTask(task_id, updated))
+            .await;
         }
 
         Some(Message::Updated)
