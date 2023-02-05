@@ -11,7 +11,7 @@ use std::ops::Deref as _;
 use std::ops::DerefMut as _;
 use std::rc::Rc;
 
-use crate::db::Cmp;
+pub use crate::db::Cmp;
 use crate::db::Db;
 use crate::db::Iter as DbIter;
 use crate::id::Id as DbId;
@@ -210,66 +210,34 @@ fn add_task(
   id: Option<Id>,
   task: Rc<Task>,
   target: Option<Target>,
-) -> Id {
-  if let Some(target) = target {
+) -> (Id, Rc<Task>) {
+  let id = if let Some(target) = target {
     let idx = tasks.find_item(target.task()).unwrap();
     let idx = match target {
       Target::Before(..) => idx,
       Target::After(..) => idx + 1,
     };
-    tasks.insert(idx, id, task)
+    tasks.insert(idx, id, task.clone())
   } else {
-    tasks.push(id, task)
-  }
+    tasks.push(id, task.clone())
+  };
+
+  (id, task)
 }
 
 /// Remove a task from a vector of tasks.
-fn remove_task(tasks: &mut Db<Rc<Task>, CmpRc>, id: Id) -> (Rc<Task>, usize) {
-  let idx = tasks.find(id).unwrap();
-  let (_, task) = tasks.remove(idx);
-  (task, idx)
+fn remove_task(tasks: &mut Db<Rc<Task>, CmpRc>, task: &Rc<Task>) -> (Id, Rc<Task>, usize) {
+  let idx = tasks.find_item(task).unwrap();
+  let (id, task) = tasks.remove(idx);
+  (id, task, idx)
 }
 
 /// Update a task in a vector of tasks.
-fn update_task(tasks: &mut Db<Rc<Task>, CmpRc>, id: Id, other: Task) -> Task {
-  let idx = tasks.find(id).unwrap();
-  let task = tasks.get(idx).unwrap();
+fn update_task(task: &Rc<Task>, other: Task) -> Task {
   // Make a deep copy of the task.
   let before = task.deref().deref().clone();
   let () = task.update_from(other);
   before
-}
-
-
-/// An enumeration holding either a task ID or the full task.
-///
-/// This type is mostly an implementation detail of the `TaskOp`
-/// enumeration.
-#[derive(Debug)]
-enum IdOrTask {
-  /// The ID of a task.
-  Id(Id),
-  /// An actual task along with its ID and position.
-  Task {
-    task: (Id, Rc<Task>),
-    position: usize,
-  },
-}
-
-impl IdOrTask {
-  fn id(&self) -> Id {
-    match self {
-      Self::Id(id) => *id,
-      Self::Task { task, .. } => task.0,
-    }
-  }
-
-  fn task(&self) -> (Id, &Rc<Task>, usize) {
-    match self {
-      Self::Id(..) => panic!("IdOrTask does not contain a task"),
-      Self::Task { task, position } => (task.0, &task.1, *position),
-    }
-  }
 }
 
 
@@ -301,10 +269,13 @@ enum TaskOp {
     after: Option<Rc<Task>>,
   },
   /// An operation removing a task.
-  Remove { id_or_task: IdOrTask },
+  Remove {
+    task: (Option<Id>, Rc<Task>),
+    position: Option<usize>,
+  },
   /// An operation updating a task.
   Update {
-    updated: (Id, Task),
+    updated: (Rc<Task>, Task),
     before: Option<Task>,
   },
   /// An operation changing a task's position.
@@ -323,15 +294,16 @@ impl TaskOp {
     }
   }
 
-  fn remove(id: Id) -> Self {
+  fn remove(task: Rc<Task>) -> Self {
     Self::Remove {
-      id_or_task: IdOrTask::Id(id),
+      task: (None, task),
+      position: None,
     }
   }
 
-  fn update(id: Id, updated: Task) -> Self {
+  fn update(task: Rc<Task>, updated: Task) -> Self {
     Self::Update {
-      updated: (id, updated),
+      updated: (task, updated),
       before: None,
     }
   }
@@ -341,14 +313,14 @@ impl TaskOp {
   }
 }
 
-impl Op<Db<Rc<Task>, CmpRc>, Option<Id>> for TaskOp {
-  fn exec(&mut self, tasks: &mut Db<Rc<Task>, CmpRc>) -> Option<Id> {
+impl Op<Db<Rc<Task>, CmpRc>, Option<Rc<Task>>> for TaskOp {
+  fn exec(&mut self, tasks: &mut Db<Rc<Task>, CmpRc>) -> Option<Rc<Task>> {
     match self {
       Self::Add {
         ref mut task,
         after,
       } => {
-        let id = add_task(
+        let (id, added) = add_task(
           tasks,
           task.0,
           task.1.clone(),
@@ -357,22 +329,19 @@ impl Op<Db<Rc<Task>, CmpRc>, Option<Id>> for TaskOp {
         // Now that we know the task's ID, remember it in case we need
         // to undo and redo.
         task.0 = Some(id);
-        Some(id)
+        Some(added)
       },
-      Self::Remove { id_or_task } => {
-        let id = id_or_task.id();
-        let (task, idx) = remove_task(tasks, id);
-        *id_or_task = IdOrTask::Task {
-          task: (id, task),
-          position: idx,
-        };
+      Self::Remove { task, position } => {
+        let (id, _task, idx) = remove_task(tasks, &task.1);
+        task.0 = Some(id);
+        *position = Some(idx);
         None
       },
       Self::Update { updated, before } => {
-        let id = updated.0;
-        let task = update_task(tasks, id, updated.1.clone());
-        *before = Some(task);
-        Some(id)
+        let task = &updated.0;
+        let _task = update_task(task, updated.1.clone());
+        *before = Some(_task);
+        Some(task.clone())
       },
       Self::Move { from, to, id } => {
         let removed = tasks.remove(*from);
@@ -381,37 +350,39 @@ impl Op<Db<Rc<Task>, CmpRc>, Option<Id>> for TaskOp {
         // though.
         debug_assert!(!CmpRc::eq(&removed.1, to.task()));
         *id = Some(removed.0);
-        add_task(tasks, *id, removed.1, Some(to.clone()));
-        *id
+        let (_id, task) = add_task(tasks, *id, removed.1, Some(to.clone()));
+        Some(task)
       },
     }
   }
 
-  fn undo(&mut self, tasks: &mut Db<Rc<Task>, CmpRc>) -> Option<Id> {
+  fn undo(&mut self, tasks: &mut Db<Rc<Task>, CmpRc>) -> Option<Rc<Task>> {
     match self {
       Self::Add { task, .. } => {
-        // SANITY: The ID will always be set at this point.
-        let id = task.0.unwrap();
-        let _ = remove_task(tasks, id);
+        let _ = remove_task(tasks, &task.1);
         None
       },
-      Self::Remove { id_or_task } => {
-        let (id, task, idx) = id_or_task.task();
-        tasks.insert(idx, Some(id), task.clone());
-        Some(id)
+      Self::Remove { task, position } => {
+        // SANITY: The position will always be set at this point.
+        let idx = position.unwrap();
+        tasks.insert(idx, task.0, task.1.clone());
+        Some(task.1.clone())
       },
       Self::Update { updated, before } => {
+        // SANITY: `before` is guaranteed to be set on this path.
         let before = before.clone().unwrap();
-        let id = updated.0;
-        let _task = update_task(tasks, id, before);
-        Some(id)
+        let task = &updated.0;
+        let _task = update_task(task, before);
+        let idx = tasks.find_item(task).unwrap();
+        let task = tasks.get(idx).unwrap();
+        Some(task.deref().clone())
       },
       Self::Move { from, id, .. } => {
         let id = id.unwrap();
         let idx = tasks.find(id).unwrap();
         let removed = tasks.remove(idx);
-        tasks.insert(*from, Some(removed.0), removed.1);
-        Some(id)
+        tasks.insert(*from, Some(removed.0), removed.1.clone());
+        Some(removed.1)
       },
     }
   }
@@ -419,7 +390,7 @@ impl Op<Db<Rc<Task>, CmpRc>, Option<Id>> for TaskOp {
 
 
 #[derive(Debug)]
-struct CmpRc;
+pub struct CmpRc;
 
 impl Cmp<Rc<Task>> for CmpRc {
   #[inline]
@@ -438,7 +409,7 @@ struct TasksInner {
   /// The managed tasks.
   tasks: Db<Rc<Task>, CmpRc>,
   /// A record of operations in the order they were performed.
-  operations: Ops<TaskOp, Db<Rc<Task>, CmpRc>, Option<Id>>,
+  operations: Ops<TaskOp, Db<Rc<Task>, CmpRc>, Option<Rc<Task>>>,
 }
 
 
@@ -516,7 +487,7 @@ impl Tasks {
   }
 
   /// Add a new task.
-  pub fn add(&self, summary: String, tags: Vec<Tag>, after: Option<Rc<Task>>) -> Id {
+  pub fn add(&self, summary: String, tags: Vec<Tag>, after: Option<Rc<Task>>) -> Rc<Task> {
     // SANITY: The type's API surface prevents any borrows from escaping
     //         a function call and we don't call methods on `self` while
     //         a borrow is active.
@@ -534,15 +505,15 @@ impl Tasks {
       templates.clone(),
     ));
     let op = TaskOp::add(task, after);
-    // SANITY: We know that an "add" operation always returns an ID, so
+    // SANITY: We know that an "add" operation always returns a task, so
     //         this unwrap will never panic.
-    let id = operations.exec(op, tasks).unwrap();
+    let task = operations.exec(op, tasks).unwrap();
 
-    id
+    task
   }
 
   /// Remove a task.
-  pub fn remove(&self, id: Id) {
+  pub fn remove(&self, task: Rc<Task>) {
     // SANITY: The type's API surface prevents any borrows from escaping
     //         a function call and we don't call methods on `self` while
     //         a borrow is active.
@@ -553,12 +524,12 @@ impl Tasks {
       ..
     } = borrow.deref_mut();
 
-    let op = TaskOp::remove(id);
+    let op = TaskOp::remove(task);
     operations.exec(op, tasks);
   }
 
   /// Update a task.
-  pub fn update(&self, id: Id, task: Task) {
+  pub fn update(&self, task: Rc<Task>, updated: Task) {
     // SANITY: The type's API surface prevents any borrows from escaping
     //         a function call and we don't call methods on `self` while
     //         a borrow is active.
@@ -569,7 +540,7 @@ impl Tasks {
       ..
     } = borrow.deref_mut();
 
-    let op = TaskOp::update(id, task);
+    let op = TaskOp::update(task, updated);
     operations.exec(op, tasks);
   }
 
@@ -614,7 +585,7 @@ impl Tasks {
   }
 
   /// Undo the "most recent" operation.
-  pub fn undo(&self) -> Option<Option<Id>> {
+  pub fn undo(&self) -> Option<Option<Rc<Task>>> {
     // SANITY: The type's API surface prevents any borrows from escaping
     //         a function call and we don't call methods on `self` while
     //         a borrow is active.
@@ -629,7 +600,7 @@ impl Tasks {
   }
 
   /// Redo the last undone operation.
-  pub fn redo(&self) -> Option<Option<Id>> {
+  pub fn redo(&self) -> Option<Option<Rc<Task>>> {
     // SANITY: The type's API surface prevents any borrows from escaping
     //         a function call and we don't call methods on `self` while
     //         a borrow is active.
@@ -746,7 +717,8 @@ pub mod tests {
     let mut tasks = Db::from_iter([Rc::new(Task::new("task1"))]);
     let mut ops = Ops::new(3);
 
-    let op = TaskOp::remove(tasks.get(0).unwrap().id());
+    let task = tasks.get(0).unwrap().deref().clone();
+    let op = TaskOp::remove(task);
     ops.exec(op, &mut tasks);
     assert_eq!(tasks.iter().len(), 0);
 
@@ -766,7 +738,8 @@ pub mod tests {
     let mut tasks = Db::from_iter(iter);
     let mut ops = Ops::new(3);
 
-    let op = TaskOp::remove(tasks.get(1).unwrap().id());
+    let task = tasks.get(1).unwrap().deref().clone();
+    let op = TaskOp::remove(task);
     ops.exec(op, &mut tasks);
     assert_eq!(tasks.iter().len(), 2);
     assert_eq!(tasks.get(0).unwrap().summary(), "task1");
@@ -791,10 +764,11 @@ pub mod tests {
     let mut tasks = Db::from_iter(iter);
     let mut ops = Ops::new(3);
 
+    let task = tasks.get(0).unwrap().deref().clone();
     // Make a deep copy of the task.
-    let mut new = tasks.get(0).unwrap().deref().deref().clone();
-    new.set_summary("foo!".to_string());
-    let op = TaskOp::update(tasks.get(0).unwrap().id(), new);
+    let mut updated = task.deref().clone();
+    updated.set_summary("foo!".to_string());
+    let op = TaskOp::update(task, updated);
     ops.exec(op, &mut tasks);
     assert_eq!(tasks.iter().len(), 2);
     assert_eq!(tasks.get(0).unwrap().summary(), "foo!");
@@ -874,8 +848,8 @@ pub mod tests {
   #[test]
   fn remove_task() {
     let tasks = Tasks::with_serde_tasks(make_tasks(3)).unwrap();
-    let id = tasks.iter(|mut iter| iter.nth(1).unwrap().0);
-    tasks.remove(id);
+    let task = tasks.iter(|mut iter| iter.nth(1).unwrap().1.clone());
+    tasks.remove(task);
 
     let tasks = tasks.to_serde().into_task_vec();
     let mut expected = make_tasks(3);
@@ -887,11 +861,11 @@ pub mod tests {
   #[test]
   fn update_task() {
     let tasks = Tasks::with_serde_tasks(make_tasks(3)).unwrap();
-    let (id, task) = tasks.iter(|mut iter| iter.nth(1).unwrap().clone());
+    let task = tasks.iter(|mut iter| iter.nth(1).unwrap().1.clone());
     // Make a deep copy of the task.
-    let mut task = task.deref().clone();
-    task.set_summary("amended".to_string());
-    tasks.update(id, task);
+    let mut updated = task.deref().clone();
+    updated.set_summary("amended".to_string());
+    tasks.update(task, updated);
 
     let tasks = tasks.to_serde().into_task_vec();
     let mut expected = make_tasks(3);

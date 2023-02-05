@@ -499,19 +499,19 @@ pub mod tests {
 
     let tasks = {
       let tasks = task_state.tasks();
-      let (id1, id2, id3) = tasks.iter(|mut iter| {
+      let (task1, task2, task3) = tasks.iter(|mut iter| {
         // Remove the first three tasks. If IDs were to not be preserved
         // on serialization, the IDs of these tasks would (likely) be
         // reassigned again to others on load and we would fail below.
-        let id1 = iter.next().unwrap().0;
-        let id2 = iter.next().unwrap().0;
-        let id3 = iter.next().unwrap().0;
-        (id1, id2, id3)
+        let task1 = iter.next().unwrap().1.clone();
+        let task2 = iter.next().unwrap().1.clone();
+        let task3 = iter.next().unwrap().1.clone();
+        (task1, task2, task3)
       });
 
-      let () = tasks.remove(id1);
-      let () = tasks.remove(id2);
-      let () = tasks.remove(id3);
+      let () = tasks.remove(task1);
+      let () = tasks.remove(task2);
+      let () = tasks.remove(task3);
 
       tasks.iter(|iter| iter.map(|(id, _task)| *id).collect::<Vec<_>>())
     };

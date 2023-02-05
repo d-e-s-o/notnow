@@ -1,10 +1,8 @@
 // Copyright (C) 2020-2022 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-#[cfg(all(test, not(feature = "readline")))]
 use std::rc::Rc;
 
-use crate::tasks::Id as TaskId;
 use crate::tasks::Task;
 
 use super::event::Event;
@@ -19,7 +17,7 @@ pub enum Message {
   /// A message to ask a widget to select the task with the given
   /// `TaskId`. The last argument is used to indicate that a task with
   /// the given ID has been selected.
-  SelectTask(TaskId, bool),
+  SelectTask(Rc<Task>, bool),
   /// Initiate the search of a task based on a string.
   StartTaskSearch(String),
   /// Search for a task containing the given string in its summary and
@@ -29,9 +27,9 @@ pub enum Message {
   /// require a substring match (false).
   SearchTask(String, SearchState, bool, bool),
   /// Edit the tags associated with a task.
-  EditTags(TaskId, Task),
+  EditTags(Rc<Task>, Task),
   /// Update a task.
-  UpdateTask(TaskId, Task),
+  UpdateTask(Rc<Task>, Task),
   /// Set the state of the input/output area.
   SetInOut(InOut),
   /// Text has been entered.

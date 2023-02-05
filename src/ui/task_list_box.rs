@@ -16,6 +16,8 @@ use gui::MutCap;
 use gui::Widget;
 
 use crate::tags::Tag;
+use crate::tasks::Cmp as _;
+use crate::tasks::CmpRc;
 use crate::tasks::Id as TaskId;
 use crate::tasks::Task;
 use crate::tasks::Tasks;
@@ -35,7 +37,7 @@ use super::tab_bar::TabState;
 #[derive(Debug)]
 enum State {
   Add,
-  Edit(TaskId, Task),
+  Edit { task: Rc<Task>, edited: Task },
 }
 
 
@@ -131,13 +133,13 @@ impl TaskListBox {
   async fn handle_select_task(
     &self,
     cap: &mut dyn MutCap<Event, Message>,
-    task_id: TaskId,
+    task: Rc<Task>,
     done: Option<&mut bool>,
   ) -> Option<Message> {
     let data = self.data_mut::<TaskListBoxData>(cap);
     let idx = data
       .view
-      .iter(|mut iter| iter.position(|(id, _)| *id == task_id));
+      .iter(|mut iter| iter.position(|(_id, _task)| CmpRc::eq(_task, &task)));
 
     if let Some(idx) = idx {
       let update = data.select(idx as isize);
@@ -151,7 +153,7 @@ impl TaskListBox {
       // that case, given that we have not found the task in our own
       // view, reach out to the TabBar.
       if done.is_none() {
-        let message = Message::SelectTask(task_id, false);
+        let message = Message::SelectTask(task, false);
         cap.send(self.tab_bar, message).await
       } else {
         None
@@ -163,9 +165,9 @@ impl TaskListBox {
   async fn select_task(
     &self,
     cap: &mut dyn MutCap<Event, Message>,
-    task_id: TaskId,
+    task: Rc<Task>,
   ) -> Option<Message> {
-    self.handle_select_task(cap, task_id, None).await
+    self.handle_select_task(cap, task, None).await
   }
 
   /// Search for a task containing the given string.
@@ -280,15 +282,15 @@ impl Handleable<Event, Message> for TaskListBox {
     match event {
       Event::Key(key, _) => match key {
         Key::Char(' ') => {
-          if let Some((task_id, task)) = data.selected_task() {
+          if let Some((_task_id, task)) = data.selected_task() {
             if let Some(toggle_tag) = &data.toggle_tag {
               // Make a deep copy of the task to work on.
-              let mut task = task.deref().clone();
-              if !task.unset_tag(toggle_tag) {
-                task.set_tag(toggle_tag.clone());
+              let mut updated = task.deref().clone();
+              if !updated.unset_tag(toggle_tag) {
+                updated.set_tag(toggle_tag.clone());
               }
               cap
-                .send(self.id, Message::UpdateTask(task_id, task))
+                .send(self.id, Message::UpdateTask(task, updated))
                 .await
                 .into_event()
             } else {
@@ -304,20 +306,20 @@ impl Handleable<Event, Message> for TaskListBox {
           cap.send(self.in_out, message).await.into_event()
         },
         Key::Char('d') => {
-          if let Some((task_id, _)) = data.selected_task() {
-            data.tasks.remove(task_id);
+          if let Some((_task_id, task)) = data.selected_task() {
+            data.tasks.remove(task);
             MessageExt::maybe_update(None, true).into_event()
           } else {
             None
           }
         },
         Key::Char('e') => {
-          if let Some((task_id, task)) = data.selected_task() {
+          if let Some((_task_id, task)) = data.selected_task() {
             // Make a deep copy of the task.
-            let task = task.deref().clone();
-            let string = task.summary().to_owned();
+            let edited = task.deref().clone();
+            let string = edited.summary().to_owned();
             let idx = string.len();
-            data.state = Some(State::Edit(task_id, task));
+            data.state = Some(State::Edit { task, edited });
 
             let message = Message::SetInOut(InOut::Input(string, idx));
             cap.send(self.in_out, message).await.into_event()
@@ -326,10 +328,10 @@ impl Handleable<Event, Message> for TaskListBox {
           }
         },
         Key::Char('t') => {
-          if let Some((task_id, task)) = data.selected_task() {
+          if let Some((_task_id, task)) = data.selected_task() {
             // Make a deep copy of the task to work on.
-            let task = task.deref().clone();
-            let message = Message::EditTags(task_id, task);
+            let edited = task.deref().clone();
+            let message = Message::EditTags(task, edited);
             cap.send(self.dialog, message).await.into_event()
           } else {
             None
@@ -422,21 +424,21 @@ impl Handleable<Event, Message> for TaskListBox {
                 //       it. Eventually we may want to remove the
                 //       special case logic for the 'complete' tag.
                 let after = data.selected_task().map(|(_id, task)| task);
-                let id = data.tasks.add(text.clone(), tags, after);
-                self.select_task(cap, id).await
+                let task = data.tasks.add(text.clone(), tags, after);
+                self.select_task(cap, task).await
               } else {
                 None
               }
             },
-            State::Edit(task_id, mut task) => {
+            State::Edit { task, mut edited } => {
               // Editing a task to empty just removes the task
               // altogether.
               if !text.is_empty() {
-                task.set_summary(text.clone());
-                data.tasks.update(task_id, task);
-                self.select_task(cap, task_id).await.maybe_update(true)
+                edited.set_summary(text.clone());
+                data.tasks.update(task.clone(), edited);
+                self.select_task(cap, task).await.maybe_update(true)
               } else {
-                data.tasks.remove(task_id);
+                data.tasks.remove(task);
                 Some(Message::Updated)
               }
             },
@@ -445,12 +447,12 @@ impl Handleable<Event, Message> for TaskListBox {
           cap.send(self.tab_bar, message).await
         }
       },
-      Message::UpdateTask(task_id, task) => {
-        data.tasks.update(task_id, task);
+      Message::UpdateTask(task, updated) => {
+        data.tasks.update(task.clone(), updated);
 
         // Try to select the task now that something may have changed
         // (such as its tags).
-        self.select_task(cap, task_id).await.maybe_update(true)
+        self.select_task(cap, task).await.maybe_update(true)
       },
       #[cfg(not(feature = "readline"))]
       Message::InputCanceled => {
@@ -473,8 +475,8 @@ impl Handleable<Event, Message> for TaskListBox {
     cap: &mut dyn MutCap<Event, Message>,
   ) -> Option<Message> {
     match message {
-      Message::SelectTask(task_id, done) => {
-        self.handle_select_task(cap, *task_id, Some(done)).await
+      Message::SelectTask(task, done) => {
+        self.handle_select_task(cap, task.clone(), Some(done)).await
       },
       Message::SearchTask(string, search_state, reverse, exact) => {
         self

@@ -3,6 +3,7 @@
 
 use std::cmp::Ordering;
 use std::collections::HashSet;
+use std::rc::Rc;
 
 use async_trait::async_trait;
 
@@ -14,7 +15,6 @@ use gui::MutCap;
 use gui::Widget;
 
 use crate::tags::Tag;
-use crate::tasks::Id as TaskId;
 use crate::tasks::Task;
 
 use super::event::Event;
@@ -105,8 +105,8 @@ enum Direction {
 struct Data {
   /// The ID of the previously focused widget.
   prev_focused: Option<Id>,
-  /// The ID of the task for which to configure the tags.
-  task_id: TaskId,
+  /// The task for which to configure the tags.
+  task: Rc<Task>,
   /// The task for which to configure the tags.
   to_edit: Task,
   /// The tags to configure.
@@ -119,12 +119,12 @@ struct Data {
 
 impl Data {
   /// Create a new `Data` object from the given `Task` object.
-  fn new(task_id: TaskId, to_edit: Task) -> Self {
+  fn new(task: Rc<Task>, to_edit: Task) -> Self {
     let tags = prepare_tags(&to_edit);
 
     Self {
       prev_focused: None,
-      task_id,
+      task,
       to_edit,
       tags,
       selection: 0,
@@ -161,14 +161,14 @@ impl Data {
   }
 
   /// Convert the `Data` into a `Task` (and its ID) with updated tags.
-  fn into_task(mut self) -> (TaskId, Task) {
+  fn into_task(mut self) -> (Rc<Task>, Task) {
     let tags = self.tags.into_iter().filter_map(|tag| match tag {
       SetUnsetTag::Set(tag) => Some(tag),
       SetUnsetTag::Unset(_) => None,
     });
 
     self.to_edit.set_tags(tags);
-    (self.task_id, self.to_edit)
+    (self.task, self.to_edit)
   }
 }
 
@@ -278,12 +278,10 @@ impl Dialog {
         let data = data.data.take();
 
         if key == Key::Char('\n') {
-          let (task_id, updated) = data
+          let (task, updated) = data
             .map(|data| data.into_task())
             .expect("dialog has no data set");
-          cap
-            .send(widget, Message::UpdateTask(task_id, updated))
-            .await;
+          cap.send(widget, Message::UpdateTask(task, updated)).await;
         }
 
         Some(Message::Updated)
@@ -394,10 +392,10 @@ impl Handleable<Event, Message> for Dialog {
   /// React to a message.
   async fn react(&self, message: Message, cap: &mut dyn MutCap<Event, Message>) -> Option<Message> {
     match message {
-      Message::EditTags(task_id, task) => {
+      Message::EditTags(task, edited) => {
         let data = self.data_mut::<DialogData>(cap);
         debug_assert!(data.data.is_none());
-        data.data = Some(Data::new(task_id, task));
+        data.data = Some(Data::new(task, edited));
 
         self.make_focused(cap);
         Some(Message::Updated)
@@ -465,9 +463,10 @@ mod tests {
     let iter = [Task::with_summary_and_tags("task", tags, templates)].map(Rc::new);
     let db = Db::<_, UseDefault>::from_iter(iter);
     let entry = db.get(0).unwrap();
+    let task = entry.deref().clone();
     // Make a deep copy of the task.
-    let task = entry.deref().deref().clone();
-    let mut data = Data::new(entry.id(), task);
+    let clone = task.deref().clone();
+    let mut data = Data::new(task, clone);
     assert_eq!(data.selection, 0);
 
     assert!(!data.select_task_beginning_with('h', Direction::Backward));
