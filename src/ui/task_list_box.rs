@@ -18,7 +18,6 @@ use gui::Widget;
 use crate::tags::Tag;
 use crate::tasks::Cmp as _;
 use crate::tasks::CmpRc;
-use crate::tasks::Id as TaskId;
 use crate::tasks::Task;
 use crate::tasks::Tasks;
 use crate::view::View;
@@ -68,11 +67,11 @@ impl TaskListBoxData {
   }
 
   /// Retrieve the selected task and its ID, if any.
-  fn selected_task(&self) -> Option<(TaskId, Rc<Task>)> {
+  fn selected_task(&self) -> Option<Rc<Task>> {
     let selection = self.selection(0);
     self
       .view
-      .iter(|mut iter| iter.nth(selection).map(|(id, task)| (*id, task.clone())))
+      .iter(|mut iter| iter.nth(selection).map(|(_id, task)| task.clone()))
   }
 }
 
@@ -282,7 +281,7 @@ impl Handleable<Event, Message> for TaskListBox {
     match event {
       Event::Key(key, _) => match key {
         Key::Char(' ') => {
-          if let Some((_task_id, task)) = data.selected_task() {
+          if let Some(task) = data.selected_task() {
             if let Some(toggle_tag) = &data.toggle_tag {
               // Make a deep copy of the task to work on.
               let mut updated = task.deref().clone();
@@ -306,7 +305,7 @@ impl Handleable<Event, Message> for TaskListBox {
           cap.send(self.in_out, message).await.into_event()
         },
         Key::Char('d') => {
-          if let Some((_task_id, task)) = data.selected_task() {
+          if let Some(task) = data.selected_task() {
             data.tasks.remove(task);
             MessageExt::maybe_update(None, true).into_event()
           } else {
@@ -314,7 +313,7 @@ impl Handleable<Event, Message> for TaskListBox {
           }
         },
         Key::Char('e') => {
-          if let Some((_task_id, task)) = data.selected_task() {
+          if let Some(task) = data.selected_task() {
             // Make a deep copy of the task.
             let edited = task.deref().clone();
             let string = edited.summary().to_owned();
@@ -328,7 +327,7 @@ impl Handleable<Event, Message> for TaskListBox {
           }
         },
         Key::Char('t') => {
-          if let Some((_task_id, task)) = data.selected_task() {
+          if let Some(task) = data.selected_task() {
             // Make a deep copy of the task to work on.
             let edited = task.deref().clone();
             let message = Message::EditTags(task, edited);
@@ -338,7 +337,7 @@ impl Handleable<Event, Message> for TaskListBox {
           }
         },
         Key::Char('J') => {
-          if let Some((_id, to_move)) = data.selected_task() {
+          if let Some(to_move) = data.selected_task() {
             let other = data
               .view
               .iter(|mut iter| iter.nth(data.selection(1)).map(|(_id, task)| task.clone()));
@@ -353,7 +352,7 @@ impl Handleable<Event, Message> for TaskListBox {
           }
         },
         Key::Char('K') => {
-          if let Some((_id, to_move)) = data.selected_task() {
+          if let Some(to_move) = data.selected_task() {
             if data.selection(0) > 0 {
               let other = data
                 .view
@@ -376,7 +375,7 @@ impl Handleable<Event, Message> for TaskListBox {
         Key::Char('j') => MessageExt::maybe_update(None, data.change_selection(1)).into_event(),
         Key::Char('k') => MessageExt::maybe_update(None, data.change_selection(-1)).into_event(),
         Key::Char('*') => {
-          if let Some((_, selected)) = data.selected_task() {
+          if let Some(selected) = data.selected_task() {
             let message = Message::StartTaskSearch(selected.summary());
             cap.send(self.tab_bar, message).await.into_event()
           } else {
@@ -398,7 +397,7 @@ impl Handleable<Event, Message> for TaskListBox {
           match state {
             State::Add => {
               if !text.is_empty() {
-                let tags = if let Some((_, task)) = data.selected_task() {
+                let tags = if let Some(task) = data.selected_task() {
                   // Copy all tags except for the one that we allow
                   // toggling.
                   task.tags(|iter| {
@@ -423,7 +422,7 @@ impl Handleable<Event, Message> for TaskListBox {
                 //       at a rather random seeming location because of
                 //       it. Eventually we may want to remove the
                 //       special case logic for the 'complete' tag.
-                let after = data.selected_task().map(|(_id, task)| task);
+                let after = data.selected_task();
                 let task = data.tasks.add(text.clone(), tags, after);
                 self.select_task(cap, task).await
               } else {
