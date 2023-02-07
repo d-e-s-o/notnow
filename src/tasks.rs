@@ -282,7 +282,7 @@ enum TaskOp {
   Move {
     from: usize,
     to: Target,
-    id: Option<Id>,
+    task: Option<Rc<Task>>,
   },
 }
 
@@ -309,7 +309,11 @@ impl TaskOp {
   }
 
   fn move_(from: usize, to: Target) -> Self {
-    Self::Move { from, to, id: None }
+    Self::Move {
+      from,
+      to,
+      task: None,
+    }
   }
 }
 
@@ -343,14 +347,15 @@ impl Op<Db<Rc<Task>, CmpRc>, Option<Rc<Task>>> for TaskOp {
         *before = Some(_task);
         Some(task.clone())
       },
-      Self::Move { from, to, id } => {
+      Self::Move { from, to, task } => {
         let removed = tasks.remove(*from);
+        let id = removed.0;
         // We do not support the case of moving a task with itself as a
         // target. Doing so should be prevented at a higher layer,
         // though.
         debug_assert!(!CmpRc::eq(&removed.1, to.task()));
-        *id = Some(removed.0);
-        let (_id, task) = add_task(tasks, *id, removed.1, Some(to.clone()));
+        *task = Some(removed.1.clone());
+        let (_id, task) = add_task(tasks, Some(id), removed.1, Some(to.clone()));
         Some(task)
       },
     }
@@ -377,9 +382,10 @@ impl Op<Db<Rc<Task>, CmpRc>, Option<Rc<Task>>> for TaskOp {
         let task = tasks.get(idx).unwrap();
         Some(task.deref().clone())
       },
-      Self::Move { from, id, .. } => {
-        let id = id.unwrap();
-        let idx = tasks.find(id).unwrap();
+      Self::Move { from, task, .. } => {
+        // SANITY: `task` is guaranteed to be set on this path.
+        let task = task.clone().unwrap();
+        let idx = tasks.find_item(&task).unwrap();
         let removed = tasks.remove(idx);
         tasks.insert(*from, Some(removed.0), removed.1.clone());
         Some(removed.1)
