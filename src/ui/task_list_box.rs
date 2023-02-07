@@ -69,9 +69,7 @@ impl TaskListBoxData {
   /// Retrieve the selected task and its ID, if any.
   fn selected_task(&self) -> Option<Rc<Task>> {
     let selection = self.selection(0);
-    self
-      .view
-      .iter(|mut iter| iter.nth(selection).map(|(_id, task)| task.clone()))
+    self.view.iter(|mut iter| iter.nth(selection).cloned())
   }
 }
 
@@ -138,7 +136,7 @@ impl TaskListBox {
     let data = self.data_mut::<TaskListBoxData>(cap);
     let idx = data
       .view
-      .iter(|mut iter| iter.position(|(_id, _task)| CmpRc::eq(_task, &task)));
+      .iter(|mut iter| iter.position(|_task| CmpRc::eq(_task, &task)));
 
     if let Some(idx) = idx {
       let update = data.select(idx as isize);
@@ -216,7 +214,6 @@ impl TaskListBox {
         iter
           .rev()
           .skip(start_idx)
-          .map(|(_, task)| task)
           .position(check)
           .map(|idx| count.saturating_sub(start_idx + idx + 1))
       })
@@ -224,7 +221,6 @@ impl TaskListBox {
       data.view.iter(|iter| {
         iter
           .skip(start_idx)
-          .map(|(_, task)| task)
           .position(check)
           .map(|idx| start_idx + idx)
       })
@@ -340,7 +336,7 @@ impl Handleable<Event, Message> for TaskListBox {
           if let Some(to_move) = data.selected_task() {
             let other = data
               .view
-              .iter(|mut iter| iter.nth(data.selection(1)).map(|(_id, task)| task.clone()));
+              .iter(|mut iter| iter.nth(data.selection(1)).cloned());
             if let Some(other) = other {
               data.tasks.move_after(to_move, other);
               MessageExt::maybe_update(None, data.change_selection(1)).into_event()
@@ -356,7 +352,7 @@ impl Handleable<Event, Message> for TaskListBox {
             if data.selection(0) > 0 {
               let other = data
                 .view
-                .iter(|mut iter| iter.nth(data.selection(-1)).map(|(_id, task)| task.clone()));
+                .iter(|mut iter| iter.nth(data.selection(-1)).cloned());
               if let Some(other) = other {
                 data.tasks.move_before(to_move, other);
                 MessageExt::maybe_update(None, data.change_selection(-1)).into_event()

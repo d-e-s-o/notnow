@@ -361,7 +361,7 @@ where
     let offset = sanitize_offset(data.offset, selection, limit);
 
     let () = view.iter(|iter| {
-      for (i, (_, task)) in iter.enumerate().skip(offset).take(limit) {
+      for (i, task) in iter.enumerate().skip(offset).take(limit) {
         let tagged = task_list
           .toggle_tag(cap)
           .map(|toggle_tag| task.has_tag(&toggle_tag))
