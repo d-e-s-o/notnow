@@ -211,7 +211,7 @@ fn add_task(
   task: Rc<Task>,
   target: Option<Target>,
 ) -> (Id, Rc<Task>) {
-  let id = if let Some(target) = target {
+  let entry = if let Some(target) = target {
     let idx = tasks.find_item(target.task()).unwrap();
     let idx = match target {
       Target::Before(..) => idx,
@@ -222,7 +222,7 @@ fn add_task(
     tasks.push(id, task.clone())
   };
 
-  (id, task)
+  (entry.id(), task)
 }
 
 /// Remove a task from a vector of tasks.

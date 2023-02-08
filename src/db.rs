@@ -183,26 +183,30 @@ impl<T, C> Db<T, C> {
   /// # Panics
   /// This method panics if `id` is already used within the `Db`.
   #[inline]
-  pub fn insert(&mut self, index: usize, id: Option<Id<T>>, item: T) -> Id<T> {
+  pub fn insert(&mut self, index: usize, id: Option<Id<T>>, item: T) -> EntryMut<'_, T> {
     let (id, ()) = if let Some(id) = id {
       self.ids.reserve_id(id.get().get())
     } else {
       self.ids.allocate_id()
     };
     let () = self.data.insert(index, (id, item));
-    id
+    // SANITY: We know we just inserted an item at `index`, so an entry
+    //         has to exist.
+    self.get_mut(index).unwrap()
   }
 
   /// Insert an item at the end of the database.
   #[inline]
-  pub fn push(&mut self, id: Option<Id<T>>, item: T) -> Id<T> {
+  pub fn push(&mut self, id: Option<Id<T>>, item: T) -> EntryMut<'_, T> {
     let (id, ()) = if let Some(id) = id {
       self.ids.reserve_id(id.get().get())
     } else {
       self.ids.allocate_id()
     };
     let () = self.data.push((id, item));
-    id
+    // SANITY: We know we just pushed an item, so a last item has to
+    //         exist.
+    self.last_mut().unwrap()
   }
 
   /// Remove the item at the provided index.
@@ -222,10 +226,23 @@ impl<T, C> Db<T, C> {
 
   /// Retrieve an [`EntryMut`] representing the item at the given index
   /// in the database.
-  #[allow(unused)]
   #[inline]
   pub fn get_mut(&mut self, index: usize) -> Option<EntryMut<'_, T>> {
     self.data.get_mut(index).map(EntryMut)
+  }
+
+  /// Retrieve an [`Entry`] representing the last item in the database.
+  #[allow(unused)]
+  #[inline]
+  pub fn last(&self) -> Option<Entry<'_, T>> {
+    self.data.last().map(Entry)
+  }
+
+  /// Retrieve an [`EntryMut`] representing the last item in the
+  /// database.
+  #[inline]
+  pub fn last_mut(&mut self) -> Option<EntryMut<'_, T>> {
+    self.data.last_mut().map(EntryMut)
   }
 
   /// Retrieve an iterator over the items of the database.
@@ -285,11 +302,11 @@ pub mod tests {
     let items = [(1, "foo"), (2, "bar"), (3, "baz"), (4, "foobar")];
 
     let mut db = Db::<_, UseDefault>::try_from_iter(items).unwrap();
-    let id = db.insert(0, None, "foobarbaz");
+    let id = db.insert(0, None, "foobarbaz").id();
     let idx = db.find(id).unwrap();
     assert_eq!(idx, 0);
 
-    let id = db.insert(5, None, "outoffoos");
+    let id = db.insert(5, None, "outoffoos").id();
     let idx = db.find(id).unwrap();
     assert_eq!(idx, 5);
   }
@@ -298,16 +315,16 @@ pub mod tests {
   #[test]
   fn push_item() {
     let mut db = Db::<_, UseDefault>::try_from_iter([]).unwrap();
-    let id = db.push(None, "foo");
+    let id = db.push(None, "foo").id();
     let idx = db.find(id).unwrap();
     assert_eq!(idx, 0);
 
-    let id = db.push(None, "bar");
+    let id = db.push(None, "bar").id();
     let idx = db.find(id).unwrap();
     assert_eq!(idx, 1);
 
     let removed = db.remove(0);
-    let id = db.push(Some(removed.0), "baz");
+    let id = db.push(Some(removed.0), "baz").id();
     assert_eq!(id, removed.0);
 
     let idx = db.find(id).unwrap();
