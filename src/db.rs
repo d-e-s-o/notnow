@@ -160,12 +160,6 @@ impl<T, C> Db<T, C> {
     }
   }
 
-  /// Look up an item's index given the item's ID.
-  #[inline]
-  pub fn find(&self, id: Id<T>) -> Option<usize> {
-    self.data.iter().position(|(id_, _)| *id_ == id)
-  }
-
   /// Look up an item's index in the `Db`.
   #[inline]
   pub fn find_item(&self, item: &T) -> Option<usize>
@@ -271,17 +265,6 @@ pub mod tests {
     items[2].0 = 2;
     let duplicate = Db::<_, UseDefault>::try_from_iter(items).unwrap_err();
     assert_eq!(duplicate, 2);
-  }
-
-  /// Check that we can lookup an item based on its ID.
-  #[test]
-  fn find_by_id() {
-    let items = [(1, "foo"), (2, "bar"), (3, "baz"), (4, "foobar")];
-
-    let db = Db::<_, UseDefault>::try_from_iter(items).unwrap();
-    let id = db.get(1).unwrap().id();
-    let idx = db.find(id).unwrap();
-    assert_eq!(idx, 1);
   }
 
   /// Check that we can lookup an item.
