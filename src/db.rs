@@ -302,12 +302,12 @@ pub mod tests {
     let items = [(1, "foo"), (2, "bar"), (3, "baz"), (4, "foobar")];
 
     let mut db = Db::<_, UseDefault>::try_from_iter(items).unwrap();
-    let id = db.insert(0, None, "foobarbaz").id();
-    let idx = db.find(id).unwrap();
+    let item = *db.insert(0, None, "foobarbaz").deref();
+    let idx = db.find_item(&item).unwrap();
     assert_eq!(idx, 0);
 
-    let id = db.insert(5, None, "outoffoos").id();
-    let idx = db.find(id).unwrap();
+    let item = *db.insert(5, None, "outoffoos").deref();
+    let idx = db.find_item(&item).unwrap();
     assert_eq!(idx, 5);
   }
 
@@ -315,19 +315,20 @@ pub mod tests {
   #[test]
   fn push_item() {
     let mut db = Db::<_, UseDefault>::try_from_iter([]).unwrap();
-    let id = db.push(None, "foo").id();
-    let idx = db.find(id).unwrap();
+    let item = *db.push(None, "foo").deref();
+    let idx = db.find_item(&item).unwrap();
     assert_eq!(idx, 0);
 
-    let id = db.push(None, "bar").id();
-    let idx = db.find(id).unwrap();
+    let item = *db.push(None, "bar").deref();
+    let idx = db.find_item(&item).unwrap();
     assert_eq!(idx, 1);
 
     let removed = db.remove(0);
-    let id = db.push(Some(removed.0), "baz").id();
-    assert_eq!(id, removed.0);
+    let entry = db.push(Some(removed.0), "baz");
+    assert_eq!(entry.id(), removed.0);
 
-    let idx = db.find(id).unwrap();
+    let item = *entry.deref();
+    let idx = db.find_item(&item).unwrap();
     assert_eq!(idx, 1);
   }
 
