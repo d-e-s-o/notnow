@@ -212,7 +212,7 @@ fn add_task(
   target: Option<Target>,
 ) -> (Id, Rc<Task>) {
   let entry = if let Some(target) = target {
-    let idx = tasks.find_item(target.task()).unwrap();
+    let idx = tasks.find(target.task()).unwrap();
     let idx = match target {
       Target::Before(..) => idx,
       Target::After(..) => idx + 1,
@@ -227,7 +227,7 @@ fn add_task(
 
 /// Remove a task from a vector of tasks.
 fn remove_task(tasks: &mut Db<Rc<Task>, CmpRc>, task: &Rc<Task>) -> (Id, Rc<Task>, usize) {
-  let idx = tasks.find_item(task).unwrap();
+  let idx = tasks.find(task).unwrap();
   let (id, task) = tasks.remove(idx);
   (id, task, idx)
 }
@@ -378,14 +378,14 @@ impl Op<Db<Rc<Task>, CmpRc>, Option<Rc<Task>>> for TaskOp {
         let before = before.clone().unwrap();
         let task = &updated.0;
         let _task = update_task(task, before);
-        let idx = tasks.find_item(task).unwrap();
+        let idx = tasks.find(task).unwrap();
         let task = tasks.get(idx).unwrap();
         Some(task.deref().clone())
       },
       Self::Move { from, task, .. } => {
         // SANITY: `task` is guaranteed to be set on this path.
         let task = task.clone().unwrap();
-        let idx = tasks.find_item(&task).unwrap();
+        let idx = tasks.find(&task).unwrap();
         let removed = tasks.remove(idx);
         tasks.insert(*from, Some(removed.0), removed.1.clone());
         Some(removed.1)
@@ -563,7 +563,7 @@ impl Tasks {
         ..
       } = borrow.deref_mut();
 
-      let idx = tasks.find_item(&to_move).unwrap();
+      let idx = tasks.find(&to_move).unwrap();
       let to = Target::Before(other);
       let op = TaskOp::move_(idx, to);
       operations.exec(op, tasks);
@@ -583,7 +583,7 @@ impl Tasks {
         ..
       } = borrow.deref_mut();
 
-      let idx = tasks.find_item(&to_move).unwrap();
+      let idx = tasks.find(&to_move).unwrap();
       let to = Target::After(other);
       let op = TaskOp::move_(idx, to);
       operations.exec(op, tasks);

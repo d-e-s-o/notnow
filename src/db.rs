@@ -162,7 +162,7 @@ impl<T, C> Db<T, C> {
 
   /// Look up an item's index in the `Db`.
   #[inline]
-  pub fn find_item(&self, item: &T) -> Option<usize>
+  pub fn find(&self, item: &T) -> Option<usize>
   where
     C: Cmp<T>,
   {
@@ -273,10 +273,10 @@ pub mod tests {
     let items = [(1, "foo"), (2, "bar"), (3, "baz"), (4, "foobar")];
 
     let db = Db::<_, UseDefault>::try_from_iter(items).unwrap();
-    assert_eq!(db.find_item(&"bar"), Some(1));
+    assert_eq!(db.find(&"bar"), Some(1));
 
     let db = Db::<_, UseDefault>::try_from_iter(items).unwrap();
-    assert_eq!(db.find_item(&"hihi"), None);
+    assert_eq!(db.find(&"hihi"), None);
   }
 
   /// Check that we can insert an item.
@@ -286,11 +286,11 @@ pub mod tests {
 
     let mut db = Db::<_, UseDefault>::try_from_iter(items).unwrap();
     let item = *db.insert(0, None, "foobarbaz").deref();
-    let idx = db.find_item(&item).unwrap();
+    let idx = db.find(&item).unwrap();
     assert_eq!(idx, 0);
 
     let item = *db.insert(5, None, "outoffoos").deref();
-    let idx = db.find_item(&item).unwrap();
+    let idx = db.find(&item).unwrap();
     assert_eq!(idx, 5);
   }
 
@@ -299,11 +299,11 @@ pub mod tests {
   fn push_item() {
     let mut db = Db::<_, UseDefault>::try_from_iter([]).unwrap();
     let item = *db.push(None, "foo").deref();
-    let idx = db.find_item(&item).unwrap();
+    let idx = db.find(&item).unwrap();
     assert_eq!(idx, 0);
 
     let item = *db.push(None, "bar").deref();
-    let idx = db.find_item(&item).unwrap();
+    let idx = db.find(&item).unwrap();
     assert_eq!(idx, 1);
 
     let removed = db.remove(0);
@@ -311,7 +311,7 @@ pub mod tests {
     assert_eq!(entry.id(), removed.0);
 
     let item = *entry.deref();
-    let idx = db.find_item(&item).unwrap();
+    let idx = db.find(&item).unwrap();
     assert_eq!(idx, 1);
   }
 
