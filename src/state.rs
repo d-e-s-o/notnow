@@ -551,7 +551,7 @@ pub mod tests {
     let new_task_vec = new_state
       .1
       .tasks
-      .iter(|iter| iter.map(|(_, task)| task.to_serde()).collect::<Vec<_>>());
+      .iter(|iter| iter.map(|(_, task)| task.to_serde().1).collect::<Vec<_>>());
     assert_eq!(new_task_vec, make_tasks(3));
   }
 
@@ -573,7 +573,7 @@ pub mod tests {
     let new_task_vec = new_state
       .1
       .tasks
-      .iter(|iter| iter.map(|(_, task)| task.to_serde()).collect::<Vec<_>>());
+      .iter(|iter| iter.map(|(_, task)| task.to_serde().1).collect::<Vec<_>>());
     assert_eq!(new_task_vec, make_tasks(0));
   }
 

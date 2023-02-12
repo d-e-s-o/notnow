@@ -7,9 +7,12 @@ use std::collections::BTreeSet;
 use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Result;
+use std::num::NonZeroUsize;
 use std::ops::Deref as _;
 use std::ops::DerefMut as _;
 use std::rc::Rc;
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering;
 
 pub use crate::db::Cmp;
 use crate::db::Db;
@@ -17,6 +20,7 @@ use crate::db::Iter as DbIter;
 use crate::id::Id as DbId;
 use crate::ops::Op;
 use crate::ops::Ops;
+use crate::ser::tasks::Id as SerTaskId;
 use crate::ser::tasks::Task as SerTask;
 use crate::ser::tasks::Tasks as SerTasks;
 use crate::ser::ToSerde;
@@ -34,6 +38,8 @@ pub type Id = DbId<Rc<Task>>;
 
 #[derive(Clone, Debug)]
 struct TaskInner {
+  /// The task's ID.
+  id: Id,
   /// The task's summary.
   summary: String,
   /// The task's tags.
@@ -57,10 +63,21 @@ struct TaskInner {
 pub struct Task(RefCell<TaskInner>);
 
 impl Task {
+  /// Allocate a "unique" ID.
+  // TODO: This method is intended as a temporary measure aiding the
+  //       transition to using UUIDs for identification.
+  fn allocate_id() -> Id {
+    static NEXT_ID: AtomicUsize = AtomicUsize::new(usize::MAX / 2);
+
+    let id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
+    Id::from_unique_id(NonZeroUsize::new(id).unwrap())
+  }
+
   /// Create a new task.
   #[cfg(test)]
   pub fn new(summary: impl Into<String>) -> Self {
     let inner = TaskInner {
+      id: Self::allocate_id(),
       summary: summary.into(),
       tags: Default::default(),
       templates: Rc::new(Templates::new()),
@@ -75,6 +92,7 @@ impl Task {
     S: Into<String>,
   {
     let inner = TaskInner {
+      id: Self::allocate_id(),
       summary: summary.into(),
       tags: tags.into_iter().collect(),
       templates,
@@ -84,7 +102,7 @@ impl Task {
   }
 
   /// Create a new task from a serializable one.
-  fn with_serde(task: SerTask, templates: Rc<Templates>) -> Result<Self> {
+  fn with_serde(id: SerTaskId, task: SerTask, templates: Rc<Templates>) -> Result<Self> {
     let mut tags = BTreeSet::new();
     for tag in task.tags.into_iter() {
       let tag = templates.instantiate(tag.id).ok_or_else(|| {
@@ -94,7 +112,11 @@ impl Task {
       tags.insert(tag);
     }
 
+    // SANITY: `id` is a `NonZeroUsize` so we are sure to be
+    //         dealing with a non-zero value.
+    let id = NonZeroUsize::new(id.get()).unwrap();
     let inner = TaskInner {
+      id: Id::from_unique_id(id),
       summary: task.summary,
       tags,
       templates,
@@ -186,20 +208,24 @@ impl Task {
   }
 }
 
-impl ToSerde<SerTask> for Task {
+impl ToSerde<(SerTaskId, SerTask)> for Task {
   /// Convert this task into a serializable one.
-  fn to_serde(&self) -> SerTask {
+  fn to_serde(&self) -> (SerTaskId, SerTask) {
     let borrow = self.0.try_borrow().unwrap();
     let TaskInner {
+      ref id,
       ref summary,
       ref tags,
       ..
     } = borrow.deref();
 
-    SerTask {
+    let id = id.to_serde();
+    let task = SerTask {
       summary: summary.clone(),
       tags: tags.iter().map(Tag::to_serde).collect(),
-    }
+    };
+
+    (id, task)
   }
 }
 
@@ -431,7 +457,7 @@ impl Tasks {
       .0
       .into_iter()
       .try_fold(Vec::with_capacity(len), |mut vec, (id, task)| {
-        let task = Rc::new(Task::with_serde(task, templates.clone())?);
+        let task = Rc::new(Task::with_serde(id, task, templates.clone())?);
         vec.push((id.get(), task));
         Result::Ok(vec)
       })?;
@@ -473,7 +499,7 @@ impl Tasks {
       .unwrap()
       .tasks
       .iter()
-      .map(|(id, task)| (id.to_serde(), task.to_serde()))
+      .map(|(_id, task)| task.to_serde())
       .collect();
 
     // TODO: We should consider including the operations here as well.
@@ -625,8 +651,6 @@ impl Tasks {
 #[cfg(test)]
 pub mod tests {
   use super::*;
-
-  use std::num::NonZeroUsize;
 
   use serde_json::from_str as from_json;
   use serde_json::to_string_pretty as to_json;
@@ -935,15 +959,18 @@ pub mod tests {
     assert_eq!(tasks, expected);
   }
 
+  /// Make sure that we can serialize and deserialize a `Task` properly.
   #[test]
   fn serialize_deserialize_task() {
     let task = Task::new("this is a TODO");
-    let serialized = to_json(&task.to_serde()).unwrap();
+    let serialized = to_json(&task.to_serde().1).unwrap();
     let deserialized = from_json::<SerTask>(&serialized).unwrap();
 
     assert_eq!(deserialized.summary, task.summary());
   }
 
+  /// Make sure that we can serialize and deserialize a `Tasks` object
+  /// properly.
   #[test]
   fn serialize_deserialize_tasks() {
     let templates = Rc::new(Templates::with_serde(SerTemplates::default()).unwrap());

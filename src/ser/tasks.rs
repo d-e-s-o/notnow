@@ -14,9 +14,8 @@ pub struct T(());
 
 /// A serializable and deserializable task ID.
 ///
-/// Note that tasks only have an ID when saved (i.e., in serialized
-/// form). In terms of in-memory representation, this ID corresponds
-/// most closely to a `db::Id`.
+/// In terms of in-memory representation, this ID corresponds most
+/// closely to a `db::Id`.
 pub type Id = IdT<T>;
 
 
