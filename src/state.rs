@@ -503,9 +503,9 @@ pub mod tests {
         // Remove the first three tasks. If IDs were to not be preserved
         // on serialization, the IDs of these tasks would (likely) be
         // reassigned again to others on load and we would fail below.
-        let task1 = iter.next().unwrap().1.clone();
-        let task2 = iter.next().unwrap().1.clone();
-        let task3 = iter.next().unwrap().1.clone();
+        let task1 = iter.next().unwrap().clone();
+        let task2 = iter.next().unwrap().clone();
+        let task3 = iter.next().unwrap().clone();
         (task1, task2, task3)
       });
 
@@ -513,15 +513,19 @@ pub mod tests {
       let () = tasks.remove(task2);
       let () = tasks.remove(task3);
 
-      tasks.iter(|iter| iter.map(|(id, _task)| *id).collect::<Vec<_>>())
+      tasks.iter(|iter| iter.cloned().collect::<Vec<_>>())
     };
 
     let () = task_state.save().await.unwrap();
     let task_state = load_tasks_from_dir(root).await.unwrap();
     let templates = Rc::new(Templates::with_serde(task_state.tasks_meta.templates).unwrap());
     let loaded = Tasks::with_serde(task_state.tasks, templates).unwrap();
-    let loaded = loaded.iter(|iter| iter.map(|(id, _task)| *id).collect::<Vec<_>>());
-    assert_eq!(loaded, tasks);
+    let loaded = loaded.iter(|iter| iter.cloned().collect::<Vec<_>>());
+    let () = tasks
+      .iter()
+      .zip(loaded.iter())
+      .map(|(task, loaded)| assert_eq!(task.id(), loaded.id()))
+      .for_each(|_| ());
   }
 
   /// Check that `save_state_to_file` correctly creates non-existing
@@ -551,7 +555,7 @@ pub mod tests {
     let new_task_vec = new_state
       .1
       .tasks
-      .iter(|iter| iter.map(|(_, task)| task.to_serde().1).collect::<Vec<_>>());
+      .iter(|iter| iter.map(|task| task.to_serde().1).collect::<Vec<_>>());
     assert_eq!(new_task_vec, make_tasks(3));
   }
 
@@ -573,7 +577,7 @@ pub mod tests {
     let new_task_vec = new_state
       .1
       .tasks
-      .iter(|iter| iter.map(|(_, task)| task.to_serde().1).collect::<Vec<_>>());
+      .iter(|iter| iter.map(|task| task.to_serde().1).collect::<Vec<_>>());
     assert_eq!(new_task_vec, make_tasks(0));
   }
 
@@ -635,7 +639,7 @@ pub mod tests {
 
     let state = State::with_serde(ui_state, ui_config, task_state, tasks_root).unwrap();
     let tasks = state.1.tasks;
-    let vec = tasks.iter(|iter| iter.map(|(_, task)| task.clone()).collect::<Vec<_>>());
+    let vec = tasks.iter(|iter| iter.cloned().collect::<Vec<_>>());
     let mut it = vec.iter();
 
     let task1 = it.next().unwrap();

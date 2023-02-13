@@ -223,7 +223,7 @@ impl Handleable<Event, Message> for TermUi {
       Message::GetTasks => {
         let data = self.data::<TermUiData>(cap);
         let tasks = data.task_state.tasks();
-        let tasks = tasks.iter(|iter| iter.map(|(_, task)| task.clone()).collect());
+        let tasks = tasks.iter(|iter| iter.cloned().collect());
 
         Some(Message::GotTasks(tasks))
       },

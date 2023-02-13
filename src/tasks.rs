@@ -124,6 +124,16 @@ impl Task {
     Ok(Self(RefCell::new(inner)))
   }
 
+  /// Retrieve the [`Task`]'s ID.
+  #[cfg(test)]
+  #[inline]
+  pub fn id(&self) -> Id {
+    // SANITY: The type's API surface prevents any borrows from escaping
+    //         a function call and we don't call methods on `self` while
+    //         a borrow is active.
+    self.0.try_borrow().unwrap().id
+  }
+
   /// Retrieve the [`Task`]'s summary.
   #[inline]
   pub fn summary(&self) -> String {
@@ -432,7 +442,7 @@ impl Cmp<Rc<Task>> for CmpRc {
 }
 
 
-pub type TaskIter<'a> = DbIter<'a, (Id, Rc<Task>)>;
+pub type TaskIter<'a> = DbIter<'a, Rc<Task>>;
 
 
 #[derive(Debug)]
@@ -499,7 +509,7 @@ impl Tasks {
       .unwrap()
       .tasks
       .iter()
-      .map(|(_id, task)| task.to_serde())
+      .map(|task| task.to_serde())
       .collect();
 
     // TODO: We should consider including the operations here as well.
@@ -878,7 +888,7 @@ pub mod tests {
   #[test]
   fn remove_task() {
     let tasks = Tasks::with_serde_tasks(make_tasks(3)).unwrap();
-    let task = tasks.iter(|mut iter| iter.nth(1).unwrap().1.clone());
+    let task = tasks.iter(|mut iter| iter.nth(1).unwrap().clone());
     tasks.remove(task);
 
     let tasks = tasks.to_serde().into_task_vec();
@@ -891,7 +901,7 @@ pub mod tests {
   #[test]
   fn update_task() {
     let tasks = Tasks::with_serde_tasks(make_tasks(3)).unwrap();
-    let task = tasks.iter(|mut iter| iter.nth(1).unwrap().1.clone());
+    let task = tasks.iter(|mut iter| iter.nth(1).unwrap().clone());
     // Make a deep copy of the task.
     let mut updated = task.deref().clone();
     updated.set_summary("amended".to_string());
@@ -908,8 +918,8 @@ pub mod tests {
   #[test]
   fn move_before_for_first() {
     let tasks = Tasks::with_serde_tasks(make_tasks(3)).unwrap();
-    let task1 = tasks.iter(|mut iter| iter.next().unwrap().1.clone());
-    let task2 = tasks.iter(|mut iter| iter.nth(1).unwrap().1.clone());
+    let task1 = tasks.iter(|mut iter| iter.next().unwrap().clone());
+    let task2 = tasks.iter(|mut iter| iter.nth(1).unwrap().clone());
     tasks.move_before(task1, task2);
 
     let tasks = tasks.to_serde().into_task_vec();
@@ -921,8 +931,8 @@ pub mod tests {
   #[test]
   fn move_after_for_last() {
     let tasks = Tasks::with_serde_tasks(make_tasks(3)).unwrap();
-    let task1 = tasks.iter(|mut iter| iter.nth(2).unwrap().1.clone());
-    let task2 = tasks.iter(|mut iter| iter.nth(1).unwrap().1.clone());
+    let task1 = tasks.iter(|mut iter| iter.nth(2).unwrap().clone());
+    let task2 = tasks.iter(|mut iter| iter.nth(1).unwrap().clone());
     tasks.move_after(task1, task2);
 
     let expected = make_tasks(3);
@@ -934,8 +944,8 @@ pub mod tests {
   #[test]
   fn move_before() {
     let tasks = Tasks::with_serde_tasks(make_tasks(4)).unwrap();
-    let task1 = tasks.iter(|mut iter| iter.nth(2).unwrap().1.clone());
-    let task2 = tasks.iter(|mut iter| iter.nth(1).unwrap().1.clone());
+    let task1 = tasks.iter(|mut iter| iter.nth(2).unwrap().clone());
+    let task2 = tasks.iter(|mut iter| iter.nth(1).unwrap().clone());
     tasks.move_before(task1, task2);
 
     let tasks = tasks.to_serde().into_task_vec();
@@ -949,8 +959,8 @@ pub mod tests {
   #[test]
   fn move_after() {
     let tasks = Tasks::with_serde_tasks(make_tasks(4)).unwrap();
-    let task1 = tasks.iter(|mut iter| iter.nth(1).unwrap().1.clone());
-    let task2 = tasks.iter(|mut iter| iter.nth(2).unwrap().1.clone());
+    let task1 = tasks.iter(|mut iter| iter.nth(1).unwrap().clone());
+    let task2 = tasks.iter(|mut iter| iter.nth(2).unwrap().clone());
     tasks.move_after(task1, task2);
 
     let tasks = tasks.to_serde().into_task_vec();

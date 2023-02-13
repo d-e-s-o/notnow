@@ -3,6 +3,7 @@
 
 use std::collections::BTreeSet;
 use std::collections::HashSet;
+use std::iter::Map;
 use std::marker::PhantomData;
 use std::num::NonZeroUsize;
 use std::ops::Deref;
@@ -14,7 +15,7 @@ use crate::id::Id;
 
 
 /// An iterator over the items in a `Db`.
-pub type Iter<'t, T> = slice::Iter<'t, T>;
+pub type Iter<'t, T> = Map<slice::Iter<'t, (Id<T>, T)>, fn(&'_ (Id<T>, T)) -> &'_ T>;
 
 
 /// A trait for comparing two items in a `Db` instance.
@@ -241,8 +242,12 @@ impl<T, C> Db<T, C> {
 
   /// Retrieve an iterator over the items of the database.
   #[inline]
-  pub fn iter(&self) -> Iter<'_, (Id<T>, T)> {
-    self.data.iter()
+  pub fn iter(&self) -> Iter<'_, T> {
+    fn map<'t, T>(x: &'t (Id<T>, T)) -> &'t T {
+      &x.1
+    }
+
+    self.data.iter().map(map as _)
   }
 }
 
@@ -335,7 +340,8 @@ pub mod tests {
     let db = Db::<_, UseDefault>::try_from_iter(items).unwrap();
     let vec = db
       .iter()
-      .map(|(id, item)| (id.get().get(), *item))
+      .enumerate()
+      .map(|(id, item)| (id + 1, *item))
       .collect::<Vec<_>>();
     assert_eq!(vec, items);
   }

@@ -110,7 +110,7 @@ impl<'t> Iterator for Filter<'t> {
     //       borrowing/ownership conflicts.
     loop {
       match self.iter.next() {
-        Some((_id, task)) => {
+        Some(task) => {
           if task.tags(|iter| self.matched_by(&iter)) {
             return Some(task)
           }
@@ -125,7 +125,7 @@ impl<'t> DoubleEndedIterator for Filter<'t> {
   fn next_back(&mut self) -> Option<Self::Item> {
     loop {
       match self.iter.next_back() {
-        Some((_id, task)) => {
+        Some(task) => {
           if task.tags(|iter| self.matched_by(&iter)) {
             return Some(task)
           }
