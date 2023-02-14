@@ -246,8 +246,8 @@ fn add_task(
   id: Option<Id>,
   task: Rc<Task>,
   target: Option<Target>,
-) -> (Id, Rc<Task>) {
-  let entry = if let Some(target) = target {
+) -> Rc<Task> {
+  let _entry = if let Some(target) = target {
     let idx = tasks.find(target.task()).unwrap();
     let idx = match target {
       Target::Before(..) => idx,
@@ -258,14 +258,14 @@ fn add_task(
     tasks.push(id, task.clone())
   };
 
-  (entry.id(), task)
+  task
 }
 
 /// Remove a task from a vector of tasks.
-fn remove_task(tasks: &mut Db<Rc<Task>, CmpRc>, task: &Rc<Task>) -> (Id, Rc<Task>, usize) {
+fn remove_task(tasks: &mut Db<Rc<Task>, CmpRc>, task: &Rc<Task>) -> (Rc<Task>, usize) {
   let idx = tasks.find(task).unwrap();
-  let (id, task) = tasks.remove(idx);
-  (id, task, idx)
+  let (_id, task) = tasks.remove(idx);
+  (task, idx)
 }
 
 /// Update a task in a vector of tasks.
@@ -301,12 +301,12 @@ impl Target {
 enum TaskOp {
   /// An operation adding a task.
   Add {
-    task: (Option<Id>, Rc<Task>),
+    task: Rc<Task>,
     after: Option<Rc<Task>>,
   },
   /// An operation removing a task.
   Remove {
-    task: (Option<Id>, Rc<Task>),
+    task: Rc<Task>,
     position: Option<usize>,
   },
   /// An operation updating a task.
@@ -324,15 +324,12 @@ enum TaskOp {
 
 impl TaskOp {
   fn add(task: Rc<Task>, after: Option<Rc<Task>>) -> Self {
-    Self::Add {
-      task: (None, task),
-      after,
-    }
+    Self::Add { task, after }
   }
 
   fn remove(task: Rc<Task>) -> Self {
     Self::Remove {
-      task: (None, task),
+      task,
       position: None,
     }
   }
@@ -360,20 +357,11 @@ impl Op<Db<Rc<Task>, CmpRc>, Option<Rc<Task>>> for TaskOp {
         ref mut task,
         after,
       } => {
-        let (id, added) = add_task(
-          tasks,
-          task.0,
-          task.1.clone(),
-          after.clone().map(Target::After),
-        );
-        // Now that we know the task's ID, remember it in case we need
-        // to undo and redo.
-        task.0 = Some(id);
+        let added = add_task(tasks, None, task.clone(), after.clone().map(Target::After));
         Some(added)
       },
       Self::Remove { task, position } => {
-        let (id, _task, idx) = remove_task(tasks, &task.1);
-        task.0 = Some(id);
+        let (_task, idx) = remove_task(tasks, task);
         *position = Some(idx);
         None
       },
@@ -391,7 +379,7 @@ impl Op<Db<Rc<Task>, CmpRc>, Option<Rc<Task>>> for TaskOp {
         // though.
         debug_assert!(!CmpRc::eq(&removed.1, to.task()));
         *task = Some(removed.1.clone());
-        let (_id, task) = add_task(tasks, Some(id), removed.1, Some(to.clone()));
+        let task = add_task(tasks, Some(id), removed.1, Some(to.clone()));
         Some(task)
       },
     }
@@ -400,14 +388,14 @@ impl Op<Db<Rc<Task>, CmpRc>, Option<Rc<Task>>> for TaskOp {
   fn undo(&mut self, tasks: &mut Db<Rc<Task>, CmpRc>) -> Option<Rc<Task>> {
     match self {
       Self::Add { task, .. } => {
-        let _ = remove_task(tasks, &task.1);
+        let (_task, _idx) = remove_task(tasks, task);
         None
       },
       Self::Remove { task, position } => {
         // SANITY: The position will always be set at this point.
         let idx = position.unwrap();
-        tasks.insert(idx, task.0, task.1.clone());
-        Some(task.1.clone())
+        tasks.insert(idx, None, task.clone());
+        Some(task.clone())
       },
       Self::Update { updated, before } => {
         // SANITY: `before` is guaranteed to be set on this path.
