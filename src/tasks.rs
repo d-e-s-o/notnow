@@ -241,21 +241,16 @@ impl ToSerde<(SerTaskId, SerTask)> for Task {
 
 
 /// Add a task to a vector of tasks.
-fn add_task(
-  tasks: &mut Db<Rc<Task>, CmpRc>,
-  id: Option<Id>,
-  task: Rc<Task>,
-  target: Option<Target>,
-) -> Rc<Task> {
+fn add_task(tasks: &mut Db<Rc<Task>, CmpRc>, task: Rc<Task>, target: Option<Target>) -> Rc<Task> {
   let _entry = if let Some(target) = target {
     let idx = tasks.find(target.task()).unwrap();
     let idx = match target {
       Target::Before(..) => idx,
       Target::After(..) => idx + 1,
     };
-    tasks.insert(idx, id, task.clone())
+    tasks.insert(idx, task.clone())
   } else {
-    tasks.push(id, task.clone())
+    tasks.push(task.clone())
   };
 
   task
@@ -264,7 +259,7 @@ fn add_task(
 /// Remove a task from a vector of tasks.
 fn remove_task(tasks: &mut Db<Rc<Task>, CmpRc>, task: &Rc<Task>) -> (Rc<Task>, usize) {
   let idx = tasks.find(task).unwrap();
-  let (_id, task) = tasks.remove(idx);
+  let task = tasks.remove(idx);
   (task, idx)
 }
 
@@ -357,7 +352,7 @@ impl Op<Db<Rc<Task>, CmpRc>, Option<Rc<Task>>> for TaskOp {
         ref mut task,
         after,
       } => {
-        let added = add_task(tasks, None, task.clone(), after.clone().map(Target::After));
+        let added = add_task(tasks, task.clone(), after.clone().map(Target::After));
         Some(added)
       },
       Self::Remove { task, position } => {
@@ -373,13 +368,12 @@ impl Op<Db<Rc<Task>, CmpRc>, Option<Rc<Task>>> for TaskOp {
       },
       Self::Move { from, to, task } => {
         let removed = tasks.remove(*from);
-        let id = removed.0;
         // We do not support the case of moving a task with itself as a
         // target. Doing so should be prevented at a higher layer,
         // though.
-        debug_assert!(!CmpRc::eq(&removed.1, to.task()));
-        *task = Some(removed.1.clone());
-        let task = add_task(tasks, Some(id), removed.1, Some(to.clone()));
+        debug_assert!(!CmpRc::eq(&removed, to.task()));
+        *task = Some(removed.clone());
+        let task = add_task(tasks, removed, Some(to.clone()));
         Some(task)
       },
     }
@@ -394,7 +388,7 @@ impl Op<Db<Rc<Task>, CmpRc>, Option<Rc<Task>>> for TaskOp {
       Self::Remove { task, position } => {
         // SANITY: The position will always be set at this point.
         let idx = position.unwrap();
-        tasks.insert(idx, None, task.clone());
+        tasks.insert(idx, task.clone());
         Some(task.clone())
       },
       Self::Update { updated, before } => {
@@ -411,8 +405,8 @@ impl Op<Db<Rc<Task>, CmpRc>, Option<Rc<Task>>> for TaskOp {
         let task = task.clone().unwrap();
         let idx = tasks.find(&task).unwrap();
         let removed = tasks.remove(idx);
-        tasks.insert(*from, Some(removed.0), removed.1.clone());
-        Some(removed.1)
+        tasks.insert(*from, removed.clone());
+        Some(removed)
       },
     }
   }
@@ -456,7 +450,7 @@ impl Tasks {
       .into_iter()
       .try_fold(Vec::with_capacity(len), |mut vec, (id, task)| {
         let task = Rc::new(Task::with_serde(id, task, templates.clone())?);
-        vec.push((id.get(), task));
+        vec.push(task);
         Result::Ok(vec)
       })?;
     let tasks = Db::try_from_iter(tasks).map_err(|id| {

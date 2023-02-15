@@ -13,9 +13,6 @@ use crate::ser::tags::Templates;
 pub struct T(());
 
 /// A serializable and deserializable task ID.
-///
-/// In terms of in-memory representation, this ID corresponds most
-/// closely to a `db::Id`.
 pub type Id = IdT<T>;
 
 
