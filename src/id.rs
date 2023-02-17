@@ -5,7 +5,6 @@ use std::cmp::Ordering;
 use std::collections::btree_map::Entry;
 use std::collections::btree_map::VacantEntry;
 use std::collections::BTreeMap;
-use std::collections::BTreeSet;
 use std::fmt::Display;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
@@ -135,53 +134,6 @@ pub trait AllocId<T> {
   fn free_id(&mut self, id: Self::Id);
 }
 
-impl<T> AllocId<T> for BTreeSet<usize> {
-  type Id = Id<T>;
-  type Entry<'e> = ();
-
-  fn allocate_id(&mut self) -> (Self::Id, Self::Entry<'_>) {
-    let mut gaps = self.gaps(1..=usize::MAX);
-    let gap = gaps.next().expect("available ID space is exhausted");
-    let id = match gap {
-      (Bound::Included(lower), _) => lower,
-      (Bound::Excluded(lower), _) => lower + 1,
-      (Bound::Unbounded, _) => {
-        // SANITY: We should never hit this case by virtue of the lower
-        //         bound we provide.
-        unreachable!()
-      },
-    };
-
-    let _inserted = self.insert(id);
-    debug_assert!(_inserted, "ID {id} already present");
-
-    // SANITY: `id` will never be zero here, because we start gap
-    //         detection above at 1.
-    let id = NonZeroUsize::new(id).unwrap();
-    (Id::from_unique_id(id), ())
-  }
-
-  fn try_reserve_id(&mut self, id: usize) -> Option<(Self::Id, ())> {
-    let id = NonZeroUsize::new(id)?;
-    if !self.insert(id.get()) {
-      None
-    } else {
-      Some((Id::from_unique_id(id), ()))
-    }
-  }
-
-  fn reserve_id(&mut self, id: usize) -> (Self::Id, ()) {
-    self
-      .try_reserve_id(id)
-      .unwrap_or_else(|| panic!("ID {id} is already in use"))
-  }
-
-  fn free_id(&mut self, id: Self::Id) {
-    let _removed = self.remove(&id.get().get());
-    debug_assert!(_removed, "ID {id} was not allocated");
-  }
-}
-
 impl<T, V> AllocId<T> for BTreeMap<usize, V> {
   type Id = Id<T>;
   type Entry<'e> = VacantEntry<'e, usize, V>
@@ -237,58 +189,6 @@ impl<T, V> AllocId<T> for BTreeMap<usize, V> {
 #[cfg(test)]
 mod tests {
   use super::*;
-
-
-  /// Check that we can allocate and free `Id`'s in a `BTreeSet`.
-  #[test]
-  fn allocate_and_free_id_btreeset() {
-    let mut set = BTreeSet::<usize>::new();
-
-    assert_eq!(set.get(&1), None);
-    let (id1, ()) = AllocId::<()>::allocate_id(&mut set);
-    assert_eq!(id1.get().get(), 1);
-    assert_eq!(set.get(&1), Some(&1));
-
-    assert_eq!(set.get(&2), None);
-    let (id2, ()) = AllocId::<()>::allocate_id(&mut set);
-    assert_eq!(id2.get().get(), 2);
-    assert_eq!(set.get(&2), Some(&2));
-
-    let () = AllocId::<()>::free_id(&mut set, id1);
-    assert_eq!(set.get(&1), None);
-
-    let () = set.free_id(id2);
-    assert_eq!(set.get(&2), None);
-
-    assert!(set.is_empty());
-  }
-
-
-  /// Check that we can reserve and free `Id`'s in a `BTreeSet`.
-  #[test]
-  fn reserve_free_id_btreeset() {
-    let mut set = BTreeSet::<usize>::new();
-
-    let (id1, ()) = AllocId::<()>::reserve_id(&mut set, 1);
-    assert_eq!(id1.get().get(), 1);
-    assert_eq!(set.get(&1), Some(&1));
-
-    assert_eq!(AllocId::<()>::try_reserve_id(&mut set, 1), None);
-
-    let () = AllocId::<()>::free_id(&mut set, id1);
-    assert_eq!(set.get(&1), None);
-
-    assert!(set.is_empty());
-
-    let (id1, ()) = AllocId::<()>::try_reserve_id(&mut set, 1).unwrap();
-    assert_eq!(id1.get().get(), 1);
-    assert_eq!(set.get(&1), Some(&1));
-
-    let () = AllocId::<()>::free_id(&mut set, id1);
-    assert_eq!(set.get(&1), None);
-
-    assert!(set.is_empty());
-  }
 
 
   /// Check that we can allocate and free `Id`'s in a `BTreeMap`.
