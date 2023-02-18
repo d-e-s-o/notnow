@@ -14,7 +14,6 @@ use std::rc::Rc;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 
-pub use crate::db::Cmp;
 use crate::db::Db;
 use crate::db::Iter as DbIter;
 use crate::id::Id as DbId;
@@ -33,7 +32,7 @@ use crate::tags::Templates;
 const MAX_UNDO_STEP_COUNT: usize = 64;
 
 
-pub type Id = DbId<Rc<Task>>;
+pub type Id = DbId<Task>;
 
 
 #[derive(Clone, Debug)]
@@ -241,23 +240,23 @@ impl ToSerde<(SerTaskId, SerTask)> for Task {
 
 
 /// Add a task to a vector of tasks.
-fn add_task(tasks: &mut Db<Rc<Task>, CmpRc>, task: Rc<Task>, target: Option<Target>) -> Rc<Task> {
+fn add_task(tasks: &mut Db<Task>, task: Rc<Task>, target: Option<Target>) -> Rc<Task> {
   let _entry = if let Some(target) = target {
     let idx = tasks.find(target.task()).unwrap();
     let idx = match target {
       Target::Before(..) => idx,
       Target::After(..) => idx + 1,
     };
-    tasks.insert(idx, task.clone())
+    tasks.try_insert(idx, task.clone()).unwrap()
   } else {
-    tasks.push(task.clone())
+    tasks.try_push(task.clone()).unwrap()
   };
 
   task
 }
 
 /// Remove a task from a vector of tasks.
-fn remove_task(tasks: &mut Db<Rc<Task>, CmpRc>, task: &Rc<Task>) -> (Rc<Task>, usize) {
+fn remove_task(tasks: &mut Db<Task>, task: &Rc<Task>) -> (Rc<Task>, usize) {
   let idx = tasks.find(task).unwrap();
   let task = tasks.remove(idx);
   (task, idx)
@@ -345,8 +344,8 @@ impl TaskOp {
   }
 }
 
-impl Op<Db<Rc<Task>, CmpRc>, Option<Rc<Task>>> for TaskOp {
-  fn exec(&mut self, tasks: &mut Db<Rc<Task>, CmpRc>) -> Option<Rc<Task>> {
+impl Op<Db<Task>, Option<Rc<Task>>> for TaskOp {
+  fn exec(&mut self, tasks: &mut Db<Task>) -> Option<Rc<Task>> {
     match self {
       Self::Add {
         ref mut task,
@@ -371,7 +370,7 @@ impl Op<Db<Rc<Task>, CmpRc>, Option<Rc<Task>>> for TaskOp {
         // We do not support the case of moving a task with itself as a
         // target. Doing so should be prevented at a higher layer,
         // though.
-        debug_assert!(!CmpRc::eq(&removed, to.task()));
+        debug_assert!(!Rc::ptr_eq(&removed, to.task()));
         *task = Some(removed.clone());
         let task = add_task(tasks, removed, Some(to.clone()));
         Some(task)
@@ -379,7 +378,7 @@ impl Op<Db<Rc<Task>, CmpRc>, Option<Rc<Task>>> for TaskOp {
     }
   }
 
-  fn undo(&mut self, tasks: &mut Db<Rc<Task>, CmpRc>) -> Option<Rc<Task>> {
+  fn undo(&mut self, tasks: &mut Db<Task>) -> Option<Rc<Task>> {
     match self {
       Self::Add { task, .. } => {
         let (_task, _idx) = remove_task(tasks, task);
@@ -388,7 +387,9 @@ impl Op<Db<Rc<Task>, CmpRc>, Option<Rc<Task>>> for TaskOp {
       Self::Remove { task, position } => {
         // SANITY: The position will always be set at this point.
         let idx = position.unwrap();
-        tasks.insert(idx, task.clone());
+        // SANITY: The task had been removed earlier, so it is not
+        //         currently present.
+        tasks.try_insert(idx, task.clone()).unwrap();
         Some(task.clone())
       },
       Self::Update { updated, before } => {
@@ -405,7 +406,8 @@ impl Op<Db<Rc<Task>, CmpRc>, Option<Rc<Task>>> for TaskOp {
         let task = task.clone().unwrap();
         let idx = tasks.find(&task).unwrap();
         let removed = tasks.remove(idx);
-        tasks.insert(*from, removed.clone());
+        // SANITY: We just removed the task, so it can't be present.
+        tasks.try_insert(*from, removed.clone()).unwrap();
         Some(removed)
       },
     }
@@ -413,27 +415,16 @@ impl Op<Db<Rc<Task>, CmpRc>, Option<Rc<Task>>> for TaskOp {
 }
 
 
-#[derive(Debug)]
-pub struct CmpRc;
-
-impl Cmp<Rc<Task>> for CmpRc {
-  #[inline]
-  fn eq(lhs: &Rc<Task>, rhs: &Rc<Task>) -> bool {
-    Rc::ptr_eq(lhs, rhs)
-  }
-}
-
-
-pub type TaskIter<'a> = DbIter<'a, Rc<Task>>;
+pub type TaskIter<'a> = DbIter<'a, Task>;
 
 
 #[derive(Debug)]
 struct TasksInner {
   templates: Rc<Templates>,
   /// The managed tasks.
-  tasks: Db<Rc<Task>, CmpRc>,
+  tasks: Db<Task>,
   /// A record of operations in the order they were performed.
-  operations: Ops<TaskOp, Db<Rc<Task>, CmpRc>, Option<Rc<Task>>>,
+  operations: Ops<TaskOp, Db<Task>, Option<Rc<Task>>>,
 }
 
 
@@ -449,14 +440,11 @@ impl Tasks {
       .0
       .into_iter()
       .try_fold(Vec::with_capacity(len), |mut vec, (id, task)| {
-        let task = Rc::new(Task::with_serde(id, task, templates.clone())?);
+        let task = Task::with_serde(id, task, templates.clone())?;
         vec.push(task);
         Result::Ok(vec)
       })?;
-    let tasks = Db::try_from_iter(tasks).map_err(|id| {
-      let error = format!("Encountered duplicate task ID {}", id);
-      Error::new(ErrorKind::InvalidInput, error)
-    })?;
+    let tasks = Db::from_iter(tasks);
 
     let inner = TasksInner {
       templates,
@@ -570,7 +558,7 @@ impl Tasks {
 
   /// Reorder the task referenced by `to_move` before `other`.
   pub fn move_before(&self, to_move: Rc<Task>, other: Rc<Task>) {
-    if !CmpRc::eq(&to_move, &other) {
+    if !Rc::ptr_eq(&to_move, &other) {
       // SANITY: The type's API surface prevents any borrows from escaping
       //         a function call and we don't call methods on `self` while
       //         a borrow is active.
@@ -590,7 +578,7 @@ impl Tasks {
 
   /// Reorder the tasks referenced by `to_move` after `other`.
   pub fn move_after(&self, to_move: Rc<Task>, other: Rc<Task>) {
-    if !CmpRc::eq(&to_move, &other) {
+    if !Rc::ptr_eq(&to_move, &other) {
       // SANITY: The type's API surface prevents any borrows from escaping
       //         a function call and we don't call methods on `self` while
       //         a borrow is active.
@@ -703,7 +691,7 @@ pub mod tests {
   /// non-empty task vector.
   #[test]
   fn exec_undo_task_add_non_empty() {
-    let iter = [Task::new("task1")].map(Rc::new);
+    let iter = [Task::new("task1")];
     let mut tasks = Db::from_iter(iter);
     let mut ops = Ops::new(3);
     let task2 = Rc::new(Task::new("task2"));
@@ -736,7 +724,7 @@ pub mod tests {
   /// task vector with only a single task.
   #[test]
   fn exec_undo_task_remove_single() {
-    let mut tasks = Db::from_iter([Rc::new(Task::new("task1"))]);
+    let mut tasks = Db::from_iter([Task::new("task1")]);
     let mut ops = Ops::new(3);
 
     let task = tasks.get(0).unwrap().deref().clone();
@@ -756,7 +744,7 @@ pub mod tests {
   /// task vector with multiple tasks.
   #[test]
   fn exec_undo_task_remove_multi() {
-    let iter = [Task::new("task1"), Task::new("task2"), Task::new("task3")].map(Rc::new);
+    let iter = [Task::new("task1"), Task::new("task2"), Task::new("task3")];
     let mut tasks = Db::from_iter(iter);
     let mut ops = Ops::new(3);
 
@@ -782,7 +770,7 @@ pub mod tests {
   /// Check that the `TaskOp::Update` variant works as expected.
   #[test]
   fn exec_undo_task_update() {
-    let iter = [Task::new("task1"), Task::new("task2")].map(Rc::new);
+    let iter = [Task::new("task1"), Task::new("task2")];
     let mut tasks = Db::from_iter(iter);
     let mut ops = Ops::new(3);
 
@@ -811,7 +799,7 @@ pub mod tests {
   /// only a single task is present and the operation is no-op.
   #[test]
   fn exec_undo_task_move() {
-    let iter = [Task::new("task1"), Task::new("task2")].map(Rc::new);
+    let iter = [Task::new("task1"), Task::new("task2")];
     let mut tasks = Db::from_iter(iter);
     let mut ops = Ops::new(3);
 

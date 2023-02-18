@@ -16,8 +16,6 @@ use gui::MutCap;
 use gui::Widget;
 
 use crate::tags::Tag;
-use crate::tasks::Cmp as _;
-use crate::tasks::CmpRc;
 use crate::tasks::Task;
 use crate::tasks::Tasks;
 use crate::view::View;
@@ -136,7 +134,7 @@ impl TaskListBox {
     let data = self.data_mut::<TaskListBoxData>(cap);
     let idx = data
       .view
-      .iter(|mut iter| iter.position(|_task| CmpRc::eq(_task, &task)));
+      .iter(|mut iter| iter.position(|_task| Rc::ptr_eq(_task, &task)));
 
     if let Some(idx) = idx {
       let update = data.select(idx as isize);
