@@ -32,7 +32,7 @@ use crate::tags::Templates;
 const MAX_UNDO_STEP_COUNT: usize = 64;
 
 
-pub type Id = DbId<Task>;
+type Id = DbId<Task>;
 
 
 #[derive(Clone, Debug)]
