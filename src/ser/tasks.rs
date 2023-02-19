@@ -1,8 +1,15 @@
 // Copyright (C) 2018-2022 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+use std::fmt::Display;
+use std::fmt::Formatter;
+use std::fmt::Result as FmtResult;
+use std::str::FromStr;
+
 use serde::Deserialize;
 use serde::Serialize;
+
+use uuid::Uuid;
 
 use crate::ser::id::Id as IdT;
 use crate::ser::tags::Tag;
@@ -12,8 +19,53 @@ use crate::ser::tags::Templates;
 #[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct T(());
 
+
 /// A serializable and deserializable task ID.
-pub type Id = IdT<T>;
+pub type Id = Uuid;
+
+
+/// A task ID as we deserialize it.
+#[derive(Copy, Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(untagged)]
+pub enum EitherId {
+  /// A "regular" ID.
+  Id(IdT<T>),
+  /// A proper UUID.
+  Uuid(Uuid),
+}
+
+impl EitherId {
+  /// Convert this ID into a UUID.
+  pub fn into_uuid(self) -> Uuid {
+    match self {
+      Self::Id(_) => Uuid::new_v4(),
+      Self::Uuid(uuid) => uuid,
+    }
+  }
+}
+
+impl Display for EitherId {
+  fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+    match self {
+      Self::Id(id) => Display::fmt(id, f),
+      Self::Uuid(uuid) => Display::fmt(uuid.as_hyphenated(), f),
+    }
+  }
+}
+
+impl FromStr for EitherId {
+  type Err = ();
+
+  fn from_str(s: &str) -> Result<Self, Self::Err> {
+    if let Ok(uuid) = Uuid::try_parse(s) {
+      Ok(Self::Uuid(uuid))
+    } else if let Ok(id) = IdT::<T>::from_str(s) {
+      Ok(Self::Id(id))
+    } else {
+      Err(())
+    }
+  }
+}
 
 
 /// A task that can be serialized and deserialized.
@@ -58,6 +110,16 @@ pub struct TasksMeta {
 }
 
 
+/// Meta data for tasks that uses `EitherId` instead of `Id`.
+#[derive(Debug, Default, Deserialize, PartialEq)]
+pub struct TasksMetaEither {
+  #[serde(default)]
+  pub templates: Templates,
+  /// IDs of tasks in the intended order.
+  pub ids: Vec<EitherId>,
+}
+
+
 /// A struct comprising a list of tasks.
 #[derive(Debug, Default, Deserialize, PartialEq, Serialize)]
 pub struct Tasks(pub Vec<(Id, Task)>);
@@ -73,11 +135,7 @@ impl Tasks {
 #[cfg(any(test, feature = "test"))]
 impl From<Vec<Task>> for Tasks {
   fn from(tasks: Vec<Task>) -> Self {
-    let tasks = tasks
-      .into_iter()
-      .enumerate()
-      .map(|(id, task)| (Id::try_from(id + 1).unwrap(), task))
-      .collect();
+    let tasks = tasks.into_iter().map(|task| (Id::new_v4(), task)).collect();
 
     Self(tasks)
   }

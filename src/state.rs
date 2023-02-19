@@ -6,6 +6,7 @@
 use std::cell::Cell;
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::ffi::OsStr;
 use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Result;
@@ -28,14 +29,18 @@ use tokio::fs::ReadDir;
 use tokio::io::AsyncReadExt as _;
 use tokio::io::AsyncWriteExt as _;
 
+use uuid::uuid;
+
 use crate::colors::Colors;
 use crate::ser::state::TaskState as SerTaskState;
 use crate::ser::state::UiState as SerUiState;
 use crate::ser::tags::Templates as SerTemplates;
+use crate::ser::tasks::EitherId as SerTaskEitherId;
 use crate::ser::tasks::Id as SerTaskId;
 use crate::ser::tasks::Task as SerTask;
 use crate::ser::tasks::Tasks as SerTasks;
 use crate::ser::tasks::TasksMeta as SerTasksMeta;
+use crate::ser::tasks::TasksMetaEither as SerTasksMetaEither;
 use crate::ser::ToSerde;
 use crate::tags::Tag;
 use crate::tags::Templates;
@@ -44,9 +49,9 @@ use crate::view::View;
 use crate::view::ViewBuilder;
 
 /// The ID we use for storing task meta data.
-// We use the reserved ID 0 for storing task meta data. Tasks are
-// guaranteed to never use this ID.
-const TASKS_META_ID: usize = 0;
+// We use the "special" UUID 00000000-0000-0000-0000-000000000000 for
+// storing task meta data.
+const TASKS_META_ID: SerTaskId = uuid!("00000000-0000-0000-0000-000000000000");
 
 
 /// Load some serialized state from a file.
@@ -66,12 +71,15 @@ where
 }
 
 /// Load a task from a directory entry.
-async fn load_task_from_dir_entry(entry: &DirEntry) -> Result<Option<(SerTaskId, SerTask)>> {
+async fn load_task_from_dir_entry(entry: &DirEntry) -> Result<Option<(SerTaskEitherId, SerTask)>> {
   let file_name = entry.file_name();
   let path = entry.path();
   let id = file_name
     .to_str()
-    .and_then(|id| id.parse::<SerTaskId>().ok())
+    // We support loading tasks with "regular" IDs or UUIDs, but
+    // eventually convert into UUID and also end up saving only those
+    // back.
+    .and_then(|id| id.parse::<SerTaskEitherId>().ok())
     .ok_or_else(|| {
       let error = format!("Filename {} is not a valid ID", path.display());
       Error::new(ErrorKind::InvalidInput, error)
@@ -99,6 +107,49 @@ fn create_task_lookup_table(ids: &[SerTaskId]) -> Result<HashMap<SerTaskId, usiz
   Ok(table)
 }
 
+/// Translate all "regular" IDs to UUIDs.
+fn translate_ids(
+  tasks: Vec<(SerTaskEitherId, SerTask)>,
+  tasks_meta: Option<SerTasksMetaEither>,
+) -> Result<(Vec<(SerTaskId, SerTask)>, Option<SerTasksMeta>)> {
+  // First create a lookup table from `EitherId` to `Id`. While at it,
+  // translate all IDs in `tasks`, from which we create the lookup table
+  // to begin with.
+  let (table, tasks) = tasks
+    .into_iter()
+    .map(|(either_id, task)| {
+      let uuid = either_id.into_uuid();
+      let ids = (either_id, uuid);
+      let task = (uuid, task);
+      (ids, task)
+    })
+    .unzip::<_, _, HashMap<_, _>, Vec<_>>();
+
+  // Now also convert `tasks_meta` to use solely UUIDs, looking up each
+  // ID in the lookup table created earlier.
+  let tasks_meta = if let Some(tasks_meta) = tasks_meta {
+    let ids = tasks_meta
+      .ids
+      .into_iter()
+      .map(|either_id| {
+        table.get(&either_id).copied().ok_or_else(|| {
+          let error = format!("Encountered unknown ID: {}", either_id);
+          Error::new(ErrorKind::InvalidInput, error)
+        })
+      })
+      .collect::<Result<_>>()?;
+
+    Some(SerTasksMeta {
+      templates: tasks_meta.templates,
+      ids,
+    })
+  } else {
+    None
+  };
+
+  Ok((tasks, tasks_meta))
+}
+
 /// Load tasks by iterating over the entries of a `ReadDir` object.
 #[allow(clippy::type_complexity)]
 async fn load_tasks_from_read_dir(
@@ -110,18 +161,27 @@ async fn load_tasks_from_read_dir(
   let mut tasks = Vec::new();
   let mut tasks_meta = None;
 
+  let mut buffer = SerTaskId::encode_buffer();
+  let tasks_meta_uuid = TASKS_META_ID.as_hyphenated().encode_lower(&mut buffer);
+
   while let Some(entry) = dir.next_entry().await? {
-    if entry.file_name().to_str().map(|id| id.parse::<usize>()) == Some(Ok(TASKS_META_ID)) {
+    // TODO: For the transition period in which we support both UUIDs
+    //       and "regular" IDs we need this kludge of accepting "0" as
+    //       file name. Note that strictly speaking we can now
+    //       "legitimately" hit the below assertion, but that's only
+    //       temporary...
+    if entry.file_name() == OsStr::new(tasks_meta_uuid) || entry.file_name() == OsStr::new("0") {
       debug_assert_eq!(
         tasks_meta, None,
         "encountered multiple task meta data files"
       );
-      tasks_meta = load_state_from_file::<SerTasksMeta>(&entry.path()).await?;
+      tasks_meta = load_state_from_file::<SerTasksMetaEither>(&entry.path()).await?;
     } else if let Some(data) = load_task_from_dir_entry(&entry).await? {
       let () = tasks.push(data);
     }
   }
 
+  let (tasks, tasks_meta) = translate_ids(tasks, tasks_meta)?;
   Ok((tasks, tasks_meta))
 }
 
@@ -203,13 +263,7 @@ async fn save_tasks_to_dir(root: &Path, tasks: &SerTaskState) -> Result<()> {
   }
 
   let () = save_tasks_meta_to_dir(root, &tasks.tasks_meta).await?;
-
-  let ids = tasks
-    .tasks_meta
-    .ids
-    .iter()
-    .map(|id| id.get())
-    .collect::<HashSet<_>>();
+  let ids = tasks.tasks_meta.ids.iter().collect::<HashSet<_>>();
 
   // Remove all files that do not correspond to an ID we just saved.
   let mut dir = read_dir(root).await?;
@@ -217,7 +271,7 @@ async fn save_tasks_to_dir(root: &Path, tasks: &SerTaskState) -> Result<()> {
     let id = entry
       .file_name()
       .to_str()
-      .and_then(|id| id.parse::<usize>().ok());
+      .and_then(|id| SerTaskId::try_parse(id).ok());
 
     let remove = if let Some(id) = id {
       id != TASKS_META_ID && ids.get(&id).is_none()

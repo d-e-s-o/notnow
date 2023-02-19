@@ -7,16 +7,14 @@ use std::collections::BTreeSet;
 use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Result;
-use std::num::NonZeroUsize;
 use std::ops::Deref as _;
 use std::ops::DerefMut as _;
 use std::rc::Rc;
-use std::sync::atomic::AtomicUsize;
-use std::sync::atomic::Ordering;
+
+use uuid::Uuid;
 
 use crate::db::Db;
 use crate::db::Iter as DbIter;
-use crate::id::Id as DbId;
 use crate::ops::Op;
 use crate::ops::Ops;
 use crate::ser::tasks::Id as SerTaskId;
@@ -32,7 +30,7 @@ use crate::tags::Templates;
 const MAX_UNDO_STEP_COUNT: usize = 64;
 
 
-type Id = DbId<Task>;
+type Id = Uuid;
 
 
 #[derive(Clone, Debug)]
@@ -62,21 +60,11 @@ struct TaskInner {
 pub struct Task(RefCell<TaskInner>);
 
 impl Task {
-  /// Allocate a "unique" ID.
-  // TODO: This method is intended as a temporary measure aiding the
-  //       transition to using UUIDs for identification.
-  fn allocate_id() -> Id {
-    static NEXT_ID: AtomicUsize = AtomicUsize::new(usize::MAX / 2);
-
-    let id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
-    Id::from_unique_id(NonZeroUsize::new(id).unwrap())
-  }
-
   /// Create a new task.
   #[cfg(test)]
   pub fn new(summary: impl Into<String>) -> Self {
     let inner = TaskInner {
-      id: Self::allocate_id(),
+      id: Id::new_v4(),
       summary: summary.into(),
       tags: Default::default(),
       templates: Rc::new(Templates::new()),
@@ -91,7 +79,7 @@ impl Task {
     S: Into<String>,
   {
     let inner = TaskInner {
-      id: Self::allocate_id(),
+      id: Id::new_v4(),
       summary: summary.into(),
       tags: tags.into_iter().collect(),
       templates,
@@ -111,11 +99,8 @@ impl Task {
       tags.insert(tag);
     }
 
-    // SANITY: `id` is a `NonZeroUsize` so we are sure to be
-    //         dealing with a non-zero value.
-    let id = NonZeroUsize::new(id.get()).unwrap();
     let inner = TaskInner {
-      id: Id::from_unique_id(id),
+      id,
       summary: task.summary,
       tags,
       templates,
@@ -228,13 +213,12 @@ impl ToSerde<(SerTaskId, SerTask)> for Task {
       ..
     } = borrow.deref();
 
-    let id = id.to_serde();
     let task = SerTask {
       summary: summary.clone(),
       tags: tags.iter().map(Tag::to_serde).collect(),
     };
 
-    (id, task)
+    (*id, task)
   }
 }
 
@@ -631,6 +615,8 @@ impl Tasks {
 #[cfg(test)]
 pub mod tests {
   use super::*;
+
+  use std::num::NonZeroUsize;
 
   use serde_json::from_str as from_json;
   use serde_json::to_string_pretty as to_json;

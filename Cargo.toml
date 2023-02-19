@@ -76,5 +76,10 @@ version = "1.8"
 default-features = false
 features = ["fs", "io-util", "macros", "rt"]
 
+[dependencies.uuid]
+version = "1.2"
+default-features = false
+features = ["serde", "v4"]
+
 [dev-dependencies.tempfile]
 version = "3.3"
