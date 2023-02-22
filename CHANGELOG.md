@@ -8,6 +8,7 @@ Unreleased
 - Added support for finding the currently selected task on other tabs
   via '*'
 - Added example program using automatically generated task data
+- Overhauled error reporting mechanism, now reporting error chains
 - Made tag to toggle through UI user-configurable and no longer hard
   wired to task completion
 - Re-select task after successfully editing tags

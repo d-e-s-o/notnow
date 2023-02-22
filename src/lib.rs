@@ -77,9 +77,7 @@ use std::env::args_os;
 use std::fs::OpenOptions;
 use std::io::stdin;
 use std::io::stdout;
-use std::io::Error;
-use std::io::ErrorKind;
-use std::io::Result;
+use std::io::Result as IoResult;
 use std::io::Write;
 use std::path::Path;
 use std::path::PathBuf;
@@ -87,6 +85,11 @@ use std::sync::mpsc::channel;
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc::Sender;
 use std::thread;
+
+use anyhow::anyhow;
+use anyhow::bail;
+use anyhow::Context as _;
+use anyhow::Result;
 
 #[cfg(feature = "coredump")]
 use cdump::register_panic_handler;
@@ -127,7 +130,7 @@ pub enum Event {
 fn ui_config() -> Result<PathBuf> {
   Ok(
     config_dir()
-      .ok_or_else(|| Error::new(ErrorKind::NotFound, "unable to determine config directory"))?
+      .ok_or_else(|| anyhow!("unable to determine config directory"))?
       .join("notnow")
       .join("notnow.json"),
   )
@@ -137,14 +140,14 @@ fn ui_config() -> Result<PathBuf> {
 fn tasks_root() -> Result<PathBuf> {
   Ok(
     config_dir()
-      .ok_or_else(|| Error::new(ErrorKind::NotFound, "unable to determine config directory"))?
+      .ok_or_else(|| anyhow!("unable to determine config directory"))?
       .join("notnow")
       .join("tasks"),
   )
 }
 
 /// Instantiate a key receiver thread and have it send key events through the given channel.
-fn receive_keys(send_event: Sender<Result<Event>>) {
+fn receive_keys(send_event: Sender<IoResult<Event>>) {
   thread::spawn(move || {
     let events = stdin().events_and_raw();
     for event in events {
@@ -162,7 +165,7 @@ fn receive_keys(send_event: Sender<Result<Event>>) {
 async fn run_loop<R>(
   mut ui: Ui<UiEvent, Message>,
   renderer: &R,
-  recv_event: &Receiver<Result<Event>>,
+  recv_event: &Receiver<IoResult<Event>>,
 ) -> Result<()>
 where
   R: Renderer,
@@ -212,10 +215,17 @@ pub async fn run_prog<W>(out: W, ui_config: &Path, tasks_root: &Path) -> Result<
 where
   W: Write,
 {
-  let state = State::new(ui_config, tasks_root).await?;
-  let screen = AlternateScreen::from(out.into_raw_mode()?);
+  let state = State::new(ui_config, tasks_root)
+    .await
+    .context("failed to load program state")?;
+  let screen = AlternateScreen::from(
+    out
+      .into_raw_mode()
+      .context("failed to switch program output to raw mode")?,
+  );
   let colors = state.0.colors.get().unwrap_or_default();
-  let renderer = TermRenderer::new(screen, colors)?;
+  let renderer =
+    TermRenderer::new(screen, colors).context("failed to instantiate terminal based renderer")?;
   let State(ui_state, task_state) = state;
   let path = ui_state.path.clone();
 
@@ -225,7 +235,8 @@ where
   );
 
   let (send_event, recv_event) = channel();
-  receive_window_resizes(send_event.clone())?;
+  receive_window_resizes(send_event.clone())
+    .context("failed to instantiate infrastructure for handling window resize events")?;
   receive_keys(send_event);
 
   // Initially we need to trigger a render in order to have the most
@@ -239,13 +250,18 @@ where
 fn run_with_args() -> Result<()> {
   #[cfg(feature = "coredump")]
   {
-    register_panic_handler()
-      .map_err(|(ctx, err)| Error::new(ErrorKind::Other, format!("{}: {}", ctx, err)))?;
+    let () = register_panic_handler().or_else(|(ctx, err)| {
+      Err(err)
+        .context(ctx)
+        .context("failed to register core dump panic handler")
+    })?;
   }
 
   let ui_config = ui_config()?;
   let tasks_root = tasks_root()?;
-  let rt = Builder::new_current_thread().build()?;
+  let rt = Builder::new_current_thread()
+    .build()
+    .context("failed to instantiate async runtime")?;
 
   let mut it = args_os();
   match it.len() {
@@ -260,10 +276,7 @@ fn run_with_args() -> Result<()> {
       let future = run_prog(file, &ui_config, &tasks_root);
       rt.block_on(future)
     },
-    _ => Err(Error::new(
-      ErrorKind::InvalidInput,
-      "unsupported number of program arguments",
-    )),
+    _ => bail!("encountered unsupported number of program arguments"),
   }
 }
 
@@ -272,7 +285,7 @@ pub fn run() -> i32 {
   match run_with_args() {
     Ok(_) => 0,
     Err(err) => {
-      eprintln!("Error: {}", err);
+      eprintln!("{:?}", err);
       1
     },
   }

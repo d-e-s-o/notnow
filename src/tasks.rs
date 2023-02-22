@@ -4,12 +4,12 @@
 use std::cell::RefCell;
 use std::collections::btree_set::Iter as BTreeSetIter;
 use std::collections::BTreeSet;
-use std::io::Error;
-use std::io::ErrorKind;
-use std::io::Result;
 use std::ops::Deref as _;
 use std::ops::DerefMut as _;
 use std::rc::Rc;
+
+use anyhow::anyhow;
+use anyhow::Result;
 
 use uuid::Uuid;
 
@@ -92,10 +92,9 @@ impl Task {
   fn with_serde(id: SerTaskId, task: SerTask, templates: Rc<Templates>) -> Result<Self> {
     let mut tags = BTreeSet::new();
     for tag in task.tags.into_iter() {
-      let tag = templates.instantiate(tag.id).ok_or_else(|| {
-        let error = format!("encountered invalid tag ID {}", tag.id);
-        Error::new(ErrorKind::InvalidInput, error)
-      })?;
+      let tag = templates
+        .instantiate(tag.id)
+        .ok_or_else(|| anyhow!("encountered invalid tag ID {}", tag.id))?;
       tags.insert(tag);
     }
 
@@ -420,14 +419,14 @@ impl Tasks {
   /// Create a new `Tasks` object from a serializable one.
   pub fn with_serde(tasks: SerTasks, templates: Rc<Templates>) -> Result<Self> {
     let len = tasks.0.len();
-    let tasks = tasks
-      .0
-      .into_iter()
-      .try_fold(Vec::with_capacity(len), |mut vec, (id, task)| {
+    let tasks = tasks.0.into_iter().try_fold(
+      Vec::with_capacity(len),
+      |mut vec, (id, task)| -> Result<_> {
         let task = Task::with_serde(id, task, templates.clone())?;
         vec.push(task);
         Result::Ok(vec)
-      })?;
+      },
+    )?;
     let tasks = Db::from_iter(tasks);
 
     let inner = TasksInner {

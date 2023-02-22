@@ -1,10 +1,10 @@
 // Copyright (C) 2017-2022 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use std::io::Error;
-use std::io::ErrorKind;
-use std::io::Result as IoResult;
 use std::rc::Rc;
+
+use anyhow::anyhow;
+use anyhow::Result;
 
 use crate::ser::view::TagLit as SerTagLit;
 use crate::ser::view::View as SerView;
@@ -262,15 +262,14 @@ pub struct View {
 
 impl View {
   /// Create a new `View` object from a serializable one.
-  pub fn with_serde(view: SerView, templates: &Rc<Templates>, tasks: Rc<Tasks>) -> IoResult<Self> {
+  pub fn with_serde(view: SerView, templates: &Rc<Templates>, tasks: Rc<Tasks>) -> Result<Self> {
     let mut and_lits = Vec::with_capacity(view.lits.len());
     for lits in view.lits.into_iter() {
       let mut or_lits = Vec::with_capacity(lits.len());
       for lit in lits.into_iter() {
-        let tag = templates.instantiate(lit.id()).ok_or_else(|| {
-          let error = format!("encountered invalid tag ID {}", lit.id());
-          Error::new(ErrorKind::InvalidInput, error)
-        })?;
+        let tag = templates
+          .instantiate(lit.id())
+          .ok_or_else(|| anyhow!("encountered invalid tag ID {}", lit.id()))?;
         let lit = match lit {
           SerTagLit::Pos(_) => TagLit::Pos(tag),
           SerTagLit::Neg(_) => TagLit::Neg(tag),

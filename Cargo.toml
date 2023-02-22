@@ -33,6 +33,9 @@ name = "with-test-data"
 path = "examples/with-test-data.rs"
 required-features = ["test"]
 
+[dependencies.anyhow]
+version = "1.0.66"
+
 [dependencies.async-trait]
 version = "0.1.41"
 

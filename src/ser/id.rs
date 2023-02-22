@@ -12,6 +12,9 @@ use std::marker::PhantomData;
 use std::num::NonZeroUsize;
 use std::str::FromStr;
 
+use anyhow::Context as _;
+use anyhow::Error;
+
 use serde::de::Deserialize;
 use serde::de::Deserializer;
 use serde::de::Error as _;
@@ -43,10 +46,11 @@ impl<T> Id<T> {
 }
 
 impl<T> TryFrom<usize> for Id<T> {
-  type Error = ();
+  type Error = Error;
 
   fn try_from(other: usize) -> Result<Self, Self::Error> {
-    NonZeroUsize::new(other).map(Id::new).ok_or(())
+    let id = NonZeroUsize::new(other).context("encountered an ID of reserved value 0")?;
+    Ok(Id::new(id))
   }
 }
 
@@ -64,10 +68,10 @@ impl<T> Display for Id<T> {
 }
 
 impl<T> FromStr for Id<T> {
-  type Err = ();
+  type Err = Error;
 
   fn from_str(s: &str) -> Result<Self, Self::Err> {
-    let id = usize::from_str(s).map_err(|_| ())?;
+    let id = usize::from_str(s)?;
     let id = Id::try_from(id)?;
     Ok(id)
   }

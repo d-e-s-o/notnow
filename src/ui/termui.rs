@@ -1,8 +1,10 @@
 // Copyright (C) 2017-2022 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use std::io::Result;
 use std::path::PathBuf;
+
+use anyhow::Context as _;
+use anyhow::Result;
 
 use async_trait::async_trait;
 
@@ -120,8 +122,11 @@ impl TermUi {
   async fn save_all(&self, ui_state: &UiState, task_state: &TaskState) -> Result<()> {
     // TODO: We risk data inconsistencies if the second save operation
     //       fails.
-    ui_state.save().await?;
-    task_state.save().await?;
+    ui_state.save().await.context("failed to save UI state")?;
+    task_state
+      .save()
+      .await
+      .context("failed to save task state")?;
     Ok(())
   }
 

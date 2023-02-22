@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::io::stdout;
-use std::io::Result;
+
+use anyhow::Result;
 
 use notnow::run_prog;
 use notnow::state::State;

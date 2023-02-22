@@ -7,12 +7,15 @@ use std::cell::Cell;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::ffi::OsStr;
-use std::io::Error;
 use std::io::ErrorKind;
-use std::io::Result;
 use std::path::Path;
 use std::path::PathBuf;
 use std::rc::Rc;
+
+use anyhow::anyhow;
+use anyhow::bail;
+use anyhow::Context as _;
+use anyhow::Result;
 
 use serde::Deserialize;
 use serde::Serialize;
@@ -60,11 +63,15 @@ where
   match File::open(path).await {
     Ok(mut file) => {
       let mut content = Vec::new();
-      let _count = file.read_to_end(&mut content).await?;
-      Ok(Some(from_json::<T>(&content)?))
+      let _count = file
+        .read_to_end(&mut content)
+        .await
+        .context("failed to read complete file content")?;
+      let state = from_json::<T>(&content).context("failed to deserialize JSON content")?;
+      Ok(Some(state))
     },
     Err(e) if e.kind() == ErrorKind::NotFound => Ok(None),
-    Err(e) => Err(e),
+    Err(e) => Err(e).context("error opening file for reading"),
   }
 }
 
@@ -75,12 +82,11 @@ async fn load_task_from_dir_entry(entry: &DirEntry) -> Result<Option<(SerTaskId,
   let id = file_name
     .to_str()
     .and_then(|id| SerTaskId::try_parse(id).ok())
-    .ok_or_else(|| {
-      let error = format!("filename {} is not a valid UUID", path.display());
-      Error::new(ErrorKind::InvalidInput, error)
-    })?;
+    .ok_or_else(|| anyhow!("filename {} is not a valid UUID", path.display()))?;
 
-  let result = load_state_from_file(&path).await?;
+  let result = load_state_from_file(&path)
+    .await
+    .with_context(|| format!("failed to load state from {}", path.display()))?;
   Ok(result.map(|task| (id, task)))
 }
 
@@ -93,8 +99,7 @@ fn create_task_lookup_table(ids: &[SerTaskId]) -> Result<HashMap<SerTaskId, usiz
       .enumerate()
       .try_fold(HashMap::with_capacity(len), |mut map, (idx, id)| {
         if map.insert(*id, idx).is_some() {
-          let error = format!("encountered duplicate task ID {}", id);
-          return Err(Error::new(ErrorKind::InvalidInput, error))
+          bail!("encountered duplicate task ID {}", id)
         }
         Ok(map)
       })?;
@@ -116,7 +121,11 @@ async fn load_tasks_from_read_dir(
   let mut buffer = SerTaskId::encode_buffer();
   let tasks_meta_uuid = TASKS_META_ID.as_hyphenated().encode_lower(&mut buffer);
 
-  while let Some(entry) = dir.next_entry().await? {
+  while let Some(entry) = dir
+    .next_entry()
+    .await
+    .context("failed to iterate directory contents")?
+  {
     if entry.file_name() == OsStr::new(tasks_meta_uuid) {
       debug_assert_eq!(
         tasks_meta, None,
@@ -349,9 +358,22 @@ impl State {
     P: Into<PathBuf> + AsRef<Path>,
   {
     let ui_state = load_state_from_file::<SerUiState>(ui_config.as_ref())
-      .await?
+      .await
+      .with_context(|| {
+        format!(
+          "failed to load UI state from {}",
+          ui_config.as_ref().display()
+        )
+      })?
       .unwrap_or_default();
-    let task_state = load_tasks_from_dir(tasks_root.as_ref()).await?;
+    let task_state = load_tasks_from_dir(tasks_root.as_ref())
+      .await
+      .with_context(|| {
+        format!(
+          "failed to load tasks from directory {}",
+          tasks_root.as_ref().display()
+        )
+      })?;
 
     Self::with_serde(ui_state, ui_config, task_state, tasks_root)
   }
@@ -366,18 +388,23 @@ impl State {
   where
     P: Into<PathBuf>,
   {
-    let templates = Templates::with_serde(task_state.tasks_meta.templates).map_err(|id| {
-      let error = format!("encountered duplicate tag ID {}", id);
-      Error::new(ErrorKind::InvalidInput, error)
-    })?;
+    let templates = Templates::with_serde(task_state.tasks_meta.templates)
+      .map_err(|id| anyhow!("encountered duplicate tag ID {}", id))?;
     let templates = Rc::new(templates);
-    let tasks = Tasks::with_serde(task_state.tasks, templates.clone())?;
+    let tasks = Tasks::with_serde(task_state.tasks, templates.clone())
+      .context("failed to instantiate task database")?;
     let tasks = Rc::new(tasks);
-    let mut views = Vec::new();
-    for (view, selected) in ui_state.views.into_iter() {
-      let view = View::with_serde(view, &templates, tasks.clone())?;
-      views.push((view, selected))
-    }
+    let mut views = ui_state
+      .views
+      .into_iter()
+      .map(|(view, selected)| {
+        let name = view.name.clone();
+        let view = View::with_serde(view, &templates, tasks.clone())
+          .with_context(|| format!("failed to instantiate view '{}'", name))?;
+        Ok((view, selected))
+      })
+      .collect::<Result<Vec<_>>>()?;
+
     // For convenience for the user, we add a default view capturing
     // all tasks if no other views have been configured.
     if views.is_empty() {
@@ -385,10 +412,9 @@ impl State {
     }
 
     let toggle_tag = if let Some(toggle_tag) = ui_state.toggle_tag {
-      let toggle_tag = templates.instantiate(toggle_tag.id).ok_or_else(|| {
-        let error = format!("encountered invalid toggle tag ID {}", toggle_tag.id);
-        Error::new(ErrorKind::InvalidInput, error)
-      })?;
+      let toggle_tag = templates
+        .instantiate(toggle_tag.id)
+        .ok_or_else(|| anyhow!("encountered invalid toggle tag ID {}", toggle_tag.id))?;
 
       Some(toggle_tag)
     } else {
@@ -597,7 +623,10 @@ pub mod tests {
     let tasks_root = PathBuf::default();
 
     let err = State::with_serde(ui_state, ui_config, task_state, tasks_root).unwrap_err();
-    assert_eq!(err.to_string(), "encountered invalid tag ID 42")
+    assert_eq!(
+      err.root_cause().to_string(),
+      "encountered invalid tag ID 42"
+    )
   }
 
   /// Check that we can correctly instantiate a `State` object from
