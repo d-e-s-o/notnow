@@ -127,7 +127,7 @@ pub enum Event {
 fn ui_config() -> Result<PathBuf> {
   Ok(
     config_dir()
-      .ok_or_else(|| Error::new(ErrorKind::NotFound, "Unable to determine config directory"))?
+      .ok_or_else(|| Error::new(ErrorKind::NotFound, "unable to determine config directory"))?
       .join("notnow")
       .join("notnow.json"),
   )
@@ -137,7 +137,7 @@ fn ui_config() -> Result<PathBuf> {
 fn tasks_root() -> Result<PathBuf> {
   Ok(
     config_dir()
-      .ok_or_else(|| Error::new(ErrorKind::NotFound, "Unable to determine config directory"))?
+      .ok_or_else(|| Error::new(ErrorKind::NotFound, "unable to determine config directory"))?
       .join("notnow")
       .join("tasks"),
   )
@@ -262,7 +262,7 @@ fn run_with_args() -> Result<()> {
     },
     _ => Err(Error::new(
       ErrorKind::InvalidInput,
-      "Unsupported number of program arguments",
+      "unsupported number of program arguments",
     )),
   }
 }

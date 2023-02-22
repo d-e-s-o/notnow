@@ -76,7 +76,7 @@ async fn load_task_from_dir_entry(entry: &DirEntry) -> Result<Option<(SerTaskId,
     .to_str()
     .and_then(|id| SerTaskId::try_parse(id).ok())
     .ok_or_else(|| {
-      let error = format!("Filename {} is not a valid UUID", path.display());
+      let error = format!("filename {} is not a valid UUID", path.display());
       Error::new(ErrorKind::InvalidInput, error)
     })?;
 
@@ -93,7 +93,7 @@ fn create_task_lookup_table(ids: &[SerTaskId]) -> Result<HashMap<SerTaskId, usiz
       .enumerate()
       .try_fold(HashMap::with_capacity(len), |mut map, (idx, id)| {
         if map.insert(*id, idx).is_some() {
-          let error = format!("Encountered duplicate task ID {}", id);
+          let error = format!("encountered duplicate task ID {}", id);
           return Err(Error::new(ErrorKind::InvalidInput, error))
         }
         Ok(map)
@@ -367,7 +367,7 @@ impl State {
     P: Into<PathBuf>,
   {
     let templates = Templates::with_serde(task_state.tasks_meta.templates).map_err(|id| {
-      let error = format!("Encountered duplicate tag Id {}", id);
+      let error = format!("encountered duplicate tag ID {}", id);
       Error::new(ErrorKind::InvalidInput, error)
     })?;
     let templates = Rc::new(templates);
@@ -386,7 +386,7 @@ impl State {
 
     let toggle_tag = if let Some(toggle_tag) = ui_state.toggle_tag {
       let toggle_tag = templates.instantiate(toggle_tag.id).ok_or_else(|| {
-        let error = format!("Encountered invalid toggle tag Id {}", toggle_tag.id);
+        let error = format!("encountered invalid toggle tag ID {}", toggle_tag.id);
         Error::new(ErrorKind::InvalidInput, error)
       })?;
 
@@ -597,7 +597,7 @@ pub mod tests {
     let tasks_root = PathBuf::default();
 
     let err = State::with_serde(ui_state, ui_config, task_state, tasks_root).unwrap_err();
-    assert_eq!(err.to_string(), "Encountered invalid tag Id 42")
+    assert_eq!(err.to_string(), "encountered invalid tag ID 42")
   }
 
   /// Check that we can correctly instantiate a `State` object from

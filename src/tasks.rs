@@ -93,7 +93,7 @@ impl Task {
     let mut tags = BTreeSet::new();
     for tag in task.tags.into_iter() {
       let tag = templates.instantiate(tag.id).ok_or_else(|| {
-        let error = format!("Encountered invalid tag Id {}", tag.id);
+        let error = format!("encountered invalid tag ID {}", tag.id);
         Error::new(ErrorKind::InvalidInput, error)
       })?;
       tags.insert(tag);
