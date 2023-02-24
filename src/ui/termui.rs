@@ -428,7 +428,7 @@ mod tests {
 
     /// Retrieve the current set of tasks in the form of `SerTask` objects from the UI.
     async fn ser_tasks(&mut self) -> Vec<SerTask> {
-      self.tasks().await.iter().map(|x| x.to_serde().1).collect()
+      self.tasks().await.iter().map(|x| x.to_serde()).collect()
     }
 
     /// Load the UI's state from a file. Note that unless the state has

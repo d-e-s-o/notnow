@@ -17,7 +17,6 @@ use crate::db::Db;
 use crate::db::Iter as DbIter;
 use crate::ops::Op;
 use crate::ops::Ops;
-use crate::ser::tasks::Id as SerTaskId;
 use crate::ser::tasks::Task as SerTask;
 use crate::ser::tasks::Tasks as SerTasks;
 use crate::ser::ToSerde;
@@ -89,7 +88,7 @@ impl Task {
   }
 
   /// Create a new task from a serializable one.
-  fn with_serde(id: SerTaskId, task: SerTask, templates: Rc<Templates>) -> Result<Self> {
+  fn with_serde(task: SerTask, templates: Rc<Templates>) -> Result<Self> {
     let mut tags = BTreeSet::new();
     for tag in task.tags.into_iter() {
       let tag = templates
@@ -99,7 +98,7 @@ impl Task {
     }
 
     let inner = TaskInner {
-      id,
+      id: task.id,
       summary: task.summary,
       tags,
       templates,
@@ -201,9 +200,9 @@ impl Task {
   }
 }
 
-impl ToSerde<(SerTaskId, SerTask)> for Task {
+impl ToSerde<SerTask> for Task {
   /// Convert this task into a serializable one.
-  fn to_serde(&self) -> (SerTaskId, SerTask) {
+  fn to_serde(&self) -> SerTask {
     let borrow = self.0.try_borrow().unwrap();
     let TaskInner {
       ref id,
@@ -213,11 +212,12 @@ impl ToSerde<(SerTaskId, SerTask)> for Task {
     } = borrow.deref();
 
     let task = SerTask {
+      id: *id,
       summary: summary.clone(),
       tags: tags.iter().map(Tag::to_serde).collect(),
     };
 
-    (*id, task)
+    task
   }
 }
 
@@ -419,14 +419,15 @@ impl Tasks {
   /// Create a new `Tasks` object from a serializable one.
   pub fn with_serde(tasks: SerTasks, templates: Rc<Templates>) -> Result<Self> {
     let len = tasks.0.len();
-    let tasks = tasks.0.into_iter().try_fold(
-      Vec::with_capacity(len),
-      |mut vec, (id, task)| -> Result<_> {
-        let task = Task::with_serde(id, task, templates.clone())?;
-        vec.push(task);
-        Result::Ok(vec)
-      },
-    )?;
+    let tasks =
+      tasks
+        .0
+        .into_iter()
+        .try_fold(Vec::with_capacity(len), |mut vec, task| -> Result<_> {
+          let task = Task::with_serde(task, templates.clone())?;
+          vec.push(task);
+          Result::Ok(vec)
+        })?;
     let tasks = Db::from_iter(tasks);
 
     let inner = TasksInner {
@@ -928,7 +929,7 @@ pub mod tests {
   #[test]
   fn serialize_deserialize_task() {
     let task = Task::new("this is a TODO");
-    let serialized = to_json(&task.to_serde().1).unwrap();
+    let serialized = to_json(&task.to_serde()).unwrap();
     let deserialized = from_json::<SerTask>(&serialized).unwrap();
 
     assert_eq!(deserialized.summary, task.summary());

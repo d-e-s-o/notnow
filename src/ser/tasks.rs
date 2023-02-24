@@ -15,8 +15,10 @@ pub type Id = Uuid;
 
 
 /// A task that can be serialized and deserialized.
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Task {
+  #[serde(skip)]
+  pub id: Id,
   pub summary: String,
   #[serde(default, skip_serializing_if = "Vec::is_empty")]
   pub tags: Vec<Tag>,
@@ -30,6 +32,7 @@ impl Task {
     S: Into<String>,
   {
     Self {
+      id: Id::new_v4(),
       summary: summary.into(),
       tags: Default::default(),
     }
@@ -42,6 +45,23 @@ impl Task {
   {
     self.tags = tags.into_iter().collect();
     self
+  }
+}
+
+// TODO: We currently exclude the ID from any equality checking.
+//       Effectively, a `Task` object has no identity, only state.
+//       Long term we may want to adjust tests to not assume such
+//       behavior, because this behavior can be problematic. For
+//       example, we use this equality check not only in tests but also
+//       in the core serialization logic of the program to determine
+//       whether the in-program state has changed from the persisted
+//       one and decide whether to save state in the first place.
+//       Because we exclude the ID from equality checks, a change of it
+//       would not trigger a save. That's okay, because we don't change
+//       the ID, but it's unclean nevertheless.
+impl PartialEq for Task {
+  fn eq(&self, other: &Self) -> bool {
+    self.summary == other.summary && self.tags == other.tags
   }
 }
 
@@ -58,21 +78,19 @@ pub struct TasksMeta {
 
 /// A struct comprising a list of tasks.
 #[derive(Debug, Default, Deserialize, PartialEq, Serialize)]
-pub struct Tasks(pub Vec<(Id, Task)>);
+pub struct Tasks(pub Vec<Task>);
 
 #[cfg(test)]
 impl Tasks {
   /// Convert this object into a vector of task objects.
   pub fn into_task_vec(self) -> Vec<Task> {
-    self.0.into_iter().map(|(_id, task)| task).collect()
+    self.0
   }
 }
 
 #[cfg(any(test, feature = "test"))]
 impl From<Vec<Task>> for Tasks {
   fn from(tasks: Vec<Task>) -> Self {
-    let tasks = tasks.into_iter().map(|task| (Id::new_v4(), task)).collect();
-
     Self(tasks)
   }
 }

@@ -76,7 +76,7 @@ where
 }
 
 /// Load a task from a directory entry.
-async fn load_task_from_dir_entry(entry: &DirEntry) -> Result<Option<(SerTaskId, SerTask)>> {
+async fn load_task_from_dir_entry(entry: &DirEntry) -> Result<Option<SerTask>> {
   let file_name = entry.file_name();
   let path = entry.path();
   let id = file_name
@@ -84,10 +84,22 @@ async fn load_task_from_dir_entry(entry: &DirEntry) -> Result<Option<(SerTaskId,
     .and_then(|id| SerTaskId::try_parse(id).ok())
     .ok_or_else(|| anyhow!("filename {} is not a valid UUID", path.display()))?;
 
-  let result = load_state_from_file(&path)
+  let result = load_state_from_file::<SerTask>(&path)
     .await
-    .with_context(|| format!("failed to load state from {}", path.display()))?;
-  Ok(result.map(|task| (id, task)))
+    .with_context(|| format!("failed to load state from {}", path.display()))?
+    .map(|mut task| {
+      // TODO: Silently overwriting the ID may not be the best choice,
+      //       but it depends on whether it is actually serialized and
+      //       deserialized to begin with. If there is a discrepancy,
+      //       that may indicate a problem. On the other hand, we want
+      //       to give precedence to the file name, because it is the
+      //       most user visible and it would be confusing to not honor
+      //       it.
+      task.id = id;
+      task
+    });
+
+  Ok(result)
 }
 
 /// Load task meta data from the provided file.
@@ -109,9 +121,7 @@ fn create_task_lookup_table(ids: &[SerTaskId]) -> Result<HashMap<SerTaskId, usiz
 
 /// Load tasks by iterating over the entries of a `ReadDir` object.
 #[allow(clippy::type_complexity)]
-async fn load_tasks_from_read_dir(
-  dir: ReadDir,
-) -> Result<(Vec<(SerTaskId, SerTask)>, Option<SerTasksMeta>)> {
+async fn load_tasks_from_read_dir(dir: ReadDir) -> Result<(Vec<SerTask>, Option<SerTasksMeta>)> {
   let mut dir = dir;
   // Ideally we'd size the `Vec` as per the number of directory entries,
   // but `fs::ReadDir` does not currently expose that number.
@@ -155,7 +165,7 @@ async fn load_tasks_from_dir(root: &Path) -> Result<SerTaskState> {
   let table = create_task_lookup_table(&tasks_meta.ids)?;
   // If a task ID is not contained in our table we will just silently
   // sort it last.
-  tasks.sort_by_key(|(id, _)| table.get(id).copied().unwrap_or(usize::MAX));
+  tasks.sort_by_key(|task| table.get(&task.id).copied().unwrap_or(usize::MAX));
 
   Ok(SerTaskState {
     tasks_meta,
@@ -194,8 +204,8 @@ where
 }
 
 /// Save a task into a file in the given directory.
-async fn save_task_to_file(root: &Path, id: SerTaskId, task: &SerTask) -> Result<()> {
-  let path = root.join(id.to_string());
+async fn save_task_to_file(root: &Path, task: &SerTask) -> Result<()> {
+  let path = root.join(task.id.to_string());
   // TODO: It would be better if we were create a temporary file first
   //       if one already exists and then rename atomically. But even
   //       nicer would be if we somehow wrapped all saving in a
@@ -213,8 +223,8 @@ async fn save_tasks_meta_to_dir(root: &Path, tasks_meta: &SerTasksMeta) -> Resul
 
 /// Save tasks into files in the provided directory.
 async fn save_tasks_to_dir(root: &Path, tasks: &SerTaskState) -> Result<()> {
-  for (id, task) in tasks.tasks.0.iter() {
-    let () = save_task_to_file(root, *id, task).await?;
+  for task in tasks.tasks.0.iter() {
+    let () = save_task_to_file(root, task).await?;
   }
 
   let () = save_tasks_meta_to_dir(root, &tasks.tasks_meta).await?;
@@ -329,7 +339,7 @@ impl ToSerde<SerTaskState> for TaskState {
   /// Convert this object into a serializable one.
   fn to_serde(&self) -> SerTaskState {
     let tasks = self.tasks.to_serde();
-    let ids = tasks.0.iter().map(|(id, _)| *id).collect();
+    let ids = tasks.0.iter().map(|task| task.id).collect();
 
     SerTaskState {
       tasks_meta: SerTasksMeta {
@@ -581,7 +591,7 @@ pub mod tests {
     let new_task_vec = new_state
       .1
       .tasks
-      .iter(|iter| iter.map(|task| task.to_serde().1).collect::<Vec<_>>());
+      .iter(|iter| iter.map(|task| task.to_serde()).collect::<Vec<_>>());
     assert_eq!(new_task_vec, make_tasks(3));
   }
 
@@ -603,7 +613,7 @@ pub mod tests {
     let new_task_vec = new_state
       .1
       .tasks
-      .iter(|iter| iter.map(|task| task.to_serde().1).collect::<Vec<_>>());
+      .iter(|iter| iter.map(|task| task.to_serde()).collect::<Vec<_>>());
     assert_eq!(new_task_vec, make_tasks(0));
   }
 
