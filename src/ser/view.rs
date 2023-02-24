@@ -1,6 +1,9 @@
 // Copyright (C) 2018-2022 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+//! A module providing serialization and deserialization support for
+//! task views.
+
 use serde::Deserialize;
 use serde::Serialize;
 
