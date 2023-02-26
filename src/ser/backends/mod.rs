@@ -5,5 +5,7 @@
 //! serialization and deserialization backends.
 
 mod backend;
+mod json;
 
 pub use backend::Backend;
+pub use json::Json;
