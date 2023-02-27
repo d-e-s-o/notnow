@@ -17,10 +17,8 @@ use anyhow::bail;
 use anyhow::Context as _;
 use anyhow::Result;
 
-use serde::Deserialize;
-use serde::Serialize;
-use serde_json::from_slice as from_json;
-use serde_json::to_string_pretty as to_json;
+use crate::ser::backends::Backend;
+use crate::ser::backends::Json;
 
 use tokio::fs::create_dir_all;
 use tokio::fs::read_dir;
@@ -56,9 +54,9 @@ const TASKS_META_ID: SerTaskId = uuid!("00000000-0000-0000-0000-000000000000");
 
 
 /// Load some serialized state from a file.
-async fn load_state_from_file<T>(path: &Path) -> Result<Option<T>>
+async fn load_state_from_file<B, T>(path: &Path) -> Result<Option<T>>
 where
-  for<'de> T: Deserialize<'de>,
+  B: Backend<T>,
 {
   match File::open(path).await {
     Ok(mut file) => {
@@ -67,7 +65,7 @@ where
         .read_to_end(&mut content)
         .await
         .context("failed to read complete file content")?;
-      let state = from_json::<T>(&content).context("failed to deserialize JSON content")?;
+      let state = B::deserialize(&content).context("failed to decode state")?;
       Ok(Some(state))
     },
     Err(e) if e.kind() == ErrorKind::NotFound => Ok(None),
@@ -84,7 +82,7 @@ async fn load_task_from_dir_entry(entry: &DirEntry) -> Result<Option<SerTask>> {
     .and_then(|id| SerTaskId::try_parse(id).ok())
     .ok_or_else(|| anyhow!("filename {} is not a valid UUID", path.display()))?;
 
-  let result = load_state_from_file::<SerTask>(&path)
+  let result = load_state_from_file::<Json, SerTask>(&path)
     .await
     .with_context(|| format!("failed to load state from {}", path.display()))?
     .map(|mut task| {
@@ -141,7 +139,7 @@ async fn load_tasks_from_read_dir(dir: ReadDir) -> Result<(Vec<SerTask>, Option<
         tasks_meta, None,
         "encountered multiple task meta data files"
       );
-      tasks_meta = load_state_from_file::<SerTasksMeta>(&entry.path()).await?;
+      tasks_meta = load_state_from_file::<Json, SerTasksMeta>(&entry.path()).await?;
     } else if let Some(data) = load_task_from_dir_entry(&entry).await? {
       let () = tasks.push(data);
     }
@@ -174,12 +172,12 @@ async fn load_tasks_from_dir(root: &Path) -> Result<SerTaskState> {
 }
 
 /// Save some state into a file.
-async fn save_state_to_file<T>(path: &Path, state: &T) -> Result<()>
+async fn save_state_to_file<B, T>(path: &Path, state: &T) -> Result<()>
 where
-  T: PartialEq + Serialize,
-  for<'de> T: Deserialize<'de>,
+  B: Backend<T>,
+  T: PartialEq,
 {
-  if let Ok(Some(existing)) = load_state_from_file::<T>(path).await {
+  if let Ok(Some(existing)) = load_state_from_file::<B, T>(path).await {
     if &existing == state {
       // If the file already contains the expected state there is no need
       // for us to write it again.
@@ -191,7 +189,7 @@ where
     let () = create_dir_all(dir).await?;
   }
 
-  let serialized = to_json(state)?;
+  let serialized = B::serialize(state)?;
   let () = OpenOptions::new()
     .create(true)
     .truncate(true)
@@ -212,13 +210,13 @@ async fn save_task_to_file(root: &Path, task: &SerTask) -> Result<()> {
   //       transaction of sorts. That would allow us to eliminate the
   //       chance for *any* inconsistency, e.g., when saving UI state
   //       before task state and the latter failing the operation.
-  save_state_to_file(&path, task).await
+  save_state_to_file::<Json, _>(&path, task).await
 }
 
 /// Save a task meta data into a file in the provided directory.
 async fn save_tasks_meta_to_dir(root: &Path, tasks_meta: &SerTasksMeta) -> Result<()> {
   let path = root.join(TASKS_META_ID.to_string());
-  save_state_to_file(&path, tasks_meta).await
+  save_state_to_file::<Json, _>(&path, tasks_meta).await
 }
 
 /// Save tasks into files in the provided directory.
@@ -274,13 +272,13 @@ pub struct UiState {
 impl UiState {
   /// Persist the state into a file.
   pub async fn save(&self) -> Result<()> {
-    let ui_state = load_state_from_file::<SerUiState>(self.path.as_ref())
+    let ui_state = load_state_from_file::<Json, SerUiState>(self.path.as_ref())
       .await
       .unwrap_or_default()
       .unwrap_or_default();
     self.colors.set(Some(ui_state.colors));
 
-    save_state_to_file(&self.path, &self.to_serde()).await
+    save_state_to_file::<Json, _>(&self.path, &self.to_serde()).await
   }
 }
 
@@ -367,7 +365,7 @@ impl State {
   where
     P: Into<PathBuf> + AsRef<Path>,
   {
-    let ui_state = load_state_from_file::<SerUiState>(ui_config.as_ref())
+    let ui_state = load_state_from_file::<Json, SerUiState>(ui_config.as_ref())
       .await
       .with_context(|| {
         format!(
@@ -571,7 +569,7 @@ pub mod tests {
     let base = temp_dir().join("dir1");
     let path = base.join("dir2").join("file");
 
-    let () = save_state_to_file(&path, &42).await.unwrap();
+    let () = save_state_to_file::<Json, _>(&path, &42).await.unwrap();
     let mut file = File::open(path).await.unwrap();
     let mut content = Vec::new();
     let _count = file.read_to_end(&mut content).await.unwrap();
