@@ -5,7 +5,9 @@
 //! serialization and deserialization backends.
 
 mod backend;
+mod ical;
 mod json;
 
 pub use backend::Backend;
+pub use ical::iCal;
 pub use json::Json;

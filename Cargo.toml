@@ -54,6 +54,11 @@ version = "0.3.1"
 version = "0.6"
 features = ["derive"]
 
+[dependencies.icalendar]
+version = "0.14.2"
+default-features = false
+features = ["parser"]
+
 [dependencies.libc]
 version = "0.2"
 
