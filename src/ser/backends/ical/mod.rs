@@ -1,6 +1,9 @@
 // Copyright (C) 2022 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+mod task;
+mod util;
+
 use std::error::Error as StdError;
 use std::fmt::Display;
 use std::fmt::Formatter;

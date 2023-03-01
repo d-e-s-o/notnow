@@ -4,6 +4,11 @@
 //! A module providing serialization and deserialization support for
 //! task templates and tags.
 
+use std::fmt::Display;
+use std::fmt::Formatter;
+use std::fmt::Result as FmtResult;
+use std::str::FromStr;
+
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -34,6 +39,29 @@ pub struct Tag {
   pub id: Id,
 }
 
+impl From<Id> for Tag {
+  #[inline]
+  fn from(id: Id) -> Self {
+    Self { id }
+  }
+}
+
+impl FromStr for Tag {
+  type Err = <Id as FromStr>::Err;
+
+  fn from_str(s: &str) -> Result<Self, Self::Err> {
+    let id = Id::from_str(s)?;
+    Ok(Self { id })
+  }
+}
+
+impl Display for Tag {
+  #[inline]
+  fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+    Display::fmt(&self.id, f)
+  }
+}
+
 
 /// A serializable struct comprising a list of tag templates.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
@@ -60,6 +88,20 @@ mod tests {
     assert_eq!(deserialized, template);
   }
 
+  /// Check that we can convert a `Template` to a string and parse it
+  /// from there again.
+  #[test]
+  fn emit_parse_tag() {
+    let tag = Tag {
+      id: Id::try_from(usize::MAX).unwrap(),
+    };
+    let emitted = tag.to_string();
+    let parsed = Tag::from_str(&emitted).unwrap();
+
+    assert_eq!(parsed, tag);
+  }
+
+  /// Check that we can serialize and deserialize a `Tag`.
   #[test]
   fn serialize_deserialize_tag() {
     let tag = Tag {
