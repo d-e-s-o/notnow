@@ -9,6 +9,9 @@ use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
 use std::str::FromStr;
 
+use anyhow::Context as _;
+use anyhow::Error;
+
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -21,6 +24,11 @@ pub struct T(());
 pub type Id = IdT<T>;
 
 
+/// The separator to use for separating the components of a `Template`
+/// when converting it to a string.
+const TEMPLATE_COMPONENT_SEPARATOR: char = ',';
+
+
 /// A struct for serializing the concept of a tag.
 ///
 /// Objects of this type are used to describe what a tag looks like and
@@ -29,6 +37,26 @@ pub type Id = IdT<T>;
 pub struct Template {
   pub id: Id,
   pub name: String,
+}
+
+impl Display for Template {
+  fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+    write!(f, "{}{TEMPLATE_COMPONENT_SEPARATOR}{}", self.id, self.name)
+  }
+}
+
+impl FromStr for Template {
+  type Err = Error;
+
+  fn from_str(s: &str) -> Result<Self, Self::Err> {
+    let (id, name) = s
+      .split_once(TEMPLATE_COMPONENT_SEPARATOR)
+      .with_context(|| format!("string '{s}' is not a properly formatted template"))?;
+    let id = Id::from_str(id)?;
+    let name = name.to_string();
+
+    Ok(Template { id, name })
+  }
 }
 
 
@@ -76,6 +104,22 @@ mod tests {
   use serde_json::to_string as to_json;
 
 
+  /// Check that we can convert a `Template` to a string and parse it
+  /// from there again.
+  #[test]
+  fn emit_parse_template() {
+    let template = Template {
+      id: Id::try_from(42).unwrap(),
+      name: "test tag".to_string(),
+    };
+
+    let emitted = template.to_string();
+    let parsed = Template::from_str(&emitted).unwrap();
+
+    assert_eq!(parsed, template);
+  }
+
+  /// Check that we can serialized and deserialize a `Template`.
   #[test]
   fn serialize_deserialize_template() {
     let template = Template {

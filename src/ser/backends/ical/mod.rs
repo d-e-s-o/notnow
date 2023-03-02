@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 mod task;
+mod tasks_meta;
 mod util;
 
 use std::error::Error as StdError;
