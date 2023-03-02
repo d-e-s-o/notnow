@@ -17,6 +17,7 @@ use anyhow::bail;
 use anyhow::Context as _;
 use anyhow::Result;
 
+use crate::ser::backends::iCal;
 use crate::ser::backends::Backend;
 use crate::ser::backends::Json;
 
@@ -82,8 +83,14 @@ async fn load_task_from_dir_entry(entry: &DirEntry) -> Result<Option<SerTask>> {
     .and_then(|id| SerTaskId::try_parse(id).ok())
     .ok_or_else(|| anyhow!("filename {} is not a valid UUID", path.display()))?;
 
-  let result = load_state_from_file::<Json, SerTask>(&path)
-    .await
+  let result = load_state_from_file::<Json, SerTask>(&path).await;
+  let result = if result.is_err() {
+    load_state_from_file::<iCal, SerTask>(&path).await
+  } else {
+    result
+  };
+
+  let result = result
     .with_context(|| format!("failed to load state from {}", path.display()))?
     .map(|mut task| {
       // TODO: Silently overwriting the ID may not be the best choice,
@@ -139,7 +146,14 @@ async fn load_tasks_from_read_dir(dir: ReadDir) -> Result<(Vec<SerTask>, Option<
         tasks_meta, None,
         "encountered multiple task meta data files"
       );
-      tasks_meta = load_state_from_file::<Json, SerTasksMeta>(&entry.path()).await?;
+
+      let result = load_state_from_file::<Json, SerTasksMeta>(&entry.path()).await;
+      let result = if result.is_err() {
+        load_state_from_file::<iCal, SerTasksMeta>(&entry.path()).await
+      } else {
+        result
+      };
+      tasks_meta = result?;
     } else if let Some(data) = load_task_from_dir_entry(&entry).await? {
       let () = tasks.push(data);
     }
@@ -210,13 +224,13 @@ async fn save_task_to_file(root: &Path, task: &SerTask) -> Result<()> {
   //       transaction of sorts. That would allow us to eliminate the
   //       chance for *any* inconsistency, e.g., when saving UI state
   //       before task state and the latter failing the operation.
-  save_state_to_file::<Json, _>(&path, task).await
+  save_state_to_file::<iCal, _>(&path, task).await
 }
 
 /// Save a task meta data into a file in the provided directory.
 async fn save_tasks_meta_to_dir(root: &Path, tasks_meta: &SerTasksMeta) -> Result<()> {
   let path = root.join(TASKS_META_ID.to_string());
-  save_state_to_file::<Json, _>(&path, tasks_meta).await
+  save_state_to_file::<iCal, _>(&path, tasks_meta).await
 }
 
 /// Save tasks into files in the provided directory.

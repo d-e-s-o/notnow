@@ -3,10 +3,11 @@ Unreleased
 - Changed task storage format:
   - Switched from single-file-for-all-tasks scheme to having one task per
     file (identified by 128 bit UUID)
+  - Switched from using custom JSON serialization format to relying on
+    interchangeable iCalendar TODO events
   - Added support for only saving tasks that were changed
-  - Adjusted JSON serialized representation to be more compact
 - Added support for finding the currently selected task on other tabs
-  via '*'
+  via `*`
 - Added example program using automatically generated task data
 - Overhauled error reporting mechanism, now reporting error chains
 - Made tag to toggle through UI user-configurable and no longer hard
