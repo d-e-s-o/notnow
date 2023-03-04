@@ -83,14 +83,8 @@ async fn load_task_from_dir_entry(entry: &DirEntry) -> Result<Option<SerTask>> {
     .and_then(|id| SerTaskId::try_parse(id).ok())
     .ok_or_else(|| anyhow!("filename {} is not a valid UUID", path.display()))?;
 
-  let result = load_state_from_file::<Json, SerTask>(&path).await;
-  let result = if result.is_err() {
-    load_state_from_file::<iCal, SerTask>(&path).await
-  } else {
-    result
-  };
-
-  let result = result
+  let result = load_state_from_file::<iCal, SerTask>(&path)
+    .await
     .with_context(|| format!("failed to load state from {}", path.display()))?
     .map(|mut task| {
       // TODO: Silently overwriting the ID may not be the best choice,
@@ -146,14 +140,7 @@ async fn load_tasks_from_read_dir(dir: ReadDir) -> Result<(Vec<SerTask>, Option<
         tasks_meta, None,
         "encountered multiple task meta data files"
       );
-
-      let result = load_state_from_file::<Json, SerTasksMeta>(&entry.path()).await;
-      let result = if result.is_err() {
-        load_state_from_file::<iCal, SerTasksMeta>(&entry.path()).await
-      } else {
-        result
-      };
-      tasks_meta = result?;
+      tasks_meta = load_state_from_file::<iCal, SerTasksMeta>(&entry.path()).await?;
     } else if let Some(data) = load_task_from_dir_entry(&entry).await? {
       let () = tasks.push(data);
     }
