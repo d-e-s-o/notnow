@@ -618,9 +618,6 @@ pub mod tests {
 
   use std::num::NonZeroUsize;
 
-  use serde_json::from_str as from_json;
-  use serde_json::to_string_pretty as to_json;
-
   use crate::ser::tags::Id as SerTemplateId;
   use crate::ser::tags::Template as SerTemplate;
   use crate::ser::tags::Templates as SerTemplates;
@@ -923,31 +920,5 @@ pub mod tests {
     let mut expected = make_tasks(4);
     expected.swap(1, 2);
     assert_eq!(tasks, expected);
-  }
-
-  /// Make sure that we can serialize and deserialize a `Task` properly.
-  #[test]
-  fn serialize_deserialize_task() {
-    let task = Task::new("this is a TODO");
-    let serialized = to_json(&task.to_serde()).unwrap();
-    let deserialized = from_json::<SerTask>(&serialized).unwrap();
-
-    assert_eq!(deserialized.summary, task.summary());
-  }
-
-  /// Make sure that we can serialize and deserialize a `Tasks` object
-  /// properly.
-  #[test]
-  fn serialize_deserialize_tasks() {
-    let templates = Rc::new(Templates::with_serde(SerTemplates::default()).unwrap());
-    let tasks = Tasks::with_serde_tasks(make_tasks(3)).unwrap();
-    let serialized = to_json(&tasks.to_serde()).unwrap();
-    let deserialized = from_json::<SerTasks>(&serialized).unwrap();
-    let tasks = Tasks::with_serde(deserialized, templates)
-      .unwrap()
-      .to_serde()
-      .into_task_vec();
-
-    assert_eq!(tasks, make_tasks(3));
   }
 }

@@ -33,7 +33,7 @@ const TEMPLATE_COMPONENT_SEPARATOR: char = ',';
 ///
 /// Objects of this type are used to describe what a tag looks like and
 /// are the form in which the concept of a particular tag is persisted.
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Template {
   pub id: Id,
   pub name: String,
@@ -91,8 +91,9 @@ impl Display for Tag {
 }
 
 
-/// A serializable struct comprising a list of tag templates.
-#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+/// A container of `Template` objects that we can deserialize into and
+/// serialize from.
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct Templates(pub Vec<Template>);
 
 
@@ -119,19 +120,6 @@ mod tests {
     assert_eq!(parsed, template);
   }
 
-  /// Check that we can serialized and deserialize a `Template`.
-  #[test]
-  fn serialize_deserialize_template() {
-    let template = Template {
-      id: Id::try_from(32).unwrap(),
-      name: "test-tag".to_string(),
-    };
-    let serialized = to_json(&template).unwrap();
-    let deserialized = from_json::<Template>(&serialized).unwrap();
-
-    assert_eq!(deserialized, template);
-  }
-
   /// Check that we can convert a `Template` to a string and parse it
   /// from there again.
   #[test]
@@ -155,24 +143,5 @@ mod tests {
     let deserialized = from_json::<Tag>(&serialized).unwrap();
 
     assert_eq!(deserialized, tag);
-  }
-
-  #[test]
-  fn serialize_deserialize_templates() {
-    let templates = vec![
-      Template {
-        id: Id::try_from(3).unwrap(),
-        name: "tag1".to_string(),
-      },
-      Template {
-        id: Id::try_from(990).unwrap(),
-        name: "tag990".to_string(),
-      },
-    ];
-    let templates = Templates(templates);
-    let serialized = to_json(&templates).unwrap();
-    let deserialized = from_json::<Templates>(&serialized).unwrap();
-
-    assert_eq!(deserialized, templates);
   }
 }

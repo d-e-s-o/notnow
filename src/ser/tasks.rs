@@ -4,9 +4,6 @@
 //! A module providing serialization and deserialization support for
 //! task objects.
 
-use serde::Deserialize;
-use serde::Serialize;
-
 use uuid::Uuid;
 
 use crate::ser::tags::Tag;
@@ -17,13 +14,14 @@ use crate::ser::tags::Templates;
 pub type Id = Uuid;
 
 
-/// A task that can be serialized and deserialized.
-#[derive(Clone, Debug, Deserialize, Serialize)]
+/// A task that we deserialize into and serialize from.
+#[derive(Clone, Debug)]
 pub struct Task {
-  #[serde(skip)]
+  /// The task's ID.
   pub id: Id,
+  /// The task's summary.
   pub summary: String,
-  #[serde(default, skip_serializing_if = "Vec::is_empty")]
+  /// The task's list of currently set tags.
   pub tags: Vec<Tag>,
 }
 
@@ -69,10 +67,10 @@ impl PartialEq for Task {
 }
 
 
-/// Meta data for tasks.
-#[derive(Debug, Default, Deserialize, PartialEq, Serialize)]
+/// Meta data for tasks that we deserialize into and serialize from.
+#[derive(Debug, Default, PartialEq)]
 pub struct TasksMeta {
-  #[serde(default)]
+  /// The templates used by the corresponding tasks.
   pub templates: Templates,
   /// IDs of tasks in the intended order.
   pub ids: Vec<Id>,
@@ -80,7 +78,7 @@ pub struct TasksMeta {
 
 
 /// A struct comprising a list of tasks.
-#[derive(Debug, Default, Deserialize, PartialEq, Serialize)]
+#[derive(Debug, Default, PartialEq)]
 pub struct Tasks(pub Vec<Task>);
 
 #[cfg(test)]
@@ -95,70 +93,5 @@ impl Tasks {
 impl From<Vec<Task>> for Tasks {
   fn from(tasks: Vec<Task>) -> Self {
     Self(tasks)
-  }
-}
-
-
-#[cfg(test)]
-mod tests {
-  use super::*;
-
-  use serde_json::from_str as from_json;
-  use serde_json::to_string as to_json;
-
-  use crate::ser::tags::Id as TagId;
-
-
-  #[test]
-  fn serialize_deserialize_task_without_tags() {
-    let task = Task::new("task without tags");
-    let serialized = to_json(&task).unwrap();
-    let deserialized = from_json::<Task>(&serialized).unwrap();
-
-    assert_eq!(deserialized, task);
-  }
-
-  #[test]
-  fn serialize_deserialize_task() {
-    let tags = [
-      Tag {
-        id: TagId::try_from(2).unwrap(),
-      },
-      Tag {
-        id: TagId::try_from(4).unwrap(),
-      },
-    ];
-    let task = Task::new("this is a task").with_tags(tags);
-    let serialized = to_json(&task).unwrap();
-    let deserialized = from_json::<Task>(&serialized).unwrap();
-
-    assert_eq!(deserialized, task);
-  }
-
-  #[test]
-  fn serialize_deserialize_tasks() {
-    let task_vec = vec![
-      Task::new("task 1").with_tags([
-        Tag {
-          id: TagId::try_from(10000).unwrap(),
-        },
-        Tag {
-          id: TagId::try_from(5).unwrap(),
-        },
-      ]),
-      Task::new("task 2").with_tags([
-        Tag {
-          id: TagId::try_from(5).unwrap(),
-        },
-        Tag {
-          id: TagId::try_from(6).unwrap(),
-        },
-      ]),
-    ];
-    let tasks = Tasks::from(task_vec);
-    let serialized = to_json(&tasks).unwrap();
-    let deserialized = from_json::<Tasks>(&serialized).unwrap();
-
-    assert_eq!(deserialized, tasks);
   }
 }
