@@ -101,8 +101,8 @@ pub struct Templates(pub Vec<Template>);
 mod tests {
   use super::*;
 
-  use serde_json::from_str as from_json;
-  use serde_json::to_string as to_json;
+  use crate::ser::backends::Backend;
+  use crate::ser::backends::Json;
 
 
   /// Check that we can convert a `Template` to a string and parse it
@@ -139,8 +139,8 @@ mod tests {
     let tag = Tag {
       id: Id::try_from(42).unwrap(),
     };
-    let serialized = to_json(&tag).unwrap();
-    let deserialized = from_json::<Tag>(&serialized).unwrap();
+    let serialized = Json::serialize(&tag).unwrap();
+    let deserialized = <Json as Backend<Tag>>::deserialize(&serialized).unwrap();
 
     assert_eq!(deserialized, tag);
   }

@@ -41,12 +41,13 @@ pub struct View {
 mod tests {
   use super::*;
 
-  use serde_json::from_str as from_json;
-  use serde_json::to_string as to_json;
+  use crate::ser::backends::Backend;
+  use crate::ser::backends::Json;
 
   use crate::ser::id::Id;
 
 
+  /// Check that we can serialize and deserialize a `View`.
   #[test]
   fn serialize_deserialize_view() {
     let tag1 = Tag {
@@ -71,8 +72,8 @@ mod tests {
       ],
     };
 
-    let serialized = to_json(&view).unwrap();
-    let deserialized = from_json::<View>(&serialized).unwrap();
+    let serialized = Json::serialize(&view).unwrap();
+    let deserialized = <Json as Backend<View>>::deserialize(&serialized).unwrap();
 
     assert_eq!(deserialized, view);
   }

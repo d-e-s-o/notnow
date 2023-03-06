@@ -110,26 +110,29 @@ impl<'de, T> Deserialize<'de> for Id<T> {
 mod tests {
   use super::*;
 
-  use serde_json::from_str as from_json;
-  use serde_json::to_string as to_json;
+  use crate::ser::backends::Backend;
+  use crate::ser::backends::Json;
 
   type TestId = Id<u32>;
 
 
+  /// Check that we can serialize and deserialize an `Id`.
   #[test]
   fn serialize_deserialize_id() {
     let id = TestId::try_from(42).unwrap();
-    let serialized = to_json(&id).unwrap();
-    let deserialized = from_json::<TestId>(&serialized).unwrap();
+    let serialized = Json::serialize(&id).unwrap();
+    let deserialized = <Json as Backend<TestId>>::deserialize(&serialized).unwrap();
 
     assert_eq!(deserialized, id);
   }
 
+  /// Make sure that an `Id` is serialized as nothing but a number in
+  /// JSON.
   #[test]
   fn serialize_as_number() {
     let id = TestId::try_from(1337).unwrap();
-    let serialized = to_json(&id).unwrap();
+    let serialized = Json::serialize(&id).unwrap();
 
-    assert_eq!(serialized, "1337");
+    assert_eq!(serialized, b"1337");
   }
 }

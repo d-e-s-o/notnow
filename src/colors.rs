@@ -247,8 +247,8 @@ impl Default for Colors {
 pub mod tests {
   use super::*;
 
-  use serde_json::from_str as from_json;
-  use serde_json::to_string as to_json;
+  use crate::ser::backends::Backend;
+  use crate::ser::backends::Json;
 
 
   #[test]
@@ -273,10 +273,10 @@ pub mod tests {
   #[test]
   fn serialize_deserialize_reset() {
     let reset = Color::Reset(Reset);
-    let serialized = to_json(&reset).unwrap();
-    assert_eq!(serialized, "\"reset\"");
+    let serialized = Json::serialize(&reset).unwrap();
+    assert_eq!(serialized, b"\"reset\"");
 
-    let deserialized = from_json::<Color>(&serialized).unwrap();
+    let deserialized = <Json as Backend<Color>>::deserialize(&serialized).unwrap();
     assert_eq!(deserialized, reset);
   }
 
@@ -285,10 +285,15 @@ pub mod tests {
   #[test]
   fn serialize_deserialize_rgb() {
     let rgb = Color::Rgb(Rgb(1, 2, 3));
-    let serialized = to_json(&rgb).unwrap();
-    assert_eq!(serialized, "[1,2,3]");
+    let serialized = Json::serialize(&rgb).unwrap();
+    let expected = br#"[
+  1,
+  2,
+  3
+]"#;
+    assert_eq!(serialized, expected);
 
-    let deserialized = from_json::<Color>(&serialized).unwrap();
+    let deserialized = <Json as Backend<Color>>::deserialize(&serialized).unwrap();
     assert_eq!(deserialized, rgb);
   }
 
@@ -297,8 +302,8 @@ pub mod tests {
   #[test]
   fn serialize_deserialize_colors() {
     let colors = Colors::default();
-    let serialized = to_json(&colors).unwrap();
-    let deserialized = from_json::<Colors>(&serialized).unwrap();
+    let serialized = Json::serialize(&colors).unwrap();
+    let deserialized = <Json as Backend<Colors>>::deserialize(&serialized).unwrap();
     assert_eq!(deserialized, colors);
   }
 }
