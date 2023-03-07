@@ -293,9 +293,9 @@ enum TaskOp {
   },
   /// An operation changing a task's position.
   Move {
-    from: usize,
+    task: Rc<Task>,
     to: Target,
-    task: Option<Rc<Task>>,
+    position: Option<usize>,
   },
 }
 
@@ -318,11 +318,11 @@ impl TaskOp {
     }
   }
 
-  fn move_(from: usize, to: Target) -> Self {
+  fn move_(task: Rc<Task>, to: Target) -> Self {
     Self::Move {
-      from,
+      task,
       to,
-      task: None,
+      position: None,
     }
   }
 }
@@ -348,13 +348,17 @@ impl Op<Db<Task>, Option<Rc<Task>>> for TaskOp {
         *before = Some(_task);
         Some(task.clone())
       },
-      Self::Move { from, to, task } => {
-        let removed = tasks.remove(*from);
+      Self::Move { task, to, position } => {
+        // SANITY: The task really should be in our `Tasks` object or we
+        //         are in trouble.
+        let idx = tasks.find(task).unwrap();
+        let removed = tasks.remove(idx);
         // We do not support the case of moving a task with itself as a
         // target. Doing so should be prevented at a higher layer,
         // though.
         debug_assert!(!Rc::ptr_eq(&removed, to.task()));
-        *task = Some(removed.clone());
+        *position = Some(idx);
+
         let task = add_task(tasks, removed, Some(to.clone()));
         Some(task)
       },
@@ -384,13 +388,13 @@ impl Op<Db<Task>, Option<Rc<Task>>> for TaskOp {
         let task = tasks.get(idx).unwrap();
         Some(task.deref().clone())
       },
-      Self::Move { from, task, .. } => {
-        // SANITY: `task` is guaranteed to be set on this path.
-        let task = task.clone().unwrap();
-        let idx = tasks.find(&task).unwrap();
+      Self::Move { task, position, .. } => {
+        // SANITY: `position` is guaranteed to be set on this path.
+        let position = position.unwrap();
+        let idx = tasks.find(task).unwrap();
         let removed = tasks.remove(idx);
         // SANITY: We just removed the task, so it can't be present.
-        tasks.try_insert(*from, removed.clone()).unwrap();
+        let _entry = tasks.try_insert(position, removed.clone()).unwrap();
         Some(removed)
       },
     }
@@ -553,9 +557,8 @@ impl Tasks {
         ..
       } = borrow.deref_mut();
 
-      let idx = tasks.find(&to_move).unwrap();
       let to = Target::Before(other);
-      let op = TaskOp::move_(idx, to);
+      let op = TaskOp::move_(to_move, to);
       operations.exec(op, tasks);
     }
   }
@@ -573,9 +576,8 @@ impl Tasks {
         ..
       } = borrow.deref_mut();
 
-      let idx = tasks.find(&to_move).unwrap();
       let to = Target::After(other);
-      let op = TaskOp::move_(idx, to);
+      let op = TaskOp::move_(to_move, to);
       operations.exec(op, tasks);
     }
   }
@@ -786,8 +788,9 @@ pub mod tests {
     let mut tasks = Db::from_iter(iter);
     let mut ops = Ops::new(3);
 
+    let task = tasks.get(1).unwrap().deref().clone();
     let before = tasks.get(0).unwrap().deref().clone();
-    let op = TaskOp::move_(1, Target::Before(before));
+    let op = TaskOp::move_(task, Target::Before(before));
     ops.exec(op, &mut tasks);
     assert_eq!(tasks.iter().len(), 2);
     assert_eq!(tasks.get(0).unwrap().summary(), "task2");
@@ -798,8 +801,9 @@ pub mod tests {
     assert_eq!(tasks.get(0).unwrap().summary(), "task1");
     assert_eq!(tasks.get(1).unwrap().summary(), "task2");
 
+    let task = tasks.get(1).unwrap().deref().clone();
     let after = tasks.get(0).unwrap().deref().clone();
-    let op = TaskOp::move_(1, Target::After(after));
+    let op = TaskOp::move_(task, Target::After(after));
     ops.exec(op, &mut tasks);
     assert_eq!(tasks.iter().len(), 2);
     assert_eq!(tasks.get(0).unwrap().summary(), "task1");
