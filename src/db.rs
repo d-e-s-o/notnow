@@ -9,7 +9,7 @@ use std::slice;
 
 
 /// An iterator over the items in a `Db`.
-pub type Iter<'t, T> = slice::Iter<'t, Rc<T>>;
+pub type Iter<'db, T> = slice::Iter<'db, Rc<T>>;
 
 
 /// An object wrapping an item contained in a `Db` and providing

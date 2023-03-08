@@ -53,14 +53,14 @@ impl ToSerde<SerTagLit> for TagLit {
 
 /// An object providing filtered iteration over an iterator of tasks.
 #[derive(Clone, Debug)]
-pub struct Filter<'t> {
-  iter: TaskIter<'t>,
-  lits: &'t [Vec<TagLit>],
+pub struct Filter<'tasks> {
+  iter: TaskIter<'tasks>,
+  lits: &'tasks [Vec<TagLit>],
 }
 
-impl<'t> Filter<'t> {
+impl<'tasks> Filter<'tasks> {
   /// Create a new `Filter` wrapping an iterator and filtering using the given set of literals.
-  fn new(iter: TaskIter<'t>, lits: &'t [Vec<TagLit>]) -> Self {
+  fn new(iter: TaskIter<'tasks>, lits: &'tasks [Vec<TagLit>]) -> Self {
     Self { iter, lits }
   }
 
@@ -100,8 +100,8 @@ impl<'t> Filter<'t> {
   }
 }
 
-impl<'t> Iterator for Filter<'t> {
-  type Item = &'t Rc<Task>;
+impl<'tasks> Iterator for Filter<'tasks> {
+  type Item = &'tasks Rc<Task>;
 
   /// Advance the iterator yielding the next matching task or None.
   fn next(&mut self) -> Option<Self::Item> {
@@ -121,7 +121,7 @@ impl<'t> Iterator for Filter<'t> {
   }
 }
 
-impl<'t> DoubleEndedIterator for Filter<'t> {
+impl<'tasks> DoubleEndedIterator for Filter<'tasks> {
   fn next_back(&mut self) -> Option<Self::Item> {
     loop {
       match self.iter.next_back() {

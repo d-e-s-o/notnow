@@ -402,7 +402,8 @@ impl Op<Db<Task>, Option<Rc<Task>>> for TaskOp {
 }
 
 
-pub type TaskIter<'a> = DbIter<'a, Task>;
+/// An iterator over tasks.
+pub type TaskIter<'tasks> = DbIter<'tasks, Task>;
 
 
 #[derive(Debug)]
