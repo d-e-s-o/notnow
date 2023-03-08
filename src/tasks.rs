@@ -241,7 +241,7 @@ fn add_task(tasks: &mut Db<Task>, task: Rc<Task>, target: Option<Target>) -> Rc<
 /// Remove a task from a vector of tasks.
 fn remove_task(tasks: &mut Db<Task>, task: &Rc<Task>) -> (Rc<Task>, usize) {
   let idx = tasks.find(task).unwrap();
-  let task = tasks.remove(idx);
+  let (task, _aux) = tasks.remove(idx);
   (task, idx)
 }
 
@@ -352,7 +352,7 @@ impl Op<Db<Task>, Option<Rc<Task>>> for TaskOp {
         // SANITY: The task really should be in our `Tasks` object or we
         //         are in trouble.
         let idx = tasks.find(task).unwrap();
-        let removed = tasks.remove(idx);
+        let (removed, _aux) = tasks.remove(idx);
         // We do not support the case of moving a task with itself as a
         // target. Doing so should be prevented at a higher layer,
         // though.
@@ -392,7 +392,7 @@ impl Op<Db<Task>, Option<Rc<Task>>> for TaskOp {
         // SANITY: `position` is guaranteed to be set on this path.
         let position = position.unwrap();
         let idx = tasks.find(task).unwrap();
-        let removed = tasks.remove(idx);
+        let (removed, _aux) = tasks.remove(idx);
         // SANITY: We just removed the task, so it can't be present.
         let _entry = tasks.try_insert(position, removed.clone()).unwrap();
         Some(removed)
@@ -403,7 +403,7 @@ impl Op<Db<Task>, Option<Rc<Task>>> for TaskOp {
 
 
 /// An iterator over tasks.
-pub type TaskIter<'tasks> = DbIter<'tasks, Task>;
+pub type TaskIter<'tasks> = DbIter<'tasks, Task, ()>;
 
 
 #[derive(Debug)]

@@ -1,27 +1,64 @@
 // Copyright (C) 2022 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+use std::cell::Cell;
 #[cfg(test)]
 use std::collections::HashSet;
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::fmt::Result as FmtResult;
+use std::iter::Map;
 use std::ops::Deref;
 use std::rc::Rc;
 use std::slice;
 
 
 /// An iterator over the items in a `Db`.
-pub type Iter<'db, T> = slice::Iter<'db, Rc<T>>;
+pub type Iter<'db, T, Aux> =
+  Map<slice::Iter<'db, (Rc<T>, Cell<Aux>)>, fn(&'_ (Rc<T>, Cell<Aux>)) -> &'_ Rc<T>>;
 
 
 /// An object wrapping an item contained in a `Db` and providing
-/// read-only access to it.
-#[derive(Debug)]
-pub struct Entry<'db, T>(&'db T);
+/// read-only access to it and its (optional) auxiliary data.
+pub struct Entry<'db, T, Aux>(&'db (T, Cell<Aux>));
 
-impl<'db, T> Deref for Entry<'db, T> {
+impl<T, Aux> Entry<'_, T, Aux>
+where
+  Aux: Copy,
+{
+  /// Retrieve a copy of the auxiliary data associated with this
+  /// `Entry`.
+  #[cfg(test)]
+  #[inline]
+  pub fn aux(&self) -> Aux {
+    self.0 .1.get()
+  }
+
+  /// Set the auxiliary data associated with this `Entry`.
+  #[cfg(test)]
+  #[inline]
+  pub fn set_aux(&self, aux: Aux) {
+    let () = self.0 .1.set(aux);
+  }
+}
+
+impl<'db, T, Aux> Deref for Entry<'db, T, Aux> {
   type Target = T;
 
   fn deref(&self) -> &'db Self::Target {
-    self.0
+    &self.0 .0
+  }
+}
+
+impl<T, Aux> Debug for Entry<'_, T, Aux>
+where
+  T: Debug,
+  Aux: Copy + Debug,
+{
+  fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+    let Self((item, aux)) = self;
+
+    f.debug_tuple("Entry").field(&item).field(&aux).finish()
   }
 }
 
@@ -32,13 +69,16 @@ impl<'db, T> Deref for Entry<'db, T> {
 /// [`Rc`]. The database ensures that each item is unique, meaning that
 /// it prevents insertion of the same `Rc` instance multiple times (but
 /// it does not make any claims about the uniqueness of the inner `T`).
-#[derive(Debug)]
-pub struct Db<T> {
-  /// The data this database manages, in a well-defined order.
-  data: Vec<Rc<T>>,
+///
+/// Associated with each item is optional auxiliary data, which can be
+/// accessed via the `Entry` type.
+pub struct Db<T, Aux = ()> {
+  /// The data this database manages, along with optional auxiliary
+  /// data, in a well-defined order.
+  data: Vec<(Rc<T>, Cell<Aux>)>,
 }
 
-impl<T> Db<T> {
+impl<T> Db<T, ()> {
   /// Create a database from the items contained in the provided
   /// iterator.
   #[cfg(test)]
@@ -46,10 +86,13 @@ impl<T> Db<T> {
   where
     I: IntoIterator<Item = Rc<T>>,
   {
-    let data = iter.into_iter().collect::<Vec<_>>();
+    let data = iter
+      .into_iter()
+      .map(|item| (item, Cell::default()))
+      .collect::<Vec<_>>();
     // Check that all pointers provided are unique.
     let set = HashSet::with_capacity(data.len());
-    let _set = data.iter().try_fold(set, |mut set, rc| {
+    let _set = data.iter().try_fold(set, |mut set, (rc, _aux)| {
       if !set.insert(Rc::as_ptr(rc)) {
         Err(rc.clone())
       } else {
@@ -66,22 +109,49 @@ impl<T> Db<T> {
   where
     I: IntoIterator<Item = T>,
   {
+    Self::from_iter_with_aux(iter.into_iter().map(|item| (item, ())))
+  }
+}
+
+impl<T, Aux> Db<T, Aux> {
+  /// Create a database from an iterator of items.
+  pub fn from_iter_with_aux<I>(iter: I) -> Self
+  where
+    I: IntoIterator<Item = (T, Aux)>,
+  {
     Self {
-      data: iter.into_iter().map(Rc::new).collect(),
+      data: iter
+        .into_iter()
+        .map(|(item, aux)| (Rc::new(item), Cell::new(aux)))
+        .collect(),
     }
   }
 
   /// Look up an item's index in the `Db`.
   #[inline]
   pub fn find(&self, item: &Rc<T>) -> Option<usize> {
-    self.data.iter().position(|item_| Rc::ptr_eq(item_, item))
+    self
+      .data
+      .iter()
+      .position(|(item_, _aux)| Rc::ptr_eq(item_, item))
   }
 
   /// Insert an item into the database at the given `index`.
   #[cfg(test)]
   #[inline]
-  pub fn insert(&mut self, index: usize, item: T) -> Entry<'_, Rc<T>> {
-    let () = self.data.insert(index, Rc::new(item));
+  pub fn insert(&mut self, index: usize, item: T) -> Entry<'_, Rc<T>, Aux>
+  where
+    Aux: Default,
+  {
+    self.insert_with_aux(index, item, Aux::default())
+  }
+
+  /// Insert an item into the database at the given `index`, providing
+  /// an auxiliary value right away.
+  #[cfg(test)]
+  #[inline]
+  pub fn insert_with_aux(&mut self, index: usize, item: T, aux: Aux) -> Entry<'_, Rc<T>, Aux> {
+    let () = self.data.insert(index, (Rc::new(item), Cell::new(aux)));
     // SANITY: We know we just inserted an item at `index`, so an entry
     //         has to exist.
     self.get(index).unwrap()
@@ -91,11 +161,28 @@ impl<T> Db<T> {
   ///
   /// This function succeeds if `item` is not yet present.
   #[inline]
-  pub fn try_insert(&mut self, index: usize, item: Rc<T>) -> Option<Entry<'_, Rc<T>>> {
+  pub fn try_insert(&mut self, index: usize, item: Rc<T>) -> Option<Entry<'_, Rc<T>, Aux>>
+  where
+    Aux: Default,
+  {
+    self.try_insert_with_aux(index, item, Aux::default())
+  }
+
+  /// Try inserting an item into the database at the given `index`,
+  /// providing a non-default auxiliary value right away.
+  ///
+  /// This function succeeds if `item` is not yet present.
+  #[inline]
+  pub fn try_insert_with_aux(
+    &mut self,
+    index: usize,
+    item: Rc<T>,
+    aux: Aux,
+  ) -> Option<Entry<'_, Rc<T>, Aux>> {
     if self.find(&item).is_some() {
       None
     } else {
-      let () = self.data.insert(index, item);
+      let () = self.data.insert(index, (item, Cell::new(aux)));
       self.get(index)
     }
   }
@@ -103,8 +190,19 @@ impl<T> Db<T> {
   /// Insert an item at the end of the database.
   #[cfg(test)]
   #[inline]
-  pub fn push(&mut self, item: T) -> Entry<'_, Rc<T>> {
-    let () = self.data.push(Rc::new(item));
+  pub fn push(&mut self, item: T) -> Entry<'_, Rc<T>, Aux>
+  where
+    Aux: Default,
+  {
+    self.push_with_aux(item, Aux::default())
+  }
+
+  /// Insert an item at the end of the database, providing a non-default
+  /// auxiliary value right away.
+  #[cfg(test)]
+  #[inline]
+  pub fn push_with_aux(&mut self, item: T, aux: Aux) -> Entry<'_, Rc<T>, Aux> {
+    let () = self.data.push((Rc::new(item), Cell::new(aux)));
     // SANITY: We know we just pushed an item, so a last item has to
     //         exist.
     self.last().unwrap()
@@ -114,38 +212,66 @@ impl<T> Db<T> {
   ///
   /// This function succeeds if `item` is not yet present.
   #[inline]
-  pub fn try_push(&mut self, item: Rc<T>) -> Option<Entry<'_, Rc<T>>> {
+  pub fn try_push(&mut self, item: Rc<T>) -> Option<Entry<'_, Rc<T>, Aux>>
+  where
+    Aux: Default,
+  {
+    self.try_push_with_aux(item, Aux::default())
+  }
+
+  /// Try inserting an item at the end of the database, providing a
+  /// non-default auxiliary value right away.
+  ///
+  /// This function succeeds if `item` is not yet present.
+  #[inline]
+  pub fn try_push_with_aux(&mut self, item: Rc<T>, aux: Aux) -> Option<Entry<'_, Rc<T>, Aux>> {
     if self.find(&item).is_some() {
       None
     } else {
-      let () = self.data.push(item);
+      let () = self.data.push((item, Cell::new(aux)));
       self.last()
     }
   }
 
   /// Remove the item at the provided index.
   #[inline]
-  pub fn remove(&mut self, index: usize) -> Rc<T> {
-    self.data.remove(index)
+  pub fn remove(&mut self, index: usize) -> (Rc<T>, Aux) {
+    let (item, aux) = self.data.remove(index);
+    (item, aux.into_inner())
   }
 
   /// Retrieve an [`Entry`] representing the item at the given index in
   /// the database.
   #[inline]
-  pub fn get(&self, index: usize) -> Option<Entry<'_, Rc<T>>> {
+  pub fn get(&self, index: usize) -> Option<Entry<'_, Rc<T>, Aux>> {
     self.data.get(index).map(Entry)
   }
 
   /// Retrieve an [`Entry`] representing the last item in the database.
   #[inline]
-  pub fn last(&self) -> Option<Entry<'_, Rc<T>>> {
+  pub fn last(&self) -> Option<Entry<'_, Rc<T>, Aux>> {
     self.data.last().map(Entry)
   }
 
   /// Retrieve an iterator over the items of the database.
   #[inline]
-  pub fn iter(&self) -> Iter<'_, T> {
-    self.data.iter()
+  pub fn iter(&self) -> Iter<'_, T, Aux> {
+    fn map<T, Aux>(x: &(T, Cell<Aux>)) -> &T {
+      &x.0
+    }
+
+    self.data.iter().map(map as _)
+  }
+}
+
+impl<T, Aux> Debug for Db<T, Aux>
+where
+  T: Debug,
+  Aux: Copy + Debug,
+{
+  fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+    let Self { data } = self;
+    f.debug_struct("Db").field("data", &data).finish()
   }
 }
 
@@ -154,6 +280,24 @@ impl<T> Db<T> {
 pub mod tests {
   use super::*;
 
+
+  /// Check that we can set and get auxiliary data from an `Entry`.
+  #[test]
+  fn entry_aux_set_get() {
+    let iter = ["foo", "boo", "blah"]
+      .into_iter()
+      .enumerate()
+      .map(|(idx, item)| (item, idx));
+    let db = Db::from_iter_with_aux(iter);
+    let entry = db.get(1).unwrap();
+    assert_eq!(entry.aux(), 1);
+
+    let () = entry.set_aux(42);
+    assert_eq!(entry.aux(), 42);
+
+    let entry = db.get(1).unwrap();
+    assert_eq!(entry.aux(), 42);
+  }
 
   /// Make sure that we can create a [`Db`] from an iterator.
   #[test]
