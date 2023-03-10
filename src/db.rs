@@ -20,7 +20,7 @@ pub type Iter<'db, T, Aux> =
 
 /// An object wrapping an item contained in a `Db` and providing
 /// read-only access to it and its (optional) auxiliary data.
-pub struct Entry<'db, T, Aux>(&'db (T, Cell<Aux>));
+pub struct Entry<'db, T, Aux>(&'db (Rc<T>, Cell<Aux>));
 
 impl<T, Aux> Entry<'_, T, Aux>
 where
@@ -43,7 +43,7 @@ where
 }
 
 impl<'db, T, Aux> Deref for Entry<'db, T, Aux> {
-  type Target = T;
+  type Target = Rc<T>;
 
   fn deref(&self) -> &'db Self::Target {
     &self.0 .0
@@ -139,7 +139,7 @@ impl<T, Aux> Db<T, Aux> {
   /// Insert an item into the database at the given `index`.
   #[cfg(test)]
   #[inline]
-  pub fn insert(&mut self, index: usize, item: T) -> Entry<'_, Rc<T>, Aux>
+  pub fn insert(&mut self, index: usize, item: T) -> Entry<'_, T, Aux>
   where
     Aux: Default,
   {
@@ -150,7 +150,7 @@ impl<T, Aux> Db<T, Aux> {
   /// an auxiliary value right away.
   #[cfg(test)]
   #[inline]
-  pub fn insert_with_aux(&mut self, index: usize, item: T, aux: Aux) -> Entry<'_, Rc<T>, Aux> {
+  pub fn insert_with_aux(&mut self, index: usize, item: T, aux: Aux) -> Entry<'_, T, Aux> {
     let () = self.data.insert(index, (Rc::new(item), Cell::new(aux)));
     // SANITY: We know we just inserted an item at `index`, so an entry
     //         has to exist.
@@ -161,7 +161,7 @@ impl<T, Aux> Db<T, Aux> {
   ///
   /// This function succeeds if `item` is not yet present.
   #[inline]
-  pub fn try_insert(&mut self, index: usize, item: Rc<T>) -> Option<Entry<'_, Rc<T>, Aux>>
+  pub fn try_insert(&mut self, index: usize, item: Rc<T>) -> Option<Entry<'_, T, Aux>>
   where
     Aux: Default,
   {
@@ -178,7 +178,7 @@ impl<T, Aux> Db<T, Aux> {
     index: usize,
     item: Rc<T>,
     aux: Aux,
-  ) -> Option<Entry<'_, Rc<T>, Aux>> {
+  ) -> Option<Entry<'_, T, Aux>> {
     if self.find(&item).is_some() {
       None
     } else {
@@ -190,7 +190,7 @@ impl<T, Aux> Db<T, Aux> {
   /// Insert an item at the end of the database.
   #[cfg(test)]
   #[inline]
-  pub fn push(&mut self, item: T) -> Entry<'_, Rc<T>, Aux>
+  pub fn push(&mut self, item: T) -> Entry<'_, T, Aux>
   where
     Aux: Default,
   {
@@ -201,7 +201,7 @@ impl<T, Aux> Db<T, Aux> {
   /// auxiliary value right away.
   #[cfg(test)]
   #[inline]
-  pub fn push_with_aux(&mut self, item: T, aux: Aux) -> Entry<'_, Rc<T>, Aux> {
+  pub fn push_with_aux(&mut self, item: T, aux: Aux) -> Entry<'_, T, Aux> {
     let () = self.data.push((Rc::new(item), Cell::new(aux)));
     // SANITY: We know we just pushed an item, so a last item has to
     //         exist.
@@ -212,7 +212,7 @@ impl<T, Aux> Db<T, Aux> {
   ///
   /// This function succeeds if `item` is not yet present.
   #[inline]
-  pub fn try_push(&mut self, item: Rc<T>) -> Option<Entry<'_, Rc<T>, Aux>>
+  pub fn try_push(&mut self, item: Rc<T>) -> Option<Entry<'_, T, Aux>>
   where
     Aux: Default,
   {
@@ -224,7 +224,7 @@ impl<T, Aux> Db<T, Aux> {
   ///
   /// This function succeeds if `item` is not yet present.
   #[inline]
-  pub fn try_push_with_aux(&mut self, item: Rc<T>, aux: Aux) -> Option<Entry<'_, Rc<T>, Aux>> {
+  pub fn try_push_with_aux(&mut self, item: Rc<T>, aux: Aux) -> Option<Entry<'_, T, Aux>> {
     if self.find(&item).is_some() {
       None
     } else {
@@ -243,13 +243,13 @@ impl<T, Aux> Db<T, Aux> {
   /// Retrieve an [`Entry`] representing the item at the given index in
   /// the database.
   #[inline]
-  pub fn get(&self, index: usize) -> Option<Entry<'_, Rc<T>, Aux>> {
+  pub fn get(&self, index: usize) -> Option<Entry<'_, T, Aux>> {
     self.data.get(index).map(Entry)
   }
 
   /// Retrieve an [`Entry`] representing the last item in the database.
   #[inline]
-  pub fn last(&self) -> Option<Entry<'_, Rc<T>, Aux>> {
+  pub fn last(&self) -> Option<Entry<'_, T, Aux>> {
     self.data.last().map(Entry)
   }
 
