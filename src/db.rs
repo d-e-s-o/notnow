@@ -20,7 +20,21 @@ pub type Iter<'db, T, Aux> =
 
 /// An object wrapping an item contained in a `Db` and providing
 /// read-only access to it and its (optional) auxiliary data.
-pub struct Entry<'db, T, Aux>(&'db (Rc<T>, Cell<Aux>));
+#[derive(Clone)]
+pub struct Entry<'db, T, Aux> {
+  /// The `Db`'s data.
+  data: &'db [(Rc<T>, Cell<Aux>)],
+  /// The index of the item represented by the entry.
+  index: usize,
+}
+
+impl<'db, T, Aux> Entry<'db, T, Aux> {
+  /// Create a new `Entry` object.
+  #[inline]
+  fn new(data: &'db [(Rc<T>, Cell<Aux>)], index: usize) -> Self {
+    Self { data, index }
+  }
+}
 
 impl<T, Aux> Entry<'_, T, Aux>
 where
@@ -31,14 +45,14 @@ where
   #[cfg(test)]
   #[inline]
   pub fn aux(&self) -> Aux {
-    self.0 .1.get()
+    self.data[self.index].1.get()
   }
 
   /// Set the auxiliary data associated with this `Entry`.
   #[cfg(test)]
   #[inline]
   pub fn set_aux(&self, aux: Aux) {
-    let () = self.0 .1.set(aux);
+    let () = self.data[self.index].1.set(aux);
   }
 }
 
@@ -46,7 +60,7 @@ impl<'db, T, Aux> Deref for Entry<'db, T, Aux> {
   type Target = Rc<T>;
 
   fn deref(&self) -> &'db Self::Target {
-    &self.0 .0
+    &self.data[self.index].0
   }
 }
 
@@ -56,9 +70,9 @@ where
   Aux: Copy + Debug,
 {
   fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-    let Self((item, aux)) = self;
+    let Self { data, index } = self;
 
-    f.debug_tuple("Entry").field(&item).field(&aux).finish()
+    f.debug_tuple("Entry").field(&data).field(&index).finish()
   }
 }
 
@@ -244,13 +258,22 @@ impl<T, Aux> Db<T, Aux> {
   /// the database.
   #[inline]
   pub fn get(&self, index: usize) -> Option<Entry<'_, T, Aux>> {
-    self.data.get(index).map(Entry)
+    if index < self.data.len() {
+      Some(Entry::new(&self.data, index))
+    } else {
+      None
+    }
   }
 
   /// Retrieve an [`Entry`] representing the last item in the database.
   #[inline]
   pub fn last(&self) -> Option<Entry<'_, T, Aux>> {
-    self.data.last().map(Entry)
+    let len = self.data.len();
+    if len > 0 {
+      Some(Entry::new(&self.data, len - 1))
+    } else {
+      None
+    }
   }
 
   /// Retrieve an iterator over the items of the database.
