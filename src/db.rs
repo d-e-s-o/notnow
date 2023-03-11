@@ -34,6 +34,30 @@ impl<'db, T, Aux> Entry<'db, T, Aux> {
   fn new(data: &'db [(Rc<T>, Cell<Aux>)], index: usize) -> Self {
     Self { data, index }
   }
+
+  /// Retrieve the `Entry` for the item following this one, if any.
+  #[cfg(test)]
+  #[inline]
+  pub fn next(&self) -> Option<Entry<'db, T, Aux>> {
+    let index = self.index.checked_add(1)?;
+
+    if index < self.data.len() {
+      Some(Entry::new(self.data, index))
+    } else {
+      None
+    }
+  }
+
+  /// Retrieve the `Entry` for the item before this one, if any.
+  #[cfg(test)]
+  #[inline]
+  pub fn prev(&self) -> Option<Entry<'db, T, Aux>> {
+    if self.index > 0 {
+      Some(Entry::new(self.data, self.index - 1))
+    } else {
+      None
+    }
+  }
 }
 
 impl<T, Aux> Entry<'_, T, Aux>
@@ -320,6 +344,27 @@ pub mod tests {
 
     let entry = db.get(1).unwrap();
     assert_eq!(entry.aux(), 42);
+  }
+
+  /// Check that `Entry::next` and `Entry::prev` work as they should.
+  #[test]
+  fn entry_navigation() {
+    let db = Db::from_iter(["foo", "boo", "blah"]);
+
+    let entry = db.get(0).unwrap();
+    assert_eq!(entry.deref().deref(), &"foo");
+    assert!(entry.prev().is_none());
+
+    let entry = entry.next().unwrap();
+    assert_eq!(entry.deref().deref(), &"boo");
+
+    let entry = entry.next().unwrap();
+    assert_eq!(entry.deref().deref(), &"blah");
+
+    assert!(entry.next().is_none());
+
+    let entry = entry.prev().unwrap();
+    assert_eq!(entry.deref().deref(), &"boo");
   }
 
   /// Make sure that we can create a [`Db`] from an iterator.
