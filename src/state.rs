@@ -466,10 +466,10 @@ pub mod tests {
 
 
   /// Create a `State` object based off of temporary configuration data.
-  fn make_state(count: usize) -> (State, NamedTempFile, TempDir) {
+  fn make_state(tasks: Vec<SerTask>) -> (State, NamedTempFile, TempDir) {
     let task_state = SerTaskState {
       tasks_meta: Default::default(),
-      tasks: SerTasks::from(make_tasks(count)),
+      tasks: SerTasks::from(tasks),
     };
     let ui_state = Default::default();
     let ui_file = NamedTempFile::new().unwrap();
@@ -582,16 +582,14 @@ pub mod tests {
   /// Check that we can save `State` and load it back.
   #[test]
   async fn save_and_load_state() {
-    let (state, ui_file, tasks_root) = make_state(3);
+    let task_vec = make_tasks(3);
+    let (state, ui_file, tasks_root) = make_state(task_vec.clone());
     state.0.save().await.unwrap();
     state.1.save().await.unwrap();
 
     let new_state = State::new(ui_file.path(), tasks_root.path()).await.unwrap();
-    let new_task_vec = new_state
-      .1
-      .tasks
-      .iter(|iter| iter.map(|task| task.to_serde()).collect::<Vec<_>>());
-    assert_eq!(new_task_vec, make_tasks(3));
+    let new_task_vec = new_state.1.to_serde().tasks.into_task_vec();
+    assert_eq!(new_task_vec, task_vec);
   }
 
   /// Verify that loading `State` succeeds even if the file to load from
@@ -599,7 +597,8 @@ pub mod tests {
   #[test]
   async fn load_state_file_not_found() {
     let (ui_config, tasks_root) = {
-      let (state, ui_file, tasks_dir) = make_state(1);
+      let task_vec = make_tasks(1);
+      let (state, ui_file, tasks_dir) = make_state(task_vec);
       state.0.save().await.unwrap();
       state.1.save().await.unwrap();
 
@@ -609,11 +608,8 @@ pub mod tests {
     // The files are removed by now, so we can test that `State` handles
     // such missing files gracefully.
     let new_state = State::new(ui_config, tasks_root).await.unwrap();
-    let new_task_vec = new_state
-      .1
-      .tasks
-      .iter(|iter| iter.map(|task| task.to_serde()).collect::<Vec<_>>());
-    assert_eq!(new_task_vec, make_tasks(0));
+    let new_task_vec = new_state.1.to_serde().tasks.into_task_vec();
+    assert_eq!(new_task_vec, Vec::new());
   }
 
   /// Test that we fail `State` construction when an invalid tag is
