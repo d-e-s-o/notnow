@@ -816,49 +816,57 @@ pub mod tests {
     assert_eq!(tasks.get(1).unwrap().summary(), "task2");
   }
 
+  /// Check that we can add a task to a `Tasks` object.
   #[test]
   fn add_task() {
-    let tasks = Tasks::with_serde_tasks(make_tasks(3)).unwrap();
+    let task_vec = make_tasks(3);
+    let tasks = Tasks::with_serde_tasks(task_vec.clone()).unwrap();
     let tags = Default::default();
-    tasks.add("4".to_string(), tags, None);
+    let task = tasks.add("4".to_string(), tags, None);
 
     let tasks = tasks.to_serde().into_task_vec();
-    assert_eq!(tasks, make_tasks(4));
+    let mut expected = task_vec;
+    let () = expected.push(task.to_serde());
+    assert_eq!(tasks, expected);
   }
 
   /// Check that adding a task after another works correctly.
   #[test]
   fn add_task_after() {
-    let tasks = make_tasks(3);
-    let tasks = Tasks::with_serde_tasks(tasks).unwrap();
+    let task_vec = make_tasks(3);
+    let tasks = Tasks::with_serde_tasks(task_vec.clone()).unwrap();
     let after = tasks.0.borrow().tasks.get(0).unwrap().deref().clone();
     let tags = Default::default();
-    tasks.add("4".to_string(), tags, Some(after));
+    let task = tasks.add("4".to_string(), tags, Some(after));
 
     let tasks = tasks.to_serde().into_task_vec();
-    let mut expected = make_tasks(4);
-    let task = expected.remove(3);
-    expected.insert(1, task);
+    let mut expected = task_vec;
+    let () = expected.insert(1, task.to_serde());
 
     assert_eq!(tasks, expected);
   }
 
+  /// Test that removing a task from a `Tasks` object works as it
+  /// should.
   #[test]
   fn remove_task() {
-    let tasks = Tasks::with_serde_tasks(make_tasks(3)).unwrap();
+    let task_vec = make_tasks(3);
+    let tasks = Tasks::with_serde_tasks(task_vec.clone()).unwrap();
     let task = tasks.iter(|mut iter| iter.nth(1).unwrap().clone());
     tasks.remove(task);
 
     let tasks = tasks.to_serde().into_task_vec();
-    let mut expected = make_tasks(3);
+    let mut expected = task_vec;
     expected.remove(1);
 
     assert_eq!(tasks, expected);
   }
 
+  /// Check that we can update a task in a `Tasks` object.
   #[test]
   fn update_task() {
-    let tasks = Tasks::with_serde_tasks(make_tasks(3)).unwrap();
+    let task_vec = make_tasks(3);
+    let tasks = Tasks::with_serde_tasks(task_vec.clone()).unwrap();
     let task = tasks.iter(|mut iter| iter.nth(1).unwrap().clone());
     // Make a deep copy of the task.
     let mut updated = task.deref().clone();
@@ -866,7 +874,7 @@ pub mod tests {
     tasks.update(task, updated);
 
     let tasks = tasks.to_serde().into_task_vec();
-    let mut expected = make_tasks(3);
+    let mut expected = task_vec;
     expected[1].summary = "amended".to_string();
 
     assert_eq!(tasks, expected);
@@ -875,25 +883,27 @@ pub mod tests {
   /// Check that moving a task before the first one works as expected.
   #[test]
   fn move_before_for_first() {
-    let tasks = Tasks::with_serde_tasks(make_tasks(3)).unwrap();
+    let task_vec = make_tasks(3);
+    let tasks = Tasks::with_serde_tasks(task_vec.clone()).unwrap();
     let task1 = tasks.iter(|mut iter| iter.next().unwrap().clone());
     let task2 = tasks.iter(|mut iter| iter.nth(1).unwrap().clone());
     tasks.move_before(task1, task2);
 
     let tasks = tasks.to_serde().into_task_vec();
-    let expected = make_tasks(3);
+    let expected = task_vec;
     assert_eq!(tasks, expected);
   }
 
   /// Check that moving a task after the last one works as expected.
   #[test]
   fn move_after_for_last() {
-    let tasks = Tasks::with_serde_tasks(make_tasks(3)).unwrap();
+    let task_vec = make_tasks(3);
+    let tasks = Tasks::with_serde_tasks(task_vec.clone()).unwrap();
     let task1 = tasks.iter(|mut iter| iter.nth(2).unwrap().clone());
     let task2 = tasks.iter(|mut iter| iter.nth(1).unwrap().clone());
     tasks.move_after(task1, task2);
 
-    let expected = make_tasks(3);
+    let expected = task_vec;
     let tasks = tasks.to_serde().into_task_vec();
     assert_eq!(tasks, expected);
   }
@@ -901,13 +911,14 @@ pub mod tests {
   /// Check that moving a task before another works as expected.
   #[test]
   fn move_before() {
-    let tasks = Tasks::with_serde_tasks(make_tasks(4)).unwrap();
+    let task_vec = make_tasks(4);
+    let tasks = Tasks::with_serde_tasks(task_vec.clone()).unwrap();
     let task1 = tasks.iter(|mut iter| iter.nth(2).unwrap().clone());
     let task2 = tasks.iter(|mut iter| iter.nth(1).unwrap().clone());
     tasks.move_before(task1, task2);
 
     let tasks = tasks.to_serde().into_task_vec();
-    let mut expected = make_tasks(4);
+    let mut expected = task_vec;
     expected.swap(2, 1);
 
     assert_eq!(tasks, expected);
@@ -916,13 +927,14 @@ pub mod tests {
   /// Check that moving a task after another works as expected.
   #[test]
   fn move_after() {
-    let tasks = Tasks::with_serde_tasks(make_tasks(4)).unwrap();
+    let task_vec = make_tasks(4);
+    let tasks = Tasks::with_serde_tasks(task_vec.clone()).unwrap();
     let task1 = tasks.iter(|mut iter| iter.nth(1).unwrap().clone());
     let task2 = tasks.iter(|mut iter| iter.nth(2).unwrap().clone());
     tasks.move_after(task1, task2);
 
     let tasks = tasks.to_serde().into_task_vec();
-    let mut expected = make_tasks(4);
+    let mut expected = task_vec;
     expected.swap(1, 2);
     assert_eq!(tasks, expected);
   }
