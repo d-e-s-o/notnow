@@ -99,6 +99,16 @@ pub fn make_tasks_with_tags(count: usize) -> (Vec<SerTag>, Vec<SerTemplate>, Vec
 }
 
 
+/// A helper function to create `SerTask` objects, just as
+/// [`make_tasks`] does, but only return their summaries.
+pub fn make_task_summaries(count: usize) -> Vec<String> {
+  make_tasks(count)
+    .into_iter()
+    .map(|x| x.summary)
+    .collect::<Vec<_>>()
+}
+
+
 /// Create the default `UiState` with four views and 15 tasks with
 /// tags. Tag assignment follows the pattern that
 /// `make_tasks_with_tags` creates.

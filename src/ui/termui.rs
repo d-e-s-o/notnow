@@ -270,6 +270,7 @@ mod tests {
   use crate::ser::ToSerde;
   use crate::state::State;
   use crate::test::default_tasks_and_tags;
+  use crate::test::make_task_summaries;
   use crate::test::make_tasks;
   use crate::test::make_tasks_with_tags;
   use crate::test::COMPLETE_TAG;
@@ -426,9 +427,9 @@ mod tests {
       }
     }
 
-    /// Retrieve the current set of tasks in the form of `SerTask` objects from the UI.
-    async fn ser_tasks(&mut self) -> Vec<SerTask> {
-      self.tasks().await.iter().map(|x| x.to_serde()).collect()
+    /// Retrieve the summaries of the current set of tasks from the UI.
+    async fn task_summaries(&mut self) -> Vec<String> {
+      self.tasks().await.iter().map(|x| x.summary()).collect()
     }
 
     /// Load the UI's state from a file. Note that unless the state has
@@ -451,10 +452,10 @@ mod tests {
       .build()
       .handle(events)
       .await
-      .ser_tasks()
+      .task_summaries()
       .await;
 
-    assert_eq!(tasks, make_tasks(0))
+    assert_eq!(tasks, make_task_summaries(0))
   }
 
   #[test]
@@ -465,10 +466,10 @@ mod tests {
       .build()
       .handle(events)
       .await
-      .ser_tasks()
+      .task_summaries()
       .await;
 
-    assert_eq!(tasks, make_tasks(0))
+    assert_eq!(tasks, make_task_summaries(0))
   }
 
   #[test]
@@ -480,10 +481,10 @@ mod tests {
       .build()
       .handle(events)
       .await
-      .ser_tasks()
+      .task_summaries()
       .await;
 
-    assert_eq!(tasks, make_tasks(0))
+    assert_eq!(tasks, make_task_summaries(0))
   }
 
   #[test]
@@ -502,10 +503,12 @@ mod tests {
       .build()
       .handle(events)
       .await
-      .ser_tasks()
+      .task_summaries()
       .await;
 
-    assert_eq!(tasks, make_tasks(1))
+    let expected = make_task_summaries(1);
+
+    assert_eq!(tasks, expected)
   }
 
   #[test]
@@ -522,11 +525,12 @@ mod tests {
       .build()
       .handle(events)
       .await
-      .ser_tasks()
+      .task_summaries()
       .await;
 
-    let mut expected = make_tasks(3);
+    let mut expected = make_task_summaries(3);
     expected.remove(1);
+
     assert_eq!(tasks, expected)
   }
 
@@ -545,12 +549,13 @@ mod tests {
       .build()
       .handle(events)
       .await
-      .ser_tasks()
+      .task_summaries()
       .await;
 
-    let mut expected = make_tasks(3);
+    let mut expected = make_task_summaries(3);
     expected.remove(0);
     expected.remove(1);
+
     assert_eq!(tasks, expected)
   }
 
@@ -563,11 +568,12 @@ mod tests {
       .build()
       .handle(events)
       .await
-      .ser_tasks()
+      .task_summaries()
       .await;
 
-    let mut expected = make_tasks(5);
+    let mut expected = make_task_summaries(5);
     expected.remove(3);
+
     assert_eq!(tasks, expected)
   }
 
@@ -589,11 +595,12 @@ mod tests {
       .build()
       .handle(events)
       .await
-      .ser_tasks()
+      .task_summaries()
       .await;
 
-    let mut expected = make_tasks(3);
+    let mut expected = make_task_summaries(3);
     expected.remove(1);
+
     assert_eq!(tasks, expected)
   }
 
@@ -613,11 +620,12 @@ mod tests {
       .build()
       .handle(events)
       .await
-      .ser_tasks()
+      .task_summaries()
       .await;
 
-    let mut expected = make_tasks(4);
-    expected[3].summary = "o".to_string();
+    let mut expected = make_task_summaries(4);
+    expected[3] = "o".to_string();
+
     assert_eq!(tasks, expected)
   }
 
@@ -638,11 +646,11 @@ mod tests {
       .build()
       .handle(events)
       .await
-      .ser_tasks()
+      .task_summaries()
       .await;
 
-    let mut expected = make_tasks(1);
-    expected[0].summary = "foobar".to_string();
+    let mut expected = make_task_summaries(1);
+    expected[0] = "foobar".to_string();
 
     assert_eq!(tasks, expected)
   }
@@ -668,10 +676,12 @@ mod tests {
       .build()
       .handle(events)
       .await
-      .ser_tasks()
+      .task_summaries()
       .await;
 
-    assert_eq!(tasks, make_tasks(0))
+    let expected = make_task_summaries(0);
+
+    assert_eq!(tasks, expected)
   }
 
   #[test]
@@ -691,10 +701,12 @@ mod tests {
       .build()
       .handle(events)
       .await
-      .ser_tasks()
+      .task_summaries()
       .await;
 
-    assert_eq!(tasks, make_tasks(0))
+    let expected = make_task_summaries(0);
+
+    assert_eq!(tasks, expected)
   }
 
   #[test]
@@ -718,11 +730,11 @@ mod tests {
       .build()
       .handle(events)
       .await
-      .ser_tasks()
+      .task_summaries()
       .await;
 
-    let mut expected = make_tasks(2);
-    expected[1].summary = "baz".to_string();
+    let mut expected = make_task_summaries(2);
+    expected[1] = "baz".to_string();
 
     assert_eq!(tasks, expected)
   }
@@ -752,11 +764,11 @@ mod tests {
       .build()
       .handle(events)
       .await
-      .ser_tasks()
+      .task_summaries()
       .await;
 
-    let mut expected = make_tasks(2);
-    expected[1].summary = "test42".to_string();
+    let mut expected = make_task_summaries(2);
+    expected[1] = "test42".to_string();
 
     assert_eq!(tasks, expected)
   }
@@ -770,10 +782,12 @@ mod tests {
       .build()
       .handle(events)
       .await
-      .ser_tasks()
+      .task_summaries()
       .await;
 
-    assert_eq!(tasks, make_tasks(1))
+    let expected = make_task_summaries(1);
+
+    assert_eq!(tasks, expected)
   }
 
   #[test]
@@ -898,11 +912,11 @@ mod tests {
       .build()
       .handle(events)
       .await
-      .ser_tasks()
+      .task_summaries()
       .await;
 
-    let mut expected = make_tasks(3);
-    expected[1].summary = "amend".to_string();
+    let mut expected = make_task_summaries(3);
+    expected[1] = "amend".to_string();
 
     assert_eq!(tasks, expected);
   }
@@ -925,11 +939,11 @@ mod tests {
       .build()
       .handle(events)
       .await
-      .ser_tasks()
+      .task_summaries()
       .await;
 
-    let mut expected = make_tasks(3);
-    expected.insert(2, SerTask::new("foo"));
+    let mut expected = make_task_summaries(3);
+    expected.insert(2, "foo".to_string());
 
     assert_eq!(tasks, expected);
   }
@@ -948,10 +962,10 @@ mod tests {
       .build()
       .handle(events)
       .await
-      .ser_tasks()
+      .task_summaries()
       .await;
 
-    let mut expected = make_tasks(3);
+    let mut expected = make_task_summaries(3);
     expected.remove(1);
 
     assert_eq!(tasks, expected)
@@ -971,11 +985,11 @@ mod tests {
       .build()
       .handle(events)
       .await
-      .ser_tasks()
+      .task_summaries()
       .await;
 
-    let mut expected = make_tasks(1);
-    expected[0].summary = "1äö".to_string();
+    let mut expected = make_task_summaries(1);
+    expected[0] = "1äö".to_string();
 
     assert_eq!(tasks, expected);
   }
@@ -1008,15 +1022,16 @@ mod tests {
       .build()
       .handle(events)
       .await
-      .ser_tasks()
+      .task_summaries()
       .await;
 
-    let mut expected = make_tasks(3);
-    expected[2].summary = "test".to_string();
+    let mut expected = make_task_summaries(3);
+    expected[2] = "test".to_string();
 
     assert_eq!(tasks, expected);
   }
 
+  /// Check that we can edit multiple tasks.
   #[test]
   async fn edit_multiple_tasks() {
     let events = vec![
@@ -1064,11 +1079,11 @@ mod tests {
       .build()
       .handle(events)
       .await
-      .ser_tasks()
+      .task_summaries()
       .await;
 
-    let mut expected = make_tasks(1);
-    expected[0].summary = "1äb".to_string();
+    let mut expected = make_task_summaries(1);
+    expected[0] = "1äb".to_string();
 
     assert_eq!(tasks, expected);
   }
@@ -1091,11 +1106,11 @@ mod tests {
       .build()
       .handle(events)
       .await
-      .ser_tasks()
+      .task_summaries()
       .await;
 
-    let mut expected = make_tasks(1);
-    expected[0].summary = "1bb".to_string();
+    let mut expected = make_task_summaries(1);
+    expected[0] = "1bb".to_string();
 
     assert_eq!(tasks, expected);
   }
@@ -1110,10 +1125,12 @@ mod tests {
         .build()
         .handle(events)
         .await
-        .ser_tasks()
+        .task_summaries()
         .await;
 
-      assert_eq!(tasks, make_tasks(count));
+      let expected = make_task_summaries(count);
+
+      assert_eq!(tasks, expected);
     }
 
     test_tasks(0, 'J').await;
@@ -1131,10 +1148,10 @@ mod tests {
       .build()
       .handle(events)
       .await
-      .ser_tasks()
+      .task_summaries()
       .await;
 
-    let mut expected = make_tasks(3);
+    let mut expected = make_task_summaries(3);
     expected.swap(0, 1);
 
     assert_eq!(tasks, expected);
@@ -1149,10 +1166,10 @@ mod tests {
       .build()
       .handle(events)
       .await
-      .ser_tasks()
+      .task_summaries()
       .await;
 
-    let mut expected = make_tasks(3);
+    let mut expected = make_task_summaries(3);
     expected.swap(2, 1);
 
     assert_eq!(tasks, expected);
@@ -1167,10 +1184,10 @@ mod tests {
       .build()
       .handle(events)
       .await
-      .ser_tasks()
+      .task_summaries()
       .await;
 
-    let mut expected = make_tasks(4);
+    let mut expected = make_task_summaries(4);
     expected.swap(1, 2);
 
     assert_eq!(tasks, expected);
@@ -1185,10 +1202,10 @@ mod tests {
       .build()
       .handle(events)
       .await
-      .ser_tasks()
+      .task_summaries()
       .await;
 
-    let mut expected = make_tasks(4);
+    let mut expected = make_task_summaries(4);
     expected.swap(1, 0);
 
     assert_eq!(tasks, expected);
@@ -1237,11 +1254,8 @@ mod tests {
       .build()
       .handle(events)
       .await
-      .tasks()
-      .await
-      .into_iter()
-      .map(|x| x.summary())
-      .collect::<Vec<_>>();
+      .task_summaries()
+      .await;
 
     let (.., mut expected) = make_tasks_with_tags(15);
     expected[14].summary = "15a".to_string();
@@ -1272,11 +1286,8 @@ mod tests {
       .build()
       .handle(events)
       .await
-      .tasks()
-      .await
-      .into_iter()
-      .map(|x| x.summary())
-      .collect::<Vec<_>>();
+      .task_summaries()
+      .await;
 
     let (.., mut expected) = make_tasks_with_tags(15);
     expected[1].summary = "2a".to_string();
@@ -1295,11 +1306,8 @@ mod tests {
       .build()
       .handle(events)
       .await
-      .tasks()
-      .await
-      .into_iter()
-      .map(|x| x.summary())
-      .collect::<Vec<_>>();
+      .task_summaries()
+      .await;
 
     let (.., mut expected) = make_tasks_with_tags(15);
     expected.remove(14);
@@ -1612,10 +1620,10 @@ mod tests {
       .build()
       .handle(events)
       .await
-      .ser_tasks()
+      .task_summaries()
       .await;
 
-    let mut expected = make_tasks(12);
+    let mut expected = make_task_summaries(12);
     expected.remove(11);
     expected.remove(1);
 
@@ -1637,10 +1645,10 @@ mod tests {
       .build()
       .handle(events)
       .await
-      .ser_tasks()
+      .task_summaries()
       .await;
 
-    let mut expected = make_tasks(12);
+    let mut expected = make_task_summaries(12);
     expected.remove(11);
 
     assert_eq!(tasks, expected);
@@ -1664,10 +1672,11 @@ mod tests {
         .build()
         .handle(events)
         .await
-        .ser_tasks()
+        .task_summaries()
         .await;
 
-      let expected = vec![SerTask::new("First")];
+      let expected = vec!["First".to_string()];
+
       assert_eq!(tasks, expected);
     }
 
@@ -1694,10 +1703,10 @@ mod tests {
       .build()
       .handle(events)
       .await
-      .ser_tasks()
+      .task_summaries()
       .await;
 
-    let mut expected = make_tasks(15);
+    let mut expected = make_task_summaries(15);
     expected.remove(9);
 
     assert_eq!(tasks, expected);
@@ -1718,10 +1727,10 @@ mod tests {
       .build()
       .handle(events)
       .await
-      .ser_tasks()
+      .task_summaries()
       .await;
 
-    let mut expected = make_tasks(5);
+    let mut expected = make_task_summaries(5);
     expected.remove(1);
 
     assert_eq!(tasks, expected);
@@ -1750,11 +1759,8 @@ mod tests {
         .build()
         .handle(events)
         .await
-        .tasks()
-        .await
-        .into_iter()
-        .map(|x| x.summary())
-        .collect::<Vec<_>>();
+        .task_summaries()
+        .await;
 
       let (.., mut expected) = make_tasks_with_tags(15);
       expected.remove(13);
@@ -1881,8 +1887,9 @@ mod tests {
     );
 
     ui.handle(vec![Event::from('d')]).await;
-    let tasks = ui.ser_tasks().await;
-    let mut expected = make_tasks(5);
+
+    let tasks = ui.task_summaries().await;
+    let mut expected = make_task_summaries(5);
     expected.remove(1);
 
     assert_eq!(tasks, expected);
@@ -1909,11 +1916,8 @@ mod tests {
         .build()
         .handle(events)
         .await
-        .tasks()
-        .await
-        .into_iter()
-        .map(|x| x.summary())
-        .collect::<Vec<_>>();
+        .task_summaries()
+        .await;
 
       let (.., mut expected) = make_tasks_with_tags(15);
       expected.remove(count);
@@ -1954,11 +1958,8 @@ mod tests {
         .build()
         .handle(events)
         .await
-        .tasks()
-        .await
-        .into_iter()
-        .map(|x| x.summary())
-        .collect::<Vec<_>>();
+        .task_summaries()
+        .await;
 
       assert_eq!(tasks, expected);
     }
@@ -2339,11 +2340,12 @@ mod tests {
       .build()
       .handle(events)
       .await
-      .ser_tasks()
+      .task_summaries()
       .await;
 
-    let mut expected = make_tasks(4);
+    let mut expected = make_task_summaries(4);
     expected.remove(1);
+
     assert_eq!(tasks, expected);
   }
 
@@ -2362,11 +2364,12 @@ mod tests {
       .build()
       .handle(events)
       .await
-      .ser_tasks()
+      .task_summaries()
       .await;
 
-    let mut expected = make_tasks(4);
+    let mut expected = make_task_summaries(4);
     expected.remove(1);
+
     assert_eq!(tasks, expected);
   }
 
@@ -2403,13 +2406,14 @@ mod tests {
         .build()
         .handle(events)
         .await
-        .ser_tasks()
+        .task_summaries()
         .await;
 
-      let mut expected = make_tasks(4);
+      let mut expected = make_task_summaries(4);
       if !add {
         expected.remove(1);
       }
+
       assert_eq!(tasks, expected);
     }
 
