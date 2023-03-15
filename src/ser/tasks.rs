@@ -15,7 +15,7 @@ pub type Id = Uuid;
 
 
 /// A task that we deserialize into and serialize from.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Task {
   /// The task's ID.
   pub id: Id,
@@ -46,23 +46,6 @@ impl Task {
   {
     self.tags = tags.into_iter().collect();
     self
-  }
-}
-
-// TODO: We currently exclude the ID from any equality checking.
-//       Effectively, a `Task` object has no identity, only state.
-//       Long term we may want to adjust tests to not assume such
-//       behavior, because this behavior can be problematic. For
-//       example, we use this equality check not only in tests but also
-//       in the core serialization logic of the program to determine
-//       whether the in-program state has changed from the persisted
-//       one and decide whether to save state in the first place.
-//       Because we exclude the ID from equality checks, a change of it
-//       would not trigger a save. That's okay, because we don't change
-//       the ID, but it's unclean nevertheless.
-impl PartialEq for Task {
-  fn eq(&self, other: &Self) -> bool {
-    self.summary == other.summary && self.tags == other.tags
   }
 }
 
