@@ -63,6 +63,7 @@ mod colors;
 mod db;
 mod id;
 mod ops;
+mod position;
 mod resize;
 pub mod ser;
 pub mod state;
