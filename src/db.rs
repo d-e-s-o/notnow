@@ -143,6 +143,7 @@ impl<T> Db<T, ()> {
   }
 
   /// Create a database from an iterator of items.
+  #[cfg(test)]
   pub fn from_iter<I>(iter: I) -> Self
   where
     I: IntoIterator<Item = T>,

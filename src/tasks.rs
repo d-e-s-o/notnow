@@ -17,6 +17,7 @@ use crate::db::Db;
 use crate::db::Iter as DbIter;
 use crate::ops::Op;
 use crate::ops::Ops;
+use crate::position::Position;
 use crate::ser::tasks::Task as SerTask;
 use crate::ser::tasks::Tasks as SerTasks;
 use crate::ser::ToSerde;
@@ -223,7 +224,7 @@ impl ToSerde<SerTask> for Task {
 
 
 /// Add a task to a vector of tasks.
-fn add_task(tasks: &mut Db<Task>, task: Rc<Task>, target: Option<Target>) -> Rc<Task> {
+fn add_task(tasks: &mut Db<Task, Position>, task: Rc<Task>, target: Option<Target>) -> Rc<Task> {
   let _entry = if let Some(target) = target {
     let idx = tasks.find(target.task()).unwrap();
     let idx = match target {
@@ -239,7 +240,7 @@ fn add_task(tasks: &mut Db<Task>, task: Rc<Task>, target: Option<Target>) -> Rc<
 }
 
 /// Remove a task from a vector of tasks.
-fn remove_task(tasks: &mut Db<Task>, task: &Rc<Task>) -> (Rc<Task>, usize) {
+fn remove_task(tasks: &mut Db<Task, Position>, task: &Rc<Task>) -> (Rc<Task>, usize) {
   let idx = tasks.find(task).unwrap();
   let (task, _aux) = tasks.remove(idx);
   (task, idx)
@@ -327,8 +328,8 @@ impl TaskOp {
   }
 }
 
-impl Op<Db<Task>, Option<Rc<Task>>> for TaskOp {
-  fn exec(&mut self, tasks: &mut Db<Task>) -> Option<Rc<Task>> {
+impl Op<Db<Task, Position>, Option<Rc<Task>>> for TaskOp {
+  fn exec(&mut self, tasks: &mut Db<Task, Position>) -> Option<Rc<Task>> {
     match self {
       Self::Add {
         ref mut task,
@@ -365,7 +366,7 @@ impl Op<Db<Task>, Option<Rc<Task>>> for TaskOp {
     }
   }
 
-  fn undo(&mut self, tasks: &mut Db<Task>) -> Option<Rc<Task>> {
+  fn undo(&mut self, tasks: &mut Db<Task, Position>) -> Option<Rc<Task>> {
     match self {
       Self::Add { task, .. } => {
         let (_task, _idx) = remove_task(tasks, task);
@@ -403,16 +404,16 @@ impl Op<Db<Task>, Option<Rc<Task>>> for TaskOp {
 
 
 /// An iterator over tasks.
-pub type TaskIter<'tasks> = DbIter<'tasks, Task, ()>;
+pub type TaskIter<'tasks> = DbIter<'tasks, Task, Position>;
 
 
 #[derive(Debug)]
 struct TasksInner {
   templates: Rc<Templates>,
   /// The managed tasks.
-  tasks: Db<Task>,
+  tasks: Db<Task, Position>,
   /// A record of operations in the order they were performed.
-  operations: Ops<TaskOp, Db<Task>, Option<Rc<Task>>>,
+  operations: Ops<TaskOp, Db<Task, Position>, Option<Rc<Task>>>,
 }
 
 
@@ -424,16 +425,16 @@ impl Tasks {
   /// Create a new `Tasks` object from a serializable one.
   pub fn with_serde(tasks: SerTasks, templates: Rc<Templates>) -> Result<Self> {
     let len = tasks.0.len();
-    let tasks =
-      tasks
-        .0
-        .into_iter()
-        .try_fold(Vec::with_capacity(len), |mut vec, task| -> Result<_> {
-          let task = Task::with_serde(task, templates.clone())?;
-          vec.push(task);
-          Result::Ok(vec)
-        })?;
-    let tasks = Db::from_iter(tasks);
+    let tasks = tasks.0.into_iter().enumerate().try_fold(
+      Vec::with_capacity(len),
+      |mut vec, (idx, task)| -> Result<_> {
+        let task = Task::with_serde(task, templates.clone())?;
+        let position = Position::from_int(idx);
+        vec.push((task, position));
+        Result::Ok(vec)
+      },
+    )?;
+    let tasks = Db::from_iter_with_aux(tasks);
 
     let inner = TasksInner {
       templates,
@@ -656,7 +657,7 @@ pub mod tests {
   /// task vector.
   #[test]
   fn exec_undo_task_add_empty() {
-    let mut tasks = Db::from_iter([]);
+    let mut tasks = Db::from_iter_with_aux([]);
     let mut ops = Ops::new(3);
 
     let task1 = Rc::new(Task::new("task1"));
@@ -677,8 +678,11 @@ pub mod tests {
   /// non-empty task vector.
   #[test]
   fn exec_undo_task_add_non_empty() {
-    let iter = [Task::new("task1")];
-    let mut tasks = Db::from_iter(iter);
+    let iter = [Task::new("task1")]
+      .into_iter()
+      .enumerate()
+      .map(|(idx, task)| (task, Position::from_int(idx)));
+    let mut tasks = Db::from_iter_with_aux(iter);
     let mut ops = Ops::new(3);
     let task2 = Rc::new(Task::new("task2"));
     let op = TaskOp::add(task2, None);
@@ -710,7 +714,11 @@ pub mod tests {
   /// task vector with only a single task.
   #[test]
   fn exec_undo_task_remove_single() {
-    let mut tasks = Db::from_iter([Task::new("task1")]);
+    let iter = [Task::new("task1")]
+      .into_iter()
+      .enumerate()
+      .map(|(idx, task)| (task, Position::from_int(idx)));
+    let mut tasks = Db::from_iter_with_aux(iter);
     let mut ops = Ops::new(3);
 
     let task = tasks.get(0).unwrap().deref().clone();
@@ -730,8 +738,11 @@ pub mod tests {
   /// task vector with multiple tasks.
   #[test]
   fn exec_undo_task_remove_multi() {
-    let iter = [Task::new("task1"), Task::new("task2"), Task::new("task3")];
-    let mut tasks = Db::from_iter(iter);
+    let iter = [Task::new("task1"), Task::new("task2"), Task::new("task3")]
+      .into_iter()
+      .enumerate()
+      .map(|(idx, task)| (task, Position::from_int(idx)));
+    let mut tasks = Db::from_iter_with_aux(iter);
     let mut ops = Ops::new(3);
 
     let task = tasks.get(1).unwrap().deref().clone();
@@ -756,8 +767,11 @@ pub mod tests {
   /// Check that the `TaskOp::Update` variant works as expected.
   #[test]
   fn exec_undo_task_update() {
-    let iter = [Task::new("task1"), Task::new("task2")];
-    let mut tasks = Db::from_iter(iter);
+    let iter = [Task::new("task1"), Task::new("task2")]
+      .into_iter()
+      .enumerate()
+      .map(|(idx, task)| (task, Position::from_int(idx)));
+    let mut tasks = Db::from_iter_with_aux(iter);
     let mut ops = Ops::new(3);
 
     let task = tasks.get(0).unwrap().deref().clone();
@@ -785,8 +799,11 @@ pub mod tests {
   /// only a single task is present and the operation is no-op.
   #[test]
   fn exec_undo_task_move() {
-    let iter = [Task::new("task1"), Task::new("task2")];
-    let mut tasks = Db::from_iter(iter);
+    let iter = [Task::new("task1"), Task::new("task2")]
+      .into_iter()
+      .enumerate()
+      .map(|(idx, task)| (task, Position::from_int(idx)));
+    let mut tasks = Db::from_iter_with_aux(iter);
     let mut ops = Ops::new(3);
 
     let task = tasks.get(1).unwrap().deref().clone();

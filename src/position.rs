@@ -6,7 +6,8 @@ use std::cmp::min;
 
 /// A type representing the position of a task relative to two others
 /// adjacent to it.
-#[derive(Clone, Copy, Debug, PartialEq)]
+// TODO: Remove impl of `Default`.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Position(f64);
 
 impl Position {
