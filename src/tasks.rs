@@ -225,17 +225,17 @@ impl ToSerde<SerTask> for Task {
 
 /// Add a task to a vector of tasks.
 fn add_task(tasks: &mut Db<Task, Position>, task: Rc<Task>, target: Option<Target>) -> Rc<Task> {
-  let _entry = if let Some(target) = target {
+  let idx = if let Some(target) = target {
     let idx = tasks.find(target.task()).unwrap();
-    let idx = match target {
+    match target {
       Target::Before(..) => idx,
       Target::After(..) => idx + 1,
-    };
-    tasks.try_insert(idx, task.clone()).unwrap()
+    }
   } else {
-    tasks.try_push(task.clone()).unwrap()
+    tasks.len()
   };
 
+  tasks.try_insert(idx, task.clone()).unwrap();
   task
 }
 
