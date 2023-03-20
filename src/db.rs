@@ -58,6 +58,13 @@ impl<'db, T, Aux> Entry<'db, T, Aux> {
       None
     }
   }
+
+  /// Retrieve the index of the element that this `Entry` object
+  /// represents in the associated `Db` instance.
+  #[inline]
+  pub fn index(&self) -> usize {
+    self.index
+  }
 }
 
 impl<T, Aux> Entry<'_, T, Aux>
@@ -166,13 +173,14 @@ impl<T, Aux> Db<T, Aux> {
     }
   }
 
-  /// Look up an item's index in the `Db`.
+  /// Look up an item's `Entry` in the `Db`.
   #[inline]
-  pub fn find(&self, item: &Rc<T>) -> Option<usize> {
+  pub fn find(&self, item: &Rc<T>) -> Option<Entry<'_, T, Aux>> {
     self
       .data
       .iter()
       .position(|(item_, _aux)| Rc::ptr_eq(item_, item))
+      .and_then(|idx| self.get(idx))
   }
 
   /// Insert an item into the database at the given `index`.
@@ -412,11 +420,11 @@ pub mod tests {
     let bar = items[1].clone();
 
     let db = Db::try_from_iter(items.clone()).unwrap();
-    assert_eq!(db.find(&bar), Some(1));
+    assert_eq!(db.find(&bar).map(|entry| entry.index()), Some(1));
 
     let hihi = Rc::new("hihi");
     let db = Db::try_from_iter(items).unwrap();
-    assert_eq!(db.find(&hihi), None);
+    assert_eq!(db.find(&hihi).map(|entry| entry.index()), None);
   }
 
   /// Check that we can insert an item.
@@ -426,11 +434,11 @@ pub mod tests {
 
     let mut db = Db::from_iter(items);
     let item = db.insert(0, "foobarbaz").deref().clone();
-    let idx = db.find(&item).unwrap();
+    let idx = db.find(&item).unwrap().index();
     assert_eq!(idx, 0);
 
     let item = db.insert(5, "outoffoos").deref().clone();
-    let idx = db.find(&item).unwrap();
+    let idx = db.find(&item).unwrap().index();
     assert_eq!(idx, 5);
   }
 
@@ -445,7 +453,7 @@ pub mod tests {
       .unwrap()
       .deref()
       .clone();
-    let idx = db.find(&item).unwrap();
+    let idx = db.find(&item).unwrap().index();
     assert_eq!(idx, 0);
 
     let item = db.get(0).unwrap().deref().clone();
@@ -457,16 +465,16 @@ pub mod tests {
   fn push_item() {
     let mut db = Db::from_iter([]);
     let item = db.push("foo").deref().clone();
-    let idx = db.find(&item).unwrap();
+    let idx = db.find(&item).unwrap().index();
     assert_eq!(idx, 0);
 
     let item = db.push("bar").deref().clone();
-    let idx = db.find(&item).unwrap();
+    let idx = db.find(&item).unwrap().index();
     assert_eq!(idx, 1);
 
     let _removed = db.remove(0);
     let item = db.push("baz").deref().clone();
-    let idx = db.find(&item).unwrap();
+    let idx = db.find(&item).unwrap().index();
     assert_eq!(idx, 1);
   }
 
@@ -476,7 +484,7 @@ pub mod tests {
   fn try_push_item() {
     let mut db = Db::from_iter(["foo", "boo", "blah"]);
     let item = db.try_push(Rc::new("foo")).unwrap().deref().clone();
-    let idx = db.find(&item).unwrap();
+    let idx = db.find(&item).unwrap().index();
     assert_eq!(idx, 3);
 
     let item = db.get(1).unwrap().deref().clone();

@@ -226,7 +226,7 @@ impl ToSerde<SerTask> for Task {
 /// Add a task to a vector of tasks.
 fn add_task(tasks: &mut Db<Task, Position>, task: Rc<Task>, target: Option<Target>) -> Rc<Task> {
   let idx = if let Some(target) = target {
-    let idx = tasks.find(target.task()).unwrap();
+    let idx = tasks.find(target.task()).unwrap().index();
     match target {
       Target::Before(..) => idx,
       Target::After(..) => idx + 1,
@@ -241,7 +241,7 @@ fn add_task(tasks: &mut Db<Task, Position>, task: Rc<Task>, target: Option<Targe
 
 /// Remove a task from a vector of tasks.
 fn remove_task(tasks: &mut Db<Task, Position>, task: &Rc<Task>) -> (Rc<Task>, usize) {
-  let idx = tasks.find(task).unwrap();
+  let idx = tasks.find(task).unwrap().index();
   let (task, _aux) = tasks.remove(idx);
   (task, idx)
 }
@@ -352,7 +352,7 @@ impl Op<Db<Task, Position>, Option<Rc<Task>>> for TaskOp {
       Self::Move { task, to, position } => {
         // SANITY: The task really should be in our `Tasks` object or we
         //         are in trouble.
-        let idx = tasks.find(task).unwrap();
+        let idx = tasks.find(task).unwrap().index();
         let (removed, _aux) = tasks.remove(idx);
         // We do not support the case of moving a task with itself as a
         // target. Doing so should be prevented at a higher layer,
@@ -385,14 +385,13 @@ impl Op<Db<Task, Position>, Option<Rc<Task>>> for TaskOp {
         let before = before.clone().unwrap();
         let task = &updated.0;
         let _task = update_task(task, before);
-        let idx = tasks.find(task).unwrap();
-        let task = tasks.get(idx).unwrap();
-        Some(task.deref().clone())
+        let entry = tasks.find(task).unwrap();
+        Some(entry.deref().clone())
       },
       Self::Move { task, position, .. } => {
         // SANITY: `position` is guaranteed to be set on this path.
         let position = position.unwrap();
-        let idx = tasks.find(task).unwrap();
+        let idx = tasks.find(task).unwrap().index();
         let (removed, _aux) = tasks.remove(idx);
         // SANITY: We just removed the task, so it can't be present.
         let _entry = tasks.try_insert(position, removed.clone()).unwrap();
