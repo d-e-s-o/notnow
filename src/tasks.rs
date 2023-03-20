@@ -14,6 +14,7 @@ use anyhow::Result;
 use uuid::Uuid;
 
 use crate::db::Db;
+use crate::db::Entry as DbEntry;
 use crate::db::Iter as DbIter;
 use crate::ops::Op;
 use crate::ops::Ops;
@@ -225,25 +226,59 @@ impl ToSerde<SerTask> for Task {
 
 /// Add a task to a vector of tasks.
 fn add_task(tasks: &mut Db<Task, Position>, task: Rc<Task>, target: Option<Target>) -> Rc<Task> {
-  let idx = if let Some(target) = target {
-    let idx = tasks.find(target.task()).unwrap().index();
+  let (before, after) = if let Some(target) = target {
+    let entry = tasks.find(target.task()).unwrap();
     match target {
-      Target::Before(..) => idx,
-      Target::After(..) => idx + 1,
+      Target::Before(..) => (entry.prev(), Some(entry)),
+      Target::After(..) => (Some(entry.clone()), entry.next()),
     }
   } else {
-    tasks.len()
+    (tasks.last(), None)
   };
 
-  tasks.try_insert(idx, task.clone()).unwrap();
+  // TODO: Ideally we would not unwrap here. Right now triggering this
+  //       case is fairly unlikely in real world scenarios. The correct
+  //       way to fix it would likely involve recursively adjusting the
+  //       positions (auxiliary data) of adjacent entries until we can
+  //       find a valid position. Doing so would still only touch
+  //       necessary tasks, but more than just a single one.
+  let position = Position::between(
+    before.as_ref().map(DbEntry::aux),
+    after.as_ref().map(DbEntry::aux),
+  )
+  .unwrap();
+
+  let idx = after
+    .as_ref()
+    .map(DbEntry::index)
+    .unwrap_or_else(|| tasks.len());
+
+  let _entry = tasks
+    .try_insert_with_aux(idx, task.clone(), position)
+    .unwrap();
+
+  if cfg!(debug_assertions) {
+    // TODO: Should use slice::is_sorted_by(), but it's not yet stable.
+    let positions = tasks
+      .iter()
+      .enumerate()
+      .map(|(idx, _task)| tasks.get(idx).unwrap().aux().get())
+      .collect::<Vec<_>>();
+
+    let mut sorted = positions.clone();
+    let () = sorted.sort_by(f64::total_cmp);
+
+    debug_assert_eq!(positions, sorted);
+  }
+
   task
 }
 
 /// Remove a task from a vector of tasks.
-fn remove_task(tasks: &mut Db<Task, Position>, task: &Rc<Task>) -> (Rc<Task>, usize) {
+fn remove_task(tasks: &mut Db<Task, Position>, task: &Rc<Task>) -> (Rc<Task>, Position, usize) {
   let idx = tasks.find(task).unwrap().index();
-  let (task, _aux) = tasks.remove(idx);
-  (task, idx)
+  let (task, aux) = tasks.remove(idx);
+  (task, aux, idx)
 }
 
 /// Update a task in a vector of tasks.
@@ -285,7 +320,7 @@ enum TaskOp {
   /// An operation removing a task.
   Remove {
     task: Rc<Task>,
-    position: Option<usize>,
+    position: Option<(usize, Position)>,
   },
   /// An operation updating a task.
   Update {
@@ -296,7 +331,7 @@ enum TaskOp {
   Move {
     task: Rc<Task>,
     to: Target,
-    position: Option<usize>,
+    position: Option<(usize, Position)>,
   },
 }
 
@@ -339,8 +374,8 @@ impl Op<Db<Task, Position>, Option<Rc<Task>>> for TaskOp {
         Some(added)
       },
       Self::Remove { task, position } => {
-        let (_task, idx) = remove_task(tasks, task);
-        *position = Some(idx);
+        let (_task, aux, idx) = remove_task(tasks, task);
+        *position = Some((idx, aux));
         None
       },
       Self::Update { updated, before } => {
@@ -353,12 +388,12 @@ impl Op<Db<Task, Position>, Option<Rc<Task>>> for TaskOp {
         // SANITY: The task really should be in our `Tasks` object or we
         //         are in trouble.
         let idx = tasks.find(task).unwrap().index();
-        let (removed, _aux) = tasks.remove(idx);
+        let (removed, aux) = tasks.remove(idx);
         // We do not support the case of moving a task with itself as a
         // target. Doing so should be prevented at a higher layer,
         // though.
         debug_assert!(!Rc::ptr_eq(&removed, to.task()));
-        *position = Some(idx);
+        *position = Some((idx, aux));
 
         let task = add_task(tasks, removed, Some(to.clone()));
         Some(task)
@@ -369,15 +404,15 @@ impl Op<Db<Task, Position>, Option<Rc<Task>>> for TaskOp {
   fn undo(&mut self, tasks: &mut Db<Task, Position>) -> Option<Rc<Task>> {
     match self {
       Self::Add { task, .. } => {
-        let (_task, _idx) = remove_task(tasks, task);
+        let (_task, _aux, _idx) = remove_task(tasks, task);
         None
       },
       Self::Remove { task, position } => {
         // SANITY: The position will always be set at this point.
-        let idx = position.unwrap();
+        let (idx, aux) = position.unwrap();
         // SANITY: The task had been removed earlier, so it is not
         //         currently present.
-        tasks.try_insert(idx, task.clone()).unwrap();
+        tasks.try_insert_with_aux(idx, task.clone(), aux).unwrap();
         Some(task.clone())
       },
       Self::Update { updated, before } => {
@@ -390,11 +425,13 @@ impl Op<Db<Task, Position>, Option<Rc<Task>>> for TaskOp {
       },
       Self::Move { task, position, .. } => {
         // SANITY: `position` is guaranteed to be set on this path.
-        let position = position.unwrap();
+        let (position, aux) = position.unwrap();
         let idx = tasks.find(task).unwrap().index();
         let (removed, _aux) = tasks.remove(idx);
         // SANITY: We just removed the task, so it can't be present.
-        let _entry = tasks.try_insert(position, removed.clone()).unwrap();
+        let _entry = tasks
+          .try_insert_with_aux(position, removed.clone(), aux)
+          .unwrap();
         Some(removed)
       },
     }

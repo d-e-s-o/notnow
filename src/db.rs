@@ -36,7 +36,6 @@ impl<'db, T, Aux> Entry<'db, T, Aux> {
   }
 
   /// Retrieve the `Entry` for the item following this one, if any.
-  #[cfg(test)]
   #[inline]
   pub fn next(&self) -> Option<Entry<'db, T, Aux>> {
     let index = self.index.checked_add(1)?;
@@ -49,7 +48,6 @@ impl<'db, T, Aux> Entry<'db, T, Aux> {
   }
 
   /// Retrieve the `Entry` for the item before this one, if any.
-  #[cfg(test)]
   #[inline]
   pub fn prev(&self) -> Option<Entry<'db, T, Aux>> {
     if self.index > 0 {
@@ -73,7 +71,6 @@ where
 {
   /// Retrieve a copy of the auxiliary data associated with this
   /// `Entry`.
-  #[cfg(test)]
   #[inline]
   pub fn aux(&self) -> Aux {
     self.data[self.index].1.get()
@@ -207,6 +204,7 @@ impl<T, Aux> Db<T, Aux> {
   /// Try inserting an item into the database at the given `index`.
   ///
   /// This function succeeds if `item` is not yet present.
+  #[cfg(test)]
   #[inline]
   pub fn try_insert(&mut self, index: usize, item: Rc<T>) -> Option<Entry<'_, T, Aux>>
   where
@@ -307,7 +305,6 @@ impl<T, Aux> Db<T, Aux> {
   }
 
   /// Retrieve an [`Entry`] representing the last item in the database.
-  #[cfg(test)]
   #[inline]
   pub fn last(&self) -> Option<Entry<'_, T, Aux>> {
     let len = self.data.len();
