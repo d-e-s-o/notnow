@@ -3,6 +3,8 @@
 
 use std::cmp::min;
 
+use crate::ser::ToSerde;
+
 
 /// A type representing the position of a task relative to two others
 /// adjacent to it.
@@ -39,6 +41,13 @@ impl Position {
   #[inline]
   pub fn get(&self) -> f64 {
     self.0
+  }
+}
+
+impl ToSerde<f64> for Position {
+  /// Convert the position into a serializable one.
+  fn to_serde(&self) -> f64 {
+    self.get()
   }
 }
 

@@ -23,6 +23,8 @@ use super::SerICal;
 
 /// The name of the property used for storing a task's tags.
 const TAGS_PROPERTY: &str = "TAGS";
+/// The name of the property used for storing a task's "position".
+const POSITION_PROPERTY: &str = "POSITION";
 
 
 impl From<&Task> for Todo {
@@ -34,6 +36,10 @@ impl From<&Task> for Todo {
     if let Some(tags) = emit_list(&task.tags) {
       todo.add_property(TAGS_PROPERTY, &tags);
     }
+    if let Some(position) = &task.position {
+      todo.add_property(POSITION_PROPERTY, &position.to_string());
+    }
+
     todo
   }
 }
@@ -66,8 +72,17 @@ impl TryFrom<&Todo> for Task {
       .property_value(TAGS_PROPERTY)
       .map(parse_list::<Tag>)
       .unwrap_or_else(|| Ok(Vec::new()))?;
+    let position = todo
+      .property_value(POSITION_PROPERTY)
+      .map(f64::from_str)
+      .transpose()?;
 
-    Ok(Task { id, summary, tags })
+    Ok(Task {
+      id,
+      summary,
+      tags,
+      position,
+    })
   }
 }
 

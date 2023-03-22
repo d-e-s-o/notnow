@@ -23,6 +23,8 @@ pub struct Task {
   pub summary: String,
   /// The task's list of currently set tags.
   pub tags: Vec<Tag>,
+  /// The task's position.
+  pub position: Option<f64>,
 }
 
 #[cfg(any(test, feature = "test"))]
@@ -36,6 +38,7 @@ impl Task {
       id: Id::new_v4(),
       summary: summary.into(),
       tags: Default::default(),
+      position: None,
     }
   }
 
@@ -67,7 +70,14 @@ pub struct Tasks(pub Vec<Task>);
 #[cfg(test)]
 impl Tasks {
   /// Convert this object into a vector of task objects.
-  pub fn into_task_vec(self) -> Vec<Task> {
+  pub fn into_task_vec(mut self) -> Vec<Task> {
+    // TODO: For the sake of testing we do not want to deal with
+    //       positions, as they screw up any comparisons we want to
+    //       perform. So just clear them out. This is certainly far from
+    //       great, but no other way has been found.
+    self.0.iter_mut().for_each(|task| {
+      let _prev = task.position.take();
+    });
     self.0
   }
 }

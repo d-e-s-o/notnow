@@ -202,24 +202,40 @@ impl Task {
   }
 }
 
+
+/// Convert this task into a serializable one.
+fn task_to_serde(task: &Task, position: Option<&Position>) -> SerTask {
+  let borrow = task.0.try_borrow().unwrap();
+  let TaskInner {
+    ref id,
+    ref summary,
+    ref tags,
+    ..
+  } = borrow.deref();
+
+  let task = SerTask {
+    id: *id,
+    summary: summary.clone(),
+    tags: tags.iter().map(Tag::to_serde).collect(),
+    position: position.map(Position::to_serde),
+  };
+
+  task
+}
+
+#[cfg(test)]
 impl ToSerde<SerTask> for Task {
   /// Convert this task into a serializable one.
   fn to_serde(&self) -> SerTask {
-    let borrow = self.0.try_borrow().unwrap();
-    let TaskInner {
-      ref id,
-      ref summary,
-      ref tags,
-      ..
-    } = borrow.deref();
+    task_to_serde(self, None)
+  }
+}
 
-    let task = SerTask {
-      id: *id,
-      summary: summary.clone(),
-      tags: tags.iter().map(Tag::to_serde).collect(),
-    };
-
-    task
+impl ToSerde<SerTask> for (&Task, Position) {
+  /// Convert this <task, position> tuple into a serializable task.
+  fn to_serde(&self) -> SerTask {
+    let (task, position) = self;
+    task_to_serde(task, Some(position))
   }
 }
 
@@ -499,13 +515,17 @@ impl Tasks {
     // SANITY: The type's API surface prevents any borrows from escaping
     //         a function call and we don't call methods on `self` while
     //         a borrow is active.
-    let tasks = self
-      .0
-      .try_borrow()
-      .unwrap()
+    let inner = self.0.try_borrow().unwrap();
+    let tasks = inner
       .tasks
       .iter()
-      .map(|task| task.to_serde())
+      .enumerate()
+      .map(|(idx, task)| {
+        // SANITY: We know the index is valid because we are just
+        //         counting items we iterate over anyway.
+        let position = inner.tasks.get(idx).unwrap().aux();
+        (task.deref(), position).to_serde()
+      })
       .collect();
 
     // TODO: We should consider including the operations here as well.
