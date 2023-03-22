@@ -475,17 +475,31 @@ pub struct Tasks(RefCell<TasksInner>);
 
 impl Tasks {
   /// Create a new `Tasks` object from a serializable one.
-  pub fn with_serde(tasks: SerTasks, templates: Rc<Templates>) -> Result<Self> {
+  pub fn with_serde(mut tasks: SerTasks, templates: Rc<Templates>) -> Result<Self> {
+    // If a task has no position we will just silently sort it last.
+    tasks.0.sort_by(|first, second| {
+      let first = first.position.unwrap_or(f64::MAX);
+      let second = second.position.unwrap_or(f64::MAX);
+      first.total_cmp(&second)
+    });
+
     let len = tasks.0.len();
-    let tasks = tasks.0.into_iter().enumerate().try_fold(
-      Vec::with_capacity(len),
-      |mut vec, (idx, task)| -> Result<_> {
-        let task = Task::with_serde(task, templates.clone())?;
-        let position = Position::from_int(idx);
-        vec.push((task, position));
-        Result::Ok(vec)
-      },
-    )?;
+    let tasks =
+      tasks
+        .0
+        .into_iter()
+        .try_fold(Vec::with_capacity(len), |mut vec, task| -> Result<_> {
+          let position = task.position;
+          let task = Task::with_serde(task, templates.clone())?;
+          let position = position.map(Position::new).unwrap_or_else(|| {
+            let prev_pos = vec.last().map(|(_task, position)| position);
+            // SANITY: Under real world scenarios we shall always find
+            //         another free position.
+            Position::between(prev_pos.cloned(), None).unwrap()
+          });
+          let () = vec.push((task, position));
+          Result::Ok(vec)
+        })?;
     let tasks = Db::from_iter_with_aux(tasks);
 
     let inner = TasksInner {

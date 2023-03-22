@@ -159,12 +159,9 @@ async fn load_tasks_from_dir(root: &Path) -> Result<SerTaskState> {
     result => result,
   }?;
 
-  let (mut tasks, tasks_meta) = load_tasks_from_read_dir(dir).await?;
+  let (tasks, tasks_meta) = load_tasks_from_read_dir(dir).await?;
   let tasks_meta = tasks_meta.unwrap_or_default();
-  let table = create_task_lookup_table(&tasks_meta.ids)?;
-  // If a task ID is not contained in our table we will just silently
-  // sort it last.
-  tasks.sort_by_key(|task| table.get(&task.id).copied().unwrap_or(usize::MAX));
+  let _table = create_task_lookup_table(&tasks_meta.ids)?;
 
   Ok(SerTaskState {
     tasks_meta,
@@ -487,7 +484,17 @@ pub mod tests {
       let tasks = SerTasks::from(tasks);
       let task_state = TaskState::with_serde(root, tasks, templates).to_serde();
       let () = save_tasks_to_dir(root, &task_state).await.unwrap();
-      let loaded = load_tasks_from_dir(root).await.unwrap();
+      let mut loaded = load_tasks_from_dir(root).await.unwrap();
+
+      // The order of tasks is undefined at this point of the loading
+      // process. Sort them according to their position as is done
+      // internally by `TaskState`.
+      let () = loaded.tasks.0.sort_by(|first, second| {
+        let first = first.position.unwrap_or(f64::MAX);
+        let second = second.position.unwrap_or(f64::MAX);
+        first.total_cmp(&second)
+      });
+
       assert_eq!(loaded, task_state);
     }
 
@@ -519,6 +526,32 @@ pub mod tests {
       None,
     )
     .await;
+  }
+
+  /// Test that saving tasks and loading them back preserves their
+  /// positions.
+  #[test]
+  async fn save_load_preserves_positions() {
+    let root = TempDir::new().unwrap();
+    let root = root.path();
+    let mut task_vec = make_tasks(4);
+    task_vec[0].position = Some(-42.0);
+    task_vec[1].position = Some(0.0);
+    task_vec[2].position = Some(10.0);
+    task_vec[3].position = Some(10.001);
+
+    let templates = SerTemplates::default();
+    let tasks = SerTasks::from(task_vec.clone());
+    let task_state = TaskState::with_serde(root, tasks, templates);
+    let () = task_state.save().await.unwrap();
+
+    let mut task_state = load_tasks_from_dir(root).await.unwrap();
+    let () = task_state.tasks.0.sort_by(|first, second| {
+      let first = first.position.unwrap_or(f64::MAX);
+      let second = second.position.unwrap_or(f64::MAX);
+      first.total_cmp(&second)
+    });
+    assert_eq!(task_state.tasks.0, task_vec);
   }
 
   /// Check that IDs are preserved when serializing and deserializing
