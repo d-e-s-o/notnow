@@ -14,7 +14,6 @@ use uuid::uuid;
 
 use crate::ser::tags::Template;
 use crate::ser::tags::Templates;
-use crate::ser::tasks::Id as TaskId;
 use crate::ser::tasks::TasksMeta;
 
 use super::util::emit_list;
@@ -25,9 +24,6 @@ use super::SerICal;
 
 /// The name of the property used for storing templates.
 const TEMPLATES_PROPERTY: &str = "TEMPLATES";
-/// The name of the property used for storing the ordered list of task
-/// IDs.
-const IDS_PROPERTY: &str = "IDS";
 
 
 impl From<&TasksMeta> for Todo {
@@ -43,10 +39,6 @@ impl From<&TasksMeta> for Todo {
 
     if let Some(templates) = emit_list(&tasks_meta.templates.0) {
       todo.add_property(TEMPLATES_PROPERTY, &templates);
-    }
-
-    if let Some(ids) = emit_list(&tasks_meta.ids) {
-      todo.add_property(IDS_PROPERTY, &ids);
     }
 
     todo
@@ -71,12 +63,8 @@ impl TryFrom<&Todo> for TasksMeta {
       .property_value(TEMPLATES_PROPERTY)
       .map(|s| parse_list::<Template>(s).map(Templates))
       .unwrap_or_else(|| Ok(Templates::default()))?;
-    let ids = todo
-      .property_value(IDS_PROPERTY)
-      .map(parse_list::<TaskId>)
-      .unwrap_or_else(|| Ok(Vec::new()))?;
 
-    let tasks_meta = TasksMeta { templates, ids };
+    let tasks_meta = TasksMeta { templates };
     Ok(tasks_meta)
   }
 }
@@ -111,7 +99,6 @@ mod tests {
   use super::*;
 
   use crate::ser::tags::Id as TagId;
-  use crate::ser::tasks::Id as TaskId;
 
   use super::super::iCal;
   use super::super::Backend;
@@ -132,9 +119,7 @@ mod tests {
       },
     ]);
 
-    let ids = vec![TaskId::new_v4(), TaskId::new_v4(), TaskId::new_v4()];
-
-    let tasks_meta = TasksMeta { templates, ids };
+    let tasks_meta = TasksMeta { templates };
 
     let serialized = iCal::serialize(&tasks_meta).unwrap();
     let deserialized = <iCal as Backend<TasksMeta>>::deserialize(&serialized).unwrap();

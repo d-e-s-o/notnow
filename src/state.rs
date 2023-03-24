@@ -4,7 +4,6 @@
 //! Definitions pertaining UI and task state of the program.
 
 use std::cell::Cell;
-use std::collections::HashMap;
 use std::collections::HashSet;
 use std::ffi::OsStr;
 use std::io::ErrorKind;
@@ -13,7 +12,6 @@ use std::path::PathBuf;
 use std::rc::Rc;
 
 use anyhow::anyhow;
-use anyhow::bail;
 use anyhow::Context as _;
 use anyhow::Result;
 
@@ -101,23 +99,6 @@ async fn load_task_from_dir_entry(entry: &DirEntry) -> Result<Option<SerTask>> {
   Ok(result)
 }
 
-/// Load task meta data from the provided file.
-fn create_task_lookup_table(ids: &[SerTaskId]) -> Result<HashMap<SerTaskId, usize>> {
-  let len = ids.len();
-  let table =
-    ids
-      .iter()
-      .enumerate()
-      .try_fold(HashMap::with_capacity(len), |mut map, (idx, id)| {
-        if map.insert(*id, idx).is_some() {
-          bail!("encountered duplicate task ID {}", id)
-        }
-        Ok(map)
-      })?;
-
-  Ok(table)
-}
-
 /// Load tasks by iterating over the entries of a `ReadDir` object.
 #[allow(clippy::type_complexity)]
 async fn load_tasks_from_read_dir(dir: ReadDir) -> Result<(Vec<SerTask>, Option<SerTasksMeta>)> {
@@ -161,7 +142,6 @@ async fn load_tasks_from_dir(root: &Path) -> Result<SerTaskState> {
 
   let (tasks, tasks_meta) = load_tasks_from_read_dir(dir).await?;
   let tasks_meta = tasks_meta.unwrap_or_default();
-  let _table = create_task_lookup_table(&tasks_meta.ids)?;
 
   Ok(SerTaskState {
     tasks_meta,
@@ -224,7 +204,12 @@ async fn save_tasks_to_dir(root: &Path, tasks: &SerTaskState) -> Result<()> {
   }
 
   let () = save_tasks_meta_to_dir(root, &tasks.tasks_meta).await?;
-  let ids = tasks.tasks_meta.ids.iter().collect::<HashSet<_>>();
+  let ids = tasks
+    .tasks
+    .0
+    .iter()
+    .map(|task| task.id)
+    .collect::<HashSet<_>>();
 
   // Remove all files that do not correspond to an ID we just saved.
   let mut dir = read_dir(root).await?;
@@ -334,15 +319,11 @@ impl TaskState {
 impl ToSerde<SerTaskState> for TaskState {
   /// Convert this object into a serializable one.
   fn to_serde(&self) -> SerTaskState {
-    let tasks = self.tasks.to_serde();
-    let ids = tasks.0.iter().map(|task| task.id).collect();
-
     SerTaskState {
       tasks_meta: SerTasksMeta {
         templates: self.templates.to_serde(),
-        ids,
       },
-      tasks,
+      tasks: self.tasks.to_serde(),
     }
   }
 }
@@ -696,10 +677,7 @@ pub mod tests {
         .with_tags([SerTag { id: id_tag2 }, SerTag { id: id_tag1 }]),
     ];
     let task_state = SerTaskState {
-      tasks_meta: SerTasksMeta {
-        templates,
-        ids: Default::default(),
-      },
+      tasks_meta: SerTasksMeta { templates },
       tasks: SerTasks::from(tasks),
     };
     let tasks_root = PathBuf::default();

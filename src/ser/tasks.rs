@@ -58,8 +58,6 @@ impl Task {
 pub struct TasksMeta {
   /// The templates used by the corresponding tasks.
   pub templates: Templates,
-  /// IDs of tasks in the intended order.
-  pub ids: Vec<Id>,
 }
 
 
