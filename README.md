@@ -8,30 +8,103 @@ notnow
 
 - [Changelog](CHANGELOG.md)
 
-**notnow** is a terminal based TODO management program (that's right,
-yet another). It uses JSON for plain-text storage of a TODO database and
-is conceived in the [Rust programming language][rust-lang].
+**notnow** is a terminal based task/TODO management program.
 
 Two of its overarching goals are to allow for tag based filtering of
 tasks, along with fully user-definable tags and views, and to support
-server based synchronization of tasks using the CalDAV protocol as
-specified by [RFC 4791][rfc-4791].
-While filtering based on tags is already implemented, not all aspects of
-it are available through the UI. CalDAV support has not yet found its
-way into the program.
+server based synchronization of iCalendar-style TODO items as per [RFC
+5545][rfc-5545] using the CalDAV protocol as specified by [RFC
+4791][rfc-4791].
 
-The program also acts as the first play ground for the [gui crate][gui],
-which explores the design space of UI applications using Rust.
+
+Status
+------
+
+**notnow** is being used actively on a day-to-day basis, without any
+known issues. Most of the desired functionality exists, but not
+everything is hooked up to the UI yet:
+
+- tag based filtering is implemented and fully functionally, but not all
+  aspects of it are available through the UI
+- the program stores tasks as iCalendar TODO items
+  - it loosely follows the [Vdir storage format][vdir-format], enabling
+    task synchronization between different systems via [vdirsyncer][]
+  - "native" CalDAV support without a Python dependency is considered,
+    but there exist no immediate plans to get there
+
+
+Configuration
+-------------
+
+The program stores its configuration below `$XDG_CONFIG_HOME/notnow/`
+(which most commonly defaults to `~/.config/notnow/`). Configuration is
+two-fold:
+- `notnow.json` is a JSON file storing basic program state such as
+  colors and views ("tabs") to display
+  - when not present, defaults are being used
+  - this file will be auto-created with the default contents once the
+    user saves data from within the program (see below)
+- `tasks/` is a folder comprised of files for individual tasks
+  - the file `00000000-0000-0000-0000-000000000000` is special and
+    contains task meta data such as tag information
+  - the program takes care of creating said files as tasks are added
+
+*Note*: If you were a user of **notnow** in version `0.2.*` and want to
+carry managed tasks and configuration over to version `0.3`, the script
+at [var/config-conversion-v02-to-v03.sh](var/config-conversion-v02-to-v03.sh)
+may be of help.
+
+### vdirsyncer
+
+If you would like to synchronize tasks with your CalDAV enabled calendar
+and/or share one set of tasks between different systems running
+**notnow**, [vdirsyncer][] is the recommended way to go about that.
+
+Here is a configuration template that specifies relevant settings, along
+with some opinionated ones (typically stored at
+`$XDG_CONFIG_HOME/vdirsyncer/config`):
+
+```ini
+[general]
+status_path = "~/<some-path>/vdirsyncer-state/status/"
+
+[pair todos]
+a = "todos_remote"
+b = "todos_local"
+collections = ["from a", "from b"]
+conflict_resolution = ["command", "nvim", "-d"]
+
+[storage todos_remote]
+type = "caldav"
+item_types = ["VTODO"]
+url = "https://<url-to-calendar>"
+username = "<username>"
+password.fetch = ["command", "sh", "-c", "pass <calendar-provider-entry> | head -n1"]
+read_only = false
+
+[storage todos_local]
+type = "filesystem"
+path = "~/<some-path>/vdirsyncer-state/todos/"
+fileext = ""
+encoding = "utf-8"
+```
+
+Please refer to its [documentation][vdirsyncer-config] for additional
+details.
+
+With the configuration in place, once you `vsyncdir discover`, create a
+symbolic link below `~/<some-path>/vdirsyncer-state/todos/` replacing
+the automatically created subfolder with a reference to
+`$XDG_CONFIG_HOME/notnow/tasks/`. Next, synchronize tasks using
+`vsyncdir sync`.
+
+Please note that task synchronization should happen before or after
+running **notnow**, to prevent collisions with changes happening
+concurrently from the program.
 
 
 Usage
 -----
-
-The program stores its configuration below `$XDG_CONFIG_HOME/notnow`
-(which most commonly defaults to `~/.config/notnow`). Configuration is
-two-fold:
-- `notnow.json` is a JSON file storing basic program state
-- `task.json` is a JSON file storing the user's tasks
 
 Being terminal based, **notnow** is controlled through its UI as opposed
 to command line parameters. The program aims to mirror Vi style bindings
@@ -61,6 +134,8 @@ where that is possible. The key bindings are as follows:
 | ?      | Start task search backward               |
 | n      | Continue task search forward             |
 | N      | Continue task search backward            |
+| *      | Start forward search for currently       |
+|        | selected task on other views             |
 | Return | Accept text input                        |
 | Esc    | Cancel text input                        |
 | w      | Save tasks to file                       |
@@ -76,14 +151,22 @@ when entering actual text (as opposed to just pressing a key to, say,
 selecting a different task), `libreadline` bindings will be honored.
 
 
-Status
-------
+Example
+-------
 
-**notnow** is in a well progressed development phase. A lot of the
-desired functionality exists, but not all is hooked up with the UI. More
-improvements are being worked on.
+If you are just interested in trying out the program with some
+programmatically created tasks, you can use the existing example:
+```sh
+$ cargo run --example=with-test-data --features=test
+```
 
-[rust-lang]: https://www.rust-lang.org
+Note that if saved, tasks will be stored in a temporary directory and
+not overwrite user-specific configuration mentioned above.
+
+
 [rfc-4791]: https://tools.ietf.org/html/rfc4791
-[gui]: https://crates.io/crates/gui
+[rfc-5545]: https://www.rfc-editor.org/rfc/rfc5545
+[vdir-format]: http://vdirsyncer.pimutils.org/en/stable/vdir.html
+[vdirsyncer]: https://github.com/pimutils/vdirsyncer
+[vdirsyncer-config]: http://vdirsyncer.pimutils.org/en/stable/index.html
 [libreadline]: https://tiswww.case.edu/php/chet/readline/readline.html
