@@ -8,8 +8,20 @@ license = "GPL-3.0-or-later"
 homepage = "https://github.com/d-e-s-o/notnow"
 repository = "https://github.com/d-e-s-o/notnow.git"
 readme = "README.md"
-categories = ["command-line-utilities", "text-editors"]
-keywords = ["TODO", "tasks", "planner"]
+categories = [
+  "command-line-utilities",
+  "encoding",
+  "filesystem",
+  "database-implementations",
+  "text-processing",
+]
+keywords = [
+  "icalendar",
+  "ics",
+  "planner",
+  "todo",
+  "tui",
+]
 description = """
 A terminal based task and TODO management software.
 """
