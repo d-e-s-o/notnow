@@ -1,5 +1,5 @@
-Unreleased
-----------
+0.3.0
+-----
 - Changed task storage format:
   - Switched from single-file-for-all-tasks scheme to having one task per
     file (identified by 128 bit UUID)
