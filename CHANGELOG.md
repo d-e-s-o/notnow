@@ -1,3 +1,8 @@
+Unreleased
+----------
+- Bumped `termion` dependency to `2.0`
+
+
 0.3.0
 -----
 - Changed task storage format:

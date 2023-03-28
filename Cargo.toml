@@ -89,7 +89,7 @@ features = ["derive"]
 version = "1.0"
 
 [dependencies.termion]
-version = "1.5"
+version = "2.0.1"
 
 [dependencies.tokio]
 version = "1.8"

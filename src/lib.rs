@@ -101,7 +101,7 @@ use termion::event::Event as TermEvent;
 use termion::event::Key;
 use termion::input::TermReadEventsAndRaw;
 use termion::raw::IntoRawMode;
-use termion::screen::AlternateScreen;
+use termion::screen::IntoAlternateScreen as _;
 
 use tokio::runtime::Builder;
 
@@ -219,11 +219,10 @@ where
   let state = State::new(ui_config, tasks_root)
     .await
     .context("failed to load program state")?;
-  let screen = AlternateScreen::from(
-    out
-      .into_raw_mode()
-      .context("failed to switch program output to raw mode")?,
-  );
+  let screen = out
+    .into_alternate_screen()?
+    .into_raw_mode()
+    .context("failed to switch program output to raw mode")?;
   let colors = state.0.colors.get().unwrap_or_default();
   let renderer =
     TermRenderer::new(screen, colors).context("failed to instantiate terminal based renderer")?;
