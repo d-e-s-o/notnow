@@ -256,18 +256,22 @@ fn run_with_args() -> Result<()> {
     })?;
   }
 
-  let ui_config = ui_config()?;
-  let tasks_root = tasks_root()?;
-  let rt = Builder::new_current_thread()
-    .build()
-    .context("failed to instantiate async runtime")?;
-
-  let it = args_os();
+  let mut it = args_os();
   match it.len() {
     0 | 1 => {
+      let ui_config = ui_config()?;
+      let tasks_root = tasks_root()?;
+      let rt = Builder::new_current_thread()
+        .build()
+        .context("failed to instantiate async runtime")?;
+
       let stdout = stdout();
       let future = run_prog(stdout.lock(), &ui_config, &tasks_root);
       rt.block_on(future)
+    },
+    2 if it.any(|arg| &arg == "--version" || &arg == "-V") => {
+      println!("{} {}", env!("CARGO_CRATE_NAME"), env!("NOTNOW_VERSION"));
+      Ok(())
     },
     _ => bail!("encountered unsupported number of program arguments"),
   }
