@@ -75,7 +75,6 @@ mod ui;
 mod view;
 
 use std::env::args_os;
-use std::fs::OpenOptions;
 use std::io::stdin;
 use std::io::stdout;
 use std::io::Result as IoResult;
@@ -263,17 +262,11 @@ fn run_with_args() -> Result<()> {
     .build()
     .context("failed to instantiate async runtime")?;
 
-  let mut it = args_os();
+  let it = args_os();
   match it.len() {
     0 | 1 => {
       let stdout = stdout();
       let future = run_prog(stdout.lock(), &ui_config, &tasks_root);
-      rt.block_on(future)
-    },
-    2 => {
-      let path = it.nth(1).unwrap();
-      let file = OpenOptions::new().read(false).write(true).open(path)?;
-      let future = run_prog(file, &ui_config, &tasks_root);
       rt.block_on(future)
     },
     _ => bail!("encountered unsupported number of program arguments"),

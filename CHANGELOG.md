@@ -1,5 +1,7 @@
 Unreleased
 ----------
+- Removed support for writing output to a file provided as program
+  argument
 - Bumped `termion` dependency to `2.0`
 
 
