@@ -43,6 +43,7 @@
   unused_qualifications,
   where_clauses_object_safety,
   while_true,
+  clippy::dbg_macro,
   rustdoc::broken_intra_doc_links
 )]
 #![allow(
