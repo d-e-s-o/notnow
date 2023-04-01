@@ -274,7 +274,7 @@ impl ToSerde<SerUiState> for UiState {
 
     SerUiState {
       colors: self.colors.get().unwrap_or_default(),
-      toggle_tag: self.toggle_tag.as_ref().map(|x| x.to_serde()),
+      toggle_tag: self.toggle_tag.as_ref().map(ToSerde::to_serde),
       views,
       selected: self.selected,
     }

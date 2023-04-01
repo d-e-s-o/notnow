@@ -70,7 +70,7 @@ fn cmp_template(lhs: &Tag, rhs: &Tag) -> Ordering {
 /// Prepare a properly sorted list of tags mirroring those of the
 /// provided task.
 fn prepare_tags(task: &Task) -> Vec<SetUnsetTag> {
-  let set = task.tags(|iter| iter.map(|tag| tag.template()).collect::<HashSet<_>>());
+  let set = task.tags(|iter| iter.map(Tag::template).collect::<HashSet<_>>());
   let mut unset = task
     .templates()
     .iter()
@@ -226,7 +226,7 @@ impl Selectable for DialogData {
     self
       .data
       .as_ref()
-      .map(|data| data.selection_index())
+      .map(Selectable::selection_index)
       .expect("dialog has no data set")
   }
 
@@ -242,7 +242,7 @@ impl Selectable for DialogData {
     self
       .data
       .as_ref()
-      .map(|data| data.count())
+      .map(Selectable::count)
       .expect("dialog has no data set")
   }
 }
@@ -278,9 +278,7 @@ impl Dialog {
         let data = data.data.take();
 
         if key == Key::Char('\n') {
-          let (task, updated) = data
-            .map(|data| data.into_task())
-            .expect("dialog has no data set");
+          let (task, updated) = data.map(Data::into_task).expect("dialog has no data set");
           cap.send(widget, Message::UpdateTask(task, updated)).await;
         }
 

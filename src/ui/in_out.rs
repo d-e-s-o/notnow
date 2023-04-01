@@ -25,7 +25,7 @@ use super::message::MessageExt;
 use super::modal::Modal;
 
 
-/// An object representing the in/out area within the TermUi.
+/// An object representing the in/out area within the `TermUi`.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum InOut {
   Saved,

@@ -22,7 +22,7 @@ use super::Backend;
 ///
 /// This type is required because `Box<dyn Error>` is lacking an
 /// implementation of `std::error::Error`; for more details check
-/// https://github.com/rust-lang/rust/issues/60759
+/// <https://github.com/rust-lang/rust/issues/60759>
 #[derive(Debug)]
 pub struct E(Box<dyn StdError + Send + Sync>);
 
