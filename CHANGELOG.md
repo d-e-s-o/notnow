@@ -2,6 +2,7 @@ Unreleased
 ----------
 - Removed support for writing output to a file provided as program
   argument
+- Added support for `--version`/`-V` option to print program version
 - Bumped `termion` dependency to `2.0`
 
 
