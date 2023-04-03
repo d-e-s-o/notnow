@@ -1,6 +1,7 @@
 // Copyright (C) 2022 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+use std::io::stdin;
 use std::io::stdout;
 
 use anyhow::Result;
@@ -24,5 +25,5 @@ async fn main() -> Result<()> {
   ui_state.save().await?;
   task_state.save().await?;
 
-  run_prog(stdout().lock(), ui_file.path(), tasks_dir.path()).await
+  run_prog(stdin(), stdout().lock(), ui_file.path(), tasks_dir.path()).await
 }

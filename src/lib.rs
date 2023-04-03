@@ -78,6 +78,7 @@ mod view;
 use std::env::args_os;
 use std::io::stdin;
 use std::io::stdout;
+use std::io::Read;
 use std::io::Result as IoResult;
 use std::io::Write;
 use std::path::Path;
@@ -148,9 +149,12 @@ fn tasks_root() -> Result<PathBuf> {
 }
 
 /// Instantiate a key receiver thread and have it send key events through the given channel.
-fn receive_keys(send_event: Sender<IoResult<Event>>) {
+fn receive_keys<R>(stdin: R, send_event: Sender<IoResult<Event>>)
+where
+  R: Read + Send + 'static,
+{
   thread::spawn(move || {
-    let events = stdin().events_and_raw();
+    let events = stdin.events_and_raw();
     for event in events {
       let result = match event {
         Ok((TermEvent::Key(key), data)) => Ok(Event::Key(key, data)),
@@ -212,8 +216,9 @@ where
 }
 
 /// Run the program.
-pub async fn run_prog<W>(out: W, ui_config: &Path, tasks_root: &Path) -> Result<()>
+pub async fn run_prog<R, W>(in_: R, out: W, ui_config: &Path, tasks_root: &Path) -> Result<()>
 where
+  R: Read + Send + 'static,
   W: Write,
 {
   let state = State::new(ui_config, tasks_root)
@@ -237,7 +242,7 @@ where
   let (send_event, recv_event) = channel();
   receive_window_resizes(send_event.clone())
     .context("failed to instantiate infrastructure for handling window resize events")?;
-  receive_keys(send_event);
+  receive_keys(in_, send_event);
 
   // Initially we need to trigger a render in order to have the most
   // recent data presented.
@@ -266,8 +271,9 @@ fn run_with_args() -> Result<()> {
         .build()
         .context("failed to instantiate async runtime")?;
 
+      let stdin = stdin();
       let stdout = stdout();
-      let future = run_prog(stdout.lock(), &ui_config, &tasks_root);
+      let future = run_prog(stdin, stdout.lock(), &ui_config, &tasks_root);
       rt.block_on(future)
     },
     2 if it.any(|arg| &arg == "--version" || &arg == "-V") => {
