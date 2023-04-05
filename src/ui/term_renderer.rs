@@ -215,12 +215,12 @@ struct OffsetData {
 
 /// Retrieve the number of tasks that fit in the given `BBox`.
 fn displayable_tasks(bbox: BBox) -> usize {
-  ((bbox.h - TASK_LIST_MARGIN_Y) / TASK_SPACE) as usize
+  ((bbox.h.saturating_sub(TASK_LIST_MARGIN_Y)) / TASK_SPACE) as usize
 }
 
 /// Retrieve the number of tags that fit in the given `BBox`.
 fn displayable_tags(bbox: BBox) -> usize {
-  ((bbox.h - 2 * DIALOG_MARGIN_Y) / TAG_SPACE) as usize
+  ((bbox.h.saturating_sub(2 * DIALOG_MARGIN_Y)) / TAG_SPACE) as usize
 }
 
 /// Retrieve the number of tabs that fit in the given `BBox`.
@@ -276,7 +276,7 @@ where
     let data = map.entry(tab_bar.id()).or_default();
 
     let mut x = 1;
-    let w = bbox.w - 1;
+    let w = bbox.w.saturating_sub(1);
 
     // TODO: We have some amount of duplication with the logic used to
     //       render a TaskListBox. Deduplicate?
@@ -286,7 +286,7 @@ where
     //       the offset would need to be adjusted. Should/can this be
     //       fixed?
     let count = tab_bar.iter(cap).len();
-    let limit = displayable_tabs(w - 1);
+    let limit = displayable_tabs(w.saturating_sub(1));
     let selection = tab_bar.selection(cap);
     let offset = sanitize_offset(data.offset, selection, limit);
 
@@ -303,11 +303,11 @@ where
     if count > offset + limit {
       let fg = self.colors.more_tasks_fg;
       let bg = self.colors.more_tasks_bg;
-      self.writer.write(bbox.w - 1, 0, fg, bg, ">")?;
+      self.writer.write(w, 0, fg, bg, ">")?;
     } else {
       let fg = self.colors.unselected_tab_fg;
       let bg = self.colors.unselected_tab_bg;
-      self.writer.write(bbox.w - 1, 0, fg, bg, " ")?;
+      self.writer.write(w, 0, fg, bg, " ")?;
     }
 
     for (i, tab) in tab_bar.iter(cap).enumerate().skip(offset).take(limit) {
@@ -336,8 +336,8 @@ where
     // Account for the one line the tab bar occupies at the top and
     // another one to have some space at the bottom to the input/output
     // area.
-    bbox.y += 1;
-    bbox.h -= 2;
+    bbox.y = bbox.y.saturating_add(1);
+    bbox.h = bbox.h.saturating_sub(2);
     Ok(bbox)
   }
 
@@ -634,8 +634,11 @@ where
 mod tests {
   use super::*;
 
+
+  /// Check that we can centrally align a string properly using
+  /// `align_center`.
   #[test]
-  fn pad_string() {
+  fn align_string() {
     assert_eq!(align_center("", 0), "");
     assert_eq!(align_center("", 1), " ");
     assert_eq!(align_center("", 8), "        ");
@@ -646,6 +649,7 @@ mod tests {
     assert_eq!(align_center("hello", 20), "       hello        ");
   }
 
+  /// Make sure that `align_center` crops a string as necessary.
   #[test]
   fn crop_string() {
     assert_eq!(align_center("hello", 4), "h...");
@@ -653,6 +657,7 @@ mod tests {
     assert_eq!(align_center("that's a test", 8), "that'...");
   }
 
+  /// Check that we ca properly clip a string using `clip`.
   #[test]
   fn clip_string() {
     let bbox = BBox {

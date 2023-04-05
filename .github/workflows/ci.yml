@@ -43,7 +43,10 @@ jobs:
     - name: Install cargo-llvm-cov
       uses: taiki-e/install-action@cargo-llvm-cov
     - name: Test and gather coverage
-      run: cargo llvm-cov --lcov --output-path lcov.info
+      # We lack a TTY, so we hack one with `script`.
+      shell: script --quiet --return --command "bash {0}"
+      run:
+        cargo llvm-cov --lcov --output-path lcov.info --features=test
     - name: Upload code coverage results
       uses: codecov/codecov-action@v3
       with:

@@ -45,6 +45,11 @@ name = "with-test-data"
 path = "examples/with-test-data.rs"
 required-features = ["test"]
 
+[[test]]
+name = "test"
+path = "tests/test.rs"
+required-features = ["test"]
+
 [build-dependencies]
 anyhow = "1.0.66"
 grev = "0.1.1"
