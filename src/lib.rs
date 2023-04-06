@@ -76,8 +76,12 @@ mod ui;
 mod view;
 
 use std::env::args_os;
+use std::fs::create_dir_all;
+use std::fs::remove_file;
+use std::fs::File;
 use std::io::stdin;
 use std::io::stdout;
+use std::io::ErrorKind;
 use std::io::Read;
 use std::io::Result as IoResult;
 use std::io::Write;
@@ -96,6 +100,7 @@ use anyhow::Result;
 #[cfg(feature = "coredump")]
 use cdump::register_panic_handler;
 
+use dirs::cache_dir;
 use dirs::config_dir;
 
 use termion::event::Event as TermEvent;
@@ -127,6 +132,14 @@ pub enum Event {
   Resize,
 }
 
+
+/// Retrieve the path to the program's lock file.
+fn lock_file() -> Result<PathBuf> {
+  let path = cache_dir()
+    .ok_or_else(|| anyhow!("unable to determine cache directory"))?
+    .join("notnow.lock");
+  Ok(path)
+}
 
 /// Retrieve the path to the UI's configuration file.
 fn ui_config() -> Result<PathBuf> {
@@ -251,8 +264,90 @@ where
   run_loop(ui, &renderer, &recv_event).await
 }
 
+/// Run a function after attempting to create a lock file and remove it
+/// once the function has returned.
+fn with_lockfile<F>(lock_file: &Path, force: bool, f: F) -> Result<()>
+where
+  F: FnOnce() -> Result<()>,
+{
+  if let Some(dir) = lock_file.parent() {
+    let () = create_dir_all(dir)
+      .with_context(|| format!("failed to create directory {}", dir.display()))?;
+  }
+
+  if force {
+    let _file = File::options()
+      .create(true)
+      .write(true)
+      .open(lock_file)
+      .with_context(|| {
+        format!(
+          "failed to take ownership of lock file {}",
+          lock_file.display()
+        )
+      });
+  } else {
+    let result = File::options().create_new(true).write(true).open(lock_file);
+    if matches!(&result, Err(err) if err.kind() == ErrorKind::AlreadyExists) {
+      eprintln!(
+        "lock file {} already present; is another program instance running?",
+        lock_file.display()
+      );
+      eprintln!("re-run with --force/-f if you are sure that the file is stale");
+    }
+    let _file =
+      result.with_context(|| format!("failed to create lock file {}", lock_file.display()))?;
+  }
+
+  let result = f();
+
+  // Note that one error scenario when removing the lock file is that it
+  // was already removed by a concurrently running instance. That can
+  // only happen if the user wrongly specified the --force/-f flag. We
+  // could special case that here, but it just does not seem worth it,
+  // so just handle it like any other error.
+  match (result, remove_file(lock_file)) {
+    (Ok(()), Ok(())) => Ok(()),
+    (Ok(()), r @ Err(_)) => {
+      r.with_context(|| format!("failed to remove lock file {}", lock_file.display()))
+    },
+    (r @ Err(_), Ok(())) => r,
+    (r @ Err(_), Err(_)) => {
+      eprintln!("failed to remove lock file {}", lock_file.display());
+      r
+    },
+  }
+}
+
+/// Run an instance of the program in the default configuration.
+fn run_now() -> Result<()> {
+  let ui_config = ui_config()?;
+  let tasks_root = tasks_root()?;
+  let rt = Builder::new_current_thread()
+    .build()
+    .context("failed to instantiate async runtime")?;
+
+  let stdin = stdin();
+  let stdout = stdout();
+  let future = run_prog(stdin, stdout.lock(), &ui_config, &tasks_root);
+  rt.block_on(future)
+}
+
 /// Parse the arguments and run the program.
-fn run_with_args() -> Result<()> {
+fn run_with_args(lock_file: &Path) -> Result<()> {
+  let mut it = args_os();
+  match it.len() {
+    0 | 1 => with_lockfile(lock_file, false, run_now),
+    2 if it.any(|arg| &arg == "--force" || &arg == "-f") => with_lockfile(lock_file, true, run_now),
+    2 if it.any(|arg| &arg == "--version" || &arg == "-V") => {
+      println!("{} {}", env!("CARGO_CRATE_NAME"), env!("NOTNOW_VERSION"));
+      Ok(())
+    },
+    _ => bail!("encountered unsupported number of program arguments"),
+  }
+}
+
+fn run_with_result() -> Result<()> {
   #[cfg(feature = "coredump")]
   {
     let () = register_panic_handler().or_else(|(ctx, err)| {
@@ -262,35 +357,88 @@ fn run_with_args() -> Result<()> {
     })?;
   }
 
-  let mut it = args_os();
-  match it.len() {
-    0 | 1 => {
-      let ui_config = ui_config()?;
-      let tasks_root = tasks_root()?;
-      let rt = Builder::new_current_thread()
-        .build()
-        .context("failed to instantiate async runtime")?;
-
-      let stdin = stdin();
-      let stdout = stdout();
-      let future = run_prog(stdin, stdout.lock(), &ui_config, &tasks_root);
-      rt.block_on(future)
-    },
-    2 if it.any(|arg| &arg == "--version" || &arg == "-V") => {
-      println!("{} {}", env!("CARGO_CRATE_NAME"), env!("NOTNOW_VERSION"));
-      Ok(())
-    },
-    _ => bail!("encountered unsupported number of program arguments"),
-  }
+  run_with_args(&lock_file()?)
 }
 
 /// Run the program and handle errors.
 pub fn run() -> i32 {
-  match run_with_args() {
+  match run_with_result() {
     Ok(_) => 0,
     Err(err) => {
       eprintln!("{:?}", err);
       1
     },
+  }
+}
+
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  use tempfile::NamedTempFile;
+
+
+  /// Check that `with_lockfile` behaves correctly in the presence of a
+  /// lock file.
+  #[test]
+  fn lock_file_present() {
+    let lock_file = NamedTempFile::new().unwrap();
+    let force = false;
+    let error = with_lockfile(lock_file.path(), force, || Ok(())).unwrap_err();
+    assert!(error
+      .to_string()
+      .contains(&lock_file.path().display().to_string()));
+  }
+
+  /// Check that `with_lockfile` behaves correctly in the presence of a
+  /// lock file when asked to forcefully acquire.
+  #[test]
+  fn lock_file_present_force() {
+    let lock_file = NamedTempFile::new().unwrap();
+    let force = true;
+    let () = with_lockfile(lock_file.path(), force, || Ok(())).unwrap();
+
+    // The lock file should have been removed.
+    assert!(!lock_file.path().exists());
+  }
+
+  /// Check that `with_lockfile` behaves correctly when a lock file is
+  /// present and the called function returns an error.
+  #[test]
+  fn lock_file_error_when_present() {
+    let lock_file = NamedTempFile::new().unwrap();
+    let force = false;
+    let error = with_lockfile(lock_file.path(), force, || bail!("42")).unwrap_err();
+    assert!(error
+      .to_string()
+      .contains(&lock_file.path().display().to_string()));
+  }
+
+  /// Check that `with_lockfile` behaves correctly if no lock file is
+  /// present.
+  #[test]
+  fn lock_file_not_present() {
+    let lock_file_path = {
+      let lock_file = NamedTempFile::new().unwrap();
+      lock_file.path().to_path_buf()
+    };
+
+    let force = false;
+    let () = with_lockfile(&lock_file_path, force, || Ok(())).unwrap();
+  }
+
+  /// Check that `with_lockfile` behaves correctly when no lock file is
+  /// present and the called function returns an error.
+  #[test]
+  fn lock_file_error_when_not_present() {
+    let lock_file_path = {
+      let lock_file = NamedTempFile::new().unwrap();
+      lock_file.path().to_path_buf()
+    };
+
+    let force = false;
+    let error = with_lockfile(&lock_file_path, force, || bail!("42")).unwrap_err();
+    assert_eq!(&error.to_string(), "42");
   }
 }

@@ -1,5 +1,9 @@
 Unreleased
 ----------
+- Introduced lock file usage to prevent multiple program instances from
+  running concurrently
+  - Added `--force`/`-f` option to force starting up in the presence of
+    a stale lock file
 - Removed support for writing output to a file provided as program
   argument
 - Added support for `--version`/`-V` option to print program version
