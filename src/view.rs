@@ -40,9 +40,11 @@ impl TagLit {
   }
 }
 
-impl ToSerde<SerTagLit> for TagLit {
+impl ToSerde for TagLit {
+  type Output = SerTagLit;
+
   /// Convert this object into a serializable one.
-  fn to_serde(&self) -> SerTagLit {
+  fn to_serde(&self) -> Self::Output {
     match self {
       TagLit::Pos(tag) => SerTagLit::Pos(tag.to_serde()),
       TagLit::Neg(tag) => SerTagLit::Neg(tag.to_serde()),
@@ -309,9 +311,11 @@ impl View {
   }
 }
 
-impl ToSerde<SerView> for View {
+impl ToSerde for View {
+  type Output = SerView;
+
   /// Convert this view into a serializable one.
-  fn to_serde(&self) -> SerView {
+  fn to_serde(&self) -> Self::Output {
     let lits = self
       .lits
       .iter()

@@ -265,9 +265,11 @@ impl UiState {
   }
 }
 
-impl ToSerde<SerUiState> for UiState {
+impl ToSerde for UiState {
+  type Output = SerUiState;
+
   /// Convert this object into a serializable one.
-  fn to_serde(&self) -> SerUiState {
+  fn to_serde(&self) -> Self::Output {
     debug_assert!(self.selected.is_none() || self.selected.unwrap() < self.views.len());
 
     let views = self.views.iter().map(|(q, s)| (q.to_serde(), *s)).collect();
@@ -316,9 +318,11 @@ impl TaskState {
   }
 }
 
-impl ToSerde<SerTaskState> for TaskState {
+impl ToSerde for TaskState {
+  type Output = SerTaskState;
+
   /// Convert this object into a serializable one.
-  fn to_serde(&self) -> SerTaskState {
+  fn to_serde(&self) -> Self::Output {
     SerTaskState {
       tasks_meta: SerTasksMeta {
         templates: self.templates.to_serde(),

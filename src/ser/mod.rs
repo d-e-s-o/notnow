@@ -16,7 +16,10 @@ pub mod view;
 
 
 /// A trait for types that can be converted into a serializable representation.
-pub trait ToSerde<T> {
+pub trait ToSerde {
+  /// The result being produced.
+  type Output;
+
   /// Create a serializable representation of `Self`.
-  fn to_serde(&self) -> T;
+  fn to_serde(&self) -> Self::Output;
 }

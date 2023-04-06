@@ -13,10 +13,8 @@ use crate::ser::tags::Id as SerTagId;
 use crate::ser::tags::Tag as SerTag;
 use crate::ser::tags::Template as SerTemplate;
 use crate::ser::tags::Templates as SerTemplates;
+use crate::ser::tags::T;
 use crate::ser::ToSerde;
-
-#[derive(Copy, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-struct T(());
 
 type Id = IdT<T>;
 
@@ -81,9 +79,11 @@ impl Ord for Template {
   }
 }
 
-impl ToSerde<SerTemplate> for Template {
+impl ToSerde for Template {
+  type Output = SerTemplate;
+
   /// Convert the template into a serializable one.
-  fn to_serde(&self) -> SerTemplate {
+  fn to_serde(&self) -> Self::Output {
     SerTemplate {
       id: self.id.to_serde(),
       name: self.name.clone(),
@@ -116,9 +116,11 @@ impl Tag {
   }
 }
 
-impl ToSerde<SerTag> for Tag {
+impl ToSerde for Tag {
+  type Output = SerTag;
+
   /// Convert the tag into a serializable one.
-  fn to_serde(&self) -> SerTag {
+  fn to_serde(&self) -> Self::Output {
     SerTag {
       id: self.template.id.to_serde(),
     }
@@ -205,9 +207,11 @@ where
   }
 }
 
-impl ToSerde<SerTemplates> for Templates {
+impl ToSerde for Templates {
+  type Output = SerTemplates;
+
   /// Convert the tag templates object into a serializable form.
-  fn to_serde(&self) -> SerTemplates {
+  fn to_serde(&self) -> Self::Output {
     SerTemplates(
       self
         .templates

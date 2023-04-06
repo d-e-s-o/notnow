@@ -44,9 +44,11 @@ impl Position {
   }
 }
 
-impl ToSerde<f64> for Position {
+impl ToSerde for Position {
+  type Output = f64;
+
   /// Convert the position into a serializable one.
-  fn to_serde(&self) -> f64 {
+  fn to_serde(&self) -> Self::Output {
     self.get()
   }
 }

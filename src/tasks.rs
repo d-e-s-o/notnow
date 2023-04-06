@@ -224,16 +224,20 @@ fn task_to_serde(task: &Task, position: Option<&Position>) -> SerTask {
 }
 
 #[cfg(test)]
-impl ToSerde<SerTask> for Task {
+impl ToSerde for Task {
+  type Output = SerTask;
+
   /// Convert this task into a serializable one.
-  fn to_serde(&self) -> SerTask {
+  fn to_serde(&self) -> Self::Output {
     task_to_serde(self, None)
   }
 }
 
-impl ToSerde<SerTask> for (&Task, Position) {
+impl ToSerde for (&Task, Position) {
+  type Output = SerTask;
+
   /// Convert this <task, position> tuple into a serializable task.
-  fn to_serde(&self) -> SerTask {
+  fn to_serde(&self) -> Self::Output {
     let (task, position) = self;
     task_to_serde(task, Some(position))
   }

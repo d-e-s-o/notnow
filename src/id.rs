@@ -94,9 +94,11 @@ impl<T> Hash for Id<T> {
   }
 }
 
-impl<T, U> ToSerde<SerId<U>> for Id<T> {
+impl<T> ToSerde for Id<T> {
+  type Output = SerId<T>;
+
   /// Convert this [`Id`] into a serializable one.
-  fn to_serde(&self) -> SerId<U> {
+  fn to_serde(&self) -> Self::Output {
     SerId::new(self.get())
   }
 }
