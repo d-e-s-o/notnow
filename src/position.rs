@@ -13,6 +13,7 @@ pub struct Position(f64);
 
 impl Position {
   /// Create a `Position` object from an integer.
+  #[cfg(test)]
   pub fn from_int(position: usize) -> Self {
     Self(position as f64)
   }

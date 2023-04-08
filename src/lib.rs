@@ -66,7 +66,7 @@ mod id;
 mod ops;
 mod position;
 mod resize;
-pub mod ser;
+mod ser;
 pub mod state;
 mod tags;
 mod tasks;
