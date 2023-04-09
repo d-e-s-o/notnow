@@ -34,7 +34,6 @@ use uuid::uuid;
 use crate::colors::Colors;
 use crate::ser::state::TaskState as SerTaskState;
 use crate::ser::state::UiState as SerUiState;
-use crate::ser::tags::Templates as SerTemplates;
 use crate::ser::tasks::Id as SerTaskId;
 use crate::ser::tasks::Task as SerTask;
 use crate::ser::tasks::Tasks as SerTasks;
@@ -294,17 +293,20 @@ pub struct TaskState {
 
 impl TaskState {
   /// Create a `TaskState` object from serialized state.
-  ///
-  /// This constructor is intended for testing purposes.
-  #[allow(unused)]
-  fn with_serde(root: &Path, tasks: SerTasks, templates: SerTemplates) -> Self {
-    let templates = Rc::new(Templates::with_serde(templates).unwrap());
-    let tasks = Tasks::with_serde(tasks, templates.clone()).unwrap();
-    Self {
+  #[cfg(test)]
+  fn with_serde(root: &Path, state: SerTaskState) -> Result<Self> {
+    let templates = Templates::with_serde(state.tasks_meta.templates)
+      .map_err(|id| anyhow!("encountered duplicate tag ID {}", id))?;
+    let templates = Rc::new(templates);
+    let tasks = Tasks::with_serde(state.tasks, templates.clone())
+      .context("failed to instantiate task database")?;
+
+    let slf = Self {
       templates,
       tasks_root: root.into(),
       tasks: Rc::new(tasks),
-    }
+    };
+    Ok(slf)
   }
 
   /// Persist the state into a file.
@@ -445,6 +447,7 @@ pub mod tests {
   use crate::ser::tags::Id as SerId;
   use crate::ser::tags::Tag as SerTag;
   use crate::ser::tags::Template as SerTemplate;
+  use crate::ser::tags::Templates as SerTemplates;
   use crate::test::make_tasks;
 
 
@@ -466,9 +469,13 @@ pub mod tests {
   #[test]
   async fn save_load_tasks() {
     async fn test(root: &Path, tasks: Vec<SerTask>, templates: Option<SerTemplates>) {
-      let templates = templates.unwrap_or_default();
-      let tasks = SerTasks::from(tasks);
-      let task_state = TaskState::with_serde(root, tasks, templates).to_serde();
+      let task_state = SerTaskState {
+        tasks_meta: SerTasksMeta {
+          templates: templates.unwrap_or_default(),
+        },
+        tasks: SerTasks::from(tasks),
+      };
+      let task_state = TaskState::with_serde(root, task_state).unwrap().to_serde();
       let () = save_tasks_to_dir(root, &task_state).await.unwrap();
       let mut loaded = load_tasks_from_dir(root).await.unwrap();
 
@@ -526,9 +533,11 @@ pub mod tests {
     task_vec[2].position = Some(10.0);
     task_vec[3].position = Some(10.001);
 
-    let templates = SerTemplates::default();
-    let tasks = SerTasks::from(task_vec.clone());
-    let task_state = TaskState::with_serde(root, tasks, templates);
+    let task_state = SerTaskState {
+      tasks_meta: SerTasksMeta::default(),
+      tasks: SerTasks::from(task_vec.clone()),
+    };
+    let task_state = TaskState::with_serde(root, task_state).unwrap();
     let () = task_state.save().await.unwrap();
 
     let mut task_state = load_tasks_from_dir(root).await.unwrap();
@@ -547,9 +556,12 @@ pub mod tests {
     let root = TempDir::new().unwrap();
     let root = root.path();
     let tasks = make_tasks(15);
-    let templates = SerTemplates::default();
-    let tasks = SerTasks::from(tasks);
-    let task_state = TaskState::with_serde(root, tasks, templates);
+
+    let task_state = SerTaskState {
+      tasks_meta: SerTasksMeta::default(),
+      tasks: SerTasks::from(tasks),
+    };
+    let task_state = TaskState::with_serde(root, task_state).unwrap();
 
     let tasks = {
       let tasks = task_state.tasks();
