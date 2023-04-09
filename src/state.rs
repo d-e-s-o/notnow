@@ -312,9 +312,10 @@ impl TaskState {
     save_tasks_to_dir(&self.tasks_root, &self.to_serde()).await
   }
 
-  /// Retrieve the `Tasks` object associated with this `State` object.
-  pub fn tasks(&self) -> Rc<Tasks> {
-    self.tasks.clone()
+  /// Retrieve the `Tasks` object associated with this `TaskState`
+  /// object.
+  pub fn tasks(&self) -> &Rc<Tasks> {
+    &self.tasks
   }
 }
 

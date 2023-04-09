@@ -96,7 +96,7 @@ impl TermUi {
       Box::new(|| Box::new(TabBarData::new())),
       Box::new(move |id, cap| {
         let data = cap.data(termui_id).downcast_ref::<TermUiData>().unwrap();
-        let tasks = data.task_state.tasks();
+        let tasks = data.task_state.tasks().clone();
         Box::new(TabBar::new(
           id,
           cap,
