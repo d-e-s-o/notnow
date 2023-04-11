@@ -269,6 +269,7 @@ mod tests {
   use crate::ser::view::View as SerView;
   use crate::ser::ToSerde;
   use crate::state::State;
+  use crate::state::UiState;
   use crate::test::default_tasks_and_tags;
   use crate::test::make_task_summaries;
   use crate::test::make_tasks;
@@ -434,8 +435,9 @@ mod tests {
 
     /// Load the UI's state from a file. Note that unless the state has
     /// been saved, the result will probably just be the default state.
-    async fn load_state(&self) -> Result<State> {
-      State::new(self.ui_file.path(), self.tasks_root.path()).await
+    async fn load_ui_state(&self) -> Result<UiState> {
+      let state = State::new(self.ui_file.path(), self.tasks_root.path()).await?;
+      Ok(state.0)
     }
   }
 
@@ -2024,10 +2026,9 @@ mod tests {
       .build()
       .handle(events)
       .await
-      .load_state()
+      .load_ui_state()
       .await
       .unwrap()
-      .0
       .to_serde();
 
     let expected = SerUiState {
@@ -2053,10 +2054,9 @@ mod tests {
       .build()
       .handle(events)
       .await
-      .load_state()
+      .load_ui_state()
       .await
       .unwrap()
-      .0
       .to_serde();
 
     let expected = SerUiState {
@@ -2081,10 +2081,9 @@ mod tests {
       .build()
       .handle(events)
       .await
-      .load_state()
+      .load_ui_state()
       .await
       .unwrap()
-      .0
       .to_serde();
 
     let (expected, _) = default_tasks_and_tags();
@@ -2115,10 +2114,9 @@ mod tests {
       .build()
       .handle(events)
       .await
-      .load_state()
+      .load_ui_state()
       .await
       .unwrap()
-      .0
       .to_serde();
 
     let (expected, _) = default_tasks_and_tags();
