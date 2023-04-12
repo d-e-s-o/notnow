@@ -369,7 +369,7 @@ impl TaskState {
   }
 
   /// Create a `TaskState` object from serialized state.
-  fn with_serde(root: &Path, state: SerTaskState) -> Result<Self> {
+  pub fn with_serde(root: &Path, state: SerTaskState) -> Result<Self> {
     let templates = Templates::with_serde(state.tasks_meta.templates)
       .map_err(|id| anyhow!("encountered duplicate tag ID {}", id))?;
     let templates = Rc::new(templates);

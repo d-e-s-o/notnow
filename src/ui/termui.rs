@@ -268,7 +268,7 @@ mod tests {
   use crate::ser::tasks::TasksMeta as SerTasksMeta;
   use crate::ser::view::View as SerView;
   use crate::ser::ToSerde;
-  use crate::state::State;
+  use crate::state::TaskState;
   use crate::state::UiState;
   use crate::test::default_tasks_and_tags;
   use crate::test::make_task_summaries;
@@ -337,15 +337,11 @@ mod tests {
 
     /// Build the actual UI object that we can test with.
     fn build(self) -> TestUi {
-      let ui_file = NamedTempFile::new().unwrap();
       let tasks_dir = TempDir::new().unwrap();
-      let state = State::with_serde(
-        self.ui_state,
-        ui_file.path(),
-        self.task_state,
-        tasks_dir.path(),
-      );
-      let State(ui_state, task_state) = state.unwrap();
+      let task_state = TaskState::with_serde(tasks_dir.path(), self.task_state).unwrap();
+
+      let ui_file = NamedTempFile::new().unwrap();
+      let ui_state = UiState::with_serde(ui_file.path(), self.ui_state, &task_state).unwrap();
       let path = ui_state.path.clone();
 
       let (ui, _) = Ui::new(
@@ -436,8 +432,9 @@ mod tests {
     /// Load the UI's state from a file. Note that unless the state has
     /// been saved, the result will probably just be the default state.
     async fn load_ui_state(&self) -> Result<UiState> {
-      let state = State::new(self.ui_file.path(), self.tasks_root.path()).await?;
-      Ok(state.0)
+      let task_state = TaskState::load(self.tasks_root.path()).await?;
+      let ui_state = UiState::load(self.ui_file.path(), &task_state).await?;
+      Ok(ui_state)
     }
   }
 
