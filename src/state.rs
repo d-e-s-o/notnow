@@ -252,6 +252,58 @@ pub struct UiState {
 }
 
 impl UiState {
+  /// Load `UiState` from a configuration file.
+  pub async fn load(config: &Path, task_state: &TaskState) -> Result<Self> {
+    let state = load_state_from_file::<Json, SerUiState>(config)
+      .await
+      .with_context(|| format!("failed to load UI state from {}", config.display()))?
+      .unwrap_or_default();
+
+    Self::with_serde(config, state, task_state)
+  }
+
+  /// Create a `UiState` object from serialized state.
+  pub fn with_serde(config: &Path, state: SerUiState, task_state: &TaskState) -> Result<Self> {
+    let templates = &task_state.templates;
+    let tasks = &task_state.tasks;
+
+    let mut views = state
+      .views
+      .into_iter()
+      .map(|(view, selected)| {
+        let name = view.name.clone();
+        let view = View::with_serde(view, templates, tasks.clone())
+          .with_context(|| format!("failed to instantiate view '{}'", name))?;
+        Ok((view, selected))
+      })
+      .collect::<Result<Vec<_>>>()?;
+
+    // For convenience for the user, we add a default view capturing
+    // all tasks if no other views have been configured.
+    if views.is_empty() {
+      views.push((ViewBuilder::new(tasks.clone()).build("all"), None))
+    }
+
+    let toggle_tag = if let Some(toggle_tag) = state.toggle_tag {
+      let toggle_tag = templates
+        .instantiate(toggle_tag.id)
+        .ok_or_else(|| anyhow!("encountered invalid toggle tag ID {}", toggle_tag.id))?;
+
+      Some(toggle_tag)
+    } else {
+      None
+    };
+
+    let slf = Self {
+      colors: Cell::new(Some(state.colors)),
+      toggle_tag,
+      path: config.into(),
+      views,
+      selected: state.selected,
+    };
+    Ok(slf)
+  }
+
   /// Persist the state into a file.
   pub async fn save(&self) -> Result<()> {
     let ui_state = load_state_from_file::<Json, SerUiState>(self.path.as_ref())
@@ -292,8 +344,31 @@ pub struct TaskState {
 }
 
 impl TaskState {
+  /// Load `TaskState` from a directory.
+  pub async fn load(tasks_root: &Path) -> Result<Self> {
+    let task_state = load_tasks_from_dir(tasks_root).await.with_context(|| {
+      format!(
+        "failed to load tasks from directory {}",
+        tasks_root.display()
+      )
+    })?;
+
+    let templates = Templates::with_serde(task_state.tasks_meta.templates)
+      .map_err(|id| anyhow!("encountered duplicate tag ID {}", id))?;
+    let templates = Rc::new(templates);
+    let tasks = Tasks::with_serde(task_state.tasks, templates.clone())
+      .context("failed to instantiate task database")?;
+    let tasks = Rc::new(tasks);
+
+    let slf = Self {
+      templates,
+      tasks_root: tasks_root.into(),
+      tasks,
+    };
+    Ok(slf)
+  }
+
   /// Create a `TaskState` object from serialized state.
-  #[cfg(test)]
   fn with_serde(root: &Path, state: SerTaskState) -> Result<Self> {
     let templates = Templates::with_serde(state.tasks_meta.templates)
       .map_err(|id| anyhow!("encountered duplicate tag ID {}", id))?;
@@ -351,25 +426,9 @@ impl State {
   where
     P: Into<PathBuf> + AsRef<Path>,
   {
-    let ui_state = load_state_from_file::<Json, SerUiState>(ui_config.as_ref())
-      .await
-      .with_context(|| {
-        format!(
-          "failed to load UI state from {}",
-          ui_config.as_ref().display()
-        )
-      })?
-      .unwrap_or_default();
-    let task_state = load_tasks_from_dir(tasks_root.as_ref())
-      .await
-      .with_context(|| {
-        format!(
-          "failed to load tasks from directory {}",
-          tasks_root.as_ref().display()
-        )
-      })?;
-
-    Self::with_serde(ui_state, ui_config, task_state, tasks_root)
+    let task_state = TaskState::load(tasks_root.as_ref()).await?;
+    let ui_state = UiState::load(ui_config.as_ref(), &task_state).await?;
+    Ok(Self(ui_state, task_state))
   }
 
   /// Create a new `State` object from a serializable one.
@@ -382,51 +441,8 @@ impl State {
   where
     P: Into<PathBuf>,
   {
-    let templates = Templates::with_serde(task_state.tasks_meta.templates)
-      .map_err(|id| anyhow!("encountered duplicate tag ID {}", id))?;
-    let templates = Rc::new(templates);
-    let tasks = Tasks::with_serde(task_state.tasks, templates.clone())
-      .context("failed to instantiate task database")?;
-    let tasks = Rc::new(tasks);
-    let mut views = ui_state
-      .views
-      .into_iter()
-      .map(|(view, selected)| {
-        let name = view.name.clone();
-        let view = View::with_serde(view, &templates, tasks.clone())
-          .with_context(|| format!("failed to instantiate view '{}'", name))?;
-        Ok((view, selected))
-      })
-      .collect::<Result<Vec<_>>>()?;
-
-    // For convenience for the user, we add a default view capturing
-    // all tasks if no other views have been configured.
-    if views.is_empty() {
-      views.push((ViewBuilder::new(tasks.clone()).build("all"), None))
-    }
-
-    let toggle_tag = if let Some(toggle_tag) = ui_state.toggle_tag {
-      let toggle_tag = templates
-        .instantiate(toggle_tag.id)
-        .ok_or_else(|| anyhow!("encountered invalid toggle tag ID {}", toggle_tag.id))?;
-
-      Some(toggle_tag)
-    } else {
-      None
-    };
-
-    let ui_state = UiState {
-      colors: Cell::new(Some(ui_state.colors)),
-      toggle_tag,
-      path: ui_config.into(),
-      views,
-      selected: ui_state.selected,
-    };
-    let task_state = TaskState {
-      templates,
-      tasks_root: tasks_root.into(),
-      tasks,
-    };
+    let task_state = TaskState::with_serde(&tasks_root.into(), task_state)?;
+    let ui_state = UiState::with_serde(&ui_config.into(), ui_state, &task_state)?;
     Ok(Self(ui_state, task_state))
   }
 }
