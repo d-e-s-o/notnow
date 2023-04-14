@@ -115,7 +115,8 @@ use gui::Renderer;
 use gui::Ui;
 
 use crate::resize::receive_window_resizes;
-use crate::state::State;
+use crate::state::TaskState;
+use crate::state::UiState;
 use crate::ui::event::Event as UiEvent;
 use crate::ui::message::Message;
 use crate::ui::term_renderer::TermRenderer;
@@ -234,17 +235,19 @@ where
   R: Read + Send + 'static,
   W: Write,
 {
-  let state = State::new(ui_config, tasks_root)
+  let task_state = TaskState::load(tasks_root)
     .await
-    .context("failed to load program state")?;
+    .context("failed to load task state")?;
+  let ui_state = UiState::load(ui_config, &task_state)
+    .await
+    .context("failed to load UI state")?;
   let screen = out
     .into_alternate_screen()?
     .into_raw_mode()
     .context("failed to switch program output to raw mode")?;
-  let colors = state.0.colors.get().unwrap_or_default();
+  let colors = ui_state.colors.get().unwrap_or_default();
   let renderer =
     TermRenderer::new(screen, colors).context("failed to instantiate terminal based renderer")?;
-  let State(ui_state, task_state) = state;
   let path = ui_state.path.clone();
 
   let (ui, _) = Ui::new(
