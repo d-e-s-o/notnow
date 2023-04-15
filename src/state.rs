@@ -411,43 +411,6 @@ impl ToSerde for TaskState {
 }
 
 
-/// A struct combining the UI and task state.
-///
-/// The struct exists mainly to express the dependency between the
-/// `UiState` and `TaskState` structs in terms of their creation. Most
-/// of the time the object will be destructed later on and the
-/// individual state objects be used on their own.
-#[derive(Debug)]
-pub struct State(pub UiState, pub TaskState);
-
-impl State {
-  /// Create a new `State` object, loaded from files.
-  pub async fn new<P>(ui_config: P, tasks_root: P) -> Result<Self>
-  where
-    P: Into<PathBuf> + AsRef<Path>,
-  {
-    let task_state = TaskState::load(tasks_root.as_ref()).await?;
-    let ui_state = UiState::load(ui_config.as_ref(), &task_state).await?;
-    Ok(Self(ui_state, task_state))
-  }
-
-  /// Create a new `State` object from a serializable one.
-  pub fn with_serde<P>(
-    ui_state: SerUiState,
-    ui_config: P,
-    task_state: SerTaskState,
-    tasks_root: P,
-  ) -> Result<Self>
-  where
-    P: Into<PathBuf>,
-  {
-    let task_state = TaskState::with_serde(&tasks_root.into(), task_state)?;
-    let ui_state = UiState::with_serde(&ui_config.into(), ui_state, &task_state)?;
-    Ok(Self(ui_state, task_state))
-  }
-}
-
-
 #[cfg(test)]
 pub mod tests {
   use super::*;
