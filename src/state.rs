@@ -467,17 +467,21 @@ pub mod tests {
   use crate::test::make_tasks;
 
 
-  /// Create a `State` object based off of temporary configuration data.
-  fn make_state(tasks: Vec<SerTask>) -> (State, NamedTempFile, TempDir) {
+  /// Create `TaskState` and `UiState` objects based off of temporary
+  /// configuration data.
+  fn make_state(tasks: Vec<SerTask>) -> (TaskState, UiState, NamedTempFile, TempDir) {
+    let tasks_dir = TempDir::new().unwrap();
     let task_state = SerTaskState {
       tasks_meta: Default::default(),
       tasks: SerTasks::from(tasks),
     };
-    let ui_state = Default::default();
+    let task_state = TaskState::with_serde(tasks_dir.path(), task_state).unwrap();
+
     let ui_file = NamedTempFile::new().unwrap();
-    let tasks_dir = TempDir::new().unwrap();
-    let state = State::with_serde(ui_state, ui_file.path(), task_state, tasks_dir.path());
-    (state.unwrap(), ui_file, tasks_dir)
+    let ui_state = Default::default();
+    let ui_state = UiState::with_serde(ui_file.path(), ui_state, &task_state).unwrap();
+
+    (task_state, ui_state, ui_file, tasks_dir)
   }
 
   /// Check that we can save tasks into a directory and load them back
@@ -626,68 +630,67 @@ pub mod tests {
     assert_eq!(content, b"42")
   }
 
-  /// Check that we can save `State` and load it back.
+  /// Check that we can save `TaskState` and `UiState` and load them back.
   #[test]
   async fn save_and_load_state() {
     let task_vec = make_tasks(3);
-    let (state, ui_file, tasks_root) = make_state(task_vec.clone());
-    state.0.save().await.unwrap();
-    state.1.save().await.unwrap();
+    let (task_state, ui_state, ui_file, tasks_dir) = make_state(task_vec.clone());
+    task_state.save().await.unwrap();
+    ui_state.save().await.unwrap();
 
-    let new_state = State::new(ui_file.path(), tasks_root.path()).await.unwrap();
-    let new_task_vec = new_state.1.to_serde().tasks.into_task_vec();
+    let new_task_state = TaskState::load(tasks_dir.path()).await.unwrap();
+    let _new_ui_state = UiState::load(ui_file.path(), &new_task_state)
+      .await
+      .unwrap();
+    let new_task_vec = new_task_state.to_serde().tasks.into_task_vec();
     assert_eq!(new_task_vec, task_vec);
   }
 
-  /// Verify that loading `State` succeeds even if the file to load from
-  /// is not present.
+  /// Verify that loading `TaskState` and `UiState` objects succeeds
+  /// even if the files to load from are not present.
   #[test]
   async fn load_state_file_not_found() {
     let (ui_config, tasks_root) = {
       let task_vec = make_tasks(1);
-      let (state, ui_file, tasks_dir) = make_state(task_vec);
-      state.0.save().await.unwrap();
-      state.1.save().await.unwrap();
+      let (task_state, ui_state, ui_file, tasks_dir) = make_state(task_vec);
+      task_state.save().await.unwrap();
+      ui_state.save().await.unwrap();
 
       (ui_file.path().to_path_buf(), tasks_dir.path().to_path_buf())
     };
 
-    // The files are removed by now, so we can test that `State` handles
-    // such missing files gracefully.
-    let new_state = State::new(ui_config, tasks_root).await.unwrap();
-    let new_task_vec = new_state.1.to_serde().tasks.into_task_vec();
+    // The files are removed by now, so we can test that both kinds of
+    // state handle such missing files gracefully.
+    let new_task_state = TaskState::load(&tasks_root).await.unwrap();
+    let _new_ui_state = UiState::load(&ui_config, &new_task_state).await.unwrap();
+    let new_task_vec = new_task_state.to_serde().tasks.into_task_vec();
     assert_eq!(new_task_vec, Vec::new());
   }
 
-  /// Test that we fail `State` construction when an invalid tag is
+  /// Test that we fail `TaskState` construction when an invalid tag is
   /// encountered.
   #[test]
   async fn load_state_with_invalid_tag() {
     let tasks = vec![SerTask::new("a task!").with_tags([SerTag {
       id: SerId::try_from(42).unwrap(),
     }])];
-    let ui_state = Default::default();
-    let ui_config = PathBuf::default();
     let task_state = SerTaskState {
       tasks_meta: Default::default(),
       tasks: SerTasks::from(tasks),
     };
     let tasks_root = PathBuf::default();
 
-    let err = State::with_serde(ui_state, ui_config, task_state, tasks_root).unwrap_err();
+    let err = TaskState::with_serde(&tasks_root, task_state).unwrap_err();
     assert_eq!(
       err.root_cause().to_string(),
       "encountered invalid tag ID 42"
     )
   }
 
-  /// Check that we can correctly instantiate a `State` object from
+  /// Check that we can correctly instantiate a `TaskState` object from
   /// serialized state.
   #[test]
   async fn load_state() {
-    let ui_state = Default::default();
-    let ui_config = PathBuf::default();
-
     let id_tag1 = SerId::try_from(29).unwrap();
     let id_tag2 = SerId::try_from(1337 + 42 - 1).unwrap();
 
@@ -715,8 +718,8 @@ pub mod tests {
     };
     let tasks_root = PathBuf::default();
 
-    let state = State::with_serde(ui_state, ui_config, task_state, tasks_root).unwrap();
-    let tasks = state.1.tasks;
+    let state = TaskState::with_serde(&tasks_root, task_state).unwrap();
+    let tasks = state.tasks;
     let vec = tasks.iter(|iter| iter.cloned().collect::<Vec<_>>());
     let mut it = vec.iter();
 
