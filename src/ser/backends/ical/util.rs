@@ -75,10 +75,6 @@ where
   where
     T: for<'todo> TryFrom<&'todo Todo, Error = Error>,
   {
-    if !calendar.properties.is_empty() {
-      bail!("calendar contains unsupported properties")
-    }
-
     match calendar.components.as_slice() {
       [component] => {
         if let CalendarComponent::Todo(todo) = component {

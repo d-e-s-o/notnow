@@ -76,7 +76,7 @@ version = "0.6"
 features = ["derive"]
 
 [dependencies.icalendar]
-version = "0.14.2"
+version = "0.15"
 default-features = false
 features = ["parser"]
 
