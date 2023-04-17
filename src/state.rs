@@ -432,7 +432,7 @@ pub mod tests {
 
   /// Create `TaskState` and `UiState` objects based off of temporary
   /// configuration data.
-  fn make_state(tasks: Vec<SerTask>) -> (TaskState, UiState, NamedTempFile, TempDir) {
+  fn make_state(tasks: Vec<SerTask>) -> (TaskState, TempDir, UiState, NamedTempFile) {
     let tasks_dir = TempDir::new().unwrap();
     let task_state = SerTaskState {
       tasks_meta: Default::default(),
@@ -444,7 +444,7 @@ pub mod tests {
     let ui_state = Default::default();
     let ui_state = UiState::with_serde(ui_file.path(), ui_state, &task_state).unwrap();
 
-    (task_state, ui_state, ui_file, tasks_dir)
+    (task_state, tasks_dir, ui_state, ui_file)
   }
 
   /// Check that we can save tasks into a directory and load them back
@@ -597,7 +597,7 @@ pub mod tests {
   #[test]
   async fn save_and_load_state() {
     let task_vec = make_tasks(3);
-    let (task_state, ui_state, ui_file, tasks_dir) = make_state(task_vec.clone());
+    let (task_state, tasks_dir, ui_state, ui_file) = make_state(task_vec.clone());
     task_state.save().await.unwrap();
     ui_state.save().await.unwrap();
 
@@ -615,7 +615,7 @@ pub mod tests {
   async fn load_state_file_not_found() {
     let (ui_config, tasks_root) = {
       let task_vec = make_tasks(1);
-      let (task_state, ui_state, ui_file, tasks_dir) = make_state(task_vec);
+      let (task_state, tasks_dir, ui_state, ui_file) = make_state(task_vec);
       task_state.save().await.unwrap();
       ui_state.save().await.unwrap();
 
