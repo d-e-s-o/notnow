@@ -36,14 +36,19 @@ use super::tab_bar::TabState;
 
 /// The data associated with a `TermUi`.
 pub struct TermUiData {
+  /// The path to the file used for the UI configuration.
   ui_config: PathBuf,
+  /// The path of the directory containing the tasks.
+  tasks_dir: PathBuf,
+  /// All our task related state.
   task_state: TaskState,
 }
 
 impl TermUiData {
-  pub fn new(ui_config: PathBuf, task_state: TaskState) -> Self {
+  pub fn new(ui_config: PathBuf, tasks_dir: PathBuf, task_state: TaskState) -> Self {
     Self {
       ui_config,
+      tasks_dir,
       task_state,
     }
   }
@@ -119,12 +124,14 @@ impl TermUi {
   }
 
   /// Persist the state into a file.
-  async fn save_all(&self, ui_state: &UiState, task_state: &TaskState) -> Result<()> {
+  async fn save_all(&self, cap: &mut dyn MutCap<Event, Message>, ui_state: &UiState) -> Result<()> {
+    let data = self.data::<TermUiData>(cap);
     // TODO: We risk data inconsistencies if the second save operation
     //       fails.
     ui_state.save().await.context("failed to save UI state")?;
-    task_state
-      .save()
+    data
+      .task_state
+      .save(&data.tasks_dir)
       .await
       .context("failed to save task state")?;
     Ok(())
@@ -136,8 +143,7 @@ impl TermUi {
     cap: &mut dyn MutCap<Event, Message>,
     ui_state: &UiState,
   ) -> Option<Message> {
-    let data = self.data::<TermUiData>(cap);
-    let in_out = match self.save_all(ui_state, &data.task_state).await {
+    let in_out = match self.save_all(cap, ui_state).await {
       Ok(_) => InOut::Saved,
       Err(err) => InOut::Error(format!("{}", err)),
     };
@@ -338,14 +344,20 @@ mod tests {
     /// Build the actual UI object that we can test with.
     fn build(self) -> TestUi {
       let tasks_dir = TempDir::new().unwrap();
-      let task_state = TaskState::with_serde(tasks_dir.path(), self.task_state).unwrap();
+      let task_state = TaskState::with_serde(self.task_state).unwrap();
 
       let ui_file = NamedTempFile::new().unwrap();
       let ui_state = UiState::with_serde(ui_file.path(), self.ui_state, &task_state).unwrap();
       let path = ui_state.path.clone();
 
       let (ui, _) = Ui::new(
-        || Box::new(TermUiData::new(path, task_state)),
+        || {
+          Box::new(TermUiData::new(
+            path,
+            tasks_dir.path().to_path_buf(),
+            task_state,
+          ))
+        },
         |id, cap| Box::new(TermUi::new(id, cap, ui_state)),
       );
 

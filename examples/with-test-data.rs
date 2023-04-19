@@ -20,11 +20,11 @@ async fn main() -> Result<()> {
   let ui_file = NamedTempFile::new()?;
   let tasks_dir = TempDir::new()?;
   let (ui_state, task_state) = default_tasks_and_tags();
-  let task_state = TaskState::with_serde(tasks_dir.path(), task_state)?;
+  let task_state = TaskState::with_serde(task_state)?;
   let ui_state = UiState::with_serde(ui_file.path(), ui_state, &task_state)?;
 
   ui_state.save().await?;
-  task_state.save().await?;
+  task_state.save(tasks_dir.path()).await?;
 
   run_prog(stdin(), stdout().lock(), ui_file.path(), tasks_dir.path()).await
 }

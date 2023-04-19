@@ -251,7 +251,7 @@ where
   let path = ui_state.path.clone();
 
   let (ui, _) = Ui::new(
-    || Box::new(TermUiData::new(path, task_state)),
+    || Box::new(TermUiData::new(path, tasks_root.to_path_buf(), task_state)),
     |id, cap| Box::new(TermUi::new(id, cap, ui_state)),
   );
 

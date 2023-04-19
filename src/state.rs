@@ -338,8 +338,9 @@ impl ToSerde for UiState {
 /// A struct encapsulating the task state of the program.
 #[derive(Debug)]
 pub struct TaskState {
+  /// The shared templates usable by all tasks.
   templates: Rc<Templates>,
-  tasks_root: PathBuf,
+  /// The shared task database.
   tasks: Rc<Tasks>,
 }
 
@@ -360,16 +361,12 @@ impl TaskState {
       .context("failed to instantiate task database")?;
     let tasks = Rc::new(tasks);
 
-    let slf = Self {
-      templates,
-      tasks_root: tasks_root.into(),
-      tasks,
-    };
+    let slf = Self { templates, tasks };
     Ok(slf)
   }
 
   /// Create a `TaskState` object from serialized state.
-  pub fn with_serde(root: &Path, state: SerTaskState) -> Result<Self> {
+  pub fn with_serde(state: SerTaskState) -> Result<Self> {
     let templates = Templates::with_serde(state.tasks_meta.templates)
       .map_err(|id| anyhow!("encountered duplicate tag ID {}", id))?;
     let templates = Rc::new(templates);
@@ -378,15 +375,14 @@ impl TaskState {
 
     let slf = Self {
       templates,
-      tasks_root: root.into(),
       tasks: Rc::new(tasks),
     };
     Ok(slf)
   }
 
   /// Persist the state into a file.
-  pub async fn save(&self) -> Result<()> {
-    save_tasks_to_dir(&self.tasks_root, &self.to_serde()).await
+  pub async fn save(&self, root_dir: &Path) -> Result<()> {
+    save_tasks_to_dir(root_dir, &self.to_serde()).await
   }
 
   /// Retrieve the `Tasks` object associated with this `TaskState`
@@ -438,7 +434,7 @@ pub mod tests {
       tasks_meta: Default::default(),
       tasks: SerTasks::from(tasks),
     };
-    let task_state = TaskState::with_serde(tasks_dir.path(), task_state).unwrap();
+    let task_state = TaskState::with_serde(task_state).unwrap();
 
     let ui_file = NamedTempFile::new().unwrap();
     let ui_state = Default::default();
@@ -458,7 +454,7 @@ pub mod tests {
         },
         tasks: SerTasks::from(tasks),
       };
-      let task_state = TaskState::with_serde(root, task_state).unwrap().to_serde();
+      let task_state = TaskState::with_serde(task_state).unwrap().to_serde();
       let () = save_tasks_to_dir(root, &task_state).await.unwrap();
       let mut loaded = load_tasks_from_dir(root).await.unwrap();
 
@@ -520,8 +516,8 @@ pub mod tests {
       tasks_meta: SerTasksMeta::default(),
       tasks: SerTasks::from(task_vec.clone()),
     };
-    let task_state = TaskState::with_serde(root, task_state).unwrap();
-    let () = task_state.save().await.unwrap();
+    let task_state = TaskState::with_serde(task_state).unwrap();
+    let () = task_state.save(root).await.unwrap();
 
     let mut task_state = load_tasks_from_dir(root).await.unwrap();
     let () = task_state.tasks.0.sort_by(|first, second| {
@@ -544,7 +540,7 @@ pub mod tests {
       tasks_meta: SerTasksMeta::default(),
       tasks: SerTasks::from(tasks),
     };
-    let task_state = TaskState::with_serde(root, task_state).unwrap();
+    let task_state = TaskState::with_serde(task_state).unwrap();
 
     let tasks = {
       let tasks = task_state.tasks();
@@ -565,7 +561,7 @@ pub mod tests {
       tasks.iter(|iter| iter.cloned().collect::<Vec<_>>())
     };
 
-    let () = task_state.save().await.unwrap();
+    let () = task_state.save(root).await.unwrap();
     let task_state = load_tasks_from_dir(root).await.unwrap();
     let templates = Rc::new(Templates::with_serde(task_state.tasks_meta.templates).unwrap());
     let loaded = Tasks::with_serde(task_state.tasks, templates).unwrap();
@@ -598,7 +594,7 @@ pub mod tests {
   async fn save_and_load_state() {
     let task_vec = make_tasks(3);
     let (task_state, tasks_dir, ui_state, ui_file) = make_state(task_vec.clone());
-    task_state.save().await.unwrap();
+    task_state.save(tasks_dir.path()).await.unwrap();
     ui_state.save().await.unwrap();
 
     let new_task_state = TaskState::load(tasks_dir.path()).await.unwrap();
@@ -616,7 +612,7 @@ pub mod tests {
     let (ui_config, tasks_root) = {
       let task_vec = make_tasks(1);
       let (task_state, tasks_dir, ui_state, ui_file) = make_state(task_vec);
-      task_state.save().await.unwrap();
+      task_state.save(tasks_dir.path()).await.unwrap();
       ui_state.save().await.unwrap();
 
       (ui_file.path().to_path_buf(), tasks_dir.path().to_path_buf())
@@ -641,9 +637,8 @@ pub mod tests {
       tasks_meta: Default::default(),
       tasks: SerTasks::from(tasks),
     };
-    let tasks_root = PathBuf::default();
 
-    let err = TaskState::with_serde(&tasks_root, task_state).unwrap_err();
+    let err = TaskState::with_serde(task_state).unwrap_err();
     assert_eq!(
       err.root_cause().to_string(),
       "encountered invalid tag ID 42"
@@ -679,9 +674,8 @@ pub mod tests {
       tasks_meta: SerTasksMeta { templates },
       tasks: SerTasks::from(tasks),
     };
-    let tasks_root = PathBuf::default();
 
-    let state = TaskState::with_serde(&tasks_root, task_state).unwrap();
+    let state = TaskState::with_serde(task_state).unwrap();
     let tasks = state.tasks;
     let vec = tasks.iter(|iter| iter.cloned().collect::<Vec<_>>());
     let mut it = vec.iter();

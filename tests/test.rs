@@ -22,11 +22,11 @@ async fn prog_running() {
   let ui_file = NamedTempFile::new().unwrap();
   let tasks_dir = TempDir::new().unwrap();
   let (ui_state, task_state) = default_tasks_and_tags();
-  let task_state = TaskState::with_serde(tasks_dir.path(), task_state).unwrap();
+  let task_state = TaskState::with_serde(task_state).unwrap();
   let ui_state = UiState::with_serde(ui_file.path(), ui_state, &task_state).unwrap();
 
   ui_state.save().await.unwrap();
-  task_state.save().await.unwrap();
+  task_state.save(tasks_dir.path()).await.unwrap();
 
   let mut output = sink();
 
