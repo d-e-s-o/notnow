@@ -8,7 +8,6 @@ use std::collections::HashSet;
 use std::ffi::OsStr;
 use std::io::ErrorKind;
 use std::path::Path;
-use std::path::PathBuf;
 use std::rc::Rc;
 
 use anyhow::anyhow;
@@ -239,8 +238,6 @@ async fn save_tasks_to_dir(root: &Path, tasks: &SerTaskState) -> Result<()> {
 /// A struct encapsulating the UI's state.
 #[derive(Debug)]
 pub struct UiState {
-  /// The path to the file in which to save the state.
-  pub path: PathBuf,
   /// The configured colors.
   pub colors: Cell<Option<Colors>>,
   /// The tag to toggle on user initiated action.
@@ -259,11 +256,11 @@ impl UiState {
       .with_context(|| format!("failed to load UI state from {}", config.display()))?
       .unwrap_or_default();
 
-    Self::with_serde(config, state, task_state)
+    Self::with_serde(state, task_state)
   }
 
   /// Create a `UiState` object from serialized state.
-  pub fn with_serde(config: &Path, state: SerUiState, task_state: &TaskState) -> Result<Self> {
+  pub fn with_serde(state: SerUiState, task_state: &TaskState) -> Result<Self> {
     let templates = &task_state.templates;
     let tasks = &task_state.tasks;
 
@@ -297,7 +294,6 @@ impl UiState {
     let slf = Self {
       colors: Cell::new(Some(state.colors)),
       toggle_tag,
-      path: config.into(),
       views,
       selected: state.selected,
     };
@@ -305,14 +301,14 @@ impl UiState {
   }
 
   /// Persist the state into a file.
-  pub async fn save(&self) -> Result<()> {
-    let ui_state = load_state_from_file::<Json, SerUiState>(self.path.as_ref())
+  pub async fn save(&self, file: &Path) -> Result<()> {
+    let ui_state = load_state_from_file::<Json, SerUiState>(file)
       .await
       .unwrap_or_default()
       .unwrap_or_default();
     self.colors.set(Some(ui_state.colors));
 
-    save_state_to_file::<Json, _>(&self.path, &self.to_serde()).await
+    save_state_to_file::<Json, _>(file, &self.to_serde()).await
   }
 }
 
@@ -438,7 +434,7 @@ pub mod tests {
 
     let ui_file = NamedTempFile::new().unwrap();
     let ui_state = Default::default();
-    let ui_state = UiState::with_serde(ui_file.path(), ui_state, &task_state).unwrap();
+    let ui_state = UiState::with_serde(ui_state, &task_state).unwrap();
 
     (task_state, tasks_dir, ui_state, ui_file)
   }
@@ -594,8 +590,8 @@ pub mod tests {
   async fn save_and_load_state() {
     let task_vec = make_tasks(3);
     let (task_state, tasks_dir, ui_state, ui_file) = make_state(task_vec.clone());
-    task_state.save(tasks_dir.path()).await.unwrap();
-    ui_state.save().await.unwrap();
+    let () = task_state.save(tasks_dir.path()).await.unwrap();
+    let () = ui_state.save(ui_file.path()).await.unwrap();
 
     let new_task_state = TaskState::load(tasks_dir.path()).await.unwrap();
     let _new_ui_state = UiState::load(ui_file.path(), &new_task_state)
@@ -612,8 +608,8 @@ pub mod tests {
     let (ui_config, tasks_root) = {
       let task_vec = make_tasks(1);
       let (task_state, tasks_dir, ui_state, ui_file) = make_state(task_vec);
-      task_state.save(tasks_dir.path()).await.unwrap();
-      ui_state.save().await.unwrap();
+      let () = task_state.save(tasks_dir.path()).await.unwrap();
+      let () = ui_state.save(ui_file.path()).await.unwrap();
 
       (ui_file.path().to_path_buf(), tasks_dir.path().to_path_buf())
     };

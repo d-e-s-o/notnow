@@ -128,8 +128,11 @@ impl TermUi {
     let data = self.data::<TermUiData>(cap);
     // TODO: We risk data inconsistencies if the second save operation
     //       fails.
-    ui_state.save().await.context("failed to save UI state")?;
-    data
+    let () = ui_state
+      .save(&data.ui_config)
+      .await
+      .context("failed to save UI state")?;
+    let () = data
       .task_state
       .save(&data.tasks_dir)
       .await
@@ -163,12 +166,10 @@ impl TermUi {
       unreachable!()
     };
 
-    let data = self.data::<TermUiData>(cap);
     let TabState {
       views, selected, ..
     } = state;
     let ui_state = UiState {
-      path: data.ui_config.clone(),
       views,
       selected,
       // TODO: Currently we do not allow in-program modification of
@@ -347,13 +348,12 @@ mod tests {
       let task_state = TaskState::with_serde(self.task_state).unwrap();
 
       let ui_file = NamedTempFile::new().unwrap();
-      let ui_state = UiState::with_serde(ui_file.path(), self.ui_state, &task_state).unwrap();
-      let path = ui_state.path.clone();
+      let ui_state = UiState::with_serde(self.ui_state, &task_state).unwrap();
 
       let (ui, _) = Ui::new(
         || {
           Box::new(TermUiData::new(
-            path,
+            ui_file.path().to_path_buf(),
             tasks_dir.path().to_path_buf(),
             task_state,
           ))

@@ -248,10 +248,15 @@ where
   let colors = ui_state.colors.get().unwrap_or_default();
   let renderer =
     TermRenderer::new(screen, colors).context("failed to instantiate terminal based renderer")?;
-  let path = ui_state.path.clone();
 
   let (ui, _) = Ui::new(
-    || Box::new(TermUiData::new(path, tasks_root.to_path_buf(), task_state)),
+    || {
+      Box::new(TermUiData::new(
+        ui_config.to_path_buf(),
+        tasks_root.to_path_buf(),
+        task_state,
+      ))
+    },
     |id, cap| Box::new(TermUi::new(id, cap, ui_state)),
   );
 

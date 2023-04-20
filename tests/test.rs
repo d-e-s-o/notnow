@@ -23,9 +23,9 @@ async fn prog_running() {
   let tasks_dir = TempDir::new().unwrap();
   let (ui_state, task_state) = default_tasks_and_tags();
   let task_state = TaskState::with_serde(task_state).unwrap();
-  let ui_state = UiState::with_serde(ui_file.path(), ui_state, &task_state).unwrap();
+  let ui_state = UiState::with_serde(ui_state, &task_state).unwrap();
 
-  ui_state.save().await.unwrap();
+  ui_state.save(ui_file.path()).await.unwrap();
   task_state.save(tasks_dir.path()).await.unwrap();
 
   let mut output = sink();
