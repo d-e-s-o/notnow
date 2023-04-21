@@ -422,21 +422,18 @@ pub mod tests {
   use crate::test::make_tasks;
 
 
-  /// Create `TaskState` and `UiState` objects based off of temporary
-  /// configuration data.
-  fn make_state(tasks: Vec<SerTask>) -> (TaskState, TempDir, UiState, NamedTempFile) {
-    let tasks_dir = TempDir::new().unwrap();
+  /// Create `TaskState` and `UiState` objects.
+  fn make_state(tasks: Vec<SerTask>) -> (TaskState, UiState) {
     let task_state = SerTaskState {
       tasks_meta: Default::default(),
       tasks: SerTasks::from(tasks),
     };
     let task_state = TaskState::with_serde(task_state).unwrap();
 
-    let ui_file = NamedTempFile::new().unwrap();
     let ui_state = Default::default();
     let ui_state = UiState::with_serde(ui_state, &task_state).unwrap();
 
-    (task_state, tasks_dir, ui_state, ui_file)
+    (task_state, ui_state)
   }
 
   /// Check that we can save tasks into a directory and load them back
@@ -589,8 +586,12 @@ pub mod tests {
   #[test]
   async fn save_and_load_state() {
     let task_vec = make_tasks(3);
-    let (task_state, tasks_dir, ui_state, ui_file) = make_state(task_vec.clone());
+    let (task_state, ui_state) = make_state(task_vec.clone());
+
+    let tasks_dir = TempDir::new().unwrap();
     let () = task_state.save(tasks_dir.path()).await.unwrap();
+
+    let ui_file = NamedTempFile::new().unwrap();
     let () = ui_state.save(ui_file.path()).await.unwrap();
 
     let new_task_state = TaskState::load(tasks_dir.path()).await.unwrap();
@@ -607,8 +608,12 @@ pub mod tests {
   async fn load_state_file_not_found() {
     let (ui_config, tasks_root) = {
       let task_vec = make_tasks(1);
-      let (task_state, tasks_dir, ui_state, ui_file) = make_state(task_vec);
+      let (task_state, ui_state) = make_state(task_vec);
+
+      let tasks_dir = TempDir::new().unwrap();
       let () = task_state.save(tasks_dir.path()).await.unwrap();
+
+      let ui_file = NamedTempFile::new().unwrap();
       let () = ui_state.save(ui_file.path()).await.unwrap();
 
       (ui_file.path().to_path_buf(), tasks_dir.path().to_path_buf())
