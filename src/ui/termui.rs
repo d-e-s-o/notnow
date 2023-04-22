@@ -344,7 +344,7 @@ mod tests {
     }
 
     /// Build the actual UI object that we can test with.
-    fn build(self) -> TestUi {
+    async fn build(self) -> TestUi {
       let tasks_dir = TempDir::new().unwrap();
       let task_state = TaskState::with_serde(self.task_state).unwrap();
 
@@ -465,6 +465,7 @@ mod tests {
 
     let tasks = TestUiBuilder::new()
       .build()
+      .await
       .handle(events)
       .await
       .task_summaries()
@@ -479,6 +480,7 @@ mod tests {
 
     let tasks = TestUiBuilder::new()
       .build()
+      .await
       .handle(events)
       .await
       .task_summaries()
@@ -494,6 +496,7 @@ mod tests {
 
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
+      .await
       .handle(events)
       .await
       .task_summaries()
@@ -516,6 +519,7 @@ mod tests {
 
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
+      .await
       .handle(events)
       .await
       .task_summaries()
@@ -538,6 +542,7 @@ mod tests {
 
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
+      .await
       .handle(events)
       .await
       .task_summaries()
@@ -562,6 +567,7 @@ mod tests {
 
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
+      .await
       .handle(events)
       .await
       .task_summaries()
@@ -581,6 +587,7 @@ mod tests {
 
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
+      .await
       .handle(events)
       .await
       .task_summaries()
@@ -608,6 +615,7 @@ mod tests {
 
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
+      .await
       .handle(events)
       .await
       .task_summaries()
@@ -633,6 +641,7 @@ mod tests {
 
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
+      .await
       .handle(events)
       .await
       .task_summaries()
@@ -659,6 +668,7 @@ mod tests {
 
     let tasks = TestUiBuilder::new()
       .build()
+      .await
       .handle(events)
       .await
       .task_summaries()
@@ -689,6 +699,7 @@ mod tests {
 
     let tasks = TestUiBuilder::new()
       .build()
+      .await
       .handle(events)
       .await
       .task_summaries()
@@ -714,6 +725,7 @@ mod tests {
 
     let tasks = TestUiBuilder::new()
       .build()
+      .await
       .handle(events)
       .await
       .task_summaries()
@@ -743,6 +755,7 @@ mod tests {
 
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
+      .await
       .handle(events)
       .await
       .task_summaries()
@@ -777,6 +790,7 @@ mod tests {
 
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
+      .await
       .handle(events)
       .await
       .task_summaries()
@@ -795,6 +809,7 @@ mod tests {
 
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
+      .await
       .handle(events)
       .await
       .task_summaries()
@@ -827,6 +842,7 @@ mod tests {
 
     let tasks = TestUiBuilder::with_default_tasks_and_tags()
       .build()
+      .await
       .handle(events)
       .await
       .tasks()
@@ -868,6 +884,7 @@ mod tests {
 
     let tasks = TestUiBuilder::with_default_tasks_and_tags()
       .build()
+      .await
       .handle(events)
       .await
       .tasks()
@@ -892,7 +909,7 @@ mod tests {
       Event::from(' '),
     ];
 
-    let mut ui = TestUiBuilder::with_default_tasks_and_tags().build();
+    let mut ui = TestUiBuilder::with_default_tasks_and_tags().build().await;
     let tasks = ui.tasks().await;
     let complete_tag = tasks[0].templates().instantiate_from_name(COMPLETE_TAG);
     assert!(!tasks[0].has_tag(&complete_tag));
@@ -925,6 +942,7 @@ mod tests {
 
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
+      .await
       .handle(events)
       .await
       .task_summaries()
@@ -952,6 +970,7 @@ mod tests {
 
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
+      .await
       .handle(events)
       .await
       .task_summaries()
@@ -975,6 +994,7 @@ mod tests {
 
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
+      .await
       .handle(events)
       .await
       .task_summaries()
@@ -998,6 +1018,7 @@ mod tests {
 
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
+      .await
       .handle(events)
       .await
       .task_summaries()
@@ -1035,6 +1056,7 @@ mod tests {
 
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
+      .await
       .handle(events)
       .await
       .task_summaries()
@@ -1061,6 +1083,7 @@ mod tests {
 
     let tasks = TestUiBuilder::with_default_tasks_and_tags()
       .build()
+      .await
       .handle(events)
       .await
       .tasks()
@@ -1092,6 +1115,7 @@ mod tests {
 
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
+      .await
       .handle(events)
       .await
       .task_summaries()
@@ -1119,6 +1143,7 @@ mod tests {
 
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
+      .await
       .handle(events)
       .await
       .task_summaries()
@@ -1138,6 +1163,7 @@ mod tests {
 
       let tasks = TestUiBuilder::with_ser_tasks(tasks)
         .build()
+        .await
         .handle(events)
         .await
         .task_summaries()
@@ -1161,6 +1187,7 @@ mod tests {
 
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
+      .await
       .handle(events)
       .await
       .task_summaries()
@@ -1179,6 +1206,7 @@ mod tests {
 
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
+      .await
       .handle(events)
       .await
       .task_summaries()
@@ -1197,6 +1225,7 @@ mod tests {
 
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
+      .await
       .handle(events)
       .await
       .task_summaries()
@@ -1215,6 +1244,7 @@ mod tests {
 
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
+      .await
       .handle(events)
       .await
       .task_summaries()
@@ -1248,6 +1278,7 @@ mod tests {
 
     let tasks = TestUiBuilder::with_default_tasks_and_tags()
       .build()
+      .await
       .handle(events)
       .await
       .tasks()
@@ -1267,6 +1298,7 @@ mod tests {
 
     let tasks = TestUiBuilder::with_default_tasks_and_tags()
       .build()
+      .await
       .handle(events)
       .await
       .task_summaries()
@@ -1299,6 +1331,7 @@ mod tests {
 
     let tasks = TestUiBuilder::with_default_tasks_and_tags()
       .build()
+      .await
       .handle(events)
       .await
       .task_summaries()
@@ -1319,6 +1352,7 @@ mod tests {
 
     let tasks = TestUiBuilder::with_default_tasks_and_tags()
       .build()
+      .await
       .handle(events)
       .await
       .task_summaries()
@@ -1335,7 +1369,7 @@ mod tests {
   async fn move_tab_left() {
     let events = vec![Event::from('2'), Event::from('H')];
 
-    let mut ui = TestUiBuilder::with_default_tasks_and_tags().build();
+    let mut ui = TestUiBuilder::with_default_tasks_and_tags().build().await;
     let views = ui.handle(events).await.views().await;
 
     let expected = vec!["tag complete", "all", "tag2 || tag3", "tag1 && tag3"];
@@ -1352,7 +1386,7 @@ mod tests {
   async fn move_tab_right() {
     let events = vec![Event::from('3'), Event::from('L')];
 
-    let mut ui = TestUiBuilder::with_default_tasks_and_tags().build();
+    let mut ui = TestUiBuilder::with_default_tasks_and_tags().build().await;
     let views = ui.handle(events).await.views().await;
 
     let expected = vec!["all", "tag complete", "tag1 && tag3", "tag2 || tag3"];
@@ -1370,6 +1404,7 @@ mod tests {
 
     let state = TestUiBuilder::with_ser_tasks(tasks)
       .build()
+      .await
       .handle(events)
       .await
       .in_out()
@@ -1386,6 +1421,7 @@ mod tests {
 
       TestUiBuilder::with_ser_tasks(tasks)
         .build()
+        .await
         .handle(events)
         .await
         .in_out()
@@ -1419,6 +1455,7 @@ mod tests {
     let tasks = make_tasks(2);
     let updated = TestUiBuilder::with_ser_tasks(tasks)
       .build()
+      .await
       .handle(Some(Event::from('w')))
       .await
       .evaluate(Event::from('y'))
@@ -1436,6 +1473,7 @@ mod tests {
 
       TestUiBuilder::with_ser_tasks(tasks)
         .build()
+        .await
         .handle(events)
         .await
         .in_out()
@@ -1465,6 +1503,7 @@ mod tests {
 
       let state = TestUiBuilder::with_ser_tasks(Vec::new())
         .build()
+        .await
         .handle(events)
         .await
         .in_out()
@@ -1486,6 +1525,7 @@ mod tests {
 
       let state = TestUiBuilder::with_ser_tasks(tasks)
         .build()
+        .await
         .handle(events)
         .await
         .in_out()
@@ -1507,6 +1547,7 @@ mod tests {
 
       let state = TestUiBuilder::with_ser_tasks(tasks)
         .build()
+        .await
         .handle(events)
         .await
         .in_out()
@@ -1533,6 +1574,7 @@ mod tests {
 
       let state = TestUiBuilder::with_ser_tasks(tasks)
         .build()
+        .await
         .handle(events)
         .await
         .in_out()
@@ -1559,6 +1601,7 @@ mod tests {
 
       let state = TestUiBuilder::with_default_tasks_and_tags()
         .build()
+        .await
         .handle(events)
         .await
         .in_out()
@@ -1580,6 +1623,7 @@ mod tests {
 
       let state = TestUiBuilder::with_ser_tasks(tasks)
         .build()
+        .await
         .handle(events)
         .await
         .in_out()
@@ -1606,6 +1650,7 @@ mod tests {
 
       let state = TestUiBuilder::with_ser_tasks(tasks)
         .build()
+        .await
         .handle(events)
         .await
         .in_out()
@@ -1633,6 +1678,7 @@ mod tests {
 
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
+      .await
       .handle(events)
       .await
       .task_summaries()
@@ -1658,6 +1704,7 @@ mod tests {
 
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
+      .await
       .handle(events)
       .await
       .task_summaries()
@@ -1685,6 +1732,7 @@ mod tests {
 
       let tasks = TestUiBuilder::with_ser_tasks(tasks)
         .build()
+        .await
         .handle(events)
         .await
         .task_summaries()
@@ -1716,6 +1764,7 @@ mod tests {
 
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
+      .await
       .handle(events)
       .await
       .task_summaries()
@@ -1740,6 +1789,7 @@ mod tests {
 
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
+      .await
       .handle(events)
       .await
       .task_summaries()
@@ -1772,6 +1822,7 @@ mod tests {
 
       let tasks = TestUiBuilder::with_default_tasks_and_tags()
         .build()
+        .await
         .handle(events)
         .await
         .task_summaries()
@@ -1822,6 +1873,7 @@ mod tests {
 
     let tasks = TestUiBuilder::with_default_tasks_and_tags()
       .build()
+      .await
       .handle(events)
       .await
       .tasks()
@@ -1864,6 +1916,7 @@ mod tests {
 
     let tasks = TestUiBuilder::with_default_tasks_and_tags()
       .build()
+      .await
       .handle(events)
       .await
       .tasks()
@@ -1893,7 +1946,7 @@ mod tests {
       Event::from('n'),
     ];
 
-    let mut ui = TestUiBuilder::with_ser_tasks(tasks).build();
+    let mut ui = TestUiBuilder::with_ser_tasks(tasks).build().await;
     ui.handle(events).await;
 
     assert_eq!(
@@ -1929,6 +1982,7 @@ mod tests {
 
       let tasks = TestUiBuilder::with_default_tasks_and_tags()
         .build()
+        .await
         .handle(events)
         .await
         .task_summaries()
@@ -1971,6 +2025,7 @@ mod tests {
 
       let tasks = TestUiBuilder::with_ser_tasks(tasks)
         .build()
+        .await
         .handle(events)
         .await
         .task_summaries()
@@ -2001,7 +2056,7 @@ mod tests {
   #[test]
   async fn valid_update_events() {
     for c in 0u8..127u8 {
-      let mut ui = TestUiBuilder::new().build();
+      let mut ui = TestUiBuilder::new().build().await;
       let updated = ui
         .evaluate(Event::from(c))
         .await
@@ -2015,7 +2070,7 @@ mod tests {
 
   #[test]
   async fn search_no_update_without_change() {
-    let mut ui = TestUiBuilder::new().build();
+    let mut ui = TestUiBuilder::new().build().await;
     let updated = ui
       .evaluate(Event::from('n'))
       .await
@@ -2037,6 +2092,7 @@ mod tests {
     let events = vec![Event::from('w')];
     let state = TestUiBuilder::with_ser_tasks(tasks)
       .build()
+      .await
       .handle(events)
       .await
       .load_ui_state()
@@ -2065,6 +2121,7 @@ mod tests {
     let events = vec![Event::from('j'), Event::from('j'), Event::from('w')];
     let state = TestUiBuilder::with_ser_tasks(tasks)
       .build()
+      .await
       .handle(events)
       .await
       .load_ui_state()
@@ -2092,6 +2149,7 @@ mod tests {
     let events = vec![Event::from('w')];
     let state = TestUiBuilder::with_default_tasks_and_tags()
       .build()
+      .await
       .handle(events)
       .await
       .load_ui_state()
@@ -2125,6 +2183,7 @@ mod tests {
     ];
     let state = TestUiBuilder::with_default_tasks_and_tags()
       .build()
+      .await
       .handle(events)
       .await
       .load_ui_state()
@@ -2158,6 +2217,7 @@ mod tests {
     ];
     let tasks = TestUiBuilder::with_default_tasks_and_tags()
       .build()
+      .await
       .handle(events)
       .await
       .tasks()
@@ -2192,6 +2252,7 @@ mod tests {
     ];
     let tasks = TestUiBuilder::with_default_tasks_and_tags()
       .build()
+      .await
       .handle(events)
       .await
       .tasks()
@@ -2220,6 +2281,7 @@ mod tests {
     ];
     let tasks = TestUiBuilder::with_default_tasks_and_tags()
       .build()
+      .await
       .handle(events)
       .await
       .tasks()
@@ -2246,6 +2308,7 @@ mod tests {
     ];
     let tasks = TestUiBuilder::with_default_tasks_and_tags()
       .build()
+      .await
       .handle(events)
       .await
       .tasks()
@@ -2271,6 +2334,7 @@ mod tests {
     ];
     let tasks = TestUiBuilder::with_default_tasks_and_tags()
       .build()
+      .await
       .handle(events)
       .await
       .tasks()
@@ -2294,6 +2358,7 @@ mod tests {
     ];
     let tasks = TestUiBuilder::with_default_tasks_and_tags()
       .build()
+      .await
       .handle(events)
       .await
       .tasks()
@@ -2327,6 +2392,7 @@ mod tests {
     ];
     let tasks = TestUiBuilder::with_default_tasks_and_tags()
       .build()
+      .await
       .handle(events)
       .await
       .tasks()
@@ -2349,6 +2415,7 @@ mod tests {
 
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
+      .await
       .handle(events)
       .await
       .task_summaries()
@@ -2373,6 +2440,7 @@ mod tests {
 
     let tasks = TestUiBuilder::with_ser_tasks(tasks)
       .build()
+      .await
       .handle(events)
       .await
       .task_summaries()
@@ -2415,6 +2483,7 @@ mod tests {
 
       let tasks = TestUiBuilder::with_ser_tasks(tasks)
         .build()
+        .await
         .handle(events)
         .await
         .task_summaries()
