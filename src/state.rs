@@ -43,6 +43,7 @@ use crate::tags::Templates;
 use crate::tasks::Tasks;
 use crate::view::View;
 use crate::view::ViewBuilder;
+use crate::FilePath;
 
 /// The ID we use for storing task meta data.
 // We use the "special" UUID 00000000-0000-0000-0000-000000000000 for
@@ -301,14 +302,15 @@ impl UiState {
   }
 
   /// Persist the state into a file.
-  pub async fn save(&self, file: &Path) -> Result<()> {
-    let ui_state = load_state_from_file::<Json, SerUiState>(file)
+  pub async fn save(&self, path: &FilePath) -> Result<()> {
+    let file = path.0.join(&path.1);
+    let ui_state = load_state_from_file::<Json, SerUiState>(&file)
       .await
       .unwrap_or_default()
       .unwrap_or_default();
     self.colors.set(Some(ui_state.colors));
 
-    save_state_to_file::<Json, _>(file, &self.to_serde()).await
+    save_state_to_file::<Json, _>(&file, &self.to_serde()).await
   }
 }
 
@@ -592,7 +594,10 @@ pub mod tests {
     let () = task_state.save(tasks_dir.path()).await.unwrap();
 
     let ui_file = NamedTempFile::new().unwrap();
-    let () = ui_state.save(ui_file.path()).await.unwrap();
+    let ui_file_dir = ui_file.path().parent().unwrap().to_path_buf();
+    let ui_file_name = ui_file.path().file_name().unwrap().to_os_string();
+    let ui_file_path = (ui_file_dir, ui_file_name);
+    let () = ui_state.save(&ui_file_path).await.unwrap();
 
     let new_task_state = TaskState::load(tasks_dir.path()).await.unwrap();
     let _new_ui_state = UiState::load(ui_file.path(), &new_task_state)
@@ -614,7 +619,10 @@ pub mod tests {
       let () = task_state.save(tasks_dir.path()).await.unwrap();
 
       let ui_file = NamedTempFile::new().unwrap();
-      let () = ui_state.save(ui_file.path()).await.unwrap();
+      let ui_file_dir = ui_file.path().parent().unwrap().to_path_buf();
+      let ui_file_name = ui_file.path().file_name().unwrap().to_os_string();
+      let ui_file_path = (ui_file_dir, ui_file_name);
+      let () = ui_state.save(&ui_file_path).await.unwrap();
 
       (ui_file.path().to_path_buf(), tasks_dir.path().to_path_buf())
     };

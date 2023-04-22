@@ -19,6 +19,7 @@ use crate::state::UiState;
 use crate::tags::Tag;
 #[cfg(all(test, not(feature = "readline")))]
 use crate::tasks::Task;
+use crate::FilePath;
 
 use super::dialog::Dialog;
 use super::dialog::DialogData;
@@ -37,7 +38,7 @@ use super::tab_bar::TabState;
 /// The data associated with a `TermUi`.
 pub struct TermUiData {
   /// The path to the file used for the UI configuration.
-  ui_config: PathBuf,
+  ui_config: FilePath,
   /// The path of the directory containing the tasks.
   tasks_dir: PathBuf,
   /// All our task related state.
@@ -45,7 +46,7 @@ pub struct TermUiData {
 }
 
 impl TermUiData {
-  pub fn new(ui_config: PathBuf, tasks_dir: PathBuf, task_state: TaskState) -> Self {
+  pub fn new(ui_config: FilePath, tasks_dir: PathBuf, task_state: TaskState) -> Self {
     Self {
       ui_config,
       tasks_dir,
@@ -348,12 +349,15 @@ mod tests {
       let task_state = TaskState::with_serde(self.task_state).unwrap();
 
       let ui_file = NamedTempFile::new().unwrap();
+      let ui_file_dir = ui_file.path().parent().unwrap().to_path_buf();
+      let ui_file_name = ui_file.path().file_name().unwrap().to_os_string();
+      let ui_file_path = (ui_file_dir, ui_file_name);
       let ui_state = UiState::with_serde(self.ui_state, &task_state).unwrap();
 
       let (ui, _) = Ui::new(
         || {
           Box::new(TermUiData::new(
-            ui_file.path().to_path_buf(),
+            ui_file_path,
             tasks_dir.path().to_path_buf(),
             task_state,
           ))

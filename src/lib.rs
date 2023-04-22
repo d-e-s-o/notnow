@@ -76,6 +76,7 @@ mod ui;
 mod view;
 
 use std::env::args_os;
+use std::ffi::OsString;
 use std::fs::create_dir_all;
 use std::fs::remove_file;
 use std::fs::File;
@@ -124,6 +125,11 @@ use crate::ui::termui::TermUi;
 use crate::ui::termui::TermUiData;
 
 
+/// A tuple of (directory path, file name) representing the path to a
+/// file.
+type FilePath = (PathBuf, OsString);
+
+
 /// An event to be handled by the program.
 #[derive(Clone, Debug)]
 pub enum Event {
@@ -142,14 +148,15 @@ fn lock_file() -> Result<PathBuf> {
   Ok(path)
 }
 
-/// Retrieve the path to the UI's configuration file.
-fn ui_config() -> Result<PathBuf> {
-  Ok(
-    config_dir()
-      .ok_or_else(|| anyhow!("unable to determine config directory"))?
-      .join("notnow")
-      .join("notnow.json"),
-  )
+/// Retrieve the path to the UI's configuration file, in the form of a
+/// (directory path, file name) tuple.
+fn ui_config() -> Result<FilePath> {
+  let config_dir = config_dir()
+    .ok_or_else(|| anyhow!("unable to determine config directory"))?
+    .join("notnow");
+  let config_file = OsString::from("notnow.json");
+
+  Ok((config_dir, config_file))
 }
 
 /// Retrieve the path to the program's task directory.
@@ -230,15 +237,16 @@ where
 }
 
 /// Run the program.
-pub async fn run_prog<R, W>(in_: R, out: W, ui_config: &Path, tasks_root: &Path) -> Result<()>
+pub async fn run_prog<R, W>(in_: R, out: W, ui_config: FilePath, tasks_root: PathBuf) -> Result<()>
 where
   R: Read + Send + 'static,
   W: Write,
 {
-  let task_state = TaskState::load(tasks_root)
+  let task_state = TaskState::load(&tasks_root)
     .await
     .context("failed to load task state")?;
-  let ui_state = UiState::load(ui_config, &task_state)
+  let ui_file = ui_config.0.join(&ui_config.1);
+  let ui_state = UiState::load(&ui_file, &task_state)
     .await
     .context("failed to load UI state")?;
   let screen = out
@@ -250,13 +258,7 @@ where
     TermRenderer::new(screen, colors).context("failed to instantiate terminal based renderer")?;
 
   let (ui, _) = Ui::new(
-    || {
-      Box::new(TermUiData::new(
-        ui_config.to_path_buf(),
-        tasks_root.to_path_buf(),
-        task_state,
-      ))
-    },
+    || Box::new(TermUiData::new(ui_config, tasks_root, task_state)),
     |id, cap| Box::new(TermUi::new(id, cap, ui_state)),
   );
 
@@ -337,7 +339,7 @@ fn run_now() -> Result<()> {
 
   let stdin = stdin();
   let stdout = stdout();
-  let future = run_prog(stdin, stdout.lock(), &ui_config, &tasks_root);
+  let future = run_prog(stdin, stdout.lock(), ui_config, tasks_root);
   rt.block_on(future)
 }
 
