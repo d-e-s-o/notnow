@@ -4,6 +4,8 @@ Unreleased
   running concurrently
   - Added `--force`/`-f` option to force starting up in the presence of
     a stale lock file
+- Made sure to write-protect config files and tasks while the program is
+  running, to prevent accidental overwriting of intentional changes
 - Removed support for writing output to a file provided as program
   argument
 - Added support for `--version`/`-V` option to print program version

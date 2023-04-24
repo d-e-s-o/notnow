@@ -1,7 +1,7 @@
 // Copyright (C) 2017-2022 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use std::path::PathBuf;
+use std::ffi::OsString;
 
 use anyhow::Context as _;
 use anyhow::Result;
@@ -14,12 +14,12 @@ use gui::Id;
 use gui::MutCap;
 use gui::Widget;
 
+use crate::cap::DirCap;
 use crate::state::TaskState;
 use crate::state::UiState;
 use crate::tags::Tag;
 #[cfg(all(test, not(feature = "readline")))]
 use crate::tasks::Task;
-use crate::FilePath;
 
 use super::dialog::Dialog;
 use super::dialog::DialogData;
@@ -37,20 +37,23 @@ use super::tab_bar::TabState;
 
 /// The data associated with a `TermUi`.
 pub struct TermUiData {
-  /// The path to the file used for the UI configuration.
-  ui_config: FilePath,
-  /// The path of the directory containing the tasks.
-  tasks_dir: PathBuf,
+  /// The capability to the directory containing the tasks.
+  tasks_dir_cap: DirCap,
   /// All our task related state.
   task_state: TaskState,
+  /// The capability to the UI configuration directory.
+  ui_dir_cap: DirCap,
+  /// The name of the file in which to save the UI state.
+  ui_config_file: OsString,
 }
 
 impl TermUiData {
-  pub fn new(ui_config: FilePath, tasks_dir: PathBuf, task_state: TaskState) -> Self {
+  pub fn new(ui_config: (DirCap, OsString), tasks_dir_cap: DirCap, task_state: TaskState) -> Self {
     Self {
-      ui_config,
-      tasks_dir,
+      tasks_dir_cap,
       task_state,
+      ui_dir_cap: ui_config.0,
+      ui_config_file: ui_config.1,
     }
   }
 }
@@ -126,16 +129,21 @@ impl TermUi {
 
   /// Persist the state into a file.
   async fn save_all(&self, cap: &mut dyn MutCap<Event, Message>, ui_state: &UiState) -> Result<()> {
-    let data = self.data::<TermUiData>(cap);
+    let data = self.data_mut::<TermUiData>(cap);
     // TODO: We risk data inconsistencies if the second save operation
     //       fails.
-    let () = ui_state
-      .save(&data.ui_config)
-      .await
-      .context("failed to save UI state")?;
+    {
+      let write_guard = data.ui_dir_cap.write().await?;
+      let mut file_cap = write_guard.file_cap(&data.ui_config_file);
+      let () = ui_state
+        .save(&mut file_cap)
+        .await
+        .context("failed to save UI state")?;
+    }
+
     let () = data
       .task_state
-      .save(&data.tasks_dir)
+      .save(&mut data.tasks_dir_cap)
       .await
       .context("failed to save task state")?;
     Ok(())
@@ -347,26 +355,32 @@ mod tests {
     async fn build(self) -> TestUi {
       let tasks_dir = TempDir::new().unwrap();
       let task_state = TaskState::with_serde(self.task_state).unwrap();
+      let tasks_root_cap = DirCap::for_dir(tasks_dir.path().to_path_buf())
+        .await
+        .unwrap();
 
-      let ui_file = NamedTempFile::new().unwrap();
-      let ui_file_dir = ui_file.path().parent().unwrap().to_path_buf();
+      // We have to create an additional directory here for the UI
+      // configuration, otherwise we may end up placing files in /tmp/
+      // and we do not want our capability infrastructure to "manage"
+      // permissions of other files in there (and we may not be allowed
+      // to anyway).
+      let ui_dir = TempDir::new().unwrap();
+      let ui_file = NamedTempFile::new_in(ui_dir.path()).unwrap();
+      let ui_file_dir = ui_dir.path().to_path_buf();
+      let ui_dir_cap = DirCap::for_dir(ui_file_dir).await.unwrap();
       let ui_file_name = ui_file.path().file_name().unwrap().to_os_string();
-      let ui_file_path = (ui_file_dir, ui_file_name);
+      let ui_config = (ui_dir_cap, ui_file_name);
+
       let ui_state = UiState::with_serde(self.ui_state, &task_state).unwrap();
 
       let (ui, _) = Ui::new(
-        || {
-          Box::new(TermUiData::new(
-            ui_file_path,
-            tasks_dir.path().to_path_buf(),
-            task_state,
-          ))
-        },
+        || Box::new(TermUiData::new(ui_config, tasks_root_cap, task_state)),
         |id, cap| Box::new(TermUi::new(id, cap, ui_state)),
       );
 
       TestUi {
         ui,
+        _ui_dir: ui_dir,
         ui_file,
         tasks_root: tasks_dir,
       }
@@ -375,9 +389,9 @@ mod tests {
 
   /// An UI object used for testing. It is just a handy wrapper around a
   /// `Ui`.
-  #[allow(unused)]
   struct TestUi {
     ui: Ui<Event, Message>,
+    _ui_dir: TempDir,
     ui_file: NamedTempFile,
     tasks_root: TempDir,
   }

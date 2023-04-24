@@ -30,6 +30,9 @@ use tokio::io::AsyncWriteExt as _;
 
 use uuid::uuid;
 
+use crate::cap::DirCap;
+use crate::cap::FileCap;
+use crate::cap::WriteGuard;
 use crate::colors::Colors;
 use crate::ser::state::TaskState as SerTaskState;
 use crate::ser::state::UiState as SerUiState;
@@ -43,7 +46,6 @@ use crate::tags::Templates;
 use crate::tasks::Tasks;
 use crate::view::View;
 use crate::view::ViewBuilder;
-use crate::FilePath;
 
 /// The ID we use for storing task meta data.
 // We use the "special" UUID 00000000-0000-0000-0000-000000000000 for
@@ -149,11 +151,12 @@ async fn load_tasks_from_dir(root: &Path) -> Result<SerTaskState> {
 }
 
 /// Save some state into a file.
-async fn save_state_to_file<B, T>(path: &Path, state: &T) -> Result<()>
+async fn save_state_to_file<B, T>(file_cap: &mut FileCap<'_>, state: &T) -> Result<()>
 where
   B: Backend<T>,
   T: PartialEq,
 {
+  let path = file_cap.path();
   if let Ok(Some(existing)) = load_state_from_file::<B, T>(path).await {
     if &existing == state {
       // If the file already contains the expected state there is no need
@@ -167,42 +170,54 @@ where
   }
 
   let serialized = B::serialize(state)?;
-  let () = OpenOptions::new()
-    .create(true)
-    .truncate(true)
-    .write(true)
-    .open(path)
-    .await?
-    .write_all(serialized.as_ref())
+
+  let () = file_cap
+    .with_writeable_path(|path| async {
+      let () = OpenOptions::new()
+        .create(true)
+        .truncate(true)
+        .write(true)
+        .open(path)
+        .await?
+        .write_all(serialized.as_ref())
+        .await?;
+      Ok(())
+    })
     .await?;
+
   Ok(())
 }
 
 /// Save a task into a file in the given directory.
-async fn save_task_to_file(root: &Path, task: &SerTask) -> Result<()> {
-  let path = root.join(task.id.to_string());
+async fn save_task_to_file(write_guard: &mut WriteGuard<'_>, task: &SerTask) -> Result<()> {
+  let mut file_cap = write_guard.file_cap(OsStr::new(&task.id.to_string()));
   // TODO: It would be better if we were create a temporary file first
   //       if one already exists and then rename atomically. But even
   //       nicer would be if we somehow wrapped all saving in a
   //       transaction of sorts. That would allow us to eliminate the
   //       chance for *any* inconsistency, e.g., when saving UI state
   //       before task state and the latter failing the operation.
-  save_state_to_file::<iCal, _>(&path, task).await
+  save_state_to_file::<iCal, _>(&mut file_cap, task).await
 }
 
 /// Save a task meta data into a file in the provided directory.
-async fn save_tasks_meta_to_dir(root: &Path, tasks_meta: &SerTasksMeta) -> Result<()> {
-  let path = root.join(TASKS_META_ID.to_string());
-  save_state_to_file::<iCal, _>(&path, tasks_meta).await
+async fn save_tasks_meta_to_dir(
+  write_guard: &mut WriteGuard<'_>,
+  tasks_meta: &SerTasksMeta,
+) -> Result<()> {
+  let mut file_cap = write_guard.file_cap(OsStr::new(&TASKS_META_ID.to_string()));
+  save_state_to_file::<iCal, _>(&mut file_cap, tasks_meta).await
 }
 
 /// Save tasks into files in the provided directory.
-async fn save_tasks_to_dir(root: &Path, tasks: &SerTaskState) -> Result<()> {
+async fn save_tasks_to_dir(dir_cap: &mut DirCap, tasks: &SerTaskState) -> Result<()> {
+  let mut write_guard = dir_cap.write().await?;
+
   for task in tasks.tasks.0.iter() {
-    let () = save_task_to_file(root, task).await?;
+    let () = save_task_to_file(&mut write_guard, task).await?;
   }
 
-  let () = save_tasks_meta_to_dir(root, &tasks.tasks_meta).await?;
+  let () = save_tasks_meta_to_dir(&mut write_guard, &tasks.tasks_meta).await?;
   let ids = tasks
     .tasks
     .0
@@ -211,7 +226,7 @@ async fn save_tasks_to_dir(root: &Path, tasks: &SerTaskState) -> Result<()> {
     .collect::<HashSet<_>>();
 
   // Remove all files that do not correspond to an ID we just saved.
-  let mut dir = read_dir(root).await?;
+  let mut dir = read_dir(write_guard.path()).await?;
   while let Some(entry) = dir.next_entry().await? {
     let id = entry
       .file_name()
@@ -302,15 +317,14 @@ impl UiState {
   }
 
   /// Persist the state into a file.
-  pub async fn save(&self, path: &FilePath) -> Result<()> {
-    let file = path.0.join(&path.1);
-    let ui_state = load_state_from_file::<Json, SerUiState>(&file)
+  pub async fn save(&self, file_cap: &mut FileCap<'_>) -> Result<()> {
+    let ui_state = load_state_from_file::<Json, SerUiState>(file_cap.path())
       .await
       .unwrap_or_default()
       .unwrap_or_default();
     self.colors.set(Some(ui_state.colors));
 
-    save_state_to_file::<Json, _>(&file, &self.to_serde()).await
+    save_state_to_file::<Json, _>(file_cap, &self.to_serde()).await
   }
 }
 
@@ -379,8 +393,8 @@ impl TaskState {
   }
 
   /// Persist the state into a file.
-  pub async fn save(&self, root_dir: &Path) -> Result<()> {
-    save_tasks_to_dir(root_dir, &self.to_serde()).await
+  pub async fn save(&self, root_dir_cap: &mut DirCap) -> Result<()> {
+    save_tasks_to_dir(root_dir_cap, &self.to_serde()).await
   }
 
   /// Retrieve the `Tasks` object associated with this `TaskState`
@@ -411,7 +425,6 @@ pub mod tests {
 
   use std::env::temp_dir;
 
-  use tempfile::NamedTempFile;
   use tempfile::TempDir;
 
   use tokio::fs::remove_dir_all;
@@ -450,7 +463,10 @@ pub mod tests {
         tasks: SerTasks::from(tasks),
       };
       let task_state = TaskState::with_serde(task_state).unwrap().to_serde();
-      let () = save_tasks_to_dir(root, &task_state).await.unwrap();
+      let mut tasks_root_cap = DirCap::for_dir(root.to_path_buf()).await.unwrap();
+      let () = save_tasks_to_dir(&mut tasks_root_cap, &task_state)
+        .await
+        .unwrap();
       let mut loaded = load_tasks_from_dir(root).await.unwrap();
 
       // The order of tasks is undefined at this point of the loading
@@ -512,7 +528,8 @@ pub mod tests {
       tasks: SerTasks::from(task_vec.clone()),
     };
     let task_state = TaskState::with_serde(task_state).unwrap();
-    let () = task_state.save(root).await.unwrap();
+    let mut tasks_root_cap = DirCap::for_dir(root.to_path_buf()).await.unwrap();
+    let () = task_state.save(&mut tasks_root_cap).await.unwrap();
 
     let mut task_state = load_tasks_from_dir(root).await.unwrap();
     let () = task_state.tasks.0.sort_by(|first, second| {
@@ -556,7 +573,8 @@ pub mod tests {
       tasks.iter(|iter| iter.cloned().collect::<Vec<_>>())
     };
 
-    let () = task_state.save(root).await.unwrap();
+    let mut tasks_root_cap = DirCap::for_dir(root.to_path_buf()).await.unwrap();
+    let () = task_state.save(&mut tasks_root_cap).await.unwrap();
     let task_state = load_tasks_from_dir(root).await.unwrap();
     let templates = Rc::new(Templates::with_serde(task_state.tasks_meta.templates).unwrap());
     let loaded = Tasks::with_serde(task_state.tasks, templates).unwrap();
@@ -573,10 +591,16 @@ pub mod tests {
   #[test]
   async fn create_dirs_for_state() {
     let base = temp_dir().join("dir1");
-    let path = base.join("dir2").join("file");
+    let dir = base.join("dir2");
+    let mut dir_cap = DirCap::for_dir(dir.clone()).await.unwrap();
+    let file = OsStr::new("file");
+    let write_guard = dir_cap.write().await.unwrap();
+    let mut file_cap = write_guard.file_cap(file);
 
-    let () = save_state_to_file::<Json, _>(&path, &42).await.unwrap();
-    let mut file = File::open(path).await.unwrap();
+    let () = save_state_to_file::<Json, _>(&mut file_cap, &42)
+      .await
+      .unwrap();
+    let mut file = File::open(dir.join(file)).await.unwrap();
     let mut content = Vec::new();
     let _count = file.read_to_end(&mut content).await.unwrap();
     let () = remove_dir_all(&base).await.unwrap();
@@ -591,18 +615,23 @@ pub mod tests {
     let (task_state, ui_state) = make_state(task_vec.clone());
 
     let tasks_dir = TempDir::new().unwrap();
-    let () = task_state.save(tasks_dir.path()).await.unwrap();
-
-    let ui_file = NamedTempFile::new().unwrap();
-    let ui_file_dir = ui_file.path().parent().unwrap().to_path_buf();
-    let ui_file_name = ui_file.path().file_name().unwrap().to_os_string();
-    let ui_file_path = (ui_file_dir, ui_file_name);
-    let () = ui_state.save(&ui_file_path).await.unwrap();
-
-    let new_task_state = TaskState::load(tasks_dir.path()).await.unwrap();
-    let _new_ui_state = UiState::load(ui_file.path(), &new_task_state)
+    let mut tasks_root_cap = DirCap::for_dir(tasks_dir.path().to_path_buf())
       .await
       .unwrap();
+    let () = task_state.save(&mut tasks_root_cap).await.unwrap();
+
+    let ui_file_dir = TempDir::new().unwrap();
+    let ui_file_name = OsStr::new("config");
+    let ui_file = ui_file_dir.path().join(ui_file_name);
+    let mut ui_dir_cap = DirCap::for_dir(ui_file_dir.path().to_path_buf())
+      .await
+      .unwrap();
+    let ui_write_guard = ui_dir_cap.write().await.unwrap();
+    let mut ui_file_cap = ui_write_guard.file_cap(ui_file_name);
+    let () = ui_state.save(&mut ui_file_cap).await.unwrap();
+
+    let new_task_state = TaskState::load(tasks_dir.path()).await.unwrap();
+    let _new_ui_state = UiState::load(&ui_file, &new_task_state).await.unwrap();
     let new_task_vec = new_task_state.to_serde().tasks.into_task_vec();
     assert_eq!(new_task_vec, task_vec);
   }
@@ -616,15 +645,24 @@ pub mod tests {
       let (task_state, ui_state) = make_state(task_vec);
 
       let tasks_dir = TempDir::new().unwrap();
-      let () = task_state.save(tasks_dir.path()).await.unwrap();
+      let mut tasks_root_cap = DirCap::for_dir(tasks_dir.path().to_path_buf())
+        .await
+        .unwrap();
+      let () = task_state.save(&mut tasks_root_cap).await.unwrap();
 
-      let ui_file = NamedTempFile::new().unwrap();
-      let ui_file_dir = ui_file.path().parent().unwrap().to_path_buf();
-      let ui_file_name = ui_file.path().file_name().unwrap().to_os_string();
-      let ui_file_path = (ui_file_dir, ui_file_name);
-      let () = ui_state.save(&ui_file_path).await.unwrap();
+      let ui_file_dir = TempDir::new().unwrap();
+      let ui_file_name = OsStr::new("config");
+      let mut ui_dir_cap = DirCap::for_dir(ui_file_dir.path().to_path_buf())
+        .await
+        .unwrap();
+      let ui_write_guard = ui_dir_cap.write().await.unwrap();
+      let mut ui_file_cap = ui_write_guard.file_cap(ui_file_name);
+      let () = ui_state.save(&mut ui_file_cap).await.unwrap();
 
-      (ui_file.path().to_path_buf(), tasks_dir.path().to_path_buf())
+      (
+        ui_file_dir.path().join(ui_file_name),
+        tasks_dir.path().to_path_buf(),
+      )
     };
 
     // The files are removed by now, so we can test that both kinds of

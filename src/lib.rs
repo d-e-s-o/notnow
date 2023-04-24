@@ -116,6 +116,7 @@ use tokio::runtime::Builder;
 use gui::Renderer;
 use gui::Ui;
 
+use crate::cap::DirCap;
 use crate::resize::receive_window_resizes;
 use crate::state::TaskState;
 use crate::state::UiState;
@@ -258,8 +259,19 @@ where
   let renderer =
     TermRenderer::new(screen, colors).context("failed to instantiate terminal based renderer")?;
 
+  let ui_dir_cap = DirCap::for_dir(ui_config.0).await?;
+  let ui_config = ui_config.1;
+
+  let tasks_root_cap = DirCap::for_dir(tasks_root).await?;
+
   let (ui, _) = Ui::new(
-    || Box::new(TermUiData::new(ui_config, tasks_root, task_state)),
+    || {
+      Box::new(TermUiData::new(
+        (ui_dir_cap, ui_config),
+        tasks_root_cap,
+        task_state,
+      ))
+    },
     |id, cap| Box::new(TermUi::new(id, cap, ui_state)),
   );
 
