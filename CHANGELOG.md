@@ -6,6 +6,8 @@ Unreleased
     a stale lock file
 - Made sure to write-protect config files and tasks while the program is
   running, to prevent accidental overwriting of intentional changes
+- Properly support scrolling when editing tasks not fitting on the
+  screen
 - Removed support for writing output to a file provided as program
   argument
 - Added support for `--version`/`-V` option to print program version

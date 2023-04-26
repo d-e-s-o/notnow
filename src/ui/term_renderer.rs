@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2022 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2018-2023 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::cell::Cell;
@@ -532,7 +532,18 @@ where
         self.colors.in_out_success_bg,
         Some(s),
       ),
-      InOut::Clear => return Ok(Default::default()),
+      InOut::Clear => {
+        // This is a tiny bit of an unclean solution, but essentially we
+        // do not want to keep any offset data around between editing
+        // cycles. If we apply an offset previously stored for an overly
+        // long task and then start editing a different task that easily
+        // fits on the screen, the result will look strange. The correct
+        // thing is to clear any offset data, but ideally there would be
+        // a cleaner way to go about that than relying on us entering
+        // the `Clear` state in between editing of different tasks.
+        let _ = self.data.borrow_mut().remove(&in_out.id());
+        return Ok(Default::default())
+      },
     };
 
     self.writer.write(0, bbox.h - 1, fg, bg, prefix)?;
@@ -542,14 +553,28 @@ where
       let fg = self.colors.in_out_string_fg;
       let bg = self.colors.in_out_string_bg;
 
-      self.writer.write(x, bbox.h - 1, fg, bg, string)?;
-
-      if let InOut::Input(s, idx) = in_out.state(cap) {
+      if let InOut::Input(string, idx) = in_out.state(cap) {
         debug_assert!(cap.is_focused(in_out.id()));
 
-        let idx = char_index(s, *idx);
-        self.writer.goto(x + idx as u16, bbox.h - 1)?;
-        self.writer.show()?
+        let mut map = self.data.borrow_mut();
+        let data = map.entry(in_out.id()).or_default();
+
+        // Calculate the number of displayable characters we have
+        // available after the "prefix".
+        let limit = bbox.w.saturating_sub(x) as usize;
+        let idx = char_index(string, *idx);
+        let offset = sanitize_offset(data.offset, idx, limit);
+        let string = &string[offset..];
+
+        data.offset = offset;
+
+        let () = self.writer.write(x, bbox.h - 1, fg, bg, string)?;
+        let () = self
+          .writer
+          .goto(x + idx as u16 - offset as u16, bbox.h - 1)?;
+        let () = self.writer.show()?;
+      } else {
+        let () = self.writer.write(x, bbox.h - 1, fg, bg, string)?;
       }
     }
     Ok(Default::default())
