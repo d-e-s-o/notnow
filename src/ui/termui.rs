@@ -1,4 +1,4 @@
-// Copyright (C) 2017-2022 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2017-2023 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::ffi::OsString;
@@ -908,6 +908,33 @@ mod tests {
 
     let tags = tasks[15].tags(|iter| iter.map(|x| x.name().to_string()).collect::<Vec<_>>());
     let expected = vec!["tag1".to_string(), "tag2".to_string(), "tag3".to_string()];
+    assert_eq!(tags, expected);
+  }
+
+  /// Make sure that adding a task on a currently empty view adds the
+  /// view's positive tag literals as tags to the task.
+  #[test]
+  async fn add_task_on_empty_view() {
+    let events = vec![
+      Event::from('l'),
+      Event::from('l'),
+      Event::from('a'),
+      Event::from('f'),
+      Event::from('o'),
+      Event::from('o'),
+      Event::from('\n'),
+    ];
+
+    let mut builder = TestUiBuilder::with_default_tasks_and_tags();
+    // Clear out all tasks.
+    builder.task_state.tasks = SerTasks::from(Vec::new());
+
+    let tasks = builder.build().await.handle(events).await.tasks().await;
+    assert_eq!(tasks.len(), 1);
+    assert_eq!(tasks[0].summary(), "foo");
+
+    let tags = tasks[0].tags(|iter| iter.map(|x| x.name().to_string()).collect::<Vec<_>>());
+    let expected = vec!["tag2", "tag3"];
     assert_eq!(tags, expected);
   }
 

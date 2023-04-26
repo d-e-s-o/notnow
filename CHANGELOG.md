@@ -8,6 +8,8 @@ Unreleased
   running, to prevent accidental overwriting of intentional changes
 - Properly support scrolling when editing tasks not fitting on the
   screen
+- Set positive tag literals of tab as tags on a task newly added to an
+  empty tab
 - Removed support for writing output to a file provided as program
   argument
 - Added support for `--version`/`-V` option to print program version

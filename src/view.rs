@@ -1,4 +1,4 @@
-// Copyright (C) 2017-2022 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2017-2023 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::rc::Rc;
@@ -299,6 +299,17 @@ impl View {
     self.tasks.iter(|iter| f(Filter::new(iter, &self.lits)))
   }
 
+  /// Retrieve an iterator over all tags of the positive literals in
+  /// this `View`.
+  pub fn positive_tag_iter(&self) -> impl Iterator<Item = &Tag> {
+    self.lits.iter().flat_map(|disjunctions| {
+      disjunctions.iter().filter_map(|literal| match literal {
+        TagLit::Pos(tag) => Some(tag),
+        TagLit::Neg(..) => None,
+      })
+    })
+  }
+
   /// Check whether the view is empty or not.
   #[cfg(test)]
   pub fn is_empty(&self) -> bool {
@@ -361,12 +372,69 @@ mod tests {
   }
 
 
+  /// Check that we can identify an empty `View`.
   #[test]
   fn is_empty() {
     assert!(make_view(0).is_empty());
     assert!(!make_view(1).is_empty());
   }
 
+  /// Make sure that we can retrieve an iterator over all positive tag
+  /// literals in a `View`.
+  #[test]
+  fn pos_tag_iteration() {
+    fn pos_tags(view: &View) -> Vec<String> {
+      view
+        .positive_tag_iter()
+        .map(|tag| tag.name().to_string())
+        .collect::<Vec<_>>()
+    }
+
+    let (templates, tasks) = make_tagged_tasks(20);
+
+    let view = ViewBuilder::new(tasks.clone()).build("test");
+    assert_eq!(pos_tags(&view), Vec::<String>::new());
+
+    let view = ViewBuilder::new(tasks.clone())
+      .and(templates.instantiate_from_name(COMPLETE_TAG))
+      .build("test");
+    assert_eq!(pos_tags(&view), vec![COMPLETE_TAG]);
+
+    let view = ViewBuilder::new(tasks.clone())
+      .and(templates.instantiate_from_name("tag1"))
+      .and_not(templates.instantiate_from_name("tag2"))
+      .build("test");
+    assert_eq!(pos_tags(&view), vec!["tag1"]);
+
+    let view = ViewBuilder::new(tasks.clone())
+      .and(templates.instantiate_from_name("tag1"))
+      .or(templates.instantiate_from_name("tag2"))
+      .build("test");
+    assert_eq!(pos_tags(&view), vec!["tag1", "tag2"]);
+
+    let view = ViewBuilder::new(tasks.clone())
+      .and(templates.instantiate_from_name("tag3"))
+      .or(templates.instantiate_from_name("tag1"))
+      .and_not(templates.instantiate_from_name("tag2"))
+      .build("test");
+    assert_eq!(pos_tags(&view), vec!["tag3", "tag1"]);
+
+    let view = ViewBuilder::new(tasks.clone())
+      .or(templates.instantiate_from_name("tag3"))
+      .or(templates.instantiate_from_name("tag2"))
+      .or(templates.instantiate_from_name("tag5"))
+      .build("test");
+    assert_eq!(pos_tags(&view), vec!["tag3", "tag2", "tag5"]);
+
+    let view = ViewBuilder::new(tasks)
+      .and(templates.instantiate_from_name("tag3"))
+      .and(templates.instantiate_from_name("tag2"))
+      .and(templates.instantiate_from_name("tag5"))
+      .build("test");
+    assert_eq!(pos_tags(&view), vec!["tag3", "tag2", "tag5"]);
+  }
+
+  /// Check that we can correctly filter all completed tasks.
   #[test]
   fn filter_completions() {
     let (templates, tasks) = make_tagged_tasks(16);

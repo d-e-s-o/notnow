@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2022 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2018-2023 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::cmp::min;
@@ -401,7 +401,14 @@ impl Handleable<Event, Message> for TaskListBox {
                       .collect()
                   })
                 } else {
-                  Default::default()
+                  // If there is no selected task to take as a
+                  // "template", fall back to assigning all positive
+                  // literals from the view as tags. The user can always
+                  // deselect them, but having it show up without tags
+                  // (which would be the only other way we can conjure
+                  // up to handle this case), is much worse of a user
+                  // experience.
+                  data.view.positive_tag_iter().cloned().collect()
                 };
 
                 // We want the new task to be displayed after the
