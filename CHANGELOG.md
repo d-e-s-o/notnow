@@ -1,5 +1,5 @@
-Unreleased
-----------
+0.3.1
+-----
 - Introduced lock file usage to prevent multiple program instances from
   running concurrently
   - Added `--force`/`-f` option to force starting up in the presence of
