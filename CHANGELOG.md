@@ -1,3 +1,8 @@
+Unreleased
+----------
+- Fixed `--version`/`-V` options to work properly again
+
+
 0.3.1
 -----
 - Introduced lock file usage to prevent multiple program instances from

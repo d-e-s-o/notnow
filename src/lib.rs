@@ -1,4 +1,4 @@
-// Copyright (C) 2017-2022 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2017-2023 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 // We basically deny most lints that "warn" by default, except for
@@ -358,11 +358,12 @@ fn run_now() -> Result<()> {
 
 /// Parse the arguments and run the program.
 fn run_with_args(lock_file: &Path) -> Result<()> {
-  let mut it = args_os();
-  match it.len() {
+  match args_os().len() {
     0 | 1 => with_lockfile(lock_file, false, run_now),
-    2 if it.any(|arg| &arg == "--force" || &arg == "-f") => with_lockfile(lock_file, true, run_now),
-    2 if it.any(|arg| &arg == "--version" || &arg == "-V") => {
+    2 if args_os().any(|arg| &arg == "--force" || &arg == "-f") => {
+      with_lockfile(lock_file, true, run_now)
+    },
+    2 if args_os().any(|arg| &arg == "--version" || &arg == "-V") => {
       println!("{} {}", env!("CARGO_CRATE_NAME"), env!("NOTNOW_VERSION"));
       Ok(())
     },
