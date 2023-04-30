@@ -52,7 +52,7 @@ required-features = ["test"]
 
 [build-dependencies]
 anyhow = "1.0.66"
-grev = "0.1.1"
+grev = "0.1.2"
 
 [dependencies.anyhow]
 version = "1.0.66"
