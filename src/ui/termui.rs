@@ -48,7 +48,7 @@ pub struct TermUiData {
 }
 
 impl TermUiData {
-  pub fn new(ui_config: (DirCap, OsString), tasks_dir_cap: DirCap, task_state: TaskState) -> Self {
+  pub fn new(tasks_dir_cap: DirCap, task_state: TaskState, ui_config: (DirCap, OsString)) -> Self {
     Self {
       tasks_dir_cap,
       task_state,
@@ -374,15 +374,15 @@ mod tests {
       let ui_state = UiState::with_serde(self.ui_state, &task_state).unwrap();
 
       let (ui, _) = Ui::new(
-        || Box::new(TermUiData::new(ui_config, tasks_root_cap, task_state)),
+        || Box::new(TermUiData::new(tasks_root_cap, task_state, ui_config)),
         |id, cap| Box::new(TermUi::new(id, cap, ui_state)),
       );
 
       TestUi {
+        tasks_root: tasks_dir,
         ui,
         _ui_dir: ui_dir,
         ui_file,
-        tasks_root: tasks_dir,
       }
     }
   }
@@ -390,10 +390,10 @@ mod tests {
   /// An UI object used for testing. It is just a handy wrapper around a
   /// `Ui`.
   struct TestUi {
+    tasks_root: TempDir,
     ui: Ui<Event, Message>,
     _ui_dir: TempDir,
     ui_file: NamedTempFile,
-    tasks_root: TempDir,
   }
 
   impl TestUi {

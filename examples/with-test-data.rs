@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2022-2023 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::ffi::OsString;
@@ -37,8 +37,8 @@ async fn main() -> Result<()> {
   run_prog(
     stdin(),
     stdout().lock(),
-    ui_file_path,
     tasks_dir.path().to_path_buf(),
+    ui_file_path,
   )
   .await
 }

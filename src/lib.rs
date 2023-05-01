@@ -150,6 +150,16 @@ fn lock_file() -> Result<PathBuf> {
   Ok(path)
 }
 
+/// Retrieve the path to the program's task directory.
+fn tasks_root() -> Result<PathBuf> {
+  Ok(
+    config_dir()
+      .ok_or_else(|| anyhow!("unable to determine config directory"))?
+      .join("notnow")
+      .join("tasks"),
+  )
+}
+
 /// Retrieve the path to the UI's configuration file, in the form of a
 /// (directory path, file name) tuple.
 fn ui_config() -> Result<FilePath> {
@@ -159,16 +169,6 @@ fn ui_config() -> Result<FilePath> {
   let config_file = OsString::from("notnow.json");
 
   Ok((config_dir, config_file))
-}
-
-/// Retrieve the path to the program's task directory.
-fn tasks_root() -> Result<PathBuf> {
-  Ok(
-    config_dir()
-      .ok_or_else(|| anyhow!("unable to determine config directory"))?
-      .join("notnow")
-      .join("tasks"),
-  )
 }
 
 /// Instantiate a key receiver thread and have it send key events through the given channel.
@@ -239,7 +239,7 @@ where
 }
 
 /// Run the program.
-pub async fn run_prog<R, W>(in_: R, out: W, ui_config: FilePath, tasks_root: PathBuf) -> Result<()>
+pub async fn run_prog<R, W>(in_: R, out: W, tasks_root: PathBuf, ui_config: FilePath) -> Result<()>
 where
   R: Read + Send + 'static,
   W: Write,
@@ -267,9 +267,9 @@ where
   let (ui, _) = Ui::new(
     || {
       Box::new(TermUiData::new(
-        (ui_dir_cap, ui_config),
         tasks_root_cap,
         task_state,
+        (ui_dir_cap, ui_config),
       ))
     },
     |id, cap| Box::new(TermUi::new(id, cap, ui_state)),
@@ -352,7 +352,7 @@ fn run_now() -> Result<()> {
 
   let stdin = stdin();
   let stdout = stdout();
-  let future = run_prog(stdin, stdout.lock(), ui_config, tasks_root);
+  let future = run_prog(stdin, stdout.lock(), tasks_root, ui_config);
   rt.block_on(future)
 }
 

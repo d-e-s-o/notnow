@@ -1,4 +1,4 @@
-// Copyright (C) 2017-2022 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2017-2023 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 //! Definitions pertaining UI and task state of the program.
@@ -620,6 +620,10 @@ pub mod tests {
       .unwrap();
     let () = task_state.save(&mut tasks_root_cap).await.unwrap();
 
+    let new_task_state = TaskState::load(tasks_dir.path()).await.unwrap();
+    let new_task_vec = new_task_state.to_serde().tasks.into_task_vec();
+    assert_eq!(new_task_vec, task_vec);
+
     let ui_file_dir = TempDir::new().unwrap();
     let ui_file_name = OsStr::new("config");
     let ui_file = ui_file_dir.path().join(ui_file_name);
@@ -630,10 +634,7 @@ pub mod tests {
     let mut ui_file_cap = ui_write_guard.file_cap(ui_file_name);
     let () = ui_state.save(&mut ui_file_cap).await.unwrap();
 
-    let new_task_state = TaskState::load(tasks_dir.path()).await.unwrap();
     let _new_ui_state = UiState::load(&ui_file, &new_task_state).await.unwrap();
-    let new_task_vec = new_task_state.to_serde().tasks.into_task_vec();
-    assert_eq!(new_task_vec, task_vec);
   }
 
   /// Verify that loading `TaskState` and `UiState` objects succeeds
@@ -668,9 +669,10 @@ pub mod tests {
     // The files are removed by now, so we can test that both kinds of
     // state handle such missing files gracefully.
     let new_task_state = TaskState::load(&tasks_root).await.unwrap();
-    let _new_ui_state = UiState::load(&ui_config, &new_task_state).await.unwrap();
     let new_task_vec = new_task_state.to_serde().tasks.into_task_vec();
     assert_eq!(new_task_vec, Vec::new());
+
+    let _new_ui_state = UiState::load(&ui_config, &new_task_state).await.unwrap();
   }
 
   /// Test that we fail `TaskState` construction when an invalid tag is
