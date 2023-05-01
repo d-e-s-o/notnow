@@ -1,6 +1,7 @@
 Unreleased
 ----------
 - Fixed `--version`/`-V` options to work properly again
+- Fixed potential panics when task positions are exhausted
 
 
 0.3.1

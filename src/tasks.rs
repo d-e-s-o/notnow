@@ -1,4 +1,4 @@
-// Copyright (C) 2017-2022 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2017-2023 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::cell::RefCell;
@@ -243,6 +243,50 @@ impl ToSerde for (&Task, Position) {
   }
 }
 
+/// Find an available position between `before` and `after`.
+///
+/// If the positions of the two entries are too close together for
+/// another one to be found in between, the function makes sure to
+/// adjust the positions of follow on entries. Doing so will always end
+/// up successful, because at worst we adjust the positions of literally
+/// all entries starting at `after` until we reach the end, but we can
+/// always bump up the position of the last task further.
+fn find_position(
+  before: Option<DbEntry<'_, Task, Position>>,
+  after: Option<DbEntry<'_, Task, Position>>,
+) -> Position {
+  loop {
+    let position = Position::between(
+      before.as_ref().map(DbEntry::aux),
+      after.as_ref().map(DbEntry::aux),
+    );
+
+    if let Some(position) = position {
+      break position
+    }
+
+    // SANITY: Because we were unable to find a position between
+    //         `before` and `after`, we know that `after` can't be
+    //         `None, otherwise the position finding logic would
+    //         trivially have been able to find a valid position.
+    let mut entry = after.as_ref().unwrap().clone();
+    let mut next = entry.next();
+
+    loop {
+      let position = Position::between(Some(entry.aux()), next.as_ref().map(DbEntry::aux));
+
+      if let Some(position) = position {
+        let () = entry.set_aux(position);
+        break
+      }
+
+      // SANITY: Same as above. Given that we did not find a position,
+      //         `next` cannot be `None`.
+      entry = next.unwrap();
+      next = entry.next();
+    }
+  }
+}
 
 /// Add a task to a vector of tasks.
 fn add_task(tasks: &mut Db<Task, Position>, task: Rc<Task>, target: Option<Target>) -> Rc<Task> {
@@ -256,22 +300,11 @@ fn add_task(tasks: &mut Db<Task, Position>, task: Rc<Task>, target: Option<Targe
     (tasks.last(), None)
   };
 
-  // TODO: Ideally we would not unwrap here. Right now triggering this
-  //       case is fairly unlikely in real world scenarios. The correct
-  //       way to fix it would likely involve recursively adjusting the
-  //       positions (auxiliary data) of adjacent entries until we can
-  //       find a valid position. Doing so would still only touch
-  //       necessary tasks, but more than just a single one.
-  let position = Position::between(
-    before.as_ref().map(DbEntry::aux),
-    after.as_ref().map(DbEntry::aux),
-  )
-  .unwrap();
-
   let idx = after
     .as_ref()
     .map(DbEntry::index)
     .unwrap_or_else(|| tasks.len());
+  let position = find_position(before, after);
 
   let _entry = tasks
     .try_insert_with_aux(idx, task.clone(), position)
@@ -1028,5 +1061,28 @@ pub mod tests {
     let mut expected = task_vec;
     expected.swap(1, 2);
     assert_eq!(tasks, expected);
+  }
+
+  /// Check that we can always find a position for a task to add.
+  #[test]
+  fn position_finding() {
+    let task_vec = make_tasks(5);
+    let tasks = Tasks::with_serde_tasks(task_vec).unwrap();
+
+    (0..100_000).for_each(|_| {
+      let (task1, task2) = {
+        let tasks = tasks.0.borrow();
+        let entry1 = tasks.tasks.get(1).unwrap();
+        let entry2 = tasks.tasks.get(2).unwrap();
+        (entry1.deref().clone(), entry2.deref().clone())
+      };
+
+      // Swapping the same two tasks repeatedly will skew positions
+      // towards that of the next following task, meaning that after a
+      // bunch of iterations we end up needing to adjust positions of
+      // tasks further down the line as well, triggering our iterative
+      // logic in `find_position`.
+      tasks.move_after(task1, task2);
+    })
   }
 }

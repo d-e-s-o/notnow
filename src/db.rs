@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2022-2023 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::cell::Cell;
@@ -77,7 +77,6 @@ where
   }
 
   /// Set the auxiliary data associated with this `Entry`.
-  #[cfg(test)]
   #[inline]
   pub fn set_aux(&self, aux: Aux) {
     let () = self.data[self.index].1.set(aux);
