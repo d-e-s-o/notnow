@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2022 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2018-2023 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 //! A module providing serialization and deserialization support for the
@@ -14,9 +14,9 @@ use crate::ser::tasks::TasksMeta;
 use crate::ser::view::View;
 
 
-/// A struct comprising the program state itself.
+/// A struct comprising the program's UI configuration.
 #[derive(Debug, Default, Deserialize, PartialEq, Serialize)]
-pub struct UiState {
+pub struct UiConfig {
   // We keep the colors at the start of the struct because that means
   // they will be at the start of the file and they are the most likely
   // to be modified by a user.

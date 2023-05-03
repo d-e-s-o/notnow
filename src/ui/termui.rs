@@ -16,7 +16,7 @@ use gui::Widget;
 
 use crate::cap::DirCap;
 use crate::state::TaskState;
-use crate::state::UiState;
+use crate::state::UiConfig;
 use crate::tags::Tag;
 #[cfg(all(test, not(feature = "readline")))]
 use crate::tasks::Task;
@@ -48,17 +48,21 @@ pub struct TermUiData {
 }
 
 impl TermUiData {
-  pub fn new(tasks_dir_cap: DirCap, task_state: TaskState, ui_config: (DirCap, OsString)) -> Self {
+  pub fn new(
+    tasks_dir_cap: DirCap,
+    task_state: TaskState,
+    ui_config_path: (DirCap, OsString),
+  ) -> Self {
     Self {
       tasks_dir_cap,
       task_state,
-      ui_dir_cap: ui_config.0,
-      ui_config_file: ui_config.1,
+      ui_dir_cap: ui_config_path.0,
+      ui_config_file: ui_config_path.1,
     }
   }
 }
 
-/// An implementation of a terminal based view.
+/// A terminal based UI.
 #[derive(Debug, Widget)]
 #[gui(Event = Event, Message = Message)]
 pub struct TermUi {
@@ -71,15 +75,15 @@ pub struct TermUi {
 
 
 impl TermUi {
-  /// Create a new view associated with the given `State` object.
-  pub fn new(id: Id, cap: &mut dyn MutCap<Event, Message>, state: UiState) -> Self {
+  /// Create a new UI as partly described by the provided `UiConfig` object.
+  pub fn new(id: Id, cap: &mut dyn MutCap<Event, Message>, config: UiConfig) -> Self {
     let termui_id = id;
-    let UiState {
+    let UiConfig {
       toggle_tag,
       views,
       selected,
       ..
-    } = state;
+    } = config;
 
     let toggle_tag_copy = toggle_tag.clone();
     // TODO: Ideally, widgets that need a modal dialog could just create
@@ -127,18 +131,22 @@ impl TermUi {
     }
   }
 
-  /// Persist the state into a file.
-  async fn save_all(&self, cap: &mut dyn MutCap<Event, Message>, ui_state: &UiState) -> Result<()> {
+  /// Persist configuration and state.
+  async fn save_all(
+    &self,
+    cap: &mut dyn MutCap<Event, Message>,
+    ui_config: &UiConfig,
+  ) -> Result<()> {
     let data = self.data_mut::<TermUiData>(cap);
     // TODO: We risk data inconsistencies if the second save operation
     //       fails.
     {
       let write_guard = data.ui_dir_cap.write().await?;
       let mut file_cap = write_guard.file_cap(&data.ui_config_file);
-      let () = ui_state
+      let () = ui_config
         .save(&mut file_cap)
         .await
-        .context("failed to save UI state")?;
+        .context("failed to save UI configuration")?;
     }
 
     let () = data
@@ -149,13 +157,13 @@ impl TermUi {
     Ok(())
   }
 
-  /// Save the current state.
+  /// Save the current configuration and state.
   async fn save_and_report(
     &self,
     cap: &mut dyn MutCap<Event, Message>,
-    ui_state: &UiState,
+    ui_config: &UiConfig,
   ) -> Option<Message> {
-    let in_out = match self.save_all(cap, ui_state).await {
+    let in_out = match self.save_all(cap, ui_config).await {
       Ok(_) => InOut::Saved,
       Err(err) => InOut::Error(format!("{}", err)),
     };
@@ -178,7 +186,7 @@ impl TermUi {
     let TabState {
       views, selected, ..
     } = state;
-    let ui_state = UiState {
+    let ui_config = UiConfig {
       views,
       selected,
       // TODO: Currently we do not allow in-program modification of
@@ -192,7 +200,7 @@ impl TermUi {
       colors: Default::default(),
       toggle_tag: self.toggle_tag.clone(),
     };
-    self.save_and_report(cap, &ui_state).await
+    self.save_and_report(cap, &ui_config).await
   }
 }
 
@@ -278,14 +286,14 @@ mod tests {
   use tokio::test;
 
   use crate::ser::state::TaskState as SerTaskState;
-  use crate::ser::state::UiState as SerUiState;
+  use crate::ser::state::UiConfig as SerUiConfig;
   use crate::ser::tasks::Task as SerTask;
   use crate::ser::tasks::Tasks as SerTasks;
   use crate::ser::tasks::TasksMeta as SerTasksMeta;
   use crate::ser::view::View as SerView;
   use crate::ser::ToSerde;
   use crate::state::TaskState;
-  use crate::state::UiState;
+  use crate::state::UiConfig;
   use crate::test::default_tasks_and_tags;
   use crate::test::make_task_summaries;
   use crate::test::make_tasks;
@@ -309,7 +317,7 @@ mod tests {
   /// A builder object used for instantiating a UI with a certain
   /// composition of tasks.
   struct TestUiBuilder {
-    ui_state: SerUiState,
+    ui_config: SerUiConfig,
     task_state: SerTaskState,
   }
 
@@ -317,7 +325,7 @@ mod tests {
     /// Create a builder that will create a UI without any tasks.
     fn new() -> TestUiBuilder {
       Self {
-        ui_state: Default::default(),
+        ui_config: Default::default(),
         task_state: Default::default(),
       }
     }
@@ -333,7 +341,7 @@ mod tests {
         .for_each(|x| assert!(x.tags.is_empty()));
 
       Self {
-        ui_state: Default::default(),
+        ui_config: Default::default(),
         task_state: SerTaskState {
           tasks_meta: SerTasksMeta::default(),
           tasks: SerTasks::from(tasks.into()),
@@ -344,9 +352,9 @@ mod tests {
     /// Create a builder that will instantiate a UI with state as
     /// created by `default_tasks_and_tags`.
     fn with_default_tasks_and_tags() -> TestUiBuilder {
-      let (ui_state, task_state) = default_tasks_and_tags();
+      let (ui_config, task_state) = default_tasks_and_tags();
       TestUiBuilder {
-        ui_state,
+        ui_config,
         task_state,
       }
     }
@@ -369,13 +377,13 @@ mod tests {
       let ui_file_dir = ui_dir.path().to_path_buf();
       let ui_dir_cap = DirCap::for_dir(ui_file_dir).await.unwrap();
       let ui_file_name = ui_file.path().file_name().unwrap().to_os_string();
-      let ui_config = (ui_dir_cap, ui_file_name);
+      let ui_config_path = (ui_dir_cap, ui_file_name);
 
-      let ui_state = UiState::with_serde(self.ui_state, &task_state).unwrap();
+      let ui_config = UiConfig::with_serde(self.ui_config, &task_state).unwrap();
 
       let (ui, _) = Ui::new(
-        || Box::new(TermUiData::new(tasks_root_cap, task_state, ui_config)),
-        |id, cap| Box::new(TermUi::new(id, cap, ui_state)),
+        || Box::new(TermUiData::new(tasks_root_cap, task_state, ui_config_path)),
+        |id, cap| Box::new(TermUi::new(id, cap, ui_config)),
       );
 
       TestUi {
@@ -459,12 +467,13 @@ mod tests {
       self.tasks().await.iter().map(|x| x.summary()).collect()
     }
 
-    /// Load the UI's state from a file. Note that unless the state has
-    /// been saved, the result will probably just be the default state.
-    async fn load_ui_state(&self) -> Result<UiState> {
+    /// Load the UI's configuration from a file. Note that unless the
+    /// configuration has been saved, the result will probably just be
+    /// the default one.
+    async fn load_ui_config(&self) -> Result<UiConfig> {
       let task_state = TaskState::load(self.tasks_root.path()).await?;
-      let ui_state = UiState::load(self.ui_file.path(), &task_state).await?;
-      Ok(ui_state)
+      let ui_config = UiConfig::load(self.ui_file.path(), &task_state).await?;
+      Ok(ui_config)
     }
   }
 
@@ -1529,7 +1538,7 @@ mod tests {
       let state = with_key(c).await;
       match state {
         InOut::Input(_, _) => (),
-        _ => panic!("Unexpected state {:?} for char {}", state, c),
+        _ => panic!("Unexpected state {state:?} for char {c}"),
       }
     }
 
@@ -2127,21 +2136,23 @@ mod tests {
     assert!(!updated);
   }
 
+  /// Check that we can save and load the UI config and state and get
+  /// the expected object, when using a single tab.
   #[test]
-  async fn save_ui_state_single_tab() {
+  async fn save_ui_config_single_tab() {
     let tasks = make_tasks(1);
     let events = vec![Event::from('w')];
-    let state = TestUiBuilder::with_ser_tasks(tasks)
+    let config = TestUiBuilder::with_ser_tasks(tasks)
       .build()
       .await
       .handle(events)
       .await
-      .load_ui_state()
+      .load_ui_config()
       .await
       .unwrap()
       .to_serde();
 
-    let expected = SerUiState {
+    let expected = SerUiConfig {
       views: vec![(
         SerView {
           name: "all".to_string(),
@@ -2153,11 +2164,14 @@ mod tests {
       colors: Default::default(),
       toggle_tag: None,
     };
-    assert_eq!(state, expected)
+    assert_eq!(config, expected)
   }
 
+  /// Check that we can save and load the UI config and state and get
+  /// the expected object, when using a single tab and selecting a
+  /// non-default task.
   #[test]
-  async fn save_ui_state_single_tab_different_task() {
+  async fn save_ui_config_single_tab_different_task() {
     let tasks = make_tasks(5);
     let events = vec![Event::from('j'), Event::from('j'), Event::from('w')];
     let state = TestUiBuilder::with_ser_tasks(tasks)
@@ -2165,12 +2179,12 @@ mod tests {
       .await
       .handle(events)
       .await
-      .load_ui_state()
+      .load_ui_config()
       .await
       .unwrap()
       .to_serde();
 
-    let expected = SerUiState {
+    let expected = SerUiConfig {
       views: vec![(
         SerView {
           name: "all".to_string(),
@@ -2185,31 +2199,36 @@ mod tests {
     assert_eq!(state, expected)
   }
 
+  /// Check that we can save and load the UI config and state and get
+  /// the expected object, when using multiple tabs.
   #[test]
-  async fn save_ui_state_multiple_tabs() {
+  async fn save_ui_config_multiple_tabs() {
     let events = vec![Event::from('w')];
-    let state = TestUiBuilder::with_default_tasks_and_tags()
+    let config = TestUiBuilder::with_default_tasks_and_tags()
       .build()
       .await
       .handle(events)
       .await
-      .load_ui_state()
+      .load_ui_config()
       .await
       .unwrap()
       .to_serde();
 
     let (expected, _) = default_tasks_and_tags();
-    assert_eq!(state.views.len(), expected.views.len());
-    assert_eq!(state.views.len(), 4);
-    assert_eq!(state.views[0].0.name, expected.views[0].0.name);
-    assert_eq!(state.views[1].0.name, expected.views[1].0.name);
-    assert_eq!(state.views[2].0.name, expected.views[2].0.name);
-    assert_eq!(state.views[3].0.name, expected.views[3].0.name);
-    assert_eq!(state.selected, Some(0));
+    assert_eq!(config.views.len(), expected.views.len());
+    assert_eq!(config.views.len(), 4);
+    assert_eq!(config.views[0].0.name, expected.views[0].0.name);
+    assert_eq!(config.views[1].0.name, expected.views[1].0.name);
+    assert_eq!(config.views[2].0.name, expected.views[2].0.name);
+    assert_eq!(config.views[3].0.name, expected.views[3].0.name);
+    assert_eq!(config.selected, Some(0));
   }
 
+  /// Check that we can save and load the UI config and state and get
+  /// the expected object, when multiple properties were changed from
+  /// their defaults.
   #[test]
-  async fn save_ui_state_after_various_changes() {
+  async fn save_ui_config_after_various_changes() {
     let events = vec![
       Event::from('j'),
       Event::from('l'),
@@ -2222,28 +2241,28 @@ mod tests {
       Event::from('j'),
       Event::from('w'),
     ];
-    let state = TestUiBuilder::with_default_tasks_and_tags()
+    let config = TestUiBuilder::with_default_tasks_and_tags()
       .build()
       .await
       .handle(events)
       .await
-      .load_ui_state()
+      .load_ui_config()
       .await
       .unwrap()
       .to_serde();
 
     let (expected, _) = default_tasks_and_tags();
-    assert_eq!(state.views.len(), expected.views.len());
-    assert_eq!(state.views.len(), 4);
-    assert_eq!(state.views[0].0.name, expected.views[0].0.name);
-    assert_eq!(state.views[1].0.name, expected.views[1].0.name);
-    assert_eq!(state.views[2].0.name, expected.views[2].0.name);
-    assert_eq!(state.views[3].0.name, expected.views[3].0.name);
-    assert_eq!(state.views[0].1, Some(1));
-    assert_eq!(state.views[1].1, Some(2));
-    assert_eq!(state.views[2].1, Some(4));
-    assert_eq!(state.views[3].1, Some(0));
-    assert_eq!(state.selected, Some(2));
+    assert_eq!(config.views.len(), expected.views.len());
+    assert_eq!(config.views.len(), 4);
+    assert_eq!(config.views[0].0.name, expected.views[0].0.name);
+    assert_eq!(config.views[1].0.name, expected.views[1].0.name);
+    assert_eq!(config.views[2].0.name, expected.views[2].0.name);
+    assert_eq!(config.views[3].0.name, expected.views[3].0.name);
+    assert_eq!(config.views[0].1, Some(1));
+    assert_eq!(config.views[1].1, Some(2));
+    assert_eq!(config.views[2].1, Some(4));
+    assert_eq!(config.views[3].1, Some(0));
+    assert_eq!(config.selected, Some(2));
   }
 
   /// Check that we can edit the tags of a task with no tags set

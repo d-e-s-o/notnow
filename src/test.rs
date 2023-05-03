@@ -1,10 +1,10 @@
-// Copyright (C) 2018-2022 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2018-2023 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 //! A module providing testing related utility functionality.
 
 use crate::ser::state::TaskState as SerTaskState;
-use crate::ser::state::UiState as SerUiState;
+use crate::ser::state::UiConfig as SerUiConfig;
 use crate::ser::tags::Id as SerId;
 use crate::ser::tags::Tag as SerTag;
 use crate::ser::tags::Template as SerTemplate;
@@ -109,12 +109,12 @@ pub fn make_task_summaries(count: usize) -> Vec<String> {
 }
 
 
-/// Create the default `UiState` with four views and 15 tasks with
+/// Create the default `UiConfig` with four views and 15 tasks with
 /// tags. Tag assignment follows the pattern that
 /// `make_tasks_with_tags` creates.
-pub fn default_tasks_and_tags() -> (SerUiState, SerTaskState) {
+pub fn default_tasks_and_tags() -> (SerUiConfig, SerTaskState) {
   let (tags, templates, tasks) = make_tasks_with_tags(15);
-  let ui_state = SerUiState {
+  let ui_config = SerUiConfig {
     views: vec![
       (
         SerView {
@@ -157,5 +157,5 @@ pub fn default_tasks_and_tags() -> (SerUiState, SerTaskState) {
     tasks: SerTasks::from(tasks),
   };
 
-  (ui_state, task_state)
+  (ui_config, task_state)
 }

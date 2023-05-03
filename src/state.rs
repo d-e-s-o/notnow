@@ -1,7 +1,8 @@
 // Copyright (C) 2017-2023 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-//! Definitions pertaining UI and task state of the program.
+//! Definitions pertaining UI configuration and task state of the
+//! program.
 
 use std::cell::Cell;
 use std::collections::HashSet;
@@ -35,7 +36,7 @@ use crate::cap::FileCap;
 use crate::cap::WriteGuard;
 use crate::colors::Colors;
 use crate::ser::state::TaskState as SerTaskState;
-use crate::ser::state::UiState as SerUiState;
+use crate::ser::state::UiConfig as SerUiConfig;
 use crate::ser::tasks::Id as SerTaskId;
 use crate::ser::tasks::Task as SerTask;
 use crate::ser::tasks::Tasks as SerTasks;
@@ -195,8 +196,9 @@ async fn save_task_to_file(write_guard: &mut WriteGuard<'_>, task: &SerTask) -> 
   //       if one already exists and then rename atomically. But even
   //       nicer would be if we somehow wrapped all saving in a
   //       transaction of sorts. That would allow us to eliminate the
-  //       chance for *any* inconsistency, e.g., when saving UI state
-  //       before task state and the latter failing the operation.
+  //       chance for *any* inconsistency, e.g., when saving UI
+  //       configuration before task state and the latter failing the
+  //       operation.
   save_state_to_file::<iCal, _>(&mut file_cap, task).await
 }
 
@@ -251,9 +253,9 @@ async fn save_tasks_to_dir(dir_cap: &mut DirCap, tasks: &SerTaskState) -> Result
 }
 
 
-/// A struct encapsulating the UI's state.
+/// A struct encapsulating the UI's configuration.
 #[derive(Debug)]
-pub struct UiState {
+pub struct UiConfig {
   /// The configured colors.
   pub colors: Cell<Option<Colors>>,
   /// The tag to toggle on user initiated action.
@@ -264,10 +266,10 @@ pub struct UiState {
   pub selected: Option<usize>,
 }
 
-impl UiState {
-  /// Load `UiState` from a configuration file.
+impl UiConfig {
+  /// Load `UiConfig` from a configuration file.
   pub async fn load(config: &Path, task_state: &TaskState) -> Result<Self> {
-    let state = load_state_from_file::<Json, SerUiState>(config)
+    let state = load_state_from_file::<Json, SerUiConfig>(config)
       .await
       .with_context(|| format!("failed to load UI state from {}", config.display()))?
       .unwrap_or_default();
@@ -275,8 +277,8 @@ impl UiState {
     Self::with_serde(state, task_state)
   }
 
-  /// Create a `UiState` object from serialized state.
-  pub fn with_serde(state: SerUiState, task_state: &TaskState) -> Result<Self> {
+  /// Create a `UiConfig` object from serialized state.
+  pub fn with_serde(state: SerUiConfig, task_state: &TaskState) -> Result<Self> {
     let templates = &task_state.templates;
     let tasks = &task_state.tasks;
 
@@ -318,18 +320,18 @@ impl UiState {
 
   /// Persist the state into a file.
   pub async fn save(&self, file_cap: &mut FileCap<'_>) -> Result<()> {
-    let ui_state = load_state_from_file::<Json, SerUiState>(file_cap.path())
+    let ui_config = load_state_from_file::<Json, SerUiConfig>(file_cap.path())
       .await
       .unwrap_or_default()
       .unwrap_or_default();
-    self.colors.set(Some(ui_state.colors));
+    self.colors.set(Some(ui_config.colors));
 
     save_state_to_file::<Json, _>(file_cap, &self.to_serde()).await
   }
 }
 
-impl ToSerde for UiState {
-  type Output = SerUiState;
+impl ToSerde for UiConfig {
+  type Output = SerUiConfig;
 
   /// Convert this object into a serializable one.
   fn to_serde(&self) -> Self::Output {
@@ -337,7 +339,7 @@ impl ToSerde for UiState {
 
     let views = self.views.iter().map(|(q, s)| (q.to_serde(), *s)).collect();
 
-    SerUiState {
+    SerUiConfig {
       colors: self.colors.get().unwrap_or_default(),
       toggle_tag: self.toggle_tag.as_ref().map(ToSerde::to_serde),
       views,
@@ -437,18 +439,18 @@ pub mod tests {
   use crate::test::make_tasks;
 
 
-  /// Create `TaskState` and `UiState` objects.
-  fn make_state(tasks: Vec<SerTask>) -> (TaskState, UiState) {
+  /// Create `TaskState` and `UiConfig` objects.
+  fn make_state(tasks: Vec<SerTask>) -> (TaskState, UiConfig) {
     let task_state = SerTaskState {
       tasks_meta: Default::default(),
       tasks: SerTasks::from(tasks),
     };
     let task_state = TaskState::with_serde(task_state).unwrap();
 
-    let ui_state = Default::default();
-    let ui_state = UiState::with_serde(ui_state, &task_state).unwrap();
+    let ui_config = Default::default();
+    let ui_config = UiConfig::with_serde(ui_config, &task_state).unwrap();
 
-    (task_state, ui_state)
+    (task_state, ui_config)
   }
 
   /// Check that we can save tasks into a directory and load them back
@@ -608,11 +610,11 @@ pub mod tests {
     assert_eq!(content, b"42")
   }
 
-  /// Check that we can save `TaskState` and `UiState` and load them back.
+  /// Check that we can save `TaskState` and `UiConfig` and load them back.
   #[test]
   async fn save_and_load_state() {
     let task_vec = make_tasks(3);
-    let (task_state, ui_state) = make_state(task_vec.clone());
+    let (task_state, ui_config) = make_state(task_vec.clone());
 
     let tasks_dir = TempDir::new().unwrap();
     let mut tasks_root_cap = DirCap::for_dir(tasks_dir.path().to_path_buf())
@@ -632,18 +634,18 @@ pub mod tests {
       .unwrap();
     let ui_write_guard = ui_dir_cap.write().await.unwrap();
     let mut ui_file_cap = ui_write_guard.file_cap(ui_file_name);
-    let () = ui_state.save(&mut ui_file_cap).await.unwrap();
+    let () = ui_config.save(&mut ui_file_cap).await.unwrap();
 
-    let _new_ui_state = UiState::load(&ui_file, &new_task_state).await.unwrap();
+    let _new_ui_config = UiConfig::load(&ui_file, &new_task_state).await.unwrap();
   }
 
-  /// Verify that loading `TaskState` and `UiState` objects succeeds
+  /// Verify that loading `TaskState` and `UiConfig` objects succeeds
   /// even if the files to load from are not present.
   #[test]
   async fn load_state_file_not_found() {
     let (ui_config, tasks_root) = {
       let task_vec = make_tasks(1);
-      let (task_state, ui_state) = make_state(task_vec);
+      let (task_state, ui_config) = make_state(task_vec);
 
       let tasks_dir = TempDir::new().unwrap();
       let mut tasks_root_cap = DirCap::for_dir(tasks_dir.path().to_path_buf())
@@ -658,7 +660,7 @@ pub mod tests {
         .unwrap();
       let ui_write_guard = ui_dir_cap.write().await.unwrap();
       let mut ui_file_cap = ui_write_guard.file_cap(ui_file_name);
-      let () = ui_state.save(&mut ui_file_cap).await.unwrap();
+      let () = ui_config.save(&mut ui_file_cap).await.unwrap();
 
       (
         ui_file_dir.path().join(ui_file_name),
@@ -672,7 +674,7 @@ pub mod tests {
     let new_task_vec = new_task_state.to_serde().tasks.into_task_vec();
     assert_eq!(new_task_vec, Vec::new());
 
-    let _new_ui_state = UiState::load(&ui_config, &new_task_state).await.unwrap();
+    let _new_ui_config = UiConfig::load(&ui_config, &new_task_state).await.unwrap();
   }
 
   /// Test that we fail `TaskState` construction when an invalid tag is

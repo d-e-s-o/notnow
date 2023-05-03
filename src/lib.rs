@@ -119,7 +119,7 @@ use gui::Ui;
 use crate::cap::DirCap;
 use crate::resize::receive_window_resizes;
 use crate::state::TaskState;
-use crate::state::UiState;
+use crate::state::UiConfig;
 use crate::ui::event::Event as UiEvent;
 use crate::ui::message::Message;
 use crate::ui::term_renderer::TermRenderer;
@@ -239,7 +239,12 @@ where
 }
 
 /// Run the program.
-pub async fn run_prog<R, W>(in_: R, out: W, tasks_root: PathBuf, ui_config: FilePath) -> Result<()>
+pub async fn run_prog<R, W>(
+  in_: R,
+  out: W,
+  tasks_root: PathBuf,
+  ui_config_path: FilePath,
+) -> Result<()>
 where
   R: Read + Send + 'static,
   W: Write,
@@ -247,20 +252,20 @@ where
   let task_state = TaskState::load(&tasks_root)
     .await
     .context("failed to load task state")?;
-  let ui_file = ui_config.0.join(&ui_config.1);
-  let ui_state = UiState::load(&ui_file, &task_state)
+  let ui_file = ui_config_path.0.join(&ui_config_path.1);
+  let ui_config = UiConfig::load(&ui_file, &task_state)
     .await
-    .context("failed to load UI state")?;
+    .context("failed to load UI configuration")?;
   let screen = out
     .into_alternate_screen()?
     .into_raw_mode()
     .context("failed to switch program output to raw mode")?;
-  let colors = ui_state.colors.get().unwrap_or_default();
+  let colors = ui_config.colors.get().unwrap_or_default();
   let renderer =
     TermRenderer::new(screen, colors).context("failed to instantiate terminal based renderer")?;
 
-  let ui_dir_cap = DirCap::for_dir(ui_config.0).await?;
-  let ui_config = ui_config.1;
+  let ui_dir_cap = DirCap::for_dir(ui_config_path.0).await?;
+  let ui_config_file = ui_config_path.1;
 
   let tasks_root_cap = DirCap::for_dir(tasks_root).await?;
 
@@ -269,10 +274,10 @@ where
       Box::new(TermUiData::new(
         tasks_root_cap,
         task_state,
-        (ui_dir_cap, ui_config),
+        (ui_dir_cap, ui_config_file),
       ))
     },
-    |id, cap| Box::new(TermUi::new(id, cap, ui_state)),
+    |id, cap| Box::new(TermUi::new(id, cap, ui_config)),
   );
 
   let (send_event, recv_event) = channel();
