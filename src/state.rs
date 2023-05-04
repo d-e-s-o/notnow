@@ -439,18 +439,25 @@ pub mod tests {
   use crate::test::make_tasks;
 
 
-  /// Create `TaskState` and `UiConfig` objects.
-  fn make_state(tasks: Vec<SerTask>) -> (TaskState, UiConfig) {
+  /// Create a `TaskState` object.
+  fn make_task_state(tasks: Vec<SerTask>) -> TaskState {
     let task_state = SerTaskState {
       tasks_meta: Default::default(),
       tasks: SerTasks::from(tasks),
     };
     let task_state = TaskState::with_serde(task_state).unwrap();
+    task_state
+  }
+
+  /// Create a `UiConfig` object.
+  fn make_ui_config(task_count: usize) -> UiConfig {
+    let tasks = make_tasks(task_count);
+    let task_state = make_task_state(tasks);
 
     let ui_config = Default::default();
     let ui_config = UiConfig::with_serde(ui_config, &task_state).unwrap();
 
-    (task_state, ui_config)
+    ui_config
   }
 
   /// Check that we can save tasks into a directory and load them back
@@ -614,7 +621,8 @@ pub mod tests {
   #[test]
   async fn save_and_load_state() {
     let task_vec = make_tasks(3);
-    let (task_state, ui_config) = make_state(task_vec.clone());
+    let task_state = make_task_state(task_vec.clone());
+    let ui_config = make_ui_config(3);
 
     let tasks_dir = TempDir::new().unwrap();
     let mut tasks_root_cap = DirCap::for_dir(tasks_dir.path().to_path_buf())
@@ -645,7 +653,8 @@ pub mod tests {
   async fn load_state_file_not_found() {
     let (ui_config, tasks_root) = {
       let task_vec = make_tasks(1);
-      let (task_state, ui_config) = make_state(task_vec);
+      let task_state = make_task_state(task_vec.clone());
+      let ui_config = make_ui_config(1);
 
       let tasks_dir = TempDir::new().unwrap();
       let mut tasks_root_cap = DirCap::for_dir(tasks_dir.path().to_path_buf())
