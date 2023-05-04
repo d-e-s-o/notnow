@@ -450,14 +450,14 @@ pub mod tests {
   }
 
   /// Create a `UiConfig` object.
-  fn make_ui_config(task_count: usize) -> UiConfig {
+  fn make_ui_config(task_count: usize) -> (UiConfig, TaskState) {
     let tasks = make_tasks(task_count);
     let task_state = make_task_state(tasks);
 
     let ui_config = Default::default();
     let ui_config = UiConfig::with_serde(ui_config, &task_state).unwrap();
 
-    ui_config
+    (ui_config, task_state)
   }
 
   /// Check that we can save tasks into a directory and load them back
@@ -617,12 +617,11 @@ pub mod tests {
     assert_eq!(content, b"42")
   }
 
-  /// Check that we can save `TaskState` and `UiConfig` and load them back.
+  /// Check that we can save a `TaskState` and load it back.
   #[test]
-  async fn save_and_load_state() {
+  async fn save_and_load_task_state() {
     let task_vec = make_tasks(3);
     let task_state = make_task_state(task_vec.clone());
-    let ui_config = make_ui_config(3);
 
     let tasks_dir = TempDir::new().unwrap();
     let mut tasks_root_cap = DirCap::for_dir(tasks_dir.path().to_path_buf())
@@ -633,7 +632,12 @@ pub mod tests {
     let new_task_state = TaskState::load(tasks_dir.path()).await.unwrap();
     let new_task_vec = new_task_state.to_serde().tasks.into_task_vec();
     assert_eq!(new_task_vec, task_vec);
+  }
 
+  /// Check that we can save a `UiConfig` and load it back.
+  #[test]
+  async fn save_and_load_ui_config() {
+    let (ui_config, task_state) = make_ui_config(3);
     let ui_file_dir = TempDir::new().unwrap();
     let ui_file_name = OsStr::new("config");
     let ui_file = ui_file_dir.path().join(ui_file_name);
@@ -644,23 +648,39 @@ pub mod tests {
     let mut ui_file_cap = ui_write_guard.file_cap(ui_file_name);
     let () = ui_config.save(&mut ui_file_cap).await.unwrap();
 
-    let _new_ui_config = UiConfig::load(&ui_file, &new_task_state).await.unwrap();
+    let _new_ui_config = UiConfig::load(&ui_file, &task_state).await.unwrap();
   }
 
-  /// Verify that loading `TaskState` and `UiConfig` objects succeeds
-  /// even if the files to load from are not present.
+  /// Verify that loading a `TaskState` object succeeds even if the
+  /// directory to load from is not present.
   #[test]
-  async fn load_state_file_not_found() {
-    let (ui_config, tasks_root) = {
+  async fn load_task_state_file_not_found() {
+    let tasks_root = {
       let task_vec = make_tasks(1);
       let task_state = make_task_state(task_vec.clone());
-      let ui_config = make_ui_config(1);
 
       let tasks_dir = TempDir::new().unwrap();
       let mut tasks_root_cap = DirCap::for_dir(tasks_dir.path().to_path_buf())
         .await
         .unwrap();
       let () = task_state.save(&mut tasks_root_cap).await.unwrap();
+
+      tasks_dir.path().to_path_buf()
+    };
+
+    // The files are removed by now, so we can test that both kinds of
+    // state handle such missing files gracefully.
+    let new_task_state = TaskState::load(&tasks_root).await.unwrap();
+    let new_task_vec = new_task_state.to_serde().tasks.into_task_vec();
+    assert_eq!(new_task_vec, Vec::new());
+  }
+
+  /// Verify that loading a `UiConfig` object succeeds
+  /// even if the file to load from is not present.
+  #[test]
+  async fn load_ui_config_file_not_found() {
+    let (ui_config, task_state) = {
+      let (ui_config, task_state) = make_ui_config(1);
 
       let ui_file_dir = TempDir::new().unwrap();
       let ui_file_name = OsStr::new("config");
@@ -671,19 +691,10 @@ pub mod tests {
       let mut ui_file_cap = ui_write_guard.file_cap(ui_file_name);
       let () = ui_config.save(&mut ui_file_cap).await.unwrap();
 
-      (
-        ui_file_dir.path().join(ui_file_name),
-        tasks_dir.path().to_path_buf(),
-      )
+      (ui_file_dir.path().join(ui_file_name), task_state)
     };
 
-    // The files are removed by now, so we can test that both kinds of
-    // state handle such missing files gracefully.
-    let new_task_state = TaskState::load(&tasks_root).await.unwrap();
-    let new_task_vec = new_task_state.to_serde().tasks.into_task_vec();
-    assert_eq!(new_task_vec, Vec::new());
-
-    let _new_ui_config = UiConfig::load(&ui_config, &new_task_state).await.unwrap();
+    let _new_ui_config = UiConfig::load(&ui_config, &task_state).await.unwrap();
   }
 
   /// Test that we fail `TaskState` construction when an invalid tag is
