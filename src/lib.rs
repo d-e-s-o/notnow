@@ -120,11 +120,11 @@ use crate::cap::DirCap;
 use crate::resize::receive_window_resizes;
 use crate::state::TaskState;
 use crate::state::UiConfig;
-use crate::ui::event::Event as UiEvent;
-use crate::ui::message::Message;
-use crate::ui::term_renderer::TermRenderer;
-use crate::ui::termui::TermUi;
-use crate::ui::termui::TermUiData;
+use crate::ui::Event as UiEvent;
+use crate::ui::Message;
+use crate::ui::Renderer as TermUiRenderer;
+use crate::ui::Ui as TermUi;
+use crate::ui::UiData as TermUiData;
 
 
 /// A tuple of (directory path, file name) representing the path to a
@@ -262,7 +262,7 @@ where
     .context("failed to switch program output to raw mode")?;
   let colors = ui_config.colors.get().unwrap_or_default();
   let renderer =
-    TermRenderer::new(screen, colors).context("failed to instantiate terminal based renderer")?;
+    TermUiRenderer::new(screen, colors).context("failed to instantiate terminal based renderer")?;
 
   let ui_dir_cap = DirCap::for_dir(ui_config_path.0).await?;
   let ui_config_file = ui_config_path.1;
