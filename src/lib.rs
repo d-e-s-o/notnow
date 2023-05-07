@@ -60,7 +60,7 @@
 
 //! A terminal based task management application.
 
-pub mod cap;
+mod cap;
 mod colors;
 mod db;
 mod id;
@@ -68,13 +68,17 @@ mod ops;
 mod position;
 mod resize;
 mod ser;
-pub mod state;
+mod state;
 mod tags;
 mod tasks;
 #[cfg(any(test, feature = "test"))]
 pub mod test;
 mod ui;
 mod view;
+
+pub use crate::cap::DirCap;
+pub use crate::state::TaskState;
+pub use crate::state::UiConfig;
 
 use std::env::args_os;
 use std::ffi::OsString;
@@ -116,10 +120,7 @@ use tokio::runtime::Builder;
 use gui::Renderer;
 use gui::Ui;
 
-use crate::cap::DirCap;
 use crate::resize::receive_window_resizes;
-use crate::state::TaskState;
-use crate::state::UiConfig;
 use crate::ui::Event as UiEvent;
 use crate::ui::Message;
 use crate::ui::Renderer as TermUiRenderer;

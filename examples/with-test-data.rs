@@ -7,11 +7,11 @@ use std::io::stdout;
 
 use anyhow::Result;
 
-use notnow::cap::DirCap;
 use notnow::run_prog;
-use notnow::state::TaskState;
-use notnow::state::UiConfig;
 use notnow::test::default_tasks_and_tags;
+use notnow::DirCap;
+use notnow::TaskState;
+use notnow::UiConfig;
 
 use tempfile::TempDir;
 
