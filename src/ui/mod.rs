@@ -1,6 +1,7 @@
 // Copyright (C) 2019-2023 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+mod config;
 mod dialog;
 mod event;
 mod in_out;
@@ -12,6 +13,7 @@ mod task_list_box;
 mod term_renderer;
 mod termui;
 
+pub use config::Config;
 pub use event::Event;
 pub use message::Message;
 pub use term_renderer::TermRenderer as Renderer;

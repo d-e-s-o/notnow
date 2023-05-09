@@ -4,7 +4,6 @@
 //! Definitions pertaining UI configuration and task state of the
 //! program.
 
-use std::cell::Cell;
 use std::collections::HashSet;
 use std::ffi::OsStr;
 use std::io::ErrorKind;
@@ -17,7 +16,6 @@ use anyhow::Result;
 
 use crate::ser::backends::iCal;
 use crate::ser::backends::Backend;
-use crate::ser::backends::Json;
 
 use tokio::fs::create_dir_all;
 use tokio::fs::read_dir;
@@ -34,19 +32,14 @@ use uuid::uuid;
 use crate::cap::DirCap;
 use crate::cap::FileCap;
 use crate::cap::WriteGuard;
-use crate::colors::Colors;
 use crate::ser::state::TaskState as SerTaskState;
-use crate::ser::state::UiConfig as SerUiConfig;
 use crate::ser::tasks::Id as SerTaskId;
 use crate::ser::tasks::Task as SerTask;
 use crate::ser::tasks::Tasks as SerTasks;
 use crate::ser::tasks::TasksMeta as SerTasksMeta;
 use crate::ser::ToSerde;
-use crate::tags::Tag;
 use crate::tags::Templates;
 use crate::tasks::Tasks;
-use crate::view::View;
-use crate::view::ViewBuilder;
 
 /// The ID we use for storing task meta data.
 // We use the "special" UUID 00000000-0000-0000-0000-000000000000 for
@@ -55,7 +48,7 @@ const TASKS_META_ID: SerTaskId = uuid!("00000000-0000-0000-0000-000000000000");
 
 
 /// Load some serialized state from a file.
-async fn load_state_from_file<B, T>(path: &Path) -> Result<Option<T>>
+pub(crate) async fn load_state_from_file<B, T>(path: &Path) -> Result<Option<T>>
 where
   B: Backend<T>,
 {
@@ -152,7 +145,7 @@ async fn load_tasks_from_dir(root: &Path) -> Result<SerTaskState> {
 }
 
 /// Save some state into a file.
-async fn save_state_to_file<B, T>(file_cap: &mut FileCap<'_>, state: &T) -> Result<()>
+pub(crate) async fn save_state_to_file<B, T>(file_cap: &mut FileCap<'_>, state: &T) -> Result<()>
 where
   B: Backend<T>,
   T: PartialEq,
@@ -253,102 +246,6 @@ async fn save_tasks_to_dir(dir_cap: &mut DirCap, tasks: &SerTaskState) -> Result
 }
 
 
-/// A struct encapsulating the UI's configuration.
-#[derive(Debug)]
-pub struct UiConfig {
-  /// The configured colors.
-  pub colors: Cell<Option<Colors>>,
-  /// The tag to toggle on user initiated action.
-  pub toggle_tag: Option<Tag>,
-  /// The views used in the UI.
-  pub views: Vec<(View, Option<usize>)>,
-  /// The currently selected `View`.
-  pub selected: Option<usize>,
-}
-
-impl UiConfig {
-  /// Load `UiConfig` from a configuration file.
-  pub async fn load(config: &Path, task_state: &TaskState) -> Result<Self> {
-    let state = load_state_from_file::<Json, SerUiConfig>(config)
-      .await
-      .with_context(|| format!("failed to load UI state from {}", config.display()))?
-      .unwrap_or_default();
-
-    Self::with_serde(state, task_state)
-  }
-
-  /// Create a `UiConfig` object from serialized state.
-  pub fn with_serde(state: SerUiConfig, task_state: &TaskState) -> Result<Self> {
-    let templates = &task_state.templates;
-    let tasks = &task_state.tasks;
-
-    let mut views = state
-      .views
-      .into_iter()
-      .map(|(view, selected)| {
-        let name = view.name.clone();
-        let view = View::with_serde(view, templates, tasks.clone())
-          .with_context(|| format!("failed to instantiate view '{}'", name))?;
-        Ok((view, selected))
-      })
-      .collect::<Result<Vec<_>>>()?;
-
-    // For convenience for the user, we add a default view capturing
-    // all tasks if no other views have been configured.
-    if views.is_empty() {
-      views.push((ViewBuilder::new(tasks.clone()).build("all"), None))
-    }
-
-    let toggle_tag = if let Some(toggle_tag) = state.toggle_tag {
-      let toggle_tag = templates
-        .instantiate(toggle_tag.id)
-        .ok_or_else(|| anyhow!("encountered invalid toggle tag ID {}", toggle_tag.id))?;
-
-      Some(toggle_tag)
-    } else {
-      None
-    };
-
-    let slf = Self {
-      colors: Cell::new(Some(state.colors)),
-      toggle_tag,
-      views,
-      selected: state.selected,
-    };
-    Ok(slf)
-  }
-
-  /// Persist the state into a file.
-  pub async fn save(&self, file_cap: &mut FileCap<'_>) -> Result<()> {
-    let ui_config = load_state_from_file::<Json, SerUiConfig>(file_cap.path())
-      .await
-      .unwrap_or_default()
-      .unwrap_or_default();
-    self.colors.set(Some(ui_config.colors));
-
-    save_state_to_file::<Json, _>(file_cap, &self.to_serde()).await
-  }
-}
-
-impl ToSerde for UiConfig {
-  type Output = SerUiConfig;
-
-  /// Convert this object into a serializable one.
-  fn to_serde(&self) -> Self::Output {
-    debug_assert!(self.selected.is_none() || self.selected.unwrap() < self.views.len());
-
-    let views = self.views.iter().map(|(q, s)| (q.to_serde(), *s)).collect();
-
-    SerUiConfig {
-      colors: self.colors.get().unwrap_or_default(),
-      toggle_tag: self.toggle_tag.as_ref().map(ToSerde::to_serde),
-      views,
-      selected: self.selected,
-    }
-  }
-}
-
-
 /// A struct encapsulating the task state of the program.
 #[derive(Debug)]
 pub struct TaskState {
@@ -399,6 +296,12 @@ impl TaskState {
     save_tasks_to_dir(root_dir_cap, &self.to_serde()).await
   }
 
+  /// Retrieve the `Templates` object associated with this `TaskState`
+  /// object.
+  pub fn templates(&self) -> &Rc<Templates> {
+    &self.templates
+  }
+
   /// Retrieve the `Tasks` object associated with this `TaskState`
   /// object.
   pub fn tasks(&self) -> &Rc<Tasks> {
@@ -432,6 +335,7 @@ pub mod tests {
   use tokio::fs::remove_dir_all;
   use tokio::test;
 
+  use crate::ser::backends::Json;
   use crate::ser::tags::Id as SerId;
   use crate::ser::tags::Tag as SerTag;
   use crate::ser::tags::Template as SerTemplate;
@@ -447,17 +351,6 @@ pub mod tests {
     };
     let task_state = TaskState::with_serde(task_state).unwrap();
     task_state
-  }
-
-  /// Create a `UiConfig` object.
-  fn make_ui_config(task_count: usize) -> (UiConfig, TaskState) {
-    let tasks = make_tasks(task_count);
-    let task_state = make_task_state(tasks);
-
-    let ui_config = Default::default();
-    let ui_config = UiConfig::with_serde(ui_config, &task_state).unwrap();
-
-    (ui_config, task_state)
   }
 
   /// Check that we can save tasks into a directory and load them back
@@ -634,23 +527,6 @@ pub mod tests {
     assert_eq!(new_task_vec, task_vec);
   }
 
-  /// Check that we can save a `UiConfig` and load it back.
-  #[test]
-  async fn save_and_load_ui_config() {
-    let (ui_config, task_state) = make_ui_config(3);
-    let ui_file_dir = TempDir::new().unwrap();
-    let ui_file_name = OsStr::new("config");
-    let ui_file = ui_file_dir.path().join(ui_file_name);
-    let mut ui_dir_cap = DirCap::for_dir(ui_file_dir.path().to_path_buf())
-      .await
-      .unwrap();
-    let ui_write_guard = ui_dir_cap.write().await.unwrap();
-    let mut ui_file_cap = ui_write_guard.file_cap(ui_file_name);
-    let () = ui_config.save(&mut ui_file_cap).await.unwrap();
-
-    let _new_ui_config = UiConfig::load(&ui_file, &task_state).await.unwrap();
-  }
-
   /// Verify that loading a `TaskState` object succeeds even if the
   /// directory to load from is not present.
   #[test]
@@ -673,28 +549,6 @@ pub mod tests {
     let new_task_state = TaskState::load(&tasks_root).await.unwrap();
     let new_task_vec = new_task_state.to_serde().tasks.into_task_vec();
     assert_eq!(new_task_vec, Vec::new());
-  }
-
-  /// Verify that loading a `UiConfig` object succeeds
-  /// even if the file to load from is not present.
-  #[test]
-  async fn load_ui_config_file_not_found() {
-    let (ui_config, task_state) = {
-      let (ui_config, task_state) = make_ui_config(1);
-
-      let ui_file_dir = TempDir::new().unwrap();
-      let ui_file_name = OsStr::new("config");
-      let mut ui_dir_cap = DirCap::for_dir(ui_file_dir.path().to_path_buf())
-        .await
-        .unwrap();
-      let ui_write_guard = ui_dir_cap.write().await.unwrap();
-      let mut ui_file_cap = ui_write_guard.file_cap(ui_file_name);
-      let () = ui_config.save(&mut ui_file_cap).await.unwrap();
-
-      (ui_file_dir.path().join(ui_file_name), task_state)
-    };
-
-    let _new_ui_config = UiConfig::load(&ui_config, &task_state).await.unwrap();
   }
 
   /// Test that we fail `TaskState` construction when an invalid tag is

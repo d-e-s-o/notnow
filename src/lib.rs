@@ -78,7 +78,7 @@ mod view;
 
 pub use crate::cap::DirCap;
 pub use crate::state::TaskState;
-pub use crate::state::UiConfig;
+pub use crate::ui::Config as UiConfig;
 
 use std::env::args_os;
 use std::ffi::OsString;

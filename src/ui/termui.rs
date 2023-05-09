@@ -16,11 +16,11 @@ use gui::Widget;
 
 use crate::cap::DirCap;
 use crate::state::TaskState;
-use crate::state::UiConfig;
 use crate::tags::Tag;
 #[cfg(all(test, not(feature = "readline")))]
 use crate::tasks::Task;
 
+use super::config::Config;
 use super::dialog::Dialog;
 use super::dialog::DialogData;
 use super::event::Event;
@@ -75,10 +75,10 @@ pub struct TermUi {
 
 
 impl TermUi {
-  /// Create a new UI as partly described by the provided `UiConfig` object.
-  pub fn new(id: Id, cap: &mut dyn MutCap<Event, Message>, config: UiConfig) -> Self {
+  /// Create a new UI as partly described by the provided `Config` object.
+  pub fn new(id: Id, cap: &mut dyn MutCap<Event, Message>, config: Config) -> Self {
     let termui_id = id;
-    let UiConfig {
+    let Config {
       toggle_tag,
       views,
       selected,
@@ -132,11 +132,7 @@ impl TermUi {
   }
 
   /// Persist configuration and state.
-  async fn save_all(
-    &self,
-    cap: &mut dyn MutCap<Event, Message>,
-    ui_config: &UiConfig,
-  ) -> Result<()> {
+  async fn save_all(&self, cap: &mut dyn MutCap<Event, Message>, ui_config: &Config) -> Result<()> {
     let data = self.data_mut::<TermUiData>(cap);
     // TODO: We risk data inconsistencies if the second save operation
     //       fails.
@@ -161,7 +157,7 @@ impl TermUi {
   async fn save_and_report(
     &self,
     cap: &mut dyn MutCap<Event, Message>,
-    ui_config: &UiConfig,
+    ui_config: &Config,
   ) -> Option<Message> {
     let in_out = match self.save_all(cap, ui_config).await {
       Ok(_) => InOut::Saved,
@@ -186,7 +182,7 @@ impl TermUi {
     let TabState {
       views, selected, ..
     } = state;
-    let ui_config = UiConfig {
+    let config = Config {
       views,
       selected,
       // TODO: Currently we do not allow in-program modification of
@@ -200,7 +196,7 @@ impl TermUi {
       colors: Default::default(),
       toggle_tag: self.toggle_tag.clone(),
     };
-    self.save_and_report(cap, &ui_config).await
+    self.save_and_report(cap, &config).await
   }
 }
 
@@ -293,7 +289,6 @@ mod tests {
   use crate::ser::view::View as SerView;
   use crate::ser::ToSerde;
   use crate::state::TaskState;
-  use crate::state::UiConfig;
   use crate::test::default_tasks_and_tags;
   use crate::test::make_task_summaries;
   use crate::test::make_tasks;
@@ -379,7 +374,7 @@ mod tests {
       let ui_file_name = ui_file.path().file_name().unwrap().to_os_string();
       let ui_config_path = (ui_dir_cap, ui_file_name);
 
-      let ui_config = UiConfig::with_serde(self.ui_config, &task_state).unwrap();
+      let ui_config = Config::with_serde(self.ui_config, &task_state).unwrap();
 
       let (ui, _) = Ui::new(
         || Box::new(TermUiData::new(tasks_root_cap, task_state, ui_config_path)),
@@ -470,9 +465,9 @@ mod tests {
     /// Load the UI's configuration from a file. Note that unless the
     /// configuration has been saved, the result will probably just be
     /// the default one.
-    async fn load_ui_config(&self) -> Result<UiConfig> {
+    async fn load_config(&self) -> Result<Config> {
       let task_state = TaskState::load(self.tasks_root.path()).await?;
-      let ui_config = UiConfig::load(self.ui_file.path(), &task_state).await?;
+      let ui_config = Config::load(self.ui_file.path(), &task_state).await?;
       Ok(ui_config)
     }
   }
@@ -2147,7 +2142,7 @@ mod tests {
       .await
       .handle(events)
       .await
-      .load_ui_config()
+      .load_config()
       .await
       .unwrap()
       .to_serde();
@@ -2179,7 +2174,7 @@ mod tests {
       .await
       .handle(events)
       .await
-      .load_ui_config()
+      .load_config()
       .await
       .unwrap()
       .to_serde();
@@ -2209,7 +2204,7 @@ mod tests {
       .await
       .handle(events)
       .await
-      .load_ui_config()
+      .load_config()
       .await
       .unwrap()
       .to_serde();
@@ -2246,7 +2241,7 @@ mod tests {
       .await
       .handle(events)
       .await
-      .load_ui_config()
+      .load_config()
       .await
       .unwrap()
       .to_serde();
