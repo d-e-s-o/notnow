@@ -30,13 +30,18 @@ async fn prog_running() {
   let () = task_state.save(&mut tasks_root_cap).await.unwrap();
 
   let ui_config = UiConfig::with_serde(ui_config, &task_state).unwrap();
-  let ui_dir = TempDir::new().unwrap();
-  let ui_file_name = OsString::from("notnow.json");
-  let ui_file_path = (ui_dir.path().to_path_buf(), ui_file_name.clone());
-  let mut ui_dir_cap = DirCap::for_dir(ui_dir.path().to_path_buf()).await.unwrap();
-  let ui_dir_write_guard = ui_dir_cap.write().await.unwrap();
-  let mut ui_file_cap = ui_dir_write_guard.file_cap(&ui_file_name);
-  let () = ui_config.save(&mut ui_file_cap).await.unwrap();
+  let ui_config_dir = TempDir::new().unwrap();
+  let ui_config_file_name = OsString::from("notnow.json");
+  let ui_config_file_path = (
+    ui_config_dir.path().to_path_buf(),
+    ui_config_file_name.clone(),
+  );
+  let mut ui_config_dir_cap = DirCap::for_dir(ui_config_dir.path().to_path_buf())
+    .await
+    .unwrap();
+  let ui_config_dir_write_guard = ui_config_dir_cap.write().await.unwrap();
+  let mut ui_config_file_cap = ui_config_dir_write_guard.file_cap(&ui_config_file_name);
+  let () = ui_config.save(&mut ui_config_file_cap).await.unwrap();
 
   let mut output = sink();
 
@@ -44,7 +49,7 @@ async fn prog_running() {
     KEYS.as_slice(),
     &mut output,
     tasks_dir.path().to_path_buf(),
-    ui_file_path,
+    ui_config_file_path,
   )
   .await
   .unwrap()

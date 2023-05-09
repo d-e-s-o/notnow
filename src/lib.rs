@@ -265,7 +265,7 @@ where
   let renderer =
     TermUiRenderer::new(screen, colors).context("failed to instantiate terminal based renderer")?;
 
-  let ui_dir_cap = DirCap::for_dir(ui_config_path.0).await?;
+  let ui_config_dir_cap = DirCap::for_dir(ui_config_path.0).await?;
   let ui_config_file = ui_config_path.1;
 
   let tasks_root_cap = DirCap::for_dir(tasks_root).await?;
@@ -275,7 +275,7 @@ where
       Box::new(TermUiData::new(
         tasks_root_cap,
         task_state,
-        (ui_dir_cap, ui_config_file),
+        (ui_config_dir_cap, ui_config_file),
       ))
     },
     |id, cap| Box::new(TermUi::new(id, cap, ui_config)),

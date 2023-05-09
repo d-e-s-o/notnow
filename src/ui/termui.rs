@@ -42,7 +42,7 @@ pub struct TermUiData {
   /// All our task related state.
   task_state: TaskState,
   /// The capability to the UI configuration directory.
-  ui_dir_cap: DirCap,
+  ui_config_dir_cap: DirCap,
   /// The name of the file in which to save the UI state.
   ui_config_file: OsString,
 }
@@ -56,7 +56,7 @@ impl TermUiData {
     Self {
       tasks_dir_cap,
       task_state,
-      ui_dir_cap: ui_config_path.0,
+      ui_config_dir_cap: ui_config_path.0,
       ui_config_file: ui_config_path.1,
     }
   }
@@ -137,7 +137,7 @@ impl TermUi {
     // TODO: We risk data inconsistencies if the second save operation
     //       fails.
     {
-      let write_guard = data.ui_dir_cap.write().await?;
+      let write_guard = data.ui_config_dir_cap.write().await?;
       let mut file_cap = write_guard.file_cap(&data.ui_config_file);
       let () = ui_config
         .save(&mut file_cap)
@@ -367,13 +367,12 @@ mod tests {
       // and we do not want our capability infrastructure to "manage"
       // permissions of other files in there (and we may not be allowed
       // to anyway).
-      let ui_dir = TempDir::new().unwrap();
-      let ui_file = NamedTempFile::new_in(ui_dir.path()).unwrap();
-      let ui_file_dir = ui_dir.path().to_path_buf();
-      let ui_dir_cap = DirCap::for_dir(ui_file_dir).await.unwrap();
-      let ui_file_name = ui_file.path().file_name().unwrap().to_os_string();
-      let ui_config_path = (ui_dir_cap, ui_file_name);
-
+      let ui_config_dir = TempDir::new().unwrap();
+      let ui_config_file = NamedTempFile::new_in(ui_config_dir.path()).unwrap();
+      let ui_config_file_dir = ui_config_dir.path().to_path_buf();
+      let ui_config_dir_cap = DirCap::for_dir(ui_config_file_dir).await.unwrap();
+      let ui_config_file_name = ui_config_file.path().file_name().unwrap().to_os_string();
+      let ui_config_path = (ui_config_dir_cap, ui_config_file_name);
       let ui_config = Config::with_serde(self.ui_config, &task_state).unwrap();
 
       let (ui, _) = Ui::new(
@@ -384,8 +383,8 @@ mod tests {
       TestUi {
         tasks_root: tasks_dir,
         ui,
-        _ui_dir: ui_dir,
-        ui_file,
+        _ui_config_dir: ui_config_dir,
+        ui_config_file,
       }
     }
   }
@@ -395,8 +394,8 @@ mod tests {
   struct TestUi {
     tasks_root: TempDir,
     ui: Ui<Event, Message>,
-    _ui_dir: TempDir,
-    ui_file: NamedTempFile,
+    _ui_config_dir: TempDir,
+    ui_config_file: NamedTempFile,
   }
 
   impl TestUi {
@@ -467,7 +466,7 @@ mod tests {
     /// the default one.
     async fn load_config(&self) -> Result<Config> {
       let task_state = TaskState::load(self.tasks_root.path()).await?;
-      let ui_config = Config::load(self.ui_file.path(), &task_state).await?;
+      let ui_config = Config::load(self.ui_config_file.path(), &task_state).await?;
       Ok(ui_config)
     }
   }
