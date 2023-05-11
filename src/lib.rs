@@ -172,6 +172,22 @@ fn ui_config() -> Result<FilePath> {
   Ok((config_dir, config_file))
 }
 
+/// Retrieve the path to the program's "volatile" UI state.
+///
+/// This UI "state" refers to anything UI related that has not
+/// explicitly been configured by the user and that, if lost, wouldn't
+/// constitute data loss because it can either be recreated easily or
+/// was just a convenience to have persisted to begin with. Think of the
+/// currently selected tab and task of the UI.
+fn ui_state() -> Result<FilePath> {
+  let cache_dir = cache_dir()
+    .ok_or_else(|| anyhow!("unable to determine cache directory"))?
+    .join("notnow");
+  let state_file = OsString::from("ui-state.json");
+
+  Ok((cache_dir, state_file))
+}
+
 /// Instantiate a key receiver thread and have it send key events through the given channel.
 fn receive_keys<R>(stdin: R, send_event: Sender<IoResult<Event>>)
 where
@@ -245,6 +261,7 @@ pub async fn run_prog<R, W>(
   out: W,
   tasks_root: PathBuf,
   ui_config_path: FilePath,
+  ui_state_path: FilePath,
 ) -> Result<()>
 where
   R: Read + Send + 'static,
@@ -253,8 +270,9 @@ where
   let task_state = TaskState::load(&tasks_root)
     .await
     .context("failed to load task state")?;
-  let ui_file = ui_config_path.0.join(&ui_config_path.1);
-  let ui_config = UiConfig::load(&ui_file, &task_state)
+  let ui_config_file = ui_config_path.0.join(&ui_config_path.1);
+  let ui_state_file = ui_state_path.0.join(&ui_state_path.1);
+  let ui_config = UiConfig::load(&ui_config_file, &task_state)
     .await
     .context("failed to load UI configuration")?;
   let screen = out
@@ -268,6 +286,9 @@ where
   let ui_config_dir_cap = DirCap::for_dir(ui_config_path.0).await?;
   let ui_config_file = ui_config_path.1;
 
+  let ui_state_dir_cap = DirCap::for_dir(ui_state_path.0).await?;
+  let ui_state_file = ui_state_path.1;
+
   let tasks_root_cap = DirCap::for_dir(tasks_root).await?;
 
   let (ui, _) = Ui::new(
@@ -276,6 +297,7 @@ where
         tasks_root_cap,
         task_state,
         (ui_config_dir_cap, ui_config_file),
+        (ui_state_dir_cap, ui_state_file),
       ))
     },
     |id, cap| Box::new(TermUi::new(id, cap, ui_config)),
@@ -351,6 +373,7 @@ where
 /// Run an instance of the program in the default configuration.
 fn run_now() -> Result<()> {
   let ui_config = ui_config()?;
+  let ui_state = ui_state()?;
   let tasks_root = tasks_root()?;
   let rt = Builder::new_current_thread()
     .build()
@@ -358,7 +381,7 @@ fn run_now() -> Result<()> {
 
   let stdin = stdin();
   let stdout = stdout();
-  let future = run_prog(stdin, stdout.lock(), tasks_root, ui_config);
+  let future = run_prog(stdin, stdout.lock(), tasks_root, ui_config, ui_state);
   rt.block_on(future)
 }
 

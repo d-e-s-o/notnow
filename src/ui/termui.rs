@@ -43,8 +43,12 @@ pub struct TermUiData {
   task_state: TaskState,
   /// The capability to the UI configuration directory.
   ui_config_dir_cap: DirCap,
-  /// The name of the file in which to save the UI state.
+  /// The name of the file in which to save the UI configuration.
   ui_config_file: OsString,
+  /// The capability to the UI state directory.
+  ui_state_dir_cap: DirCap,
+  /// The name of the file in which to save the UI state.
+  ui_state_file: OsString,
 }
 
 impl TermUiData {
@@ -52,12 +56,15 @@ impl TermUiData {
     tasks_dir_cap: DirCap,
     task_state: TaskState,
     ui_config_path: (DirCap, OsString),
+    ui_state_path: (DirCap, OsString),
   ) -> Self {
     Self {
       tasks_dir_cap,
       task_state,
       ui_config_dir_cap: ui_config_path.0,
       ui_config_file: ui_config_path.1,
+      ui_state_dir_cap: ui_state_path.0,
+      ui_state_file: ui_state_path.1,
     }
   }
 }
@@ -375,8 +382,23 @@ mod tests {
       let ui_config_path = (ui_config_dir_cap, ui_config_file_name);
       let ui_config = Config::with_serde(self.ui_config, &task_state).unwrap();
 
+      let ui_state_dir = TempDir::new().unwrap();
+      let ui_state_file = NamedTempFile::new_in(ui_state_dir.path()).unwrap();
+      let ui_state_file_dir = ui_state_dir.path().to_path_buf();
+      let ui_state_dir_cap = DirCap::for_dir(ui_state_file_dir).await.unwrap();
+      let ui_state_file_name = ui_state_file.path().file_name().unwrap().to_os_string();
+      let ui_state_path = (ui_state_dir_cap, ui_state_file_name);
+
+
       let (ui, _) = Ui::new(
-        || Box::new(TermUiData::new(tasks_root_cap, task_state, ui_config_path)),
+        || {
+          Box::new(TermUiData::new(
+            tasks_root_cap,
+            task_state,
+            ui_config_path,
+            ui_state_path,
+          ))
+        },
         |id, cap| Box::new(TermUi::new(id, cap, ui_config)),
       );
 

@@ -37,11 +37,16 @@ async fn main() -> Result<()> {
   let mut ui_config_file_cap = ui_config_dir_write_guard.file_cap(&ui_config_file_name);
   let () = ui_config.save(&mut ui_config_file_cap).await?;
 
+  let ui_state_dir = TempDir::new()?;
+  let ui_state_file_name = OsString::from("ui-state.json");
+  let ui_state_file_path = (ui_state_dir.path().to_path_buf(), ui_state_file_name);
+
   run_prog(
     stdin(),
     stdout().lock(),
     tasks_dir.path().to_path_buf(),
     ui_config_file_path,
+    ui_state_file_path,
   )
   .await
 }
