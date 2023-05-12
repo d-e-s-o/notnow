@@ -29,13 +29,11 @@ pub struct Config {
   /// The tag to toggle on user initiated action.
   pub toggle_tag: Option<Tag>,
   /// The views used in the UI.
-  pub views: Vec<(View, Option<usize>)>,
-  /// The currently selected `View`.
-  pub selected: Option<usize>,
+  pub views: Vec<View>,
 }
 
 impl Config {
-  /// Load `Config` from a configuration file.
+  /// Load a `Config` object from a file.
   pub async fn load(config_path: &Path, task_state: &TaskState) -> Result<Self> {
     let config = load_state_from_file::<Json, SerUiConfig>(config_path)
       .await
@@ -58,18 +56,18 @@ impl Config {
     let mut views = config
       .views
       .into_iter()
-      .map(|(view, selected)| {
+      .map(|view| {
         let name = view.name.clone();
         let view = View::with_serde(view, templates, tasks.clone())
           .with_context(|| format!("failed to instantiate view '{}'", name))?;
-        Ok((view, selected))
+        Ok(view)
       })
       .collect::<Result<Vec<_>>>()?;
 
     // For convenience for the user, we add a default view capturing
     // all tasks if no other views have been configured.
     if views.is_empty() {
-      views.push((ViewBuilder::new(tasks.clone()).build("all"), None))
+      views.push(ViewBuilder::new(tasks.clone()).build("all"))
     }
 
     let toggle_tag = if let Some(toggle_tag) = config.toggle_tag {
@@ -86,12 +84,11 @@ impl Config {
       colors: Cell::new(Some(config.colors)),
       toggle_tag,
       views,
-      selected: config.selected,
     };
     Ok(slf)
   }
 
-  /// Persist the state into a file.
+  /// Persist the configuration into a file.
   pub async fn save(&self, file_cap: &mut FileCap<'_>) -> Result<()> {
     let config = load_state_from_file::<Json, SerUiConfig>(file_cap.path())
       .await
@@ -108,16 +105,14 @@ impl ToSerde for Config {
 
   /// Convert this object into a serializable one.
   fn to_serde(&self) -> Self::Output {
-    debug_assert!(self.selected.is_none() || self.selected.unwrap() < self.views.len());
+    let views = self.views.iter().map(View::to_serde).collect();
 
-    let views = self.views.iter().map(|(q, s)| (q.to_serde(), *s)).collect();
-
-    SerUiConfig {
+    let config = SerUiConfig {
       colors: self.colors.get().unwrap_or_default(),
       toggle_tag: self.toggle_tag.as_ref().map(ToSerde::to_serde),
       views,
-      selected: self.selected,
-    }
+    };
+    config
   }
 }
 

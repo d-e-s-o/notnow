@@ -26,9 +26,17 @@ pub struct UiConfig {
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub toggle_tag: Option<Tag>,
   #[serde(default, skip_serializing_if = "Vec::is_empty")]
-  pub views: Vec<(View, Option<usize>)>,
+  pub views: Vec<View>,
+}
+
+
+/// A struct comprising the program's UI state.
+#[derive(Debug, Default, Deserialize, PartialEq, Serialize)]
+pub struct UiState {
+  #[serde(default, skip_serializing_if = "Vec::is_empty")]
+  pub selected_tasks: Vec<Option<usize>>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
-  pub selected: Option<usize>,
+  pub selected_view: Option<usize>,
 }
 
 

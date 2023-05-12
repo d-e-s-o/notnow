@@ -1,3 +1,9 @@
+Unreleased
+----------
+- Split configuration by moving various selections into
+  `$XDG_CACHE_HOME/notnow/ui-state.json`
+
+
 0.3.2
 -----
 - Fixed `--version`/`-V` options to work properly again

@@ -79,6 +79,7 @@ mod view;
 pub use crate::cap::DirCap;
 pub use crate::state::TaskState;
 pub use crate::ui::Config as UiConfig;
+pub use crate::ui::State as UiState;
 
 use std::env::args_os;
 use std::ffi::OsString;
@@ -275,6 +276,9 @@ where
   let ui_config = UiConfig::load(&ui_config_file, &task_state)
     .await
     .context("failed to load UI configuration")?;
+  let ui_state = UiState::load(&ui_state_file)
+    .await
+    .context("failed to load UI state")?;
   let screen = out
     .into_alternate_screen()?
     .into_raw_mode()
@@ -300,7 +304,7 @@ where
         (ui_state_dir_cap, ui_state_file),
       ))
     },
-    |id, cap| Box::new(TermUi::new(id, cap, ui_config)),
+    |id, cap| Box::new(TermUi::new(id, cap, ui_config, ui_state)),
   );
 
   let (send_event, recv_event) = channel();

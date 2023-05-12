@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2022 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2018-2023 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 //! A module providing serialization and deserialization support for
@@ -29,8 +29,41 @@ impl TagLit {
 }
 
 
-/// A view that can be serialized and deserialized.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+struct ViewImpl {
+  name: String,
+  lits: Vec<Vec<TagLit>>,
+}
+
+
+// This type exists solely for the purpose of preserving backwards
+// compatibility with respect to the configuration format used, and
+// where earlier versions of the program stored a `View` together with
+// the index of the selected task.
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(untagged)]
+enum ViewTuple {
+  Tuple((ViewImpl, Option<usize>)),
+  View(ViewImpl),
+}
+
+impl From<ViewTuple> for View {
+  fn from(other: ViewTuple) -> Self {
+    match other {
+      ViewTuple::View(view) | ViewTuple::Tuple((view, ..)) => {
+        let ViewImpl { name, lits } = view;
+        View { name, lits }
+      },
+    }
+  }
+}
+
+
+/// A view that can be serialized and deserialized.
+// TODO: Remove the `from` conversion with the next compatibility
+//       breaking release.
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(from = "ViewTuple")]
 pub struct View {
   pub name: String,
   pub lits: Vec<Vec<TagLit>>,

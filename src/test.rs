@@ -116,36 +116,23 @@ pub fn default_tasks_and_tags() -> (SerUiConfig, SerTaskState) {
   let (tags, templates, tasks) = make_tasks_with_tags(15);
   let ui_config = SerUiConfig {
     views: vec![
-      (
-        SerView {
-          name: "all".to_string(),
-          lits: vec![],
-        },
-        None,
-      ),
-      (
-        SerView {
-          name: "tag complete".to_string(),
-          lits: vec![vec![SerTagLit::Pos(tags[0])]],
-        },
-        None,
-      ),
-      (
-        SerView {
-          name: "tag2 || tag3".to_string(),
-          lits: vec![vec![SerTagLit::Pos(tags[2]), SerTagLit::Pos(tags[3])]],
-        },
-        None,
-      ),
-      (
-        SerView {
-          name: "tag1 && tag3".to_string(),
-          lits: vec![vec![SerTagLit::Pos(tags[1])], vec![SerTagLit::Pos(tags[3])]],
-        },
-        None,
-      ),
+      SerView {
+        name: "all".to_string(),
+        lits: vec![],
+      },
+      SerView {
+        name: "tag complete".to_string(),
+        lits: vec![vec![SerTagLit::Pos(tags[0])]],
+      },
+      SerView {
+        name: "tag2 || tag3".to_string(),
+        lits: vec![vec![SerTagLit::Pos(tags[2]), SerTagLit::Pos(tags[3])]],
+      },
+      SerView {
+        name: "tag1 && tag3".to_string(),
+        lits: vec![vec![SerTagLit::Pos(tags[1])], vec![SerTagLit::Pos(tags[3])]],
+      },
     ],
-    selected: None,
     colors: Default::default(),
     // The UI can be used to toggle completion state.
     toggle_tag: Some(tags[0]),
