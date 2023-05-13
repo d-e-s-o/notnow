@@ -294,6 +294,7 @@ where
   let ui_state_file = ui_state_path.1;
 
   let tasks_root_cap = DirCap::for_dir(tasks_root).await?;
+  let toggle_tag = ui_config.toggle_tag.clone();
 
   let (ui, _) = Ui::new(
     || {
@@ -302,6 +303,7 @@ where
         task_state,
         (ui_config_dir_cap, ui_config_file),
         (ui_state_dir_cap, ui_state_file),
+        toggle_tag,
       ))
     },
     |id, cap| Box::new(TermUi::new(id, cap, ui_config, ui_state)),

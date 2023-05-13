@@ -51,6 +51,8 @@ pub struct TermUiData {
   ui_state_dir_cap: DirCap,
   /// The name of the file in which to save the UI state.
   ui_state_file: OsString,
+  /// The tag to toggle on user initiated action.
+  toggle_tag: Option<Tag>,
 }
 
 impl TermUiData {
@@ -59,6 +61,7 @@ impl TermUiData {
     task_state: TaskState,
     ui_config_path: (DirCap, OsString),
     ui_state_path: (DirCap, OsString),
+    toggle_tag: Option<Tag>,
   ) -> Self {
     Self {
       tasks_dir_cap,
@@ -67,6 +70,7 @@ impl TermUiData {
       ui_config_file: ui_config_path.1,
       ui_state_dir_cap: ui_state_path.0,
       ui_state_file: ui_state_path.1,
+      toggle_tag,
     }
   }
 }
@@ -78,8 +82,6 @@ pub struct TermUi {
   id: Id,
   in_out: Id,
   tab_bar: Id,
-  /// The tag to toggle on user initiated action.
-  toggle_tag: Option<Tag>,
 }
 
 
@@ -87,9 +89,7 @@ impl TermUi {
   /// Create a new UI as partly described by the provided `Config` object.
   pub fn new(id: Id, cap: &mut dyn MutCap<Event, Message>, config: Config, state: State) -> Self {
     let termui_id = id;
-    let Config {
-      toggle_tag, views, ..
-    } = config;
+    let Config { views, .. } = config;
 
     let State {
       selected_tasks,
@@ -99,7 +99,6 @@ impl TermUi {
     let selected = selected_tasks.into_iter().chain(repeat(None));
     let views = views.into_iter().zip(selected).collect();
 
-    let toggle_tag_copy = toggle_tag.clone();
     // TODO: Ideally, widgets that need a modal dialog could just create
     //       one on-the-fly. But doing so will also require support for
     //       destroying widgets, which is something that the `gui` crate
@@ -124,6 +123,7 @@ impl TermUi {
       Box::new(move |id, cap| {
         let data = cap.data(termui_id).downcast_ref::<TermUiData>().unwrap();
         let tasks = data.task_state.tasks().clone();
+        let toggle_tag = data.toggle_tag.clone();
         Box::new(TabBar::new(
           id,
           cap,
@@ -131,7 +131,7 @@ impl TermUi {
           in_out,
           tasks,
           views,
-          toggle_tag_copy.clone(),
+          toggle_tag,
           selected_view,
         ))
       }),
@@ -141,7 +141,6 @@ impl TermUi {
       id,
       in_out,
       tab_bar,
-      toggle_tag,
     }
   }
 
@@ -215,6 +214,7 @@ impl TermUi {
     } = state;
     let (views, selected_tasks) = views.into_iter().unzip();
 
+    let data = self.data::<TermUiData>(cap);
     let config = Config {
       views,
       // TODO: Currently we do not allow in-program modification of
@@ -226,7 +226,7 @@ impl TermUi {
       //       collect the in-program state and just persist it as
       //       everything else.
       colors: Default::default(),
-      toggle_tag: self.toggle_tag.clone(),
+      toggle_tag: data.toggle_tag.clone(),
     };
     let state = State {
       selected_tasks,
@@ -420,6 +420,8 @@ mod tests {
       let ui_state_path = (ui_state_dir_cap, ui_state_file_name);
       let ui_state = State::default();
 
+      let toggle_tag = ui_config.toggle_tag.clone();
+
       let (ui, _) = Ui::new(
         || {
           Box::new(TermUiData::new(
@@ -427,6 +429,7 @@ mod tests {
             task_state,
             ui_config_path,
             ui_state_path,
+            toggle_tag,
           ))
         },
         |id, cap| Box::new(TermUi::new(id, cap, ui_config, ui_state)),
