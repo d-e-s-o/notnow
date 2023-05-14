@@ -276,6 +276,12 @@ where
   let ui_config = UiConfig::load(&ui_config_file, &task_state)
     .await
     .context("failed to load UI configuration")?;
+  let UiConfig {
+    colors,
+    toggle_tag,
+    views,
+  } = ui_config;
+
   let ui_state = UiState::load(&ui_state_file)
     .await
     .context("failed to load UI state")?;
@@ -283,9 +289,8 @@ where
     .into_alternate_screen()?
     .into_raw_mode()
     .context("failed to switch program output to raw mode")?;
-  let colors = ui_config.colors.get().unwrap_or_default();
-  let renderer =
-    TermUiRenderer::new(screen, colors).context("failed to instantiate terminal based renderer")?;
+  let renderer = TermUiRenderer::new(screen, colors.unwrap_or_default())
+    .context("failed to instantiate terminal based renderer")?;
 
   let ui_config_dir_cap = DirCap::for_dir(ui_config_path.0).await?;
   let ui_config_file = ui_config_path.1;
@@ -294,7 +299,6 @@ where
   let ui_state_file = ui_state_path.1;
 
   let tasks_root_cap = DirCap::for_dir(tasks_root).await?;
-  let toggle_tag = ui_config.toggle_tag.clone();
 
   let (ui, _) = Ui::new(
     || {
@@ -303,10 +307,11 @@ where
         task_state,
         (ui_config_dir_cap, ui_config_file),
         (ui_state_dir_cap, ui_state_file),
+        colors,
         toggle_tag,
       ))
     },
-    |id, cap| Box::new(TermUi::new(id, cap, ui_config, ui_state)),
+    |id, cap| Box::new(TermUi::new(id, cap, views, ui_state)),
   );
 
   let (send_event, recv_event) = channel();

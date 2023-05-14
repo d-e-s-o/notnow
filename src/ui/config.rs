@@ -1,7 +1,6 @@
 // Copyright (C) 2023 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use std::cell::Cell;
 use std::path::Path;
 
 use anyhow::anyhow;
@@ -25,7 +24,7 @@ use crate::view::ViewBuilder;
 #[derive(Debug)]
 pub struct Config {
   /// The configured colors.
-  pub colors: Cell<Option<Colors>>,
+  pub colors: Option<Colors>,
   /// The tag to toggle on user initiated action.
   pub toggle_tag: Option<Tag>,
   /// The views used in the UI.
@@ -81,7 +80,7 @@ impl Config {
     };
 
     let slf = Self {
-      colors: Cell::new(Some(config.colors)),
+      colors: Some(config.colors),
       toggle_tag,
       views,
     };
@@ -90,12 +89,6 @@ impl Config {
 
   /// Persist the configuration into a file.
   pub async fn save(&self, file_cap: &mut FileCap<'_>) -> Result<()> {
-    let config = load_state_from_file::<Json, SerUiConfig>(file_cap.path())
-      .await
-      .unwrap_or_default()
-      .unwrap_or_default();
-    self.colors.set(Some(config.colors));
-
     save_state_to_file::<Json, _>(file_cap, &self.to_serde()).await
   }
 }
@@ -108,7 +101,7 @@ impl ToSerde for Config {
     let views = self.views.iter().map(View::to_serde).collect();
 
     let config = SerUiConfig {
-      colors: self.colors.get().unwrap_or_default(),
+      colors: self.colors.unwrap_or_default(),
       toggle_tag: self.toggle_tag.as_ref().map(ToSerde::to_serde),
       views,
     };
