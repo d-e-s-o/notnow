@@ -24,7 +24,7 @@ use crate::view::ViewBuilder;
 #[derive(Debug)]
 pub struct Config {
   /// The configured colors.
-  pub colors: Option<Colors>,
+  pub colors: Colors,
   /// The tag to toggle on user initiated action.
   pub toggle_tag: Option<Tag>,
   /// The views used in the UI.
@@ -49,11 +49,15 @@ impl Config {
 
   /// Create a `Config` object from a serialized configuration.
   pub fn with_serde(config: SerUiConfig, task_state: &TaskState) -> Result<Self> {
+    let SerUiConfig {
+      colors,
+      toggle_tag,
+      views,
+    } = config;
     let templates = task_state.templates();
     let tasks = task_state.tasks();
 
-    let mut views = config
-      .views
+    let mut views = views
       .into_iter()
       .map(|view| {
         let name = view.name.clone();
@@ -69,7 +73,7 @@ impl Config {
       views.push(ViewBuilder::new(tasks.clone()).build("all"))
     }
 
-    let toggle_tag = if let Some(toggle_tag) = config.toggle_tag {
+    let toggle_tag = if let Some(toggle_tag) = toggle_tag {
       let toggle_tag = templates
         .instantiate(toggle_tag.id)
         .ok_or_else(|| anyhow!("encountered invalid toggle tag ID {}", toggle_tag.id))?;
@@ -80,7 +84,7 @@ impl Config {
     };
 
     let slf = Self {
-      colors: Some(config.colors),
+      colors,
       toggle_tag,
       views,
     };
@@ -101,7 +105,7 @@ impl ToSerde for Config {
     let views = self.views.iter().map(View::to_serde).collect();
 
     let config = SerUiConfig {
-      colors: self.colors.unwrap_or_default(),
+      colors: self.colors,
       toggle_tag: self.toggle_tag.as_ref().map(ToSerde::to_serde),
       views,
     };

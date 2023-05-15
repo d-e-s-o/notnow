@@ -54,7 +54,7 @@ pub struct TermUiData {
   /// The name of the file in which to save the UI state.
   ui_state_file: OsString,
   /// The colors we use.
-  colors: Option<Colors>,
+  colors: Colors,
   /// The tag to toggle on user initiated action.
   toggle_tag: Option<Tag>,
 }
@@ -65,7 +65,7 @@ impl TermUiData {
     task_state: TaskState,
     ui_config_path: (DirCap, OsString),
     ui_state_path: (DirCap, OsString),
-    colors: Option<Colors>,
+    colors: Colors,
     toggle_tag: Option<Tag>,
   ) -> Self {
     Self {

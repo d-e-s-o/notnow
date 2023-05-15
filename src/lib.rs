@@ -289,8 +289,8 @@ where
     .into_alternate_screen()?
     .into_raw_mode()
     .context("failed to switch program output to raw mode")?;
-  let renderer = TermUiRenderer::new(screen, colors.unwrap_or_default())
-    .context("failed to instantiate terminal based renderer")?;
+  let renderer =
+    TermUiRenderer::new(screen, colors).context("failed to instantiate terminal based renderer")?;
 
   let ui_config_dir_cap = DirCap::for_dir(ui_config_path.0).await?;
   let ui_config_file = ui_config_path.1;
