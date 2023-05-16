@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2022 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2018-2023 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #[cfg(feature = "readline")]
@@ -179,7 +179,7 @@ impl InOutArea {
         .unwrap();
       if let Some(event) = event {
         // We remember the generation number we had when we entered the
-        // pre-hook such that we can decided whether to set our state to
+        // pre-hook such that we can decide whether to set our state to
         // "Clear" or not on the post-hook path.
         match event {
           Event::Key(..) => {

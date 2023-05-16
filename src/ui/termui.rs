@@ -201,8 +201,10 @@ impl TermUi {
     cap.send(self.in_out, message).await
   }
 
-  /// Emit an event that will eventually cause the state to be saved.
-  async fn save(&self, cap: &mut dyn MutCap<Event, Message>) -> Option<Message> {
+  async fn collect_config_and_state(
+    &self,
+    cap: &mut dyn MutCap<Event, Message>,
+  ) -> (Config, State) {
     let message = Message::CollectState;
     let state = cap.send(self.id, message).await.unwrap();
 
@@ -229,6 +231,13 @@ impl TermUi {
       selected_tasks,
       selected_view,
     };
+
+    (config, state)
+  }
+
+  /// Emit an event that will eventually cause the state to be saved.
+  async fn save(&self, cap: &mut dyn MutCap<Event, Message>) -> Option<Message> {
+    let (config, state) = self.collect_config_and_state(cap).await;
     self.save_and_report(cap, &config, &state).await
   }
 }
