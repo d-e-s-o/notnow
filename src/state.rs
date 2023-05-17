@@ -144,6 +144,17 @@ async fn load_tasks_from_dir(root: &Path) -> Result<SerTaskState> {
   })
 }
 
+/// Check whether some state should be saved.
+pub(crate) async fn should_save_state<B, T>(file: &Path, state: &T) -> Result<bool>
+where
+  B: Backend<T>,
+  T: PartialEq,
+{
+  load_state_from_file::<B, T>(file)
+    .await
+    .map(|existing| existing.as_ref() != Some(state))
+}
+
 /// Save some state into a file.
 pub(crate) async fn save_state_to_file<B, T>(file_cap: &mut FileCap<'_>, state: &T) -> Result<()>
 where
@@ -151,12 +162,11 @@ where
   T: PartialEq,
 {
   let path = file_cap.path();
-  if let Ok(Some(existing)) = load_state_from_file::<B, T>(path).await {
-    if &existing == state {
-      // If the file already contains the expected state there is no need
-      // for us to write it again.
-      return Ok(())
-    }
+  // If in doubt (or in err), always be sure to suggest a save.
+  if !should_save_state::<B, T>(path, state).await.unwrap_or(true) {
+    // If the file already contains the expected state there is no need
+    // for us to write it again.
+    return Ok(())
   }
 
   if let Some(dir) = path.parent() {
@@ -182,6 +192,12 @@ where
   Ok(())
 }
 
+/// Check whether we should save a task.
+async fn should_save_task(dir: &Path, task: &SerTask) -> Result<bool> {
+  let path = dir.join(OsStr::new(&task.id.to_string()));
+  should_save_state::<iCal, _>(&path, task).await
+}
+
 /// Save a task into a file in the given directory.
 async fn save_task_to_file(write_guard: &mut WriteGuard<'_>, task: &SerTask) -> Result<()> {
   let mut file_cap = write_guard.file_cap(OsStr::new(&task.id.to_string()));
@@ -195,6 +211,12 @@ async fn save_task_to_file(write_guard: &mut WriteGuard<'_>, task: &SerTask) -> 
   save_state_to_file::<iCal, _>(&mut file_cap, task).await
 }
 
+/// Check whether we should save some tasks meta state.
+async fn should_save_tasks_meta(dir: &Path, tasks_meta: &SerTasksMeta) -> Result<bool> {
+  let path = dir.join(OsStr::new(&TASKS_META_ID.to_string()));
+  should_save_state::<iCal, _>(&path, tasks_meta).await
+}
+
 /// Save a task meta data into a file in the provided directory.
 async fn save_tasks_meta_to_dir(
   write_guard: &mut WriteGuard<'_>,
@@ -202,6 +224,49 @@ async fn save_tasks_meta_to_dir(
 ) -> Result<()> {
   let mut file_cap = write_guard.file_cap(OsStr::new(&TASKS_META_ID.to_string()));
   save_state_to_file::<iCal, _>(&mut file_cap, tasks_meta).await
+}
+
+/// Check whether we should save task state.
+// TODO: The way we "walk" the task tree is duplicated with
+//       `save_tasks_to_dir`, but it's unclear how to deduplicate.
+async fn should_save_tasks(dir: &Path, tasks: &SerTaskState) -> Result<bool> {
+  for task in tasks.tasks.0.iter() {
+    if should_save_task(dir, task).await? {
+      return Ok(true)
+    }
+  }
+
+  if should_save_tasks_meta(dir, &tasks.tasks_meta).await? {
+    return Ok(true)
+  }
+
+  let ids = tasks
+    .tasks
+    .0
+    .iter()
+    .map(|task| task.id)
+    .collect::<HashSet<_>>();
+
+  // Check whether there are files that do not correspond to a task we
+  // manage and which should be removed.
+  let mut dir = read_dir(dir).await?;
+  while let Some(entry) = dir.next_entry().await? {
+    let id = entry
+      .file_name()
+      .to_str()
+      .and_then(|id| SerTaskId::try_parse(id).ok());
+
+    let remove = if let Some(id) = id {
+      id != TASKS_META_ID && ids.get(&id).is_none()
+    } else {
+      true
+    };
+
+    if remove {
+      return Ok(true)
+    }
+  }
+  Ok(false)
 }
 
 /// Save tasks into files in the provided directory.
@@ -289,6 +354,15 @@ impl TaskState {
       tasks: Rc::new(tasks),
     };
     Ok(slf)
+  }
+
+
+  /// Check whether any of the tasks were changed from the state in the
+  /// given `root_dir`.
+  pub async fn is_changed(&self, root_dir: &Path) -> bool {
+    should_save_tasks(root_dir, &self.to_serde())
+      .await
+      .unwrap_or(true)
   }
 
   /// Persist the state into a file.

@@ -14,6 +14,7 @@ use crate::ser::state::UiConfig as SerUiConfig;
 use crate::ser::ToSerde;
 use crate::state::load_state_from_file;
 use crate::state::save_state_to_file;
+use crate::state::should_save_state;
 use crate::state::TaskState;
 use crate::tags::Tag;
 use crate::view::View;
@@ -89,6 +90,14 @@ impl Config {
       views,
     };
     Ok(slf)
+  }
+
+  /// Check whether the configuration is changed from what is in the
+  /// provided `file`.
+  pub async fn is_changed(&self, file: &Path) -> bool {
+    should_save_state::<Json, _>(file, &self.to_serde())
+      .await
+      .unwrap_or(true)
   }
 
   /// Persist the configuration into a file.

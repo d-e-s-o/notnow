@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::ffi::OsString;
+use std::future::Future;
 use std::iter::repeat;
+use std::pin::Pin;
 
 use anyhow::Context as _;
 use anyhow::Result;
@@ -39,6 +41,12 @@ use super::tab_bar::TabBarData;
 use super::tab_bar::TabState;
 
 
+/// The character used for quitting the program.
+const CHAR_QUIT: char = 'q';
+/// The key used for quitting the program.
+const KEY_QUIT: Key = Key::Char(CHAR_QUIT);
+
+
 /// The data associated with a `TermUi`.
 pub struct TermUiData {
   /// The capability to the directory containing the tasks.
@@ -57,6 +65,9 @@ pub struct TermUiData {
   colors: Colors,
   /// The tag to toggle on user initiated action.
   toggle_tag: Option<Tag>,
+  /// Flag indicating whether we showed an "unsaved changes" warning to
+  /// the user.
+  displayed_unsaved_changes_warning: bool,
 }
 
 impl TermUiData {
@@ -77,6 +88,7 @@ impl TermUiData {
       ui_state_file: ui_state_path.1,
       colors,
       toggle_tag,
+      displayed_unsaved_changes_warning: false,
     }
   }
 }
@@ -142,11 +154,36 @@ impl TermUi {
       }),
     );
 
+    let _prev_hook = cap.hook_events(id, Some(&Self::handle_hooked_event));
+
     Self {
       id,
       in_out,
       tab_bar,
     }
+  }
+
+  /// Handle a hooked event.
+  fn handle_hooked_event<'f>(
+    widget: &'f dyn Widget<Event, Message>,
+    cap: &'f mut dyn MutCap<Event, Message>,
+    event: Option<&'f Event>,
+  ) -> Pin<Box<dyn Future<Output = Option<Event>> + 'f>> {
+    Box::pin(async move {
+      if let Some(event) = event {
+        match event {
+          Event::Key(key, ..) if key != &KEY_QUIT => {
+            let data = cap
+              .data_mut(widget.id())
+              .downcast_mut::<TermUiData>()
+              .unwrap();
+            data.displayed_unsaved_changes_warning = false;
+          },
+          _ => (),
+        }
+      }
+      None
+    })
   }
 
   /// Persist configuration and state.
@@ -269,7 +306,34 @@ impl Handleable<Event, Message> for TermUi {
           }
           Some(Event::Updated)
         },
-        Key::Char('q') => Some(Event::Quit),
+        KEY_QUIT => {
+          let data = self.data::<TermUiData>(cap);
+          if data.displayed_unsaved_changes_warning {
+            // If we already displayed an "unsaved changes" warning to
+            // the user and they asked to quit the program again, then
+            // just honor the request straight away.
+            return Some(Event::Quit)
+          }
+
+          let tasks_dir = data.tasks_dir_cap.path();
+          let tasks_changed = data.task_state.is_changed(tasks_dir).await;
+
+          let ui_config_path = data.ui_config_dir_cap.path().join(&data.ui_config_file);
+          let (config, _state) = self.collect_config_and_state(cap).await;
+          let config_changed = config.is_changed(&ui_config_path).await;
+
+          if tasks_changed || config_changed {
+            let data = self.data_mut::<TermUiData>(cap);
+            data.displayed_unsaved_changes_warning = true;
+            let message = Message::SetInOut(InOut::Error(
+              "detected unsaved changes; repeat action to quit without saving".to_string(),
+            ));
+            cap.send(self.in_out, message).await;
+            Some(Event::Updated)
+          } else {
+            Some(Event::Quit)
+          }
+        },
         Key::Char('w') => self.save(cap).await.into_event(),
         // All key events not handled at this point will just get
         // swallowed.
@@ -541,10 +605,12 @@ mod tests {
     }
   }
 
+  /// Check that we can quit the program as expected.
   #[test]
   async fn exit_on_quit() {
     let events = vec![
-      Event::from('q'),
+      Event::from('w'),
+      Event::from(CHAR_QUIT),
       Event::from('a'),
       Event::from('f'),
       Event::from('\n'),
@@ -559,6 +625,79 @@ mod tests {
       .await;
 
     assert_eq!(tasks, make_task_summaries(0))
+  }
+
+  /// Check that the program cannot be quit directly when unsaved
+  /// changes (to the configuration?) are present.
+  #[test]
+  async fn dont_exit_on_unsaved_config() {
+    let events = vec![
+      Event::from(CHAR_QUIT),
+      Event::from('a'),
+      Event::from('f'),
+      Event::from('\n'),
+    ];
+
+    let tasks = TestUiBuilder::new()
+      .build()
+      .await
+      .handle(events)
+      .await
+      .task_summaries()
+      .await;
+
+    assert_eq!(tasks.len(), 1)
+  }
+
+  /// Check that the user can force an exit on unsaved changes.
+  #[test]
+  async fn forced_exit_on_unsaved_config() {
+    let events = vec![
+      Event::from(CHAR_QUIT),
+      Event::from(CHAR_QUIT),
+      Event::from('a'),
+      Event::from('f'),
+      Event::from('\n'),
+    ];
+
+    let tasks = TestUiBuilder::new()
+      .build()
+      .await
+      .handle(events)
+      .await
+      .task_summaries()
+      .await;
+
+    assert!(tasks.is_empty())
+  }
+
+  /// Check that we detect changes to a task and prevent accidental
+  /// exiting of the program.
+  #[test]
+  async fn dont_exit_on_unsaved_tasks() {
+    let events = vec![
+      // First make sure that everything is persisted.
+      Event::from('w'),
+      // Now change a task's tag.
+      Event::from('l'),
+      Event::from('l'),
+      Event::from(' '),
+      Event::from(CHAR_QUIT),
+      // Make sure we didn't exit by adding a "dummy" task.
+      Event::from('a'),
+      Event::from('f'),
+      Event::from('\n'),
+    ];
+
+    let tasks = TestUiBuilder::with_default_tasks_and_tags()
+      .build()
+      .await
+      .handle(events)
+      .await
+      .tasks()
+      .await;
+
+    assert_eq!(tasks.len(), 16);
   }
 
   #[test]
@@ -1564,6 +1703,26 @@ mod tests {
     assert_eq!(with_key(Key::PageDown).await, InOut::Clear);
   }
 
+  /// Check that the `InOutArea` widget displays an error when
+  /// attempting to quit the program while unsaved changes are present.
+  #[test]
+  async fn in_out_state_on_unsaved_changes() {
+    let tasks = make_tasks(2);
+    let events = vec![Event::from('q')];
+
+    let state = TestUiBuilder::with_ser_tasks(tasks)
+      .build()
+      .await
+      .handle(events)
+      .await
+      .in_out()
+      .await;
+
+    // Our tasks are effectively unsaved because they did not come from
+    // disk and are not present there either, so we should see an error.
+    assert!(matches!(state, InOut::Error(..)));
+  }
+
   #[test]
   async fn updated_event_after_write_and_key_press() {
     let tasks = make_tasks(2);
@@ -2177,7 +2336,8 @@ mod tests {
         .map_or(false, |x| x.is_updated());
 
       let c = c as char;
-      let expected = c == '/' || c == '?' || c == 'a' || c == 'n' || c == 'N' || c == 'w';
+      let expected =
+        c == '/' || c == '?' || c == 'a' || c == 'n' || c == 'N' || c == 'w' || c == CHAR_QUIT;
       assert_eq!(updated, expected, "char: {} ({})", c, c as u8);
     }
   }
