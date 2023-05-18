@@ -18,6 +18,8 @@ use gui::Widget;
 #[cfg(feature = "readline")]
 use rline::Readline;
 
+use crate::line::Line;
+
 use super::event::Event;
 use super::event::Key;
 use super::message::Message;
@@ -31,7 +33,7 @@ pub enum InOut {
   Saved,
   Search(String),
   Error(String),
-  Input(String, usize),
+  Input(Line),
   Clear,
 }
 
@@ -81,19 +83,6 @@ impl Default for InOutState {
 }
 
 
-/// Retrieve the index and length of a character at the given byte
-/// index.
-#[cfg(any(test, not(feature = "readline")))]
-fn str_char(s: &str, pos: usize) -> (usize, usize) {
-  for (idx, c) in s.char_indices() {
-    if pos < idx + c.len_utf8() {
-      return (idx, c.len_utf8())
-    }
-  }
-  (pos, 1)
-}
-
-
 /// The data associated with an `InOutArea`.
 pub struct InOutAreaData {
   /// The ID of the widget that was focused before the input/output area
@@ -131,14 +120,16 @@ impl InOutAreaData {
     if in_out != *self.in_out.get() {
       #[cfg(feature = "readline")]
       {
-        if let InOut::Input(s, idx) = &in_out {
+        if let InOut::Input(line) = &in_out {
           // We clear the undo buffer if we transition from a non-Input
           // state to an Input state. Input-to-Input transitions are
           // believed to be those just updating the text the user is
           // working on already.
-          let cstr = CString::new(s.clone()).unwrap();
+          let cstr = CString::new(line.as_str()).unwrap();
           let clear_undo = !self.in_out.get().is_input();
-          self.readline.reset(cstr, *idx, clear_undo);
+          self
+            .readline
+            .reset(cstr, line.selection_byte_index(), clear_undo);
         }
       }
       self.in_out.set(in_out);
@@ -237,8 +228,7 @@ impl InOutArea {
   async fn handle_key(
     &self,
     cap: &mut dyn MutCap<Event, Message>,
-    mut s: String,
-    mut idx: usize,
+    mut line: Line,
     key: Key,
     _raw: &(),
   ) -> Option<Message> {
@@ -246,62 +236,57 @@ impl InOutArea {
     match key {
       Key::Esc | Key::Char('\n') => {
         let string = if key == Key::Char('\n') {
-          Some(s)
+          Some(line.into_string())
         } else {
           None
         };
         self.finish_input(cap, string).await
       },
-      // We cannot easily handle multi byte Unicode graphemes with
-      // Rust's standard library, so just ignore everything that is
-      // represented as more than one byte (the `unicode_segmentation`
-      // would allow us to circumvent this restriction).
       Key::Char(c) => {
-        s.insert(idx, c);
-        data.change_state(InOut::Input(s, idx + c.len_utf8()))
+        let () = line.insert_char(c);
+        data.change_state(InOut::Input(line))
       },
       Key::Backspace => {
-        if idx > 0 {
-          let (i, len) = str_char(&s, idx - 1);
-          s.remove(i);
-          idx = idx.saturating_sub(len);
+        if line.selection() > 0 {
+          let mut line = line.select_prev();
+          let () = line.remove_char();
+          data.change_state(InOut::Input(line))
+        } else {
+          None
         }
-        data.change_state(InOut::Input(s, idx))
       },
       Key::Delete => {
-        if idx < s.len() {
-          s.remove(idx);
+        if line.selection() < line.len() {
+          let () = line.remove_char();
+          data.change_state(InOut::Input(line))
+        } else {
+          None
         }
-        data.change_state(InOut::Input(s, idx))
       },
       Key::Left => {
-        if idx > 0 {
-          idx = str_char(&s, idx - 1).0;
-          data.change_state(InOut::Input(s, idx))
+        if line.selection() > 0 {
+          data.change_state(InOut::Input(line.select_prev()))
         } else {
           None
         }
       },
       Key::Right => {
-        if idx < s.len() {
-          let (idx, len) = str_char(&s, idx);
-          debug_assert!(idx + len <= s.len());
-          data.change_state(InOut::Input(s, idx + len))
+        if line.selection() < line.len() {
+          data.change_state(InOut::Input(line.select_next()))
         } else {
           None
         }
       },
       Key::Home => {
-        if idx != 0 {
-          data.change_state(InOut::Input(s, 0))
+        if line.selection() != 0 {
+          data.change_state(InOut::Input(line.select_start()))
         } else {
           None
         }
       },
       Key::End => {
-        let length = s.len();
-        if idx != length {
-          data.change_state(InOut::Input(s, length))
+        if line.selection() != line.len() {
+          data.change_state(InOut::Input(line.select_end()))
         } else {
           None
         }
@@ -315,8 +300,7 @@ impl InOutArea {
   async fn handle_key(
     &self,
     cap: &mut dyn MutCap<Event, Message>,
-    _s: String,
-    idx: usize,
+    line: Line,
     key: Key,
     raw: &[u8],
   ) -> Option<Message> {
@@ -328,7 +312,7 @@ impl InOutArea {
           .await
       },
       None => {
-        let (s_, idx_) = data.readline.peek(|s, pos| (s.to_owned(), pos));
+        let (s, idx) = data.readline.peek(|s, pos| (s.to_owned(), pos));
         // We treat Esc a little specially. In a vi-mode enabled
         // configuration of libreadline Esc cancels input mode when we
         // are in it, and does nothing otherwise. That is what we are
@@ -337,7 +321,7 @@ impl InOutArea {
         // to the left by one). If nothing changed, then we actually
         // cancel the text input. That is not the nicest logic, but
         // the only way we have found that accomplishes what we want.
-        if key == Key::Esc && idx_ == idx {
+        if key == Key::Esc && idx == line.selection_byte_index() {
           // TODO: We have a problem here. What may end up happening
           //       is that we disrupt libreadline's workflow by
           //       effectively canceling what it was doing. If, for
@@ -353,7 +337,8 @@ impl InOutArea {
           data.readline = Readline::new();
           self.finish_input(cap, None).await
         } else {
-          data.change_state(InOut::Input(s_.into_string().unwrap(), idx_))
+          let line = Line::from_string(s.to_string_lossy()).select_byte_index(idx);
+          data.change_state(InOut::Input(line))
         }
       },
     }
@@ -384,13 +369,13 @@ impl Handleable<Event, Message> for InOutArea {
     match event {
       Event::Key(key, raw) => {
         let data = self.data::<InOutAreaData>(cap);
-        let (s, idx) = if let InOut::Input(s, idx) = data.in_out.get() {
-          (s.clone(), *idx)
+        let line = if let InOut::Input(line) = data.in_out.get() {
+          line.clone()
         } else {
           panic!("In/out area not used for input.");
         };
 
-        self.handle_key(cap, s, idx, key, &raw).await.into_event()
+        self.handle_key(cap, line, key, &raw).await.into_event()
       },
       _ => Some(event),
     }
@@ -400,10 +385,7 @@ impl Handleable<Event, Message> for InOutArea {
   async fn react(&self, message: Message, cap: &mut dyn MutCap<Event, Message>) -> Option<Message> {
     match message {
       Message::SetInOut(in_out) => {
-        if let InOut::Input(ref s, idx) = in_out {
-          // TODO: It is not nice that we allow clients to provide
-          //       potentially unsanitized inputs.
-          debug_assert!(idx <= s.len());
+        if matches!(in_out, InOut::Input(..)) {
           self.make_focused(cap);
         };
 
@@ -417,25 +399,5 @@ impl Handleable<Event, Message> for InOutArea {
       },
       m => panic!("Received unexpected message: {:?}", m),
     }
-  }
-}
-
-
-#[cfg(all(test, not(feature = "readline")))]
-mod tests {
-  use super::*;
-
-  #[test]
-  fn string_characters() {
-    let s = "abödeägh";
-    assert_eq!(str_char(s, 0), (0, 1));
-    assert_eq!(str_char(s, 1), (1, 1));
-    assert_eq!(str_char(s, 2), (2, 2));
-    assert_eq!(str_char(s, 3), (2, 2));
-    assert_eq!(str_char(s, 4), (4, 1));
-    assert_eq!(str_char(s, 5), (5, 1));
-    assert_eq!(str_char(s, 6), (6, 2));
-    assert_eq!(str_char(s, 7), (6, 2));
-    assert_eq!(str_char(s, 8), (8, 1));
   }
 }

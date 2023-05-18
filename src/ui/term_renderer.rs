@@ -53,18 +53,6 @@ const ERROR_TEXT: &str = " Error ";
 const INPUT_TEXT: &str = " > ";
 
 
-/// Find the character index that maps to the given byte position.
-fn char_index(s: &str, pos: usize) -> usize {
-  let mut count = 0;
-  for (idx, c) in s.char_indices() {
-    if pos < idx + c.len_utf8() {
-      break
-    }
-    count += 1;
-  }
-  count
-}
-
 /// Sanitize an offset.
 fn sanitize_offset(offset: usize, selection: usize, limit: usize) -> usize {
   if selection <= offset {
@@ -518,19 +506,19 @@ where
         SEARCH_TEXT,
         self.colors.in_out_status_fg,
         self.colors.in_out_status_bg,
-        Some(s),
+        Some(s.as_ref()),
       ),
       InOut::Error(ref e) => (
         ERROR_TEXT,
         self.colors.in_out_error_fg,
         self.colors.in_out_error_bg,
-        Some(e),
+        Some(e.as_ref()),
       ),
-      InOut::Input(ref s, _) => (
+      InOut::Input(ref line) => (
         INPUT_TEXT,
         self.colors.in_out_success_fg,
         self.colors.in_out_success_bg,
-        Some(s),
+        Some(line.as_str()),
       ),
       InOut::Clear => {
         // This is a tiny bit of an unclean solution, but essentially we
@@ -553,7 +541,7 @@ where
       let fg = self.colors.in_out_string_fg;
       let bg = self.colors.in_out_string_bg;
 
-      if let InOut::Input(string, idx) = in_out.state(cap) {
+      if let InOut::Input(line) = in_out.state(cap) {
         debug_assert!(cap.is_focused(in_out.id()));
 
         let mut map = self.data.borrow_mut();
@@ -562,9 +550,9 @@ where
         // Calculate the number of displayable characters we have
         // available after the "prefix".
         let limit = bbox.w.saturating_sub(x) as usize;
-        let idx = char_index(string, *idx);
+        let idx = line.selection();
         let offset = sanitize_offset(data.offset, idx, limit);
-        let string = &string[offset..];
+        let string = line.substr(offset..);
 
         data.offset = offset;
 

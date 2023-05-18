@@ -15,6 +15,7 @@ use gui::Id;
 use gui::MutCap;
 use gui::Widget;
 
+use crate::line::Line;
 use crate::tags::Tag;
 use crate::tasks::Task;
 use crate::tasks::Tasks;
@@ -295,7 +296,7 @@ impl Handleable<Event, Message> for TaskListBox {
         },
         Key::Char('a') => {
           data.state = Some(State::Add);
-          let message = Message::SetInOut(InOut::Input("".to_string(), 0));
+          let message = Message::SetInOut(InOut::Input(Line::default()));
           cap.send(self.in_out, message).await.into_event()
         },
         Key::Char('d') => {
@@ -310,11 +311,11 @@ impl Handleable<Event, Message> for TaskListBox {
           if let Some(task) = data.selected_task() {
             // Make a deep copy of the task.
             let edited = task.deref().clone();
-            let string = edited.summary().to_owned();
-            let idx = string.len();
+            let string = edited.summary();
             data.state = Some(State::Edit { task, edited });
 
-            let message = Message::SetInOut(InOut::Input(string, idx));
+            let line = Line::from_string(string).select_end();
+            let message = Message::SetInOut(InOut::Input(line));
             cap.send(self.in_out, message).await.into_event()
           } else {
             None

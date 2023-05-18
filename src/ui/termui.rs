@@ -1760,7 +1760,7 @@ mod tests {
 
       let state = with_key(c).await;
       match state {
-        InOut::Input(_, _) => (),
+        InOut::Input(..) => (),
         _ => panic!("Unexpected state {state:?} for char {c}"),
       }
     }

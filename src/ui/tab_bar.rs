@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2022 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2018-2023 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::cmp::max;
@@ -16,6 +16,7 @@ use gui::Id;
 use gui::MutCap;
 use gui::Widget;
 
+use crate::line::Line;
 use crate::tags::Tag;
 use crate::tasks::Tasks;
 use crate::view::View;
@@ -464,7 +465,7 @@ impl Handleable<Event, Message> for TabBar {
           let reverse = key == Key::Char('?');
           data.search = Search::Preparing(reverse);
 
-          let message = Message::SetInOut(InOut::Input("".to_string(), 0));
+          let message = Message::SetInOut(InOut::Input(Line::default()));
           cap.send(self.in_out, message).await.into_event()
         },
         _ => Some(event),
