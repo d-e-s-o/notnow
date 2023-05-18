@@ -64,6 +64,7 @@ mod cap;
 mod colors;
 mod db;
 mod id;
+mod line;
 mod ops;
 mod position;
 mod resize;
