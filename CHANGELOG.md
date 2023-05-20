@@ -3,6 +3,7 @@ Unreleased
 - Split configuration by moving various selections into
   `$XDG_CACHE_HOME/notnow/ui-state.json`
 - Warn if unsaved changes are present when trying to quit program
+- Correctly handle selection indexes for all Unicode inputs
 
 
 0.3.2

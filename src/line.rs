@@ -4,12 +4,15 @@
 use std::cmp::min;
 use std::ops::RangeFrom;
 
+use unicode_segmentation::UnicodeSegmentation as _;
+
 
 /// Find the byte index that maps to the given character position.
 fn byte_index(string: &str, position: usize) -> usize {
+  let extended = true;
   string
-    .char_indices()
-    .map(|(byte_idx, _character)| byte_idx)
+    .grapheme_indices(extended)
+    .map(|(byte_idx, _grapheme)| byte_idx)
     .nth(position)
     .unwrap_or(string.len())
 }
@@ -17,9 +20,10 @@ fn byte_index(string: &str, position: usize) -> usize {
 /// Find the character index that maps to the given byte position.
 #[cfg(any(test, feature = "readline"))]
 fn char_index(string: &str, byte_position: usize) -> usize {
+  let extended = true;
   string
-    .char_indices()
-    .take_while(|(idx, c)| byte_position >= idx + c.len_utf8())
+    .grapheme_indices(extended)
+    .take_while(|(idx, grapheme)| byte_position >= idx + grapheme.len())
     .count()
 }
 
@@ -27,9 +31,10 @@ fn char_index(string: &str, byte_position: usize) -> usize {
 /// A line of text with an associate selection.
 ///
 /// We use the word character ("char") loosely in this module, referring
-/// to what a user would intuitively describe as a character. All
-/// indexes, unless explicitly denoted otherwise, are relative to these
-/// characters and not to bytes.
+/// to what a user would intuitively describe as a character. Really
+/// it's a grapheme cluster in Unicode speak. All indexes, unless
+/// explicitly denoted otherwise, are relative to these characters and
+/// not to bytes.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct Line {
   /// The string representing the line.
@@ -119,7 +124,8 @@ impl Line {
   /// Retrieve the number of characters in the line.
   #[inline]
   pub fn len(&self) -> usize {
-    self.line.chars().count()
+    let extended = true;
+    self.line.graphemes(extended).count()
   }
 
   /// Retrieve the line's underlying `str`.
@@ -174,13 +180,12 @@ mod tests {
 
     let s = "⚠️attn⚠️";
     assert_eq!(byte_index(s, 0), 0);
-    assert_eq!(byte_index(s, 1), 3);
-    assert_eq!(byte_index(s, 2), 6);
-    assert_eq!(byte_index(s, 3), 7);
-    assert_eq!(byte_index(s, 6), 10);
-    assert_eq!(byte_index(s, 7), 13);
-    assert_eq!(byte_index(s, 8), 16);
-    assert_eq!(byte_index(s, 9), 16);
+    assert_eq!(byte_index(s, 1), 6);
+    assert_eq!(byte_index(s, 2), 7);
+    assert_eq!(byte_index(s, 3), 8);
+    assert_eq!(byte_index(s, 5), 10);
+    assert_eq!(byte_index(s, 6), 16);
+    assert_eq!(byte_index(s, 7), 16);
   }
 
   /// Check that our "character" indexing works as it should.
@@ -205,9 +210,8 @@ mod tests {
     let s = "⚠️attn⚠️";
     assert_eq!(char_index(s, 0), 0);
     assert_eq!(char_index(s, 1), 0);
-    assert_eq!(char_index(s, 5), 1);
-    assert_eq!(char_index(s, 6), 2);
-    assert_eq!(char_index(s, 7), 3);
+    assert_eq!(char_index(s, 6), 1);
+    assert_eq!(char_index(s, 7), 2);
   }
 
   /// Check that `Line::substr` behaves as it should.
@@ -229,5 +233,15 @@ mod tests {
     assert_eq!(line.substr(2..), "ring");
     assert_eq!(line.substr(5..), "g");
     assert_eq!(line.substr(6..), "");
+  }
+
+  /// Check that `Line::len` works as expected.
+  #[test]
+  fn line_length() {
+    let line = Line::default();
+    assert_eq!(line.len(), 0);
+
+    let line = Line::from_string("⚠️attn⚠️");
+    assert_eq!(line.len(), 6);
   }
 }
