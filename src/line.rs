@@ -18,7 +18,6 @@ fn byte_index(string: &str, position: usize) -> usize {
 }
 
 /// Find the character index that maps to the given byte position.
-#[cfg(any(test, feature = "readline"))]
 fn char_index(string: &str, byte_position: usize) -> usize {
   let extended = true;
   string
@@ -124,8 +123,7 @@ impl Line {
   /// Retrieve the number of characters in the line.
   #[inline]
   pub fn len(&self) -> usize {
-    let extended = true;
-    self.line.graphemes(extended).count()
+    char_index(&self.line, self.line.len())
   }
 
   /// Retrieve the line's underlying `str`.
