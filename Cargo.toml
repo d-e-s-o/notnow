@@ -108,6 +108,9 @@ features = ["fs", "io-util", "macros", "rt"]
 [dependencies.unicode-segmentation]
 version = "1.10"
 
+[dependencies.unicode-width]
+version = "0.1.10"
+
 [dependencies.uuid]
 version = "1.2"
 default-features = false

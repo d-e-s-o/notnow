@@ -2,19 +2,31 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::cmp::min;
+use std::ops::ControlFlow;
 use std::ops::RangeFrom;
 
 use unicode_segmentation::UnicodeSegmentation as _;
+use unicode_width::UnicodeWidthStr as _;
 
 
 /// Find the byte index that maps to the given character position.
 fn byte_index(string: &str, position: usize) -> usize {
   let extended = true;
-  string
-    .grapheme_indices(extended)
-    .map(|(byte_idx, _grapheme)| byte_idx)
-    .nth(position)
-    .unwrap_or(string.len())
+  let result =
+    string
+      .grapheme_indices(extended)
+      .try_fold(0usize, |total_width, (byte_idx, grapheme)| {
+        if total_width >= position {
+          ControlFlow::Break(byte_idx)
+        } else {
+          ControlFlow::Continue(total_width + grapheme.width())
+        }
+      });
+
+  match result {
+    ControlFlow::Break(byte_idx) => byte_idx,
+    ControlFlow::Continue(_) => string.len(),
+  }
 }
 
 /// Find the character index that maps to the given byte position.
@@ -22,8 +34,14 @@ fn char_index(string: &str, byte_position: usize) -> usize {
   let extended = true;
   string
     .grapheme_indices(extended)
-    .take_while(|(idx, grapheme)| byte_position >= idx + grapheme.len())
-    .count()
+    .map_while(|(idx, grapheme)| {
+      if byte_position >= idx + grapheme.len() {
+        Some(grapheme.width())
+      } else {
+        None
+      }
+    })
+    .sum()
 }
 
 
@@ -34,6 +52,11 @@ fn char_index(string: &str, byte_position: usize) -> usize {
 /// it's a grapheme cluster in Unicode speak. All indexes, unless
 /// explicitly denoted otherwise, are relative to these characters and
 /// not to bytes.
+///
+/// Please note that at the moment, selections take into account
+/// character width. That is arguably more of a property pertaining the
+/// specific output in use, and so we are effectively specific to
+/// terminal based use cases at the moment.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct Line {
   /// The string representing the line.
@@ -184,6 +207,15 @@ mod tests {
     assert_eq!(byte_index(s, 5), 10);
     assert_eq!(byte_index(s, 6), 16);
     assert_eq!(byte_index(s, 7), 16);
+
+    let s = "a｜b";
+    assert_eq!(byte_index(s, 0), 0);
+    assert_eq!(byte_index(s, 1), 1);
+    assert_eq!(byte_index(s, 2), 4);
+    assert_eq!(byte_index(s, 3), 4);
+    assert_eq!(byte_index(s, 4), 5);
+    assert_eq!(byte_index(s, 5), 5);
+    assert_eq!(byte_index(s, 6), 5);
   }
 
   /// Check that our "character" indexing works as it should.
@@ -210,6 +242,15 @@ mod tests {
     assert_eq!(char_index(s, 1), 0);
     assert_eq!(char_index(s, 6), 1);
     assert_eq!(char_index(s, 7), 2);
+
+    let s = "a｜b";
+    assert_eq!(char_index(s, 0), 0);
+    assert_eq!(char_index(s, 1), 1);
+    assert_eq!(char_index(s, 2), 1);
+    assert_eq!(char_index(s, 3), 1);
+    assert_eq!(char_index(s, 4), 3);
+    assert_eq!(char_index(s, 5), 4);
+    assert_eq!(char_index(s, 6), 4);
   }
 
   /// Check that `Line::substr` behaves as it should.
