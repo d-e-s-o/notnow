@@ -1,5 +1,5 @@
-Unreleased
-----------
+0.3.3
+-----
 - Split configuration by moving various selections into
   `$XDG_CACHE_HOME/notnow/ui-state.json`
 - Warn if unsaved changes are present when trying to quit program
