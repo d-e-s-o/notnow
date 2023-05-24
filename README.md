@@ -1,4 +1,4 @@
-[![pipeline](https://github.com/d-e-s-o/notnow/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/d-e-s-o/notnow/actions/workflows/ci.yml)
+[![pipeline](https://github.com/d-e-s-o/notnow/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/d-e-s-o/notnow/actions/workflows/test.yml)
 [![coverage](https://codecov.io/gh/d-e-s-o/notnow/branch/main/graph/badge.svg)](https://codecov.io/gh/d-e-s-o/notnow)
 [![crates.io](https://img.shields.io/crates/v/notnow.svg)](https://crates.io/crates/notnow)
 [![rustc](https://img.shields.io/badge/rustc-1.65+-blue.svg)](https://blog.rust-lang.org/2022/11/03/Rust-1.65.0.html)
