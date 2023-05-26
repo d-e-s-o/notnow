@@ -401,6 +401,24 @@ fn run_now() -> Result<()> {
 fn run_with_args(lock_file: &Path) -> Result<()> {
   match args_os().len() {
     0 | 1 => with_lockfile(lock_file, false, run_now),
+    2 if args_os().any(|arg| &arg == "--help" || &arg == "-h") => {
+      print!(
+        "{name} {version}
+
+USAGE:
+  {name} [OPTIONS]
+
+OPTIONS:
+  -f, --force      Force reclamation of stale lock files in case a previous program
+                   instance terminated improperly
+  -h, --help       Print help information
+  -V, --version    Print version information
+",
+        name = env!("CARGO_CRATE_NAME"),
+        version = env!("NOTNOW_VERSION"),
+      );
+      Ok(())
+    },
     2 if args_os().any(|arg| &arg == "--force" || &arg == "-f") => {
       with_lockfile(lock_file, true, run_now)
     },

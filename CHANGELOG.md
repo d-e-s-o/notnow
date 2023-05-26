@@ -1,3 +1,8 @@
+Unreleased
+----------
+- Introduced `--help`/`-h` options to display help text
+
+
 0.3.3
 -----
 - Split configuration by moving various selections into
