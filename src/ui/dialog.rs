@@ -1,4 +1,4 @@
-// Copyright (C) 2021-2022 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2021-2023 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::cmp::Ordering;
@@ -134,7 +134,7 @@ impl Data {
 
   /// Jump to the next tag beginning with the given character, moving
   /// in the provided direction.
-  fn select_task_beginning_with(&mut self, c: char, direction: Direction) -> bool {
+  fn select_tag_beginning_with(&mut self, c: char, direction: Direction) -> bool {
     let pattern = &c.to_lowercase().to_string();
     let new_selection = match direction {
       Direction::Forward => self
@@ -325,7 +325,7 @@ impl Dialog {
 
         match key {
           Key::Char(c) => {
-            let updated = data.select_task_beginning_with(c, direction);
+            let updated = data.select_tag_beginning_with(c, direction);
             Some(MessageExt::maybe_update(None, updated))
           },
           // All non-char keys just reset the "jump to" flag directly and
@@ -466,28 +466,28 @@ mod tests {
     let mut data = Data::new(task, clone);
     assert_eq!(data.selection, 0);
 
-    assert!(!data.select_task_beginning_with('h', Direction::Backward));
+    assert!(!data.select_tag_beginning_with('h', Direction::Backward));
     assert_eq!(data.selection, 0);
-    assert!(data.select_task_beginning_with('h', Direction::Forward));
+    assert!(data.select_tag_beginning_with('h', Direction::Forward));
     assert_eq!(data.selection, 2);
 
-    assert!(data.select_task_beginning_with('z', Direction::Forward));
+    assert!(data.select_tag_beginning_with('z', Direction::Forward));
     assert_eq!(data.selection, 7);
 
-    assert!(data.select_task_beginning_with('c', Direction::Backward));
+    assert!(data.select_tag_beginning_with('c', Direction::Backward));
     assert_eq!(data.selection, 6);
-    assert!(data.select_task_beginning_with('c', Direction::Backward));
+    assert!(data.select_tag_beginning_with('c', Direction::Backward));
     assert_eq!(data.selection, 5);
-    assert!(data.select_task_beginning_with('c', Direction::Backward));
+    assert!(data.select_tag_beginning_with('c', Direction::Backward));
     assert_eq!(data.selection, 4);
-    assert!(!data.select_task_beginning_with('c', Direction::Backward));
+    assert!(!data.select_tag_beginning_with('c', Direction::Backward));
     assert_eq!(data.selection, 4);
 
-    assert!(data.select_task_beginning_with('c', Direction::Forward));
+    assert!(data.select_tag_beginning_with('c', Direction::Forward));
     assert_eq!(data.selection, 5);
-    assert!(data.select_task_beginning_with('c', Direction::Forward));
+    assert!(data.select_tag_beginning_with('c', Direction::Forward));
     assert_eq!(data.selection, 6);
-    assert!(!data.select_task_beginning_with('c', Direction::Forward));
+    assert!(!data.select_tag_beginning_with('c', Direction::Forward));
     assert_eq!(data.selection, 6);
   }
 }
