@@ -372,7 +372,7 @@ impl Modal for Dialog {
     data
       .data
       .as_mut()
-      .map(|mut data| data.prev_focused = focused)
+      .map(|data| data.prev_focused = focused)
       .expect("dialog has no data set")
   }
 }
