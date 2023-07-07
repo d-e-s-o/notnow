@@ -37,6 +37,9 @@ incremental = false
 [features]
 default = []
 coredump = ["cdump"]
+# Enable code paths requiring a nightly toolchain. This feature is only
+# meant to be used for testing and benchmarking purposes.
+nightly = []
 readline = ["rline"]
 test = []
 

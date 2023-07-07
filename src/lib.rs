@@ -33,7 +33,6 @@
   unconditional_recursion,
   unreachable_code,
   unreachable_patterns,
-  unstable_features,
   unstable_name_collisions,
   unused,
   unused_comparisons,
@@ -58,6 +57,11 @@
 )]
 
 //! A terminal based task management application.
+
+#![cfg_attr(all(test, feature = "nightly"), feature(test))]
+
+#[cfg(all(test, feature = "nightly"))]
+extern crate test as unstable_test;
 
 mod cap;
 mod colors;

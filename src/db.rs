@@ -341,6 +341,16 @@ where
 pub mod tests {
   use super::*;
 
+  #[cfg(feature = "nightly")]
+  use std::hint::black_box;
+
+  #[cfg(feature = "nightly")]
+  use unstable_test::Bencher;
+
+
+  #[cfg(feature = "nightly")]
+  const ITEM_CNT: usize = 10000;
+
 
   /// Check that we can set and get auxiliary data from an `Entry`.
   #[test]
@@ -495,5 +505,111 @@ pub mod tests {
     let db = Db::from_iter(items);
     let vec = db.iter().map(|rc| **rc).collect::<Vec<_>>();
     assert_eq!(vec, items);
+  }
+
+  /// Benchmark data insertion at the start of a [`Db`].
+  #[cfg(feature = "nightly")]
+  #[bench]
+  fn bench_insert(b: &mut Bencher) {
+    let () = b.iter(|| {
+      let mut db = Db::from_iter([]);
+      // Reserve all necessary memory in a single allocation so that
+      // allocation to minimize allocation overhead.
+      let () = db.data.reserve(ITEM_CNT);
+
+      for i in 1..ITEM_CNT {
+        let _entry = db.insert(0, black_box(i));
+      }
+    });
+  }
+
+  /// Benchmark data insertion at the start of a [`Db`].
+  #[cfg(feature = "nightly")]
+  #[bench]
+  fn bench_try_insert(b: &mut Bencher) {
+    let items = (0..ITEM_CNT).map(Rc::new).collect::<Vec<_>>();
+
+    let () = b.iter(|| {
+      let mut db = Db::from_iter([]);
+      let () = db.data.reserve(ITEM_CNT);
+
+      for item in items.iter() {
+        assert!(db
+          .try_insert(black_box(0), black_box(item.clone()))
+          .is_some());
+      }
+    });
+  }
+
+  /// Benchmark data insertion at the end of a [`Db`].
+  #[cfg(feature = "nightly")]
+  #[bench]
+  fn bench_push(b: &mut Bencher) {
+    let () = b.iter(|| {
+      let mut db = Db::from_iter([]);
+      let () = db.data.reserve(ITEM_CNT);
+
+      for i in 1..ITEM_CNT {
+        let _entry = db.push(black_box(i));
+      }
+    });
+  }
+
+  /// Benchmark checked data insertion at the end of a [`Db`].
+  #[cfg(feature = "nightly")]
+  #[bench]
+  fn bench_try_push(b: &mut Bencher) {
+    let items = (0..ITEM_CNT).map(Rc::new).collect::<Vec<_>>();
+
+    let () = b.iter(|| {
+      let mut db = Db::from_iter([]);
+      let () = db.data.reserve(ITEM_CNT);
+
+      for item in items.iter() {
+        assert!(db.try_push(black_box(item.clone())).is_some());
+      }
+    });
+  }
+
+  /// Benchmark data lookup in a [`Db`].
+  #[cfg(feature = "nightly")]
+  #[bench]
+  fn bench_finding(b: &mut Bencher) {
+    let mut db = Db::from_iter([]);
+
+    let items = (1..ITEM_CNT)
+      .map(|i| db.push(i).deref().clone())
+      .collect::<HashSet<_>>();
+
+    let () = b.iter(|| {
+      // Lookup each item.
+      let () = items.iter().for_each(|item| {
+        let _item = db.find(black_box(item)).unwrap();
+      });
+    });
+  }
+
+  /// Benchmark repeated removal of the first item from a [`Db`].
+  #[cfg(feature = "nightly")]
+  #[bench]
+  fn bench_remove_first(b: &mut Bencher) {
+    let () = b.iter(|| {
+      let mut db = Db::from_iter(0..ITEM_CNT);
+      for _ in 0..ITEM_CNT {
+        let _item = db.remove(black_box(0));
+      }
+    });
+  }
+
+  /// Benchmark repeated removal of the last item from a [`Db`].
+  #[cfg(feature = "nightly")]
+  #[bench]
+  fn bench_remove_last(b: &mut Bencher) {
+    let () = b.iter(|| {
+      let mut db = Db::from_iter(0..ITEM_CNT);
+      for _ in 0..ITEM_CNT {
+        let _item = db.remove(black_box(db.len() - 1));
+      }
+    });
   }
 }
