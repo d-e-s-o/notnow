@@ -104,6 +104,99 @@ where
 }
 
 
+/// Update the provided `by_ptr_idx` with index data for `data`.
+fn update_ptr_idx<T, U>(by_ptr_idx: &mut Vec<(Rc<T>, ReplayIdx)>, data: &[(Rc<T>, U)]) {
+  let iter = data.iter().enumerate().map(|(idx, (rc, _aux))| {
+    let rep_idx = ReplayIdx::new(idx, Gen(0));
+    (rc.clone(), rep_idx)
+  });
+
+  let () = by_ptr_idx.clear();
+  let () = by_ptr_idx.extend(iter);
+  let () = by_ptr_idx.sort_by_key(|(rc, _idx)| Rc::as_ptr(rc));
+}
+
+
+/// Create an index optimized for pointer based access for the provided
+/// data.
+#[inline]
+fn make_ptr_idx<T, U>(data: &[(Rc<T>, U)]) -> Vec<(Rc<T>, ReplayIdx)> {
+  let mut idx = Vec::new();
+  let () = update_ptr_idx(&mut idx, data);
+  idx
+}
+
+
+/// An enumeration representing insertions & deletions of elements at
+/// certain indexes in our `Db`.
+#[derive(Debug)]
+enum InsDel {
+  Insert(u32),
+  Delete(u32),
+}
+
+
+/// A generation number that doubles as an index into `ins_del`.
+#[derive(Debug)]
+#[repr(transparent)]
+struct Gen(u16);
+
+impl Gen {
+  fn new(gen: usize) -> Self {
+    let gen = if cfg!(debug_assertions) {
+      gen.try_into().unwrap()
+    } else {
+      gen as _
+    };
+
+    Self(gen)
+  }
+}
+
+
+/// An index that can be adjusted based on a log of operations performed
+/// ("replayed").
+#[derive(Debug)]
+struct ReplayIdx {
+  idx: u32,
+  gen: Gen,
+}
+
+impl ReplayIdx {
+  fn new(idx: usize, gen: Gen) -> Self {
+    Self {
+      idx: idx as u32,
+      gen,
+    }
+  }
+
+  /// Replay a set of insert/delete operations on this index.
+  fn replay(&self, ins_del: &[InsDel]) -> usize {
+    let mut idx = self.idx;
+    let gen = usize::from(self.gen.0);
+
+    if gen < ins_del.len() {
+      for op in &ins_del[gen..] {
+        match op {
+          InsDel::Insert(ins_idx) => {
+            if *ins_idx <= idx {
+              idx += 1
+            }
+          },
+          InsDel::Delete(rem_idx) => {
+            if *rem_idx <= idx {
+              idx -= 1
+            }
+          },
+        }
+      }
+    }
+
+    idx as usize
+  }
+}
+
+
 /// A database for storing arbitrary data items.
 ///
 /// Data is stored in reference-counted, heap-allocated manner using
@@ -117,6 +210,11 @@ pub struct Db<T, Aux = ()> {
   /// The data this database manages, along with optional auxiliary
   /// data, in a well-defined order.
   data: Vec<(Rc<T>, Cell<Aux>)>,
+  /// An index on top of `data` sorted by the `Rc` pointer value for
+  /// efficient lookups.
+  by_ptr_idx: Vec<(Rc<T>, ReplayIdx)>,
+  /// A list of insertions and deletions since we rebuilt `by_ptr_idx`.
+  ins_del: Vec<InsDel>,
 }
 
 impl<T> Db<T, ()> {
@@ -141,7 +239,11 @@ impl<T> Db<T, ()> {
       }
     })?;
 
-    let slf = Self { data };
+    let slf = Self {
+      by_ptr_idx: make_ptr_idx(&data),
+      data,
+      ins_del: Vec::new(),
+    };
     Ok(slf)
   }
 
@@ -161,22 +263,102 @@ impl<T, Aux> Db<T, Aux> {
   where
     I: IntoIterator<Item = (T, Aux)>,
   {
+    let data = iter
+      .into_iter()
+      .map(|(item, aux)| (Rc::new(item), Cell::new(aux)))
+      .collect::<Vec<_>>();
+
     Self {
-      data: iter
-        .into_iter()
-        .map(|(item, aux)| (Rc::new(item), Cell::new(aux)))
-        .collect(),
+      by_ptr_idx: make_ptr_idx(&data),
+      data,
+      ins_del: Vec::new(),
+    }
+  }
+
+  /// Look up a value in our index.
+  #[inline]
+  fn find_in_index(&self, rc: &Rc<T>) -> Result<usize, usize> {
+    let ptr = Rc::as_ptr(rc);
+    self
+      .by_ptr_idx
+      .binary_search_by_key(&ptr, |(rc, _idx)| Rc::as_ptr(rc))
+  }
+
+  /// Rebuild our index if the `ins_del` log became too big.
+  #[inline]
+  fn maybe_rebuild_by_ptr_idx(&mut self) -> bool {
+    if self.ins_del.len() >= 1 << 12 {
+      // Just rebuild the index from scratch.
+      let () = update_ptr_idx(&mut self.by_ptr_idx, &self.data);
+      let () = self.ins_del.clear();
+      true
+    } else {
+      false
+    }
+  }
+
+  /// Add the `idx`th element in the `Db` to the `by_ptr_idx` index.
+  ///
+  /// # Notes
+  /// This method should be called *after* the element at `idx` has
+  /// actually been removed from `data`.
+  fn index(&mut self, idx: usize) {
+    if self.maybe_rebuild_by_ptr_idx() {
+      // As per our contract the element at `idx` has already been
+      // inserted and so our newly rebuilt index is up-to-date.
+      return
+    }
+
+    let () = self.ins_del.push(InsDel::Insert(idx as u32));
+    let gen = Gen::new(self.ins_del.len());
+    let rep_idx = ReplayIdx::new(idx, gen);
+
+    let rc = &self.data[idx].0;
+    let insert_idx = self.find_in_index(rc);
+    match insert_idx {
+      Ok(..) => panic!("attempting to index already existing element @ {idx}"),
+      Err(insert_idx) => {
+        if insert_idx == self.by_ptr_idx.len() {
+          self.by_ptr_idx.push((rc.clone(), rep_idx))
+        } else {
+          self.by_ptr_idx.insert(insert_idx, (rc.clone(), rep_idx))
+        }
+      },
+    }
+  }
+
+  /// Remove the `idx`th element in the `Db` from the `by_ptr_idx` index.
+  ///
+  /// # Notes
+  /// This method should be called *before* the element at `idx` is
+  /// actually removed from `data`.
+  fn deindex(&mut self, idx: usize) {
+    let _rebuilt = self.maybe_rebuild_by_ptr_idx();
+
+    // Even if we rebuilt the index from scratch we still have to update
+    // it to reflect that fact that the element at `idx` is about to be
+    // removed.
+    let () = self.ins_del.push(InsDel::Delete(idx as u32));
+
+    let rc = &self.data[idx].0;
+    let remove_idx = self.find_in_index(rc);
+    match remove_idx {
+      Ok(remove_idx) => {
+        let _idx = self.by_ptr_idx.remove(remove_idx);
+      },
+      Err(..) => panic!("attempting to de-index non-existent element @ {idx}"),
     }
   }
 
   /// Look up an item's `Entry` in the `Db`.
   #[inline]
   pub fn find(&self, item: &Rc<T>) -> Option<Entry<'_, T, Aux>> {
-    self
-      .data
-      .iter()
-      .position(|(item_, _aux)| Rc::ptr_eq(item_, item))
-      .and_then(|idx| self.get(idx))
+    self.find_in_index(item).ok().and_then(|idx| {
+      let rep_idx = &self.by_ptr_idx[idx].1;
+      let idx = rep_idx.replay(&self.ins_del);
+
+      self.get(idx)
+    })
   }
 
   /// Insert an item into the database at the given `index`.
@@ -195,6 +377,7 @@ impl<T, Aux> Db<T, Aux> {
   #[inline]
   pub fn insert_with_aux(&mut self, index: usize, item: T, aux: Aux) -> Entry<'_, T, Aux> {
     let () = self.data.insert(index, (Rc::new(item), Cell::new(aux)));
+    let () = self.index(index);
     // SANITY: We know we just inserted an item at `index`, so an entry
     //         has to exist.
     self.get(index).unwrap()
@@ -227,6 +410,7 @@ impl<T, Aux> Db<T, Aux> {
       None
     } else {
       let () = self.data.insert(index, (item, Cell::new(aux)));
+      let () = self.index(index);
       self.get(index)
     }
   }
@@ -246,7 +430,10 @@ impl<T, Aux> Db<T, Aux> {
   #[cfg(test)]
   #[inline]
   pub fn push_with_aux(&mut self, item: T, aux: Aux) -> Entry<'_, T, Aux> {
-    let () = self.data.push((Rc::new(item), Cell::new(aux)));
+    let rc = Rc::new(item);
+    let idx = self.data.len();
+    let () = self.data.push((rc, Cell::new(aux)));
+    let () = self.index(idx);
     // SANITY: We know we just pushed an item, so a last item has to
     //         exist.
     self.last().unwrap()
@@ -274,7 +461,9 @@ impl<T, Aux> Db<T, Aux> {
     if self.find(&item).is_some() {
       None
     } else {
+      let idx = self.data.len();
       let () = self.data.push((item, Cell::new(aux)));
+      let () = self.index(idx);
       self.last()
     }
   }
@@ -282,6 +471,7 @@ impl<T, Aux> Db<T, Aux> {
   /// Remove the item at the provided index.
   #[inline]
   pub fn remove(&mut self, index: usize) -> (Rc<T>, Aux) {
+    let () = self.deindex(index);
     let (item, aux) = self.data.remove(index);
     (item, aux.into_inner())
   }
@@ -331,7 +521,12 @@ where
   Aux: Copy + Debug,
 {
   fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-    let Self { data } = self;
+    let Self {
+      data,
+      by_ptr_idx: _,
+      ins_del: _,
+    } = self;
+
     f.debug_struct("Db").field("data", &data).finish()
   }
 }
