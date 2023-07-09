@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::cell::Cell;
+use std::cell::RefCell;
 #[cfg(test)]
 use std::collections::HashSet;
 use std::fmt::Debug;
@@ -212,7 +213,7 @@ pub struct Db<T, Aux = ()> {
   data: Vec<(Rc<T>, Cell<Aux>)>,
   /// An index on top of `data` sorted by the `Rc` pointer value for
   /// efficient lookups.
-  by_ptr_idx: Vec<(Rc<T>, ReplayIdx)>,
+  by_ptr_idx: RefCell<Vec<(Rc<T>, ReplayIdx)>>,
   /// A list of insertions and deletions since we rebuilt `by_ptr_idx`.
   ins_del: Vec<InsDel>,
 }
@@ -240,7 +241,7 @@ impl<T> Db<T, ()> {
     })?;
 
     let slf = Self {
-      by_ptr_idx: make_ptr_idx(&data),
+      by_ptr_idx: RefCell::new(make_ptr_idx(&data)),
       data,
       ins_del: Vec::new(),
     };
@@ -269,7 +270,7 @@ impl<T, Aux> Db<T, Aux> {
       .collect::<Vec<_>>();
 
     Self {
-      by_ptr_idx: make_ptr_idx(&data),
+      by_ptr_idx: RefCell::new(make_ptr_idx(&data)),
       data,
       ins_del: Vec::new(),
     }
@@ -277,19 +278,21 @@ impl<T, Aux> Db<T, Aux> {
 
   /// Look up a value in our index.
   #[inline]
-  fn find_in_index(&self, rc: &Rc<T>) -> Result<usize, usize> {
+  fn find_in_index(by_ptr_idx: &[(Rc<T>, ReplayIdx)], rc: &Rc<T>) -> Result<usize, usize> {
     let ptr = Rc::as_ptr(rc);
-    self
-      .by_ptr_idx
-      .binary_search_by_key(&ptr, |(rc, _idx)| Rc::as_ptr(rc))
+    by_ptr_idx.binary_search_by_key(&ptr, |(rc, _idx)| Rc::as_ptr(rc))
   }
 
   /// Rebuild our index if the `ins_del` log became too big.
   #[inline]
   fn maybe_rebuild_by_ptr_idx(&mut self) -> bool {
+    // 2^12 (4096) elements seem to be a reasonable sweet spot between:
+    // memory consumption is reasonable and with lower values we loose
+    // performance, while with higher values we don't gain much.
     if self.ins_del.len() >= 1 << 12 {
+      let by_ptr_idx = self.by_ptr_idx.get_mut();
       // Just rebuild the index from scratch.
-      let () = update_ptr_idx(&mut self.by_ptr_idx, &self.data);
+      let () = update_ptr_idx(by_ptr_idx, &self.data);
       let () = self.ins_del.clear();
       true
     } else {
@@ -309,19 +312,20 @@ impl<T, Aux> Db<T, Aux> {
       return
     }
 
+    let by_ptr_idx = self.by_ptr_idx.get_mut();
     let () = self.ins_del.push(InsDel::Insert(idx as u32));
     let gen = Gen::new(self.ins_del.len());
     let rep_idx = ReplayIdx::new(idx, gen);
 
     let rc = &self.data[idx].0;
-    let insert_idx = self.find_in_index(rc);
+    let insert_idx = Self::find_in_index(by_ptr_idx, rc);
     match insert_idx {
       Ok(..) => panic!("attempting to index already existing element @ {idx}"),
       Err(insert_idx) => {
-        if insert_idx == self.by_ptr_idx.len() {
-          self.by_ptr_idx.push((rc.clone(), rep_idx))
+        if insert_idx == by_ptr_idx.len() {
+          by_ptr_idx.push((rc.clone(), rep_idx))
         } else {
-          self.by_ptr_idx.insert(insert_idx, (rc.clone(), rep_idx))
+          by_ptr_idx.insert(insert_idx, (rc.clone(), rep_idx))
         }
       },
     }
@@ -338,13 +342,15 @@ impl<T, Aux> Db<T, Aux> {
     // Even if we rebuilt the index from scratch we still have to update
     // it to reflect that fact that the element at `idx` is about to be
     // removed.
+    let by_ptr_idx = self.by_ptr_idx.get_mut();
+
     let () = self.ins_del.push(InsDel::Delete(idx as u32));
 
     let rc = &self.data[idx].0;
-    let remove_idx = self.find_in_index(rc);
+    let remove_idx = Self::find_in_index(by_ptr_idx, rc);
     match remove_idx {
       Ok(remove_idx) => {
-        let _idx = self.by_ptr_idx.remove(remove_idx);
+        let _idx = by_ptr_idx.remove(remove_idx);
       },
       Err(..) => panic!("attempting to de-index non-existent element @ {idx}"),
     }
@@ -353,11 +359,16 @@ impl<T, Aux> Db<T, Aux> {
   /// Look up an item's `Entry` in the `Db`.
   #[inline]
   pub fn find(&self, item: &Rc<T>) -> Option<Entry<'_, T, Aux>> {
-    self.find_in_index(item).ok().and_then(|idx| {
-      let rep_idx = &self.by_ptr_idx[idx].1;
-      let idx = rep_idx.replay(&self.ins_del);
+    let mut by_ptr_idx = self.by_ptr_idx.borrow_mut();
 
-      self.get(idx)
+    Self::find_in_index(&by_ptr_idx, item).ok().and_then(|idx| {
+      let rep_idx = &by_ptr_idx[idx].1;
+      let data_idx = rep_idx.replay(&self.ins_del);
+
+      let gen = Gen::new(self.ins_del.len());
+      by_ptr_idx[idx].1 = ReplayIdx::new(data_idx, gen);
+
+      self.get(data_idx)
     })
   }
 
