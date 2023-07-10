@@ -3,11 +3,14 @@
 
 use std::cell::Cell;
 use std::cell::RefCell;
+use std::collections::HashMap;
 #[cfg(test)]
 use std::collections::HashSet;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
+use std::hash::Hash;
+use std::hash::Hasher;
 use std::iter::Map;
 use std::ops::Deref;
 use std::rc::Rc;
@@ -17,6 +20,35 @@ use std::slice;
 /// An iterator over the items in a `Db`.
 pub type Iter<'db, T, Aux> =
   Map<slice::Iter<'db, (Rc<T>, Cell<Aux>)>, fn(&'_ (Rc<T>, Cell<Aux>)) -> &'_ Rc<T>>;
+
+
+#[repr(transparent)]
+struct HRc<T>(Rc<T>);
+
+impl<T> Hash for HRc<T> {
+  fn hash<H>(&self, state: &mut H)
+  where
+    H: Hasher,
+  {
+    Rc::as_ptr(&self.0).hash(state)
+  }
+}
+
+impl<T> PartialEq for HRc<T> {
+  fn eq(&self, other: &Self) -> bool {
+    Rc::ptr_eq(&self.0, &other.0)
+  }
+}
+
+impl<T> Eq for HRc<T> {}
+
+impl<T> Deref for HRc<T> {
+  type Target = Rc<T>;
+
+  fn deref(&self) -> &Self::Target {
+    &self.0
+  }
+}
 
 
 /// An object wrapping an item contained in a `Db` and providing
@@ -106,23 +138,22 @@ where
 
 
 /// Update the provided `by_ptr_idx` with index data for `data`.
-fn update_ptr_idx<T, U>(by_ptr_idx: &mut Vec<(Rc<T>, ReplayIdx)>, data: &[(Rc<T>, U)]) {
+fn update_ptr_idx<T, U>(by_ptr_idx: &mut HashMap<HRc<T>, ReplayIdx>, data: &[(Rc<T>, U)]) {
   let iter = data.iter().enumerate().map(|(idx, (rc, _aux))| {
     let rep_idx = ReplayIdx::new(idx, Gen(0));
-    (rc.clone(), rep_idx)
+    (HRc(rc.clone()), rep_idx)
   });
 
   let () = by_ptr_idx.clear();
   let () = by_ptr_idx.extend(iter);
-  let () = by_ptr_idx.sort_by_key(|(rc, _idx)| Rc::as_ptr(rc));
 }
 
 
 /// Create an index optimized for pointer based access for the provided
 /// data.
 #[inline]
-fn make_ptr_idx<T, U>(data: &[(Rc<T>, U)]) -> Vec<(Rc<T>, ReplayIdx)> {
-  let mut idx = Vec::new();
+fn make_ptr_idx<T, U>(data: &[(Rc<T>, U)]) -> HashMap<HRc<T>, ReplayIdx> {
+  let mut idx = HashMap::new();
   let () = update_ptr_idx(&mut idx, data);
   idx
 }
@@ -211,9 +242,9 @@ pub struct Db<T, Aux = ()> {
   /// The data this database manages, along with optional auxiliary
   /// data, in a well-defined order.
   data: Vec<(Rc<T>, Cell<Aux>)>,
-  /// An index on top of `data` sorted by the `Rc` pointer value for
-  /// efficient lookups.
-  by_ptr_idx: RefCell<Vec<(Rc<T>, ReplayIdx)>>,
+  /// An index on top of `data`, for efficient lookup of `Rc` pointer
+  /// values.
+  by_ptr_idx: RefCell<HashMap<HRc<T>, ReplayIdx>>,
   /// A list of insertions and deletions since we rebuilt `by_ptr_idx`.
   ins_del: Vec<InsDel>,
 }
@@ -276,13 +307,6 @@ impl<T, Aux> Db<T, Aux> {
     }
   }
 
-  /// Look up a value in our index.
-  #[inline]
-  fn find_in_index(by_ptr_idx: &[(Rc<T>, ReplayIdx)], rc: &Rc<T>) -> Result<usize, usize> {
-    let ptr = Rc::as_ptr(rc);
-    by_ptr_idx.binary_search_by_key(&ptr, |(rc, _idx)| Rc::as_ptr(rc))
-  }
-
   /// Rebuild our index if the `ins_del` log became too big.
   #[inline]
   fn maybe_rebuild_by_ptr_idx(&mut self) -> bool {
@@ -318,17 +342,11 @@ impl<T, Aux> Db<T, Aux> {
     let rep_idx = ReplayIdx::new(idx, gen);
 
     let rc = &self.data[idx].0;
-    let insert_idx = Self::find_in_index(by_ptr_idx, rc);
-    match insert_idx {
-      Ok(..) => panic!("attempting to index already existing element @ {idx}"),
-      Err(insert_idx) => {
-        if insert_idx == by_ptr_idx.len() {
-          by_ptr_idx.push((rc.clone(), rep_idx))
-        } else {
-          by_ptr_idx.insert(insert_idx, (rc.clone(), rep_idx))
-        }
-      },
-    }
+    let _prev = by_ptr_idx.insert(HRc(rc.clone()), rep_idx);
+    debug_assert!(
+      _prev.is_none(),
+      "attempting to index already existing element @ {idx}"
+    );
   }
 
   /// Remove the `idx`th element in the `Db` from the `by_ptr_idx` index.
@@ -347,13 +365,12 @@ impl<T, Aux> Db<T, Aux> {
     let () = self.ins_del.push(InsDel::Delete(idx as u32));
 
     let rc = &self.data[idx].0;
-    let remove_idx = Self::find_in_index(by_ptr_idx, rc);
-    match remove_idx {
-      Ok(remove_idx) => {
-        let _idx = by_ptr_idx.remove(remove_idx);
-      },
-      Err(..) => panic!("attempting to de-index non-existent element @ {idx}"),
-    }
+    // TODO: Should not clone.
+    let _removed = by_ptr_idx.remove(&HRc(rc.clone()));
+    debug_assert!(
+      _removed.is_some(),
+      "attempting to de-index non-existent element @ {idx}"
+    );
   }
 
   /// Look up an item's `Entry` in the `Db`.
@@ -361,12 +378,12 @@ impl<T, Aux> Db<T, Aux> {
   pub fn find(&self, item: &Rc<T>) -> Option<Entry<'_, T, Aux>> {
     let mut by_ptr_idx = self.by_ptr_idx.borrow_mut();
 
-    Self::find_in_index(&by_ptr_idx, item).ok().and_then(|idx| {
-      let rep_idx = &by_ptr_idx[idx].1;
+    // TODO: Should not clone.
+    by_ptr_idx.get_mut(&HRc(item.clone())).and_then(|rep_idx| {
       let data_idx = rep_idx.replay(&self.ins_del);
 
       let gen = Gen::new(self.ins_del.len());
-      by_ptr_idx[idx].1 = ReplayIdx::new(data_idx, gen);
+      *rep_idx = ReplayIdx::new(data_idx, gen);
 
       self.get(data_idx)
     })
