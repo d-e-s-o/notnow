@@ -3,6 +3,7 @@ Unreleased
 - Optimized runtime performance and decreased asymptotic time complexity
   of core data base operations
 - Introduced `--help`/`-h` options to display help text
+- Added GitHub Actions workflow for publishing the crate
 
 
 0.3.3
