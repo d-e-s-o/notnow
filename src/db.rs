@@ -159,12 +159,64 @@ fn make_ptr_idx<T, U>(data: &[(Rc<T>, U)]) -> HashMap<HRc<T>, ReplayIdx> {
 }
 
 
-/// An enumeration representing insertions & deletions of elements at
-/// certain indexes in our `Db`.
+/// Mask identifying the highest bit in a `u32`. We use it to encode the
+/// operation in `InsDel` objects.
+const INSERT_MASK: u32 = 0b1000_0000_0000_0000;
+
+
+/// A type representing insertions & deletions of elements at certain
+/// indexes in our `Db`.
 #[derive(Debug)]
-enum InsDel {
-  Insert(u32),
-  Delete(u32),
+#[repr(transparent)]
+struct InsDel(u32);
+
+impl InsDel {
+  /// Create an `InsDel` object representing an "insert" at index `idx`.
+  #[inline]
+  fn insert(idx: usize) -> Self {
+    let idx = if cfg!(debug_assertions) {
+      u32::try_from(idx).unwrap()
+    } else {
+      idx as u32
+    };
+
+    debug_assert!(idx & INSERT_MASK == 0);
+    Self(INSERT_MASK | idx)
+  }
+
+  /// Create an `InsDel` object representing a "delete" of index `idx`.
+  #[inline]
+  fn delete(idx: usize) -> Self {
+    let idx = if cfg!(debug_assertions) {
+      u32::try_from(idx).unwrap()
+    } else {
+      idx as u32
+    };
+
+    debug_assert!(idx & INSERT_MASK == 0);
+    Self(idx)
+  }
+
+  /// Adjust the provided according to the operation (insert/delete)
+  /// represented by this index, if applicable.
+  #[inline]
+  fn adjust(&self, idx: u32) -> u32 {
+    let op_idx = self.0 & !INSERT_MASK;
+
+    // The provided index would only have been affected by inserts or
+    // deletes *before* (or at) it.
+    if op_idx <= idx {
+      let insert = (self.0 & INSERT_MASK) != 0;
+
+      if insert {
+        idx + 1
+      } else {
+        idx - 1
+      }
+    } else {
+      idx
+    }
+  }
 }
 
 
@@ -204,25 +256,15 @@ impl ReplayIdx {
 
   /// Replay a set of insert/delete operations on this index.
   fn replay(&self, ins_del: &[InsDel]) -> usize {
-    let mut idx = self.idx;
     let gen = usize::from(self.gen.0);
 
-    if gen < ins_del.len() {
-      for op in &ins_del[gen..] {
-        match op {
-          InsDel::Insert(ins_idx) => {
-            if *ins_idx <= idx {
-              idx += 1
-            }
-          },
-          InsDel::Delete(rem_idx) => {
-            if *rem_idx <= idx {
-              idx -= 1
-            }
-          },
-        }
-      }
-    }
+    let idx = if gen < ins_del.len() {
+      ins_del[gen..]
+        .iter()
+        .fold(self.idx, |idx, op| op.adjust(idx))
+    } else {
+      self.idx
+    };
 
     idx as usize
   }
@@ -337,7 +379,7 @@ impl<T, Aux> Db<T, Aux> {
     }
 
     let by_ptr_idx = self.by_ptr_idx.get_mut();
-    let () = self.ins_del.push(InsDel::Insert(idx as u32));
+    let () = self.ins_del.push(InsDel::insert(idx));
     let gen = Gen::new(self.ins_del.len());
     let rep_idx = ReplayIdx::new(idx, gen);
 
@@ -362,7 +404,7 @@ impl<T, Aux> Db<T, Aux> {
     // removed.
     let by_ptr_idx = self.by_ptr_idx.get_mut();
 
-    let () = self.ins_del.push(InsDel::Delete(idx as u32));
+    let () = self.ins_del.push(InsDel::delete(idx));
 
     let rc = &self.data[idx].0;
     // TODO: Should not clone.
@@ -566,6 +608,7 @@ pub mod tests {
 
   #[cfg(feature = "nightly")]
   use std::hint::black_box;
+  use std::mem::size_of;
 
   #[cfg(feature = "nightly")]
   use unstable_test::Bencher;
@@ -574,6 +617,13 @@ pub mod tests {
   #[cfg(feature = "nightly")]
   const ITEM_CNT: usize = 10000;
 
+
+  /// Check the size of various types.
+  #[test]
+  fn type_sizes() {
+    assert_eq!(size_of::<InsDel>(), 4);
+    assert_eq!(size_of::<Gen>(), 2);
+  }
 
   /// Check that we can set and get auxiliary data from an `Entry`.
   #[test]
