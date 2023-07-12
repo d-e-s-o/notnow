@@ -1,5 +1,5 @@
-Unreleased
-----------
+0.3.4
+-----
 - Optimized runtime performance and decreased asymptotic time complexity
   of core data base operations
 - Introduced `--help`/`-h` options to display help text
