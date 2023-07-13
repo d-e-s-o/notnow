@@ -69,7 +69,7 @@ package = "coredump"
 optional = true
 
 [dependencies.dirs]
-version = "4.0"
+version = "5.0"
 
 [dependencies.gaps]
 version = "0.3.1"
