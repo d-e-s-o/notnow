@@ -32,7 +32,7 @@ use tokio::runtime::Handle;
 #[cfg(unix)]
 fn read_only(mut permissions: Permissions) -> Permissions {
   // Remove user write permissions.
-  let () = permissions.set_mode(permissions.mode() & !S_IWUSR);
+  let () = permissions.set_mode(permissions.mode() & !S_IWUSR as u32);
   permissions
 }
 
@@ -47,7 +47,7 @@ fn read_only(mut permissions: Permissions) -> Permissions {
 #[cfg(unix)]
 fn writeable(mut permissions: Permissions) -> Permissions {
   // Set user write permissions.
-  let () = permissions.set_mode(permissions.mode() | S_IWUSR);
+  let () = permissions.set_mode(permissions.mode() | S_IWUSR as u32);
   permissions
 }
 
