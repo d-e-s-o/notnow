@@ -1,0 +1,9 @@
+coverage:
+  status:
+    project:
+      default:
+        # We don't gate anything based on flaky code coverage reports.
+        informational: true
+    patch:
+      default:
+        informational: true
