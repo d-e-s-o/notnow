@@ -600,37 +600,37 @@ mod tests {
 
   #[test]
   fn search_tabs() {
-    let tabs = vec![1, 2, 3];
+    let tabs = [1, 2, 3];
     let selected = 0;
     let reverse = false;
     let snapshot = search_snapshot(tabs.iter().copied(), selected, reverse);
     assert_eq!(snapshot, vec![1, 2, 3, 1]);
 
-    let tabs = vec![1, 2, 3, 4];
+    let tabs = [1, 2, 3, 4];
     let selected = 1;
     let reverse = false;
     let snapshot = search_snapshot(tabs.iter().copied(), selected, reverse);
     assert_eq!(snapshot, vec![2, 3, 4, 1, 2]);
 
-    let tabs = vec![1, 2, 3];
+    let tabs = [1, 2, 3];
     let selected = 2;
     let reverse = false;
     let snapshot = search_snapshot(tabs.iter().copied(), selected, reverse);
     assert_eq!(snapshot, vec![3, 1, 2, 3]);
 
-    let tabs = vec![1, 2, 3];
+    let tabs = [1, 2, 3];
     let selected = 0;
     let reverse = true;
     let snapshot = search_snapshot(tabs.iter().copied(), selected, reverse);
     assert_eq!(snapshot, vec![1, 3, 2, 1]);
 
-    let tabs = vec![1, 2, 3, 4, 5];
+    let tabs = [1, 2, 3, 4, 5];
     let selected = 1;
     let reverse = true;
     let snapshot = search_snapshot(tabs.iter().copied(), selected, reverse);
     assert_eq!(snapshot, vec![2, 1, 5, 4, 3, 2]);
 
-    let tabs = vec![1, 2, 3];
+    let tabs = [1, 2, 3];
     let selected = 2;
     let reverse = true;
     let snapshot = search_snapshot(tabs.iter().copied(), selected, reverse);

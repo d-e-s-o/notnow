@@ -337,7 +337,7 @@ fn remove_task(tasks: &mut Db<Task, Position>, task: &Rc<Task>) -> (Rc<Task>, Po
 /// Update a task in a vector of tasks.
 fn update_task(task: &Rc<Task>, other: Task) -> Task {
   // Make a deep copy of the task.
-  let before = task.deref().deref().clone();
+  let before = Task::clone(task.deref());
   let () = task.update_from(other);
   before
 }

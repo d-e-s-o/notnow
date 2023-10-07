@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2022-2023 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::cmp::Ordering;
@@ -56,10 +56,7 @@ impl<T> Id<T> {
 
 impl<T> Clone for Id<T> {
   fn clone(&self) -> Self {
-    Self {
-      id: self.id,
-      _phantom: PhantomData,
-    }
+    *self
   }
 }
 
@@ -67,7 +64,7 @@ impl<T> Copy for Id<T> {}
 
 impl<T> PartialOrd<Self> for Id<T> {
   fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-    self.id.partial_cmp(&other.id)
+    Some(self.cmp(other))
   }
 }
 

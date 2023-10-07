@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2022 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2018-2023 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::cmp::Ordering;
@@ -69,7 +69,7 @@ impl PartialEq for Template {
 
 impl PartialOrd for Template {
   fn partial_cmp(&self, other: &Template) -> Option<Ordering> {
-    self.id.partial_cmp(&other.id)
+    Some(self.cmp(other))
   }
 }
 
