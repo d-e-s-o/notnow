@@ -1,7 +1,7 @@
-Unreleased
-----------
+0.3.5
+-----
 - Fixed build failure on Apple platforms
-- Bumped `dirs` dependency to `4.0`
+- Bumped `dirs` dependency to `5.0`
 
 
 0.3.4
