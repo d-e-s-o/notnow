@@ -32,6 +32,7 @@ use tokio::runtime::Handle;
 #[cfg(unix)]
 fn read_only(mut permissions: Permissions) -> Permissions {
   // Remove user write permissions.
+  #[allow(trivial_numeric_casts)] // S_IWUSR is u16 on some platforms (#7)
   let () = permissions.set_mode(permissions.mode() & !S_IWUSR as u32);
   permissions
 }
@@ -47,6 +48,7 @@ fn read_only(mut permissions: Permissions) -> Permissions {
 #[cfg(unix)]
 fn writeable(mut permissions: Permissions) -> Permissions {
   // Set user write permissions.
+  #[allow(trivial_numeric_casts)] // S_IWUSR is u16 on some platforms (#7)
   let () = permissions.set_mode(permissions.mode() | S_IWUSR as u32);
   permissions
 }
