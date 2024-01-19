@@ -1,3 +1,8 @@
+Unreleased
+----------
+- Bumped `icalendar` dependency to `0.16`
+
+
 0.3.5
 -----
 - Fixed build failure on Apple platforms
