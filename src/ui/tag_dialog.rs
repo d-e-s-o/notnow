@@ -432,7 +432,10 @@ mod tests {
       templates.instantiate_from_name("foobar"),
     ];
 
-    let task = Task::with_summary_and_tags("do something, mate", tags, templates.clone());
+    let task = Task::builder()
+      .set_summary("do something, mate")
+      .set_tags(tags)
+      .build(templates.clone());
     let tags = prepare_tags(&task);
     let expected = vec![
       SetUnsetTag::Set(templates.instantiate_from_name("foobar")),
@@ -460,7 +463,11 @@ mod tests {
 
     // The full list of tags will look like this:
     // a, d, h, b, c, c1, complete, z
-    let iter = [Task::with_summary_and_tags("task", tags, templates)];
+    let task = Task::builder()
+      .set_summary("task")
+      .set_tags(tags)
+      .build(templates);
+    let iter = [task];
     let db = Db::from_iter(iter);
     let entry = db.get(0).unwrap();
     let task = entry.deref().clone();
