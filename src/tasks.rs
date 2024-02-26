@@ -24,6 +24,7 @@ use crate::ser::tasks::Tasks as SerTasks;
 use crate::ser::ToSerde;
 use crate::tags::Tag;
 use crate::tags::Templates;
+use crate::tasks::Builder as TaskBuilder;
 
 
 /// The maximum number of undo steps that we keep record of.
@@ -659,7 +660,7 @@ impl Tasks {
   }
 
   /// Add a new task.
-  pub fn add(&self, summary: String, tags: Vec<Tag>, after: Option<Rc<Task>>) -> Rc<Task> {
+  pub fn add(&self, task: TaskBuilder, after: Option<Rc<Task>>) -> Rc<Task> {
     // SANITY: The type's API surface prevents any borrows from escaping
     //         a function call and we don't call methods on `self` while
     //         a borrow is active.
@@ -671,10 +672,7 @@ impl Tasks {
       ..
     } = borrow.deref_mut();
 
-    let task = Task::builder()
-      .set_summary(summary)
-      .set_tags(tags)
-      .build(templates.clone());
+    let task = task.build(templates.clone());
     let op = TaskOp::add(Rc::new(task), after);
     // SANITY: We know that an "add" operation always returns a task, so
     //         this unwrap will never panic.
@@ -1007,8 +1005,8 @@ pub mod tests {
   fn add_task() {
     let task_vec = make_tasks(3);
     let tasks = Tasks::with_serde_tasks(task_vec.clone()).unwrap();
-    let tags = Default::default();
-    let task = tasks.add("4".to_string(), tags, None);
+    let builder = Task::builder().set_summary("4");
+    let task = tasks.add(builder, None);
 
     let tasks = tasks.to_serde().into_task_vec();
     let mut expected = task_vec;
@@ -1022,8 +1020,8 @@ pub mod tests {
     let task_vec = make_tasks(3);
     let tasks = Tasks::with_serde_tasks(task_vec.clone()).unwrap();
     let after = tasks.0.borrow().tasks.get(0).unwrap().deref().clone();
-    let tags = Default::default();
-    let task = tasks.add("4".to_string(), tags, Some(after));
+    let builder = Task::builder().set_summary("4");
+    let task = tasks.add(builder, Some(after));
 
     let tasks = tasks.to_serde().into_task_vec();
     let mut expected = task_vec;

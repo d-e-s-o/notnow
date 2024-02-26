@@ -438,7 +438,8 @@ impl Handleable<Event, Message> for TaskListBox {
                 //       it. Eventually we may want to remove the
                 //       special case logic for the 'complete' tag.
                 let after = data.selected_task();
-                let task = data.tasks.add(text.clone(), tags, after);
+                let builder = Task::builder().set_summary(text).set_tags(tags);
+                let task = data.tasks.add(builder, after);
                 self.select_task(cap, task).await
               } else {
                 None
