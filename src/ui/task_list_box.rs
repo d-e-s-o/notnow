@@ -335,6 +335,36 @@ impl Handleable<Event, Message> for TaskListBox {
             None
           }
         },
+        Key::Char('y') => {
+          if let Some(task) = data.selected_task() {
+            let copied = Task::clone(task.deref());
+            let message = Message::CopyTask(copied);
+            cap.send(self.tab_bar, message).await.into_event()
+          } else {
+            None
+          }
+        },
+        Key::Char('p') => {
+          let mut message = Message::GetCopiedTask(None);
+          let result1 = cap.call(self.tab_bar, &mut message).await;
+          if let Message::GetCopiedTask(task) = message {
+            if let Some(task) = task {
+              let builder = Task::builder()
+                .set_summary(task.summary())
+                .set_tags(task.tags(|tags| tags.cloned().collect::<Vec<_>>()))
+                .set_details(task.details());
+              let data = self.data_mut::<TaskListBoxData>(cap);
+              let task = data.tasks.add(builder, data.selected_task());
+              let result2 = self.select_task(cap, task).await;
+              result1.maybe_update(result2).into_event()
+            } else {
+              result1.into_event()
+            }
+          } else {
+            debug_assert!(false, "received unexpected return message: {message:?}");
+            result1.into_event()
+          }
+        },
         Key::Char('\n') => {
           if let Some(task) = data.selected_task() {
             let edited = Task::clone(task.deref());
