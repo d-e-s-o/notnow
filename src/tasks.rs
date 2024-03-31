@@ -883,7 +883,7 @@ pub mod tests {
 
     let task = tasks.get(0).unwrap().deref().clone();
     // Make a deep copy of the task.
-    let mut updated = task.deref().clone();
+    let mut updated = Task::clone(task.deref());
     updated.set_summary("foo!".to_string());
     let op = TaskOp::update(task, updated);
     ops.exec(op, &mut tasks);
@@ -993,7 +993,7 @@ pub mod tests {
     let tasks = Tasks::with_serde_tasks(task_vec.clone()).unwrap();
     let task = tasks.iter(|mut iter| iter.nth(1).unwrap().clone());
     // Make a deep copy of the task.
-    let mut updated = task.deref().clone();
+    let mut updated = Task::clone(task.deref());
     updated.set_summary("amended".to_string());
     tasks.update(task, updated);
 

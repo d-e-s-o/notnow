@@ -310,7 +310,7 @@ impl Handleable<Event, Message> for TaskListBox {
         Key::Char('e') => {
           if let Some(task) = data.selected_task() {
             // Make a deep copy of the task.
-            let edited = task.deref().clone();
+            let edited = Task::clone(task.deref());
             let string = edited.summary();
             data.state = Some(State::Edit { task, edited });
 
@@ -324,7 +324,7 @@ impl Handleable<Event, Message> for TaskListBox {
         Key::Char('t') => {
           if let Some(task) = data.selected_task() {
             // Make a deep copy of the task to work on.
-            let edited = task.deref().clone();
+            let edited = Task::clone(task.deref());
             let message = Message::EditTags(task, edited);
             cap.send(self.dialog, message).await.into_event()
           } else {

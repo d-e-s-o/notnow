@@ -462,7 +462,7 @@ mod tests {
     let entry = db.get(0).unwrap();
     let task = entry.deref().clone();
     // Make a deep copy of the task.
-    let clone = task.deref().clone();
+    let clone = Task::clone(task.deref());
     let mut data = Data::new(task, clone);
     assert_eq!(data.selection, 0);
 
