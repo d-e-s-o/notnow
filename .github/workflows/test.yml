@@ -1,4 +1,4 @@
-# Copyright (C) 2022-2023 Daniel Mueller <deso@posteo.net>
+# Copyright (C) 2022-2024 Daniel Mueller <deso@posteo.net>
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 name: Test
@@ -30,11 +30,9 @@ jobs:
         profile: [dev, release]
     steps:
     - uses: actions/checkout@v4
-    - uses: actions-rs/toolchain@v1
+    - uses: dtolnay/rust-toolchain@master
       with:
         toolchain: ${{ matrix.rust }}
-        profile: minimal
-        override: true
     - name: Build ${{ matrix.profile }}
       run: |
         cargo build --profile=${{ matrix.profile }} --bins --tests --examples --features=test
@@ -59,11 +57,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    - uses: actions-rs/toolchain@v1
-      with:
-        toolchain: nightly
-        profile: minimal
-        override: true
+    - uses: dtolnay/rust-toolchain@nightly
     - run: |
         echo '```' >> $GITHUB_STEP_SUMMARY
         cargo bench --features=nightly --quiet -- bench_ >> $GITHUB_STEP_SUMMARY
@@ -73,11 +67,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          components: clippy
-          override: true
+      - uses: dtolnay/rust-toolchain@stable
       - run: |
           cargo clippy --no-deps --tests -- -A unknown_lints -D warnings
           cargo clippy --no-deps --features=readline -- -A unknown_lints -D warnings
