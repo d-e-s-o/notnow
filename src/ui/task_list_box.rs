@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2023 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2018-2024 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::cmp::min;
@@ -15,10 +15,10 @@ use gui::Id;
 use gui::MutCap;
 use gui::Widget;
 
-use crate::line::Line;
 use crate::tags::Tag;
 use crate::tasks::Task;
 use crate::tasks::Tasks;
+use crate::text::EditableText;
 use crate::view::View;
 
 use super::event::Event;
@@ -296,7 +296,7 @@ impl Handleable<Event, Message> for TaskListBox {
         },
         Key::Char('a') => {
           data.state = Some(State::Add);
-          let message = Message::SetInOut(InOut::Input(Line::default()));
+          let message = Message::SetInOut(InOut::Input(EditableText::default()));
           cap.send(self.in_out, message).await.into_event()
         },
         Key::Char('d') => {
@@ -314,8 +314,8 @@ impl Handleable<Event, Message> for TaskListBox {
             let string = edited.summary();
             data.state = Some(State::Edit { task, edited });
 
-            let line = Line::from_string(string).select_end();
-            let message = Message::SetInOut(InOut::Input(line));
+            let text = EditableText::from_string(string).select_end();
+            let message = Message::SetInOut(InOut::Input(text));
             cap.send(self.in_out, message).await.into_event()
           } else {
             None

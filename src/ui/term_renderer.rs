@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2023 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2018-2024 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::cell::Cell;
@@ -514,11 +514,11 @@ where
         self.colors.in_out_error_bg,
         Some(e.as_ref()),
       ),
-      InOut::Input(ref line) => (
+      InOut::Input(ref text) => (
         INPUT_TEXT,
         self.colors.in_out_success_fg,
         self.colors.in_out_success_bg,
-        Some(line.as_str()),
+        Some(text.as_str()),
       ),
       InOut::Clear => {
         // This is a tiny bit of an unclean solution, but essentially we
@@ -541,7 +541,7 @@ where
       let fg = self.colors.in_out_string_fg;
       let bg = self.colors.in_out_string_bg;
 
-      if let InOut::Input(line) = in_out.state(cap) {
+      if let InOut::Input(text) = in_out.state(cap) {
         debug_assert!(cap.is_focused(in_out.id()));
 
         let mut map = self.data.borrow_mut();
@@ -550,9 +550,9 @@ where
         // Calculate the number of displayable characters we have
         // available after the "prefix".
         let limit = bbox.w.saturating_sub(x) as usize;
-        let idx = line.selection();
+        let idx = text.selection();
         let offset = sanitize_offset(data.offset, idx, limit);
-        let string = line.substr(offset..);
+        let string = text.substr(offset..);
 
         data.offset = offset;
 

@@ -1,4 +1,4 @@
-// Copyright (C) 2023 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2023-2024 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::cmp::min;
@@ -45,7 +45,7 @@ fn char_index(string: &str, byte_position: usize) -> usize {
 }
 
 
-/// A line of text with an associate selection.
+/// A text with an associated selection.
 ///
 /// We use the word character ("char") loosely in this module, referring
 /// to what a user would intuitively describe as a character. Really
@@ -58,24 +58,24 @@ fn char_index(string: &str, byte_position: usize) -> usize {
 /// specific output in use, and so we are effectively specific to
 /// terminal based use cases at the moment.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
-pub struct Line {
-  /// The string representing the line.
-  line: String,
+pub struct EditableText {
+  /// The string representing the text.
+  text: String,
   /// The "character" index of the selection.
   selection: usize,
 }
 
 #[allow(unused)]
-impl Line {
-  /// Create a `Line` from the given string, selecting the very first
+impl EditableText {
+  /// Create a `EditableText` from the given string, selecting the very first
   /// character.
-  pub fn from_string<S>(line: S) -> Self
+  pub fn from_string<S>(text: S) -> Self
   where
     S: Into<String>,
   {
     Self {
-      line: line.into(),
-      // An index of zero is always valid, even if `line` was empty.
+      text: text.into(),
+      // An index of zero is always valid, even if `text` was empty.
       selection: 0,
     }
   }
@@ -87,7 +87,7 @@ impl Line {
     slf
   }
 
-  /// Move the selection towards the end of the line, i.e., past the
+  /// Move the selection towards the end of the text, i.e., past the
   /// last character.
   pub fn select_end(self) -> Self {
     let mut slf = self;
@@ -113,46 +113,46 @@ impl Line {
   #[cfg(feature = "readline")]
   pub fn select_byte_index(self, byte_index: usize) -> Self {
     let mut slf = self;
-    slf.selection = char_index(&slf.line, byte_index);
+    slf.selection = char_index(&slf.text, byte_index);
     slf
   }
 
-  /// Insert a character into the line at the current selection.
+  /// Insert a character into the text at the current selection.
   pub fn insert_char(&mut self, c: char) {
-    let byte_index = byte_index(&self.line, self.selection);
-    let () = self.line.insert(byte_index, c);
+    let byte_index = byte_index(&self.text, self.selection);
+    let () = self.text.insert(byte_index, c);
     self.selection = min(self.selection + 1, self.len());
   }
 
-  /// Remove the currently selected character from the line.
+  /// Remove the currently selected character from the text.
   pub fn remove_char(&mut self) {
     if self.selection >= self.len() {
       return
     }
 
-    let byte_index = byte_index(&self.line, self.selection);
-    let _removed = self.line.remove(byte_index);
+    let byte_index = byte_index(&self.text, self.selection);
+    let _removed = self.text.remove(byte_index);
     self.selection = min(self.selection, self.len());
   }
 
-  /// Retrieve a sub-string of the line.
+  /// Retrieve a sub-string of the text.
   pub fn substr(&self, range: RangeFrom<usize>) -> &str {
     let range = RangeFrom {
-      start: byte_index(&self.line, range.start),
+      start: byte_index(&self.text, range.start),
     };
-    self.line.get(range).unwrap_or("")
+    self.text.get(range).unwrap_or("")
   }
 
-  /// Retrieve the number of characters in the line.
+  /// Retrieve the number of characters in the text.
   #[inline]
   pub fn len(&self) -> usize {
-    char_index(&self.line, self.line.len())
+    char_index(&self.text, self.text.len())
   }
 
-  /// Retrieve the line's underlying `str`.
+  /// Retrieve the text's underlying `str`.
   #[inline]
   pub fn as_str(&self) -> &str {
-    &self.line
+    &self.text
   }
 
   /// Retrieve the current selection index.
@@ -165,13 +165,13 @@ impl Line {
   #[inline]
   #[cfg(feature = "readline")]
   pub fn selection_byte_index(&self) -> usize {
-    byte_index(&self.line, self.selection)
+    byte_index(&self.text, self.selection)
   }
 
   /// Convert the object into a `String`, discarding selection
   /// information.
   pub fn into_string(self) -> String {
-    self.line
+    self.text
   }
 }
 
@@ -253,34 +253,34 @@ mod tests {
     assert_eq!(char_index(s, 6), 4);
   }
 
-  /// Check that `Line::substr` behaves as it should.
+  /// Check that `EditableText::substr` behaves as it should.
   #[test]
-  fn line_substr() {
-    let line = Line::default();
-    assert_eq!(line.substr(0..), "");
-    assert_eq!(line.substr(1..), "");
-    assert_eq!(line.substr(2..), "");
+  fn text_substr() {
+    let text = EditableText::default();
+    assert_eq!(text.substr(0..), "");
+    assert_eq!(text.substr(1..), "");
+    assert_eq!(text.substr(2..), "");
 
-    let line = Line::from_string("s");
-    assert_eq!(line.substr(0..), "s");
-    assert_eq!(line.substr(1..), "");
-    assert_eq!(line.substr(2..), "");
+    let text = EditableText::from_string("s");
+    assert_eq!(text.substr(0..), "s");
+    assert_eq!(text.substr(1..), "");
+    assert_eq!(text.substr(2..), "");
 
-    let line = Line::from_string("string");
-    assert_eq!(line.substr(0..), "string");
-    assert_eq!(line.substr(1..), "tring");
-    assert_eq!(line.substr(2..), "ring");
-    assert_eq!(line.substr(5..), "g");
-    assert_eq!(line.substr(6..), "");
+    let text = EditableText::from_string("string");
+    assert_eq!(text.substr(0..), "string");
+    assert_eq!(text.substr(1..), "tring");
+    assert_eq!(text.substr(2..), "ring");
+    assert_eq!(text.substr(5..), "g");
+    assert_eq!(text.substr(6..), "");
   }
 
-  /// Check that `Line::len` works as expected.
+  /// Check that `EditableText::len` works as expected.
   #[test]
-  fn line_length() {
-    let line = Line::default();
-    assert_eq!(line.len(), 0);
+  fn text_length() {
+    let text = EditableText::default();
+    assert_eq!(text.len(), 0);
 
-    let line = Line::from_string("⚠️attn⚠️");
-    assert_eq!(line.len(), 6);
+    let text = EditableText::from_string("⚠️attn⚠️");
+    assert_eq!(text.len(), 6);
   }
 }

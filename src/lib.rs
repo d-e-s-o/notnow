@@ -66,7 +66,6 @@ mod cap;
 mod colors;
 mod db;
 mod id;
-mod line;
 mod ops;
 mod position;
 mod resize;
@@ -76,6 +75,7 @@ mod tags;
 mod tasks;
 #[cfg(any(test, feature = "test"))]
 pub mod test;
+mod text;
 mod ui;
 mod view;
 

@@ -16,9 +16,9 @@ use gui::Id;
 use gui::MutCap;
 use gui::Widget;
 
-use crate::line::Line;
 use crate::tags::Tag;
 use crate::tasks::Tasks;
+use crate::text::EditableText;
 use crate::view::View;
 
 use super::event::Event;
@@ -465,7 +465,7 @@ impl Handleable<Event, Message> for TabBar {
           let reverse = key == Key::Char('?');
           data.search = Search::Preparing(reverse);
 
-          let message = Message::SetInOut(InOut::Input(Line::default()));
+          let message = Message::SetInOut(InOut::Input(EditableText::default()));
           cap.send(self.in_out, message).await.into_event()
         },
         _ => Some(event),

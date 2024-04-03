@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2023 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2018-2024 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #[cfg(feature = "readline")]
@@ -18,7 +18,7 @@ use gui::Widget;
 #[cfg(feature = "readline")]
 use rline::Readline;
 
-use crate::line::Line;
+use crate::text::EditableText;
 
 use super::event::Event;
 use super::event::Key;
@@ -33,7 +33,7 @@ pub enum InOut {
   Saved,
   Search(String),
   Error(String),
-  Input(Line),
+  Input(EditableText),
   Clear,
 }
 
@@ -120,16 +120,16 @@ impl InOutAreaData {
     if in_out != *self.in_out.get() {
       #[cfg(feature = "readline")]
       {
-        if let InOut::Input(line) = &in_out {
+        if let InOut::Input(text) = &in_out {
           // We clear the undo buffer if we transition from a non-Input
           // state to an Input state. Input-to-Input transitions are
           // believed to be those just updating the text the user is
           // working on already.
-          let cstr = CString::new(line.as_str()).unwrap();
+          let cstr = CString::new(text.as_str()).unwrap();
           let clear_undo = !self.in_out.get().is_input();
           self
             .readline
-            .reset(cstr, line.selection_byte_index(), clear_undo);
+            .reset(cstr, text.selection_byte_index(), clear_undo);
         }
       }
       self.in_out.set(in_out);
@@ -228,7 +228,7 @@ impl InOutArea {
   async fn handle_key(
     &self,
     cap: &mut dyn MutCap<Event, Message>,
-    mut line: Line,
+    mut text: EditableText,
     key: Key,
     _raw: &(),
   ) -> Option<Message> {
@@ -236,57 +236,57 @@ impl InOutArea {
     match key {
       Key::Esc | Key::Char('\n') => {
         let string = if key == Key::Char('\n') {
-          Some(line.into_string())
+          Some(text.into_string())
         } else {
           None
         };
         self.finish_input(cap, string).await
       },
       Key::Char(c) => {
-        let () = line.insert_char(c);
-        data.change_state(InOut::Input(line))
+        let () = text.insert_char(c);
+        data.change_state(InOut::Input(text))
       },
       Key::Backspace => {
-        if line.selection() > 0 {
-          let mut line = line.select_prev();
-          let () = line.remove_char();
-          data.change_state(InOut::Input(line))
+        if text.selection() > 0 {
+          let mut text = text.select_prev();
+          let () = text.remove_char();
+          data.change_state(InOut::Input(text))
         } else {
           None
         }
       },
       Key::Delete => {
-        if line.selection() < line.len() {
-          let () = line.remove_char();
-          data.change_state(InOut::Input(line))
+        if text.selection() < text.len() {
+          let () = text.remove_char();
+          data.change_state(InOut::Input(text))
         } else {
           None
         }
       },
       Key::Left => {
-        if line.selection() > 0 {
-          data.change_state(InOut::Input(line.select_prev()))
+        if text.selection() > 0 {
+          data.change_state(InOut::Input(text.select_prev()))
         } else {
           None
         }
       },
       Key::Right => {
-        if line.selection() < line.len() {
-          data.change_state(InOut::Input(line.select_next()))
+        if text.selection() < text.len() {
+          data.change_state(InOut::Input(text.select_next()))
         } else {
           None
         }
       },
       Key::Home => {
-        if line.selection() != 0 {
-          data.change_state(InOut::Input(line.select_start()))
+        if text.selection() != 0 {
+          data.change_state(InOut::Input(text.select_start()))
         } else {
           None
         }
       },
       Key::End => {
-        if line.selection() != line.len() {
-          data.change_state(InOut::Input(line.select_end()))
+        if text.selection() != text.len() {
+          data.change_state(InOut::Input(text.select_end()))
         } else {
           None
         }
@@ -300,15 +300,15 @@ impl InOutArea {
   async fn handle_key(
     &self,
     cap: &mut dyn MutCap<Event, Message>,
-    line: Line,
+    text: EditableText,
     key: Key,
     raw: &[u8],
   ) -> Option<Message> {
     let data = self.data_mut::<InOutAreaData>(cap);
     match data.readline.feed(raw) {
-      Some(line) => {
+      Some(text) => {
         self
-          .finish_input(cap, Some(line.into_string().unwrap()))
+          .finish_input(cap, Some(text.into_string().unwrap()))
           .await
       },
       None => {
@@ -321,7 +321,7 @@ impl InOutArea {
         // to the left by one). If nothing changed, then we actually
         // cancel the text input. That is not the nicest logic, but
         // the only way we have found that accomplishes what we want.
-        if key == Key::Esc && idx == line.selection_byte_index() {
+        if key == Key::Esc && idx == text.selection_byte_index() {
           // TODO: We have a problem here. What may end up happening
           //       is that we disrupt libreadline's workflow by
           //       effectively canceling what it was doing. If, for
@@ -337,8 +337,8 @@ impl InOutArea {
           data.readline = Readline::new();
           self.finish_input(cap, None).await
         } else {
-          let line = Line::from_string(s.to_string_lossy()).select_byte_index(idx);
-          data.change_state(InOut::Input(line))
+          let text = EditableText::from_string(s.to_string_lossy()).select_byte_index(idx);
+          data.change_state(InOut::Input(text))
         }
       },
     }
@@ -369,13 +369,13 @@ impl Handleable<Event, Message> for InOutArea {
     match event {
       Event::Key(key, raw) => {
         let data = self.data::<InOutAreaData>(cap);
-        let line = if let InOut::Input(line) = data.in_out.get() {
-          line.clone()
+        let text = if let InOut::Input(text) = data.in_out.get() {
+          text.clone()
         } else {
           panic!("In/out area not used for input.");
         };
 
-        self.handle_key(cap, line, key, &raw).await.into_event()
+        self.handle_key(cap, text, key, &raw).await.into_event()
       },
       _ => Some(event),
     }
