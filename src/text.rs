@@ -1,8 +1,16 @@
 // Copyright (C) 2023-2024 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+//! Please note that we use the word character ("char") loosely in this
+//! module, referring to what a user would intuitively describe as a
+//! character. Really it's a grapheme cluster in Unicode speak. All
+//! indexes, unless explicitly denoted otherwise, are relative to these
+//! characters and not to bytes.
+
 use std::cmp::min;
 use std::ops::ControlFlow;
+use std::ops::Deref;
+use std::ops::DerefMut;
 use std::ops::RangeFrom;
 
 use unicode_segmentation::UnicodeSegmentation as _;
@@ -45,13 +53,59 @@ fn char_index(string: &str, byte_position: usize) -> usize {
 }
 
 
+/// Some Unicode aware text.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct Text {
+  text: String,
+}
+
+impl Text {
+  /// Create a `Text` from the given string.
+  pub fn from_string<S>(text: S) -> Self
+  where
+    S: Into<String>,
+  {
+    Self { text: text.into() }
+  }
+
+  /// Retrieve a sub-string of the text.
+  pub fn substr(&self, range: RangeFrom<usize>) -> &str {
+    let range = RangeFrom {
+      start: byte_index(&self.text, range.start),
+    };
+    self.text.get(range).unwrap_or("")
+  }
+
+  /// Retrieve the number of characters in the text.
+  #[inline]
+  pub fn len(&self) -> usize {
+    char_index(&self.text, self.text.len())
+  }
+
+  /// Retrieve the text's underlying `str`.
+  #[inline]
+  pub fn as_str(&self) -> &str {
+    &self.text
+  }
+
+  /// Convert the object into a `String`.
+  #[inline]
+  pub fn into_string(self) -> String {
+    self.text
+  }
+}
+
+impl Deref for Text {
+  type Target = str;
+
+  #[inline]
+  fn deref(&self) -> &Self::Target {
+    self.text.as_str()
+  }
+}
+
+
 /// A text with an associated selection.
-///
-/// We use the word character ("char") loosely in this module, referring
-/// to what a user would intuitively describe as a character. Really
-/// it's a grapheme cluster in Unicode speak. All indexes, unless
-/// explicitly denoted otherwise, are relative to these characters and
-/// not to bytes.
 ///
 /// Please note that at the moment, selections take into account
 /// character width. That is arguably more of a property pertaining the
@@ -59,8 +113,8 @@ fn char_index(string: &str, byte_position: usize) -> usize {
 /// terminal based use cases at the moment.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct EditableText {
-  /// The string representing the text.
-  text: String,
+  /// The text.
+  text: Text,
   /// The "character" index of the selection.
   selection: usize,
 }
@@ -74,7 +128,7 @@ impl EditableText {
     S: Into<String>,
   {
     Self {
-      text: text.into(),
+      text: Text::from_string(text),
       // An index of zero is always valid, even if `text` was empty.
       selection: 0,
     }
@@ -120,7 +174,7 @@ impl EditableText {
   /// Insert a character into the text at the current selection.
   pub fn insert_char(&mut self, c: char) {
     let byte_index = byte_index(&self.text, self.selection);
-    let () = self.text.insert(byte_index, c);
+    let () = self.text.text.insert(byte_index, c);
     self.selection = min(self.selection + 1, self.len());
   }
 
@@ -131,28 +185,8 @@ impl EditableText {
     }
 
     let byte_index = byte_index(&self.text, self.selection);
-    let _removed = self.text.remove(byte_index);
+    let _removed = self.text.text.remove(byte_index);
     self.selection = min(self.selection, self.len());
-  }
-
-  /// Retrieve a sub-string of the text.
-  pub fn substr(&self, range: RangeFrom<usize>) -> &str {
-    let range = RangeFrom {
-      start: byte_index(&self.text, range.start),
-    };
-    self.text.get(range).unwrap_or("")
-  }
-
-  /// Retrieve the number of characters in the text.
-  #[inline]
-  pub fn len(&self) -> usize {
-    char_index(&self.text, self.text.len())
-  }
-
-  /// Retrieve the text's underlying `str`.
-  #[inline]
-  pub fn as_str(&self) -> &str {
-    &self.text
   }
 
   /// Retrieve the current selection index.
@@ -170,8 +204,25 @@ impl EditableText {
 
   /// Convert the object into a `String`, discarding selection
   /// information.
+  #[inline]
   pub fn into_string(self) -> String {
-    self.text
+    self.text.into_string()
+  }
+}
+
+impl Deref for EditableText {
+  type Target = Text;
+
+  #[inline]
+  fn deref(&self) -> &Self::Target {
+    &self.text
+  }
+}
+
+impl DerefMut for EditableText {
+  #[inline]
+  fn deref_mut(&mut self) -> &mut Self::Target {
+    &mut self.text
   }
 }
 
@@ -256,17 +307,17 @@ mod tests {
   /// Check that `EditableText::substr` behaves as it should.
   #[test]
   fn text_substr() {
-    let text = EditableText::default();
+    let text = Text::default();
     assert_eq!(text.substr(0..), "");
     assert_eq!(text.substr(1..), "");
     assert_eq!(text.substr(2..), "");
 
-    let text = EditableText::from_string("s");
+    let text = Text::from_string("s");
     assert_eq!(text.substr(0..), "s");
     assert_eq!(text.substr(1..), "");
     assert_eq!(text.substr(2..), "");
 
-    let text = EditableText::from_string("string");
+    let text = Text::from_string("string");
     assert_eq!(text.substr(0..), "string");
     assert_eq!(text.substr(1..), "tring");
     assert_eq!(text.substr(2..), "ring");
@@ -274,13 +325,13 @@ mod tests {
     assert_eq!(text.substr(6..), "");
   }
 
-  /// Check that `EditableText::len` works as expected.
+  /// Check that `Text::len` works as expected.
   #[test]
   fn text_length() {
-    let text = EditableText::default();
+    let text = Text::default();
     assert_eq!(text.len(), 0);
 
-    let text = EditableText::from_string("⚠️attn⚠️");
+    let text = Text::from_string("⚠️attn⚠️");
     assert_eq!(text.len(), 6);
   }
 }
