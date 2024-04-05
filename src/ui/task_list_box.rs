@@ -314,7 +314,9 @@ impl Handleable<Event, Message> for TaskListBox {
             let string = edited.summary();
             data.state = Some(State::Edit { task, edited });
 
-            let text = EditableText::from_string(string).select_end();
+            let mut text = EditableText::from_string(string);
+            let () = text.select_end();
+
             let message = Message::SetInOut(InOut::Input(text));
             cap.send(self.in_out, message).await.into_event()
           } else {

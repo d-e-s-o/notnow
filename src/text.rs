@@ -135,40 +135,30 @@ impl EditableText {
   }
 
   /// Select the first character.
-  pub fn select_start(self) -> Self {
-    let mut slf = self;
-    slf.selection = 0;
-    slf
+  pub fn select_start(&mut self) {
+    self.selection = 0;
   }
 
   /// Move the selection towards the end of the text, i.e., past the
   /// last character.
-  pub fn select_end(self) -> Self {
-    let mut slf = self;
-    slf.selection = slf.len();
-    slf
+  pub fn select_end(&mut self) {
+    self.selection = self.len();
   }
 
   /// Select the next character, if any.
-  pub fn select_next(self) -> Self {
-    let mut slf = self;
-    slf.selection = min(slf.selection + 1, slf.len());
-    slf
+  pub fn select_next(&mut self) {
+    self.selection = min(self.selection + 1, self.len());
   }
 
   /// Select the previous character, if any.
-  pub fn select_prev(self) -> Self {
-    let mut slf = self;
-    slf.selection = min(slf.selection.saturating_sub(1), slf.len());
-    slf
+  pub fn select_prev(&mut self) {
+    self.selection = min(self.selection.saturating_sub(1), self.len());
   }
 
   /// Select a character based on its byte index.
   #[cfg(feature = "readline")]
-  pub fn select_byte_index(self, byte_index: usize) -> Self {
-    let mut slf = self;
-    slf.selection = char_index(&slf.text, byte_index);
-    slf
+  pub fn select_byte_index(&mut self, byte_index: usize) {
+    self.selection = char_index(&self.text, byte_index);
   }
 
   /// Insert a character into the text at the current selection.

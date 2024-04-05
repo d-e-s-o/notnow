@@ -248,7 +248,7 @@ impl InOutArea {
       },
       Key::Backspace => {
         if text.selection() > 0 {
-          let mut text = text.select_prev();
+          let () = text.select_prev();
           let () = text.remove_char();
           data.change_state(InOut::Input(text))
         } else {
@@ -265,28 +265,32 @@ impl InOutArea {
       },
       Key::Left => {
         if text.selection() > 0 {
-          data.change_state(InOut::Input(text.select_prev()))
+          let () = text.select_prev();
+          data.change_state(InOut::Input(text))
         } else {
           None
         }
       },
       Key::Right => {
         if text.selection() < text.len() {
-          data.change_state(InOut::Input(text.select_next()))
+          let () = text.select_next();
+          data.change_state(InOut::Input(text))
         } else {
           None
         }
       },
       Key::Home => {
         if text.selection() != 0 {
-          data.change_state(InOut::Input(text.select_start()))
+          let () = text.select_start();
+          data.change_state(InOut::Input(text))
         } else {
           None
         }
       },
       Key::End => {
         if text.selection() != text.len() {
-          data.change_state(InOut::Input(text.select_end()))
+          let () = text.select_end();
+          data.change_state(InOut::Input(text))
         } else {
           None
         }
@@ -337,7 +341,9 @@ impl InOutArea {
           data.readline = Readline::new();
           self.finish_input(cap, None).await
         } else {
-          let text = EditableText::from_string(s.to_string_lossy()).select_byte_index(idx);
+          let mut text = EditableText::from_string(s.to_string_lossy());
+          let () = text.select_byte_index(idx);
+
           data.change_state(InOut::Input(text))
         }
       },
