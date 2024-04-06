@@ -5,6 +5,7 @@ mod config;
 mod dialog;
 mod event;
 mod in_out;
+mod input;
 mod message;
 mod modal;
 mod selectable;
