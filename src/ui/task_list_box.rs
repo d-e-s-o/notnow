@@ -24,6 +24,7 @@ use crate::view::View;
 use super::event::Event;
 use super::event::Key;
 use super::in_out::InOut;
+use super::input::InputText;
 use super::message::Message;
 use super::message::MessageExt;
 use super::selectable::Selectable;
@@ -296,7 +297,7 @@ impl Handleable<Event, Message> for TaskListBox {
         },
         Key::Char('a') => {
           data.state = Some(State::Add);
-          let message = Message::SetInOut(InOut::Input(EditableText::default()));
+          let message = Message::SetInOut(InOut::Input(InputText::default()));
           cap.send(self.in_out, message).await.into_event()
         },
         Key::Char('d') => {
@@ -317,7 +318,7 @@ impl Handleable<Event, Message> for TaskListBox {
             let mut text = EditableText::from_string(string);
             let () = text.select_end();
 
-            let message = Message::SetInOut(InOut::Input(text));
+            let message = Message::SetInOut(InOut::Input(InputText::new(text)));
             cap.send(self.in_out, message).await.into_event()
           } else {
             None

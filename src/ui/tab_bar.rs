@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2023 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2018-2024 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::cmp::max;
@@ -18,12 +18,12 @@ use gui::Widget;
 
 use crate::tags::Tag;
 use crate::tasks::Tasks;
-use crate::text::EditableText;
 use crate::view::View;
 
 use super::event::Event;
 use super::event::Key;
 use super::in_out::InOut;
+use super::input::InputText;
 use super::message::Message;
 use super::message::MessageExt;
 use super::task_list_box::TaskListBox;
@@ -465,7 +465,7 @@ impl Handleable<Event, Message> for TabBar {
           let reverse = key == Key::Char('?');
           data.search = Search::Preparing(reverse);
 
-          let message = Message::SetInOut(InOut::Input(EditableText::default()));
+          let message = Message::SetInOut(InOut::Input(InputText::default()));
           cap.send(self.in_out, message).await.into_event()
         },
         _ => Some(event),

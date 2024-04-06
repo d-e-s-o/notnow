@@ -4,6 +4,7 @@
 #[cfg(feature = "readline")]
 use std::ffi::CString;
 use std::future::Future;
+use std::ops::Deref as _;
 use std::pin::Pin;
 
 use async_trait::async_trait;
@@ -15,25 +16,21 @@ use gui::Id;
 use gui::MutCap;
 use gui::Widget;
 
-#[cfg(feature = "readline")]
-use rline::Readline;
-
-use crate::text::EditableText;
-
 use super::event::Event;
-use super::event::Key;
+use super::input::InputResult;
+use super::input::InputText;
 use super::message::Message;
 use super::message::MessageExt;
 use super::modal::Modal;
 
 
 /// An object representing the in/out area within the `TermUi`.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Debug)]
 pub enum InOut {
   Saved,
   Search(String),
   Error(String),
-  Input(EditableText),
+  Input(InputText),
   Clear,
 }
 
@@ -44,6 +41,21 @@ impl InOut {
     matches!(self, InOut::Input(..))
   }
 }
+
+impl PartialEq for InOut {
+  fn eq(&self, other: &Self) -> bool {
+    match (self, other) {
+      (InOut::Saved, InOut::Saved) => true,
+      (InOut::Search(x), InOut::Search(y)) => x == y,
+      (InOut::Error(x), InOut::Error(y)) => x == y,
+      (InOut::Input(x), InOut::Input(y)) => x.deref() == y.deref(),
+      (InOut::Clear, InOut::Clear) => true,
+      _ => false,
+    }
+  }
+}
+
+impl Eq for InOut {}
 
 
 #[derive(Debug)]
@@ -59,6 +71,15 @@ impl InOutState {
   /// Retrieve the current `InOut` state.
   fn get(&self) -> &InOut {
     &self.in_out
+  }
+
+  /// Retrieve a mutable reference to the current `InOut` state.
+  ///
+  /// # Notes
+  /// Be careful to bump the state's generation ID as necessary if
+  /// making modifications.
+  fn get_mut(&mut self) -> &mut InOut {
+    &mut self.in_out
   }
 
   /// Update the current `InOut` state.
@@ -92,9 +113,6 @@ pub struct InOutAreaData {
   clear_gen: Option<usize>,
   /// The state of the area.
   in_out: InOutState,
-  /// A readline object used for input.
-  #[cfg(feature = "readline")]
-  readline: Readline,
 }
 
 impl InOutAreaData {
@@ -104,38 +122,38 @@ impl InOutAreaData {
       prev_focused: None,
       clear_gen: None,
       in_out: Default::default(),
-      #[cfg(feature = "readline")]
-      readline: Readline::new(),
     }
   }
 
   /// Conditionally change the `InOut` state of the widget.
-  fn change_state(&mut self, in_out: InOut) -> Option<Message> {
+  fn change_state(&mut self, in_out: Option<InOut>) -> Option<Message> {
     // We received a request to change the state. Unconditionally bump
     // the generation it has, irrespective of whether we actually change
     // it (which we don't, if the new state is equal to what we already
     // have).
     self.in_out.bump();
 
-    if in_out != *self.in_out.get() {
-      #[cfg(feature = "readline")]
-      {
-        if let InOut::Input(text) = &in_out {
-          // We clear the undo buffer if we transition from a non-Input
-          // state to an Input state. Input-to-Input transitions are
-          // believed to be those just updating the text the user is
-          // working on already.
-          let cstr = CString::new(text.as_str()).unwrap();
-          let clear_undo = !self.in_out.get().is_input();
-          self
-            .readline
-            .reset(cstr, text.selection_byte_index(), clear_undo);
+    match in_out {
+      #[allow(unused_mut)]
+      Some(mut in_out) if in_out != *self.in_out.get() => {
+        #[cfg(feature = "readline")]
+        {
+          if let InOut::Input(ref mut text) = &mut in_out {
+            // We clear the undo buffer if we transition from a non-Input
+            // state to an Input state. Input-to-Input transitions are
+            // believed to be those just updating the text the user is
+            // working on already.
+            let cstr = CString::new(text.as_str()).unwrap();
+            let cursor = text.selection_byte_index();
+            let clear_undo = !self.in_out.get().is_input();
+            let () = text.readline().reset(cstr, cursor, clear_undo);
+          }
         }
-      }
-      self.in_out.set(in_out);
-      Some(Message::Updated)
-    } else {
-      None
+        self.in_out.set(in_out);
+        Some(Message::Updated)
+      },
+      Some(..) => None,
+      None => Some(Message::Updated),
     }
   }
 }
@@ -185,9 +203,9 @@ impl InOutArea {
         // between pre- and post-hook.
         if data.clear_gen.take() == Some(data.in_out.gen) {
           match data.in_out.get() {
-            InOut::Saved | InOut::Search(_) | InOut::Error(_) => {
-              data.change_state(InOut::Clear).map(|_| Event::Updated)
-            },
+            InOut::Saved | InOut::Search(_) | InOut::Error(_) => data
+              .change_state(Some(InOut::Clear))
+              .map(|_| Event::Updated),
             InOut::Input(..) | InOut::Clear => None,
           }
         } else {
@@ -205,7 +223,7 @@ impl InOutArea {
   ) -> Option<Message> {
     let data = self.data_mut::<InOutAreaData>(cap);
     let updated1 = data
-      .change_state(InOut::Clear)
+      .change_state(Some(InOut::Clear))
       .map(|m| m.is_updated())
       .unwrap_or(false);
     let widget = self.restore_focus(cap);
@@ -221,133 +239,6 @@ impl InOutArea {
       .map(|m| m.is_updated())
       .unwrap_or(false);
     MessageExt::maybe_update(None, updated1 || updated2)
-  }
-
-  /// Handle a key press.
-  #[cfg(not(feature = "readline"))]
-  async fn handle_key(
-    &self,
-    cap: &mut dyn MutCap<Event, Message>,
-    mut text: EditableText,
-    key: Key,
-    _raw: &(),
-  ) -> Option<Message> {
-    let data = self.data_mut::<InOutAreaData>(cap);
-    match key {
-      Key::Esc | Key::Char('\n') => {
-        let string = if key == Key::Char('\n') {
-          Some(text.into_string())
-        } else {
-          None
-        };
-        self.finish_input(cap, string).await
-      },
-      Key::Char(c) => {
-        let () = text.insert_char(c);
-        data.change_state(InOut::Input(text))
-      },
-      Key::Backspace => {
-        if text.selection() > 0 {
-          let () = text.select_prev();
-          let () = text.remove_char();
-          data.change_state(InOut::Input(text))
-        } else {
-          None
-        }
-      },
-      Key::Delete => {
-        if text.selection() < text.len() {
-          let () = text.remove_char();
-          data.change_state(InOut::Input(text))
-        } else {
-          None
-        }
-      },
-      Key::Left => {
-        if text.selection() > 0 {
-          let () = text.select_prev();
-          data.change_state(InOut::Input(text))
-        } else {
-          None
-        }
-      },
-      Key::Right => {
-        if text.selection() < text.len() {
-          let () = text.select_next();
-          data.change_state(InOut::Input(text))
-        } else {
-          None
-        }
-      },
-      Key::Home => {
-        if text.selection() != 0 {
-          let () = text.select_start();
-          data.change_state(InOut::Input(text))
-        } else {
-          None
-        }
-      },
-      Key::End => {
-        if text.selection() != text.len() {
-          let () = text.select_end();
-          data.change_state(InOut::Input(text))
-        } else {
-          None
-        }
-      },
-      _ => None,
-    }
-  }
-
-  /// Handle a key press.
-  #[cfg(feature = "readline")]
-  async fn handle_key(
-    &self,
-    cap: &mut dyn MutCap<Event, Message>,
-    text: EditableText,
-    key: Key,
-    raw: &[u8],
-  ) -> Option<Message> {
-    let data = self.data_mut::<InOutAreaData>(cap);
-    match data.readline.feed(raw) {
-      Some(text) => {
-        self
-          .finish_input(cap, Some(text.into_string().unwrap()))
-          .await
-      },
-      None => {
-        let (s, idx) = data.readline.peek(|s, pos| (s.to_owned(), pos));
-        // We treat Esc a little specially. In a vi-mode enabled
-        // configuration of libreadline Esc cancels input mode when we
-        // are in it, and does nothing otherwise. That is what we are
-        // interested in here. So we peek at the index we get and see
-        // if it changed (because leaving input mode moves the cursor
-        // to the left by one). If nothing changed, then we actually
-        // cancel the text input. That is not the nicest logic, but
-        // the only way we have found that accomplishes what we want.
-        if key == Key::Esc && idx == text.selection_byte_index() {
-          // TODO: We have a problem here. What may end up happening
-          //       is that we disrupt libreadline's workflow by
-          //       effectively canceling what it was doing. If, for
-          //       instance, we were in vi-movement-mode and we simply
-          //       stop the input process libreadline does not know
-          //       about that and will stay in this mode. So next time
-          //       we start editing again, we will still be in this
-          //       mode. Unfortunately, rline's reset does not deal
-          //       with this case (perhaps rightly so). For now, just
-          //       create a new `Readline` context and that will take
-          //       care of resetting things to the default (which is
-          //       input mode).
-          data.readline = Readline::new();
-          self.finish_input(cap, None).await
-        } else {
-          let mut text = EditableText::from_string(s.to_string_lossy());
-          let () = text.select_byte_index(idx);
-
-          data.change_state(InOut::Input(text))
-        }
-      },
-    }
   }
 
   /// Retrieve the input/output area's current state.
@@ -374,14 +265,24 @@ impl Handleable<Event, Message> for InOutArea {
   async fn handle(&self, cap: &mut dyn MutCap<Event, Message>, event: Event) -> Option<Event> {
     match event {
       Event::Key(key, raw) => {
-        let data = self.data::<InOutAreaData>(cap);
-        let text = if let InOut::Input(text) = data.in_out.get() {
-          text.clone()
+        let data = self.data_mut::<InOutAreaData>(cap);
+        let text = if let InOut::Input(text) = data.in_out.get_mut() {
+          text
         } else {
           panic!("In/out area not used for input.");
         };
 
-        self.handle_key(cap, text, key, &raw).await.into_event()
+        let message = match text.handle_key(key, &raw) {
+          InputResult::Completed(text) => self.finish_input(cap, Some(text)).await,
+          InputResult::Canceled => self.finish_input(cap, None).await,
+          InputResult::Updated => data.change_state(None),
+          InputResult::Unchanged => {
+            data.in_out.bump();
+            None
+          },
+        };
+
+        message.into_event()
       },
       _ => Some(event),
     }
@@ -396,12 +297,28 @@ impl Handleable<Event, Message> for InOutArea {
         };
 
         let data = self.data_mut::<InOutAreaData>(cap);
-        data.change_state(in_out)
+        data.change_state(Some(in_out))
       },
       #[cfg(all(test, not(feature = "readline")))]
       Message::GetInOut => {
+        use crate::text::EditableText;
+
         let data = self.data::<InOutAreaData>(cap);
-        Some(Message::GotInOut(data.in_out.get().clone()))
+
+        // A poor man's Clone impl for `InOut`. We don't really want to
+        // implement Clone for `InOut` because it contains a `Readline`
+        // instance and we try to avoid copying those if at all
+        // possible.
+        // In this instance, we are on the !readline path anyway, so it
+        // doesn't really matter.
+        let in_out = match data.in_out.get() {
+          InOut::Saved => InOut::Saved,
+          InOut::Search(x) => InOut::Search(x.clone()),
+          InOut::Error(x) => InOut::Error(x.clone()),
+          InOut::Input(x) => InOut::Input(InputText::new(EditableText::clone(x.deref()))),
+          InOut::Clear => InOut::Clear,
+        };
+        Some(Message::GotInOut(in_out))
       },
       m => panic!("Received unexpected message: {:?}", m),
     }

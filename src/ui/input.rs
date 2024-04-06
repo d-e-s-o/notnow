@@ -21,6 +21,7 @@ pub enum InputResult {
   /// The text was updated but input handling is not yet complete.
   Updated,
   /// Input was handled but nothing changed.
+  #[cfg_attr(feature = "readline", allow(dead_code))]
   Unchanged,
 }
 
@@ -154,6 +155,11 @@ impl InputText {
         }
       },
     }
+  }
+
+  #[cfg(feature = "readline")]
+  pub fn readline(&mut self) -> &mut Readline {
+    &mut self.readline
   }
 }
 
