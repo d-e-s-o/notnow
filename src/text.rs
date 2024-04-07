@@ -8,10 +8,14 @@
 //! characters and not to bytes.
 
 use std::cmp::min;
+use std::ops::Bound::Excluded;
+use std::ops::Bound::Included;
+use std::ops::Bound::Unbounded;
 use std::ops::ControlFlow;
 use std::ops::Deref;
 use std::ops::DerefMut;
-use std::ops::RangeFrom;
+use std::ops::RangeBounds;
+use std::slice::SliceIndex;
 
 use unicode_segmentation::UnicodeSegmentation as _;
 use unicode_width::UnicodeWidthStr as _;
@@ -69,11 +73,42 @@ impl Text {
   }
 
   /// Retrieve a sub-string of the text.
-  pub fn substr(&self, range: RangeFrom<usize>) -> &str {
-    let range = RangeFrom {
-      start: byte_index(&self.text, range.start),
-    };
-    self.text.get(range).unwrap_or("")
+  pub fn substr<R>(&self, range: R) -> &str
+  where
+    R: RangeBounds<usize>,
+  {
+    fn get(text: &str, range: impl SliceIndex<str, Output = str>) -> &str {
+      text.get(range).unwrap_or("")
+    }
+
+    let start = range.start_bound();
+    let end = range.end_bound();
+
+    match (start, end) {
+      (Included(start), Unbounded) => {
+        let range = byte_index(&self.text, *start)..;
+        get(&self.text, range)
+      },
+      (Included(start), Included(end)) => {
+        let range = byte_index(&self.text, *start)..=byte_index(&self.text, *end);
+        get(&self.text, range)
+      },
+      (Included(start), Excluded(end)) => {
+        let range = byte_index(&self.text, *start)..byte_index(&self.text, *end);
+        get(&self.text, range)
+      },
+      (Unbounded, Unbounded) => &self.text,
+      (Unbounded, Included(end)) => {
+        let end = byte_index(&self.text, *end);
+        let range = ..=min(self.text.len().saturating_sub(1), end);
+        get(&self.text, range)
+      },
+      (Unbounded, Excluded(end)) => {
+        let range = ..byte_index(&self.text, *end);
+        get(&self.text, range)
+      },
+      _ => unimplemented!(),
+    }
   }
 
   /// Retrieve the number of characters in the text.
@@ -298,21 +333,42 @@ mod tests {
   #[test]
   fn text_substr() {
     let text = Text::default();
+    assert_eq!(text.substr(..), "");
     assert_eq!(text.substr(0..), "");
     assert_eq!(text.substr(1..), "");
     assert_eq!(text.substr(2..), "");
 
     let text = Text::from_string("s");
+    assert_eq!(text.substr(..), "s");
     assert_eq!(text.substr(0..), "s");
     assert_eq!(text.substr(1..), "");
     assert_eq!(text.substr(2..), "");
 
     let text = Text::from_string("string");
+    assert_eq!(text.substr(..), "string");
     assert_eq!(text.substr(0..), "string");
     assert_eq!(text.substr(1..), "tring");
     assert_eq!(text.substr(2..), "ring");
     assert_eq!(text.substr(5..), "g");
     assert_eq!(text.substr(6..), "");
+    assert_eq!(text.substr(..0), "");
+    assert_eq!(text.substr(..1), "s");
+    assert_eq!(text.substr(..2), "st");
+    assert_eq!(text.substr(..5), "strin");
+    assert_eq!(text.substr(..6), "string");
+    assert_eq!(text.substr(..7), "string");
+    assert_eq!(text.substr(..8), "string");
+    assert_eq!(text.substr(..=0), "s");
+    assert_eq!(text.substr(..=1), "st");
+    assert_eq!(text.substr(..=2), "str");
+    assert_eq!(text.substr(..=5), "string");
+    assert_eq!(text.substr(..=6), "string");
+    assert_eq!(text.substr(0..0), "");
+    assert_eq!(text.substr(0..1), "s");
+    assert_eq!(text.substr(0..=1), "st");
+    assert_eq!(text.substr(1..1), "");
+    assert_eq!(text.substr(1..2), "t");
+    assert_eq!(text.substr(1..=2), "tr");
   }
 
   /// Check that `Text::len` works as expected.
