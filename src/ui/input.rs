@@ -1,6 +1,8 @@
 // Copyright (C) 2023-2024 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#[cfg(feature = "readline")]
+use std::ffi::CString;
 use std::ops::Deref;
 use std::ops::DerefMut;
 
@@ -44,9 +46,16 @@ impl InputText {
   /// [`EditableText`] instance.
   pub fn new(text: EditableText) -> Self {
     Self {
-      text,
       #[cfg(feature = "readline")]
-      readline: Readline::new(),
+      readline: {
+        let mut rl = Readline::new();
+        let cstr = CString::new(text.as_str()).unwrap();
+        let cursor = text.selection_byte_index();
+        let clear_undo = true;
+        let () = rl.reset(cstr, cursor, clear_undo);
+        rl
+      },
+      text,
     }
   }
 
@@ -155,11 +164,6 @@ impl InputText {
         }
       },
     }
-  }
-
-  #[cfg(feature = "readline")]
-  pub fn readline(&mut self) -> &mut Readline {
-    &mut self.readline
   }
 }
 

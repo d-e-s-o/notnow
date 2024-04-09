@@ -1,8 +1,6 @@
 // Copyright (C) 2018-2024 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-#[cfg(feature = "readline")]
-use std::ffi::CString;
 use std::future::Future;
 use std::ops::Deref as _;
 use std::pin::Pin;
@@ -32,14 +30,6 @@ pub enum InOut {
   Error(String),
   Input(InputText),
   Clear,
-}
-
-#[cfg(feature = "readline")]
-impl InOut {
-  /// Check whether the `InOut` state is `Input`.
-  fn is_input(&self) -> bool {
-    matches!(self, InOut::Input(..))
-  }
 }
 
 impl PartialEq for InOut {
@@ -134,21 +124,7 @@ impl InOutAreaData {
     self.in_out.bump();
 
     match in_out {
-      #[allow(unused_mut)]
-      Some(mut in_out) if in_out != *self.in_out.get() => {
-        #[cfg(feature = "readline")]
-        {
-          if let InOut::Input(ref mut text) = &mut in_out {
-            // We clear the undo buffer if we transition from a non-Input
-            // state to an Input state. Input-to-Input transitions are
-            // believed to be those just updating the text the user is
-            // working on already.
-            let cstr = CString::new(text.as_str()).unwrap();
-            let cursor = text.selection_byte_index();
-            let clear_undo = !self.in_out.get().is_input();
-            let () = text.readline().reset(cstr, cursor, clear_undo);
-          }
-        }
+      Some(in_out) if in_out != *self.in_out.get() => {
         self.in_out.set(in_out);
         Some(Message::Updated)
       },
