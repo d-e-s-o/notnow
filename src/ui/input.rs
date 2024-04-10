@@ -50,7 +50,7 @@ impl InputText {
       readline: {
         let mut rl = Readline::new();
         let cstr = CString::new(text.as_str()).unwrap();
-        let cursor = text.selection_byte_index();
+        let cursor = text.cursor_byte_index();
         let clear_undo = true;
         let () = rl.reset(cstr, cursor, clear_undo);
         rl
@@ -75,8 +75,8 @@ impl InputText {
         InputResult::Updated
       },
       Key::Backspace => {
-        if self.text.selection() > 0 {
-          let () = self.text.select_prev();
+        if self.text.cursor() > 0 {
+          let () = self.text.move_prev();
           let () = self.text.remove_char();
           InputResult::Updated
         } else {
@@ -84,7 +84,7 @@ impl InputText {
         }
       },
       Key::Delete => {
-        if self.text.selection() < self.text.len() {
+        if self.text.cursor() < self.text.len() {
           let () = self.text.remove_char();
           InputResult::Updated
         } else {
@@ -92,32 +92,32 @@ impl InputText {
         }
       },
       Key::Left => {
-        if self.text.selection() > 0 {
-          let () = self.text.select_prev();
+        if self.text.cursor() > 0 {
+          let () = self.text.move_prev();
           InputResult::Updated
         } else {
           InputResult::Unchanged
         }
       },
       Key::Right => {
-        if self.text.selection() < self.text.len() {
-          let () = self.text.select_next();
+        if self.text.cursor() < self.text.len() {
+          let () = self.text.move_next();
           InputResult::Updated
         } else {
           InputResult::Unchanged
         }
       },
       Key::Home => {
-        if self.text.selection() != 0 {
-          let () = self.text.select_start();
+        if self.text.cursor() != 0 {
+          let () = self.text.move_start();
           InputResult::Updated
         } else {
           InputResult::Unchanged
         }
       },
       Key::End => {
-        if self.text.selection() != self.text.len() {
-          let () = self.text.select_end();
+        if self.text.cursor() != self.text.len() {
+          let () = self.text.move_end();
           InputResult::Updated
         } else {
           InputResult::Unchanged
@@ -142,7 +142,7 @@ impl InputText {
         // to the left by one). If nothing changed, then we actually
         // cancel the text input. That is not the nicest logic, but
         // the only way we have found that accomplishes what we want.
-        if key == Key::Esc && idx == self.text.selection_byte_index() {
+        if key == Key::Esc && idx == self.text.cursor_byte_index() {
           // TODO: We have a problem here. What may end up happening
           //       is that we disrupt libreadline's workflow by
           //       effectively canceling what it was doing. If, for
@@ -159,7 +159,7 @@ impl InputText {
           InputResult::Canceled
         } else {
           self.text = EditableText::from_string(s.to_string_lossy());
-          let () = self.text.select_byte_index(idx);
+          let () = self.text.set_cursor_byte_index(idx);
           InputResult::Updated
         }
       },

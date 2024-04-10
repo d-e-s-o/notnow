@@ -140,7 +140,7 @@ impl Deref for Text {
 }
 
 
-/// A text with an associated selection.
+/// A text with an associated cursor.
 ///
 /// Please note that at the moment, selections take into account
 /// character width. That is arguably more of a property pertaining the
@@ -150,8 +150,8 @@ impl Deref for Text {
 pub struct EditableText {
   /// The text.
   text: Text,
-  /// The "character" index of the selection.
-  selection: usize,
+  /// The "character" index of the cursor.
+  cursor: usize,
 }
 
 #[allow(unused)]
@@ -165,69 +165,69 @@ impl EditableText {
     Self {
       text: Text::from_string(text),
       // An index of zero is always valid, even if `text` was empty.
-      selection: 0,
+      cursor: 0,
     }
   }
 
   /// Select the first character.
-  pub fn select_start(&mut self) {
-    self.selection = 0;
+  pub fn move_start(&mut self) {
+    self.cursor = 0;
   }
 
-  /// Move the selection towards the end of the text, i.e., past the
+  /// Move the cursor to the end of the text, i.e., past the
   /// last character.
-  pub fn select_end(&mut self) {
-    self.selection = self.len();
+  pub fn move_end(&mut self) {
+    self.cursor = self.len();
   }
 
   /// Select the next character, if any.
-  pub fn select_next(&mut self) {
-    self.selection = min(self.selection + 1, self.len());
+  pub fn move_next(&mut self) {
+    self.cursor = min(self.cursor + 1, self.len());
   }
 
   /// Select the previous character, if any.
-  pub fn select_prev(&mut self) {
-    self.selection = min(self.selection.saturating_sub(1), self.len());
+  pub fn move_prev(&mut self) {
+    self.cursor = min(self.cursor.saturating_sub(1), self.len());
   }
 
   /// Select a character based on its byte index.
   #[cfg(feature = "readline")]
-  pub fn select_byte_index(&mut self, byte_index: usize) {
-    self.selection = char_index(&self.text, byte_index);
+  pub fn set_cursor_byte_index(&mut self, byte_index: usize) {
+    self.cursor = char_index(&self.text, byte_index);
   }
 
-  /// Insert a character into the text at the current selection.
+  /// Insert a character into the text at the current cursor position.
   pub fn insert_char(&mut self, c: char) {
-    let byte_index = byte_index(&self.text, self.selection);
+    let byte_index = byte_index(&self.text, self.cursor);
     let () = self.text.text.insert(byte_index, c);
-    self.selection = min(self.selection + 1, self.len());
+    self.cursor = min(self.cursor + 1, self.len());
   }
 
   /// Remove the currently selected character from the text.
   pub fn remove_char(&mut self) {
-    if self.selection >= self.len() {
+    if self.cursor >= self.len() {
       return
     }
 
-    let byte_index = byte_index(&self.text, self.selection);
+    let byte_index = byte_index(&self.text, self.cursor);
     let _removed = self.text.text.remove(byte_index);
-    self.selection = min(self.selection, self.len());
+    self.cursor = min(self.cursor, self.len());
   }
 
-  /// Retrieve the current selection index.
+  /// Retrieve the current cursor index.
   #[inline]
-  pub fn selection(&self) -> usize {
-    self.selection
+  pub fn cursor(&self) -> usize {
+    self.cursor
   }
 
-  /// Retrieve the current selection expressed as a byte index.
+  /// Retrieve the current cursor position expressed as a byte index.
   #[inline]
   #[cfg(feature = "readline")]
-  pub fn selection_byte_index(&self) -> usize {
-    byte_index(&self.text, self.selection)
+  pub fn cursor_byte_index(&self) -> usize {
+    byte_index(&self.text, self.cursor)
   }
 
-  /// Convert the object into a `String`, discarding selection
+  /// Convert the object into a `String`, discarding any cursor
   /// information.
   #[inline]
   pub fn into_string(self) -> String {

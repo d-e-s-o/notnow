@@ -550,8 +550,8 @@ where
         // Calculate the number of displayable characters we have
         // available after the "prefix".
         let limit = bbox.w.saturating_sub(x) as usize;
-        let idx = text.selection();
-        let offset = sanitize_offset(data.offset, idx, limit);
+        let cursor = text.cursor();
+        let offset = sanitize_offset(data.offset, cursor, limit);
         let string = text.substr(offset..);
 
         data.offset = offset;
@@ -559,7 +559,7 @@ where
         let () = self.writer.write(x, bbox.h - 1, fg, bg, string)?;
         let () = self
           .writer
-          .goto(x + idx as u16 - offset as u16, bbox.h - 1)?;
+          .goto(x + cursor as u16 - offset as u16, bbox.h - 1)?;
         let () = self.writer.show()?;
       } else {
         let () = self.writer.write(x, bbox.h - 1, fg, bg, string)?;
