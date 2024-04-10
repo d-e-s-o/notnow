@@ -1,4 +1,4 @@
-// Copyright (C) 2017-2023 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2017-2024 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 // We basically deny most lints that "warn" by default, except for
@@ -329,6 +329,18 @@ where
   run_loop(ui, &renderer, &recv_event).await
 }
 
+
+struct LockFile<'path>(&'path Path);
+
+impl Drop for LockFile<'_> {
+  fn drop(&mut self) {
+    if let Err(err) = remove_file(self.0) {
+      eprintln!("failed to remove lock file {}: {err}", self.0.display());
+    }
+  }
+}
+
+
 /// Run a function after attempting to create a lock file and remove it
 /// once the function has returned.
 fn with_lockfile<F>(lock_file: &Path, force: bool, f: F) -> Result<()>
@@ -364,24 +376,8 @@ where
       result.with_context(|| format!("failed to create lock file {}", lock_file.display()))?;
   }
 
-  let result = f();
-
-  // Note that one error scenario when removing the lock file is that it
-  // was already removed by a concurrently running instance. That can
-  // only happen if the user wrongly specified the --force/-f flag. We
-  // could special case that here, but it just does not seem worth it,
-  // so just handle it like any other error.
-  match (result, remove_file(lock_file)) {
-    (Ok(()), Ok(())) => Ok(()),
-    (Ok(()), r @ Err(_)) => {
-      r.with_context(|| format!("failed to remove lock file {}", lock_file.display()))
-    },
-    (r @ Err(_), Ok(())) => r,
-    (r @ Err(_), Err(_)) => {
-      eprintln!("failed to remove lock file {}", lock_file.display());
-      r
-    },
-  }
+  let _guard = LockFile(lock_file);
+  f()
 }
 
 /// Run an instance of the program in the default configuration.
