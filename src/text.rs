@@ -24,20 +24,19 @@ use unicode_width::UnicodeWidthStr as _;
 /// Find the byte index that maps to the given character position.
 fn byte_index(string: &str, position: usize) -> usize {
   let extended = true;
-  let result =
-    string
-      .grapheme_indices(extended)
-      .try_fold(0usize, |total_width, (byte_idx, grapheme)| {
-        if total_width >= position {
-          ControlFlow::Break(byte_idx)
-        } else {
-          ControlFlow::Continue(total_width + grapheme.width())
-        }
-      });
+  let result = string.grapheme_indices(extended).enumerate().try_for_each(
+    |(char_pos, (byte_idx, _grapheme))| {
+      if char_pos >= position {
+        ControlFlow::Break(byte_idx)
+      } else {
+        ControlFlow::Continue(())
+      }
+    },
+  );
 
   match result {
     ControlFlow::Break(byte_idx) => byte_idx,
-    ControlFlow::Continue(_) => string.len(),
+    ControlFlow::Continue(()) => string.len(),
   }
 }
 
@@ -256,7 +255,8 @@ impl DerefMut for EditableText {
 mod tests {
   use super::*;
 
-  /// Check that our "character" indexing works as it should.
+
+  /// Check that our byte indexing works as it should.
   #[test]
   fn byte_indexing() {
     let s = "";
@@ -288,10 +288,17 @@ mod tests {
     assert_eq!(byte_index(s, 0), 0);
     assert_eq!(byte_index(s, 1), 1);
     assert_eq!(byte_index(s, 2), 4);
-    assert_eq!(byte_index(s, 3), 4);
+    assert_eq!(byte_index(s, 3), 5);
     assert_eq!(byte_index(s, 4), 5);
     assert_eq!(byte_index(s, 5), 5);
-    assert_eq!(byte_index(s, 6), 5);
+
+    let s = "a\nb";
+    assert_eq!(byte_index(s, 0), 0);
+    assert_eq!(byte_index(s, 1), 1);
+    assert_eq!(byte_index(s, 2), 2);
+    assert_eq!(byte_index(s, 3), 3);
+    assert_eq!(byte_index(s, 4), 3);
+    assert_eq!(byte_index(s, 5), 3);
   }
 
   /// Check that our "character" indexing works as it should.
