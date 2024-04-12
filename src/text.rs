@@ -40,8 +40,12 @@ fn byte_index(string: &str, position: usize) -> usize {
   }
 }
 
-/// Find the character index that maps to the given byte position.
-fn char_index(string: &str, byte_position: usize) -> usize {
+/// Find the cursor index that maps to the given byte position.
+///
+/// # Notes
+/// As is expected for a cursor, this function effectively ignored
+/// control character sequences.
+fn cursor_index(string: &str, byte_position: usize) -> usize {
   let extended = true;
   string
     .grapheme_indices(extended)
@@ -113,7 +117,7 @@ impl Text {
   /// Retrieve the number of characters in the text.
   #[inline]
   pub fn len(&self) -> usize {
-    char_index(&self.text, self.text.len())
+    self.text.graphemes(true).count()
   }
 
   /// Retrieve the text's underlying `str`.
@@ -192,7 +196,7 @@ impl EditableText {
   /// Select a character based on its byte index.
   #[cfg(feature = "readline")]
   pub fn set_cursor_byte_index(&mut self, byte_index: usize) {
-    self.cursor = char_index(&self.text, byte_index);
+    self.cursor = cursor_index(&self.text, byte_index);
   }
 
   /// Insert a character into the text at the current cursor position.
@@ -301,39 +305,39 @@ mod tests {
     assert_eq!(byte_index(s, 5), 3);
   }
 
-  /// Check that our "character" indexing works as it should.
+  /// Check that our cursor indexing works as it should.
   #[test]
-  fn char_indexing() {
+  fn cursor_indexing() {
     let s = "";
-    assert_eq!(char_index(s, 0), 0);
-    assert_eq!(char_index(s, 1), 0);
+    assert_eq!(cursor_index(s, 0), 0);
+    assert_eq!(cursor_index(s, 1), 0);
 
     let s = "s";
-    assert_eq!(char_index(s, 0), 0);
-    assert_eq!(char_index(s, 1), 1);
-    assert_eq!(char_index(s, 2), 1);
+    assert_eq!(cursor_index(s, 0), 0);
+    assert_eq!(cursor_index(s, 1), 1);
+    assert_eq!(cursor_index(s, 2), 1);
 
     let s = "foobar";
-    assert_eq!(char_index(s, 0), 0);
-    assert_eq!(char_index(s, 1), 1);
-    assert_eq!(char_index(s, 5), 5);
-    assert_eq!(char_index(s, 6), 6);
-    assert_eq!(char_index(s, 7), 6);
+    assert_eq!(cursor_index(s, 0), 0);
+    assert_eq!(cursor_index(s, 1), 1);
+    assert_eq!(cursor_index(s, 5), 5);
+    assert_eq!(cursor_index(s, 6), 6);
+    assert_eq!(cursor_index(s, 7), 6);
 
     let s = "⚠️attn⚠️";
-    assert_eq!(char_index(s, 0), 0);
-    assert_eq!(char_index(s, 1), 0);
-    assert_eq!(char_index(s, 6), 1);
-    assert_eq!(char_index(s, 7), 2);
+    assert_eq!(cursor_index(s, 0), 0);
+    assert_eq!(cursor_index(s, 1), 0);
+    assert_eq!(cursor_index(s, 6), 1);
+    assert_eq!(cursor_index(s, 7), 2);
 
     let s = "a｜b";
-    assert_eq!(char_index(s, 0), 0);
-    assert_eq!(char_index(s, 1), 1);
-    assert_eq!(char_index(s, 2), 1);
-    assert_eq!(char_index(s, 3), 1);
-    assert_eq!(char_index(s, 4), 3);
-    assert_eq!(char_index(s, 5), 4);
-    assert_eq!(char_index(s, 6), 4);
+    assert_eq!(cursor_index(s, 0), 0);
+    assert_eq!(cursor_index(s, 1), 1);
+    assert_eq!(cursor_index(s, 2), 1);
+    assert_eq!(cursor_index(s, 3), 1);
+    assert_eq!(cursor_index(s, 4), 3);
+    assert_eq!(cursor_index(s, 5), 4);
+    assert_eq!(cursor_index(s, 6), 4);
   }
 
   /// Check that `EditableText::substr` behaves as it should.
