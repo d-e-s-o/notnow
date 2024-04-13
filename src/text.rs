@@ -200,6 +200,12 @@ impl EditableText {
   }
 
   /// Insert a character into the text at the current cursor position.
+  ///
+  /// # Notes
+  /// Strictly speaking a [`char`] input is insufficient here: a [`str`]
+  /// is more appropriate as it can represent a grapheme cluster.
+  /// A [`char`] is enough given the current set of clients we have,
+  /// though.
   pub fn insert_char(&mut self, c: char) {
     let byte_index = byte_index(&self.text, self.cursor);
     let () = self.text.text.insert(byte_index, c);
@@ -390,5 +396,56 @@ mod tests {
 
     let text = Text::from_string("⚠️attn⚠️");
     assert_eq!(text.len(), 6);
+  }
+
+  /// Make sure that we can insert characters into a [`EditableText`]
+  /// object as expected.
+  #[test]
+  fn character_insertion() {
+    let mut text = EditableText::default();
+    let () = text.insert_char('a');
+    let () = text.insert_char('b');
+    let () = text.insert_char('c');
+    assert_eq!(text.as_str(), "abc");
+
+    let mut text = EditableText::default();
+    let () = text.insert_char('a');
+    let () = text.insert_char('\n');
+    let () = text.insert_char('c');
+    assert_eq!(text.as_str(), "a\nc");
+
+    let mut text = EditableText::from_string("⚠️attn⚠️");
+    let () = text.insert_char('x');
+    assert_eq!(text.as_str(), "x⚠️attn⚠️");
+    let () = text.move_next();
+    let () = text.insert_char('y');
+    assert_eq!(text.as_str(), "x⚠️yattn⚠️");
+    let () = text.move_end();
+    let () = text.insert_char('z');
+    assert_eq!(text.as_str(), "x⚠️yattn⚠️z");
+
+    let mut text = EditableText::from_string("⚠️attn⚠️");
+    let () = text.insert_char('x');
+    assert_eq!(text.as_str(), "x⚠️attn⚠️");
+    let () = text.move_next();
+    let () = text.insert_char('y');
+    assert_eq!(text.as_str(), "x⚠️yattn⚠️");
+    let () = text.move_end();
+    let () = text.insert_char('z');
+    assert_eq!(text.as_str(), "x⚠️yattn⚠️z");
+    let () = text.move_start();
+    let () = text.remove_char();
+    assert_eq!(text.as_str(), "⚠️yattn⚠️z");
+    let () = text.insert_char('x');
+    assert_eq!(text.as_str(), "x⚠️yattn⚠️z");
+
+    let mut text = EditableText::from_string("｜a｜b｜");
+    let () = text.insert_char('x');
+    assert_eq!(text.as_str(), "x｜a｜b｜");
+    let () = text.insert_char('y');
+    assert_eq!(text.as_str(), "xy｜a｜b｜");
+    let () = text.move_next();
+    let () = text.insert_char('z');
+    assert_eq!(text.as_str(), "xy｜za｜b｜");
   }
 }
