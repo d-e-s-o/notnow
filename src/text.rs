@@ -218,8 +218,13 @@ impl EditableText {
       return
     }
 
-    let byte_index = byte_index(&self.text, self.cursor);
-    let _removed = self.text.text.remove(byte_index);
+    let byte_idx_start = byte_index(&self.text, self.cursor);
+    let byte_idx_end = byte_index(&self.text, self.cursor + 1);
+
+    let () = self
+      .text
+      .text
+      .replace_range(byte_idx_start..byte_idx_end, "");
     self.cursor = min(self.cursor, self.len());
   }
 
@@ -447,5 +452,23 @@ mod tests {
     let () = text.move_next();
     let () = text.insert_char('z');
     assert_eq!(text.as_str(), "xy｜za｜b｜");
+  }
+
+  /// Make sure that we can remove characters from a [`EditableText`]
+  /// object as expected.
+  #[test]
+  fn character_removal() {
+    let mut text = EditableText::from_string("⚠️attn⚠️");
+    let () = text.remove_char();
+    assert_eq!(text.as_str(), "attn⚠️");
+
+    let () = text.move_end();
+    // The cursor is at the end, which means nothing should get removed.
+    let () = text.remove_char();
+    assert_eq!(text.as_str(), "attn⚠️");
+
+    let () = text.move_prev();
+    let () = text.remove_char();
+    assert_eq!(text.as_str(), "attn");
   }
 }
