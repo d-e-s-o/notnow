@@ -193,12 +193,6 @@ impl EditableText {
     self.cursor = min(self.cursor.saturating_sub(1), self.len());
   }
 
-  /// Select a character based on its byte index.
-  #[cfg(feature = "readline")]
-  pub fn set_cursor_byte_index(&mut self, byte_index: usize) {
-    self.cursor = cursor_index(&self.text, byte_index);
-  }
-
   /// Insert a character into the text at the current cursor position.
   ///
   /// # Notes
@@ -236,9 +230,14 @@ impl EditableText {
 
   /// Retrieve the current cursor position expressed as a byte index.
   #[inline]
-  #[cfg(feature = "readline")]
   pub fn cursor_byte_index(&self) -> usize {
     byte_index(&self.text, self.cursor)
+  }
+
+  /// Select a character based on its byte index.
+  #[inline]
+  pub fn set_cursor_byte_index(&mut self, byte_index: usize) {
+    self.cursor = cursor_index(&self.text, byte_index);
   }
 
   /// Convert the object into a `String`, discarding any cursor
