@@ -28,6 +28,7 @@ use gui::Renderer;
 
 use crate::colors::Color;
 use crate::colors::Colors;
+use crate::text;
 
 use super::dialog::Dialog;
 use super::dialog::SetUnsetTag;
@@ -97,11 +98,7 @@ fn clip(x: u16, y: u16, string: &str, bbox: BBox) -> &str {
   let h = bbox.h;
 
   if y < h {
-    if x + string.len() as u16 >= w {
-      &string[..(w - x) as usize]
-    } else {
-      string
-    }
+    text::clip(string, (w - x).into())
   } else {
     ""
   }

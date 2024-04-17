@@ -1,5 +1,7 @@
 Unreleased
 ----------
+- Fixed potential panic caused by clipping task summaries at non-char
+  boundaries
 - Bumped `icalendar` dependency to `0.16`
 
 

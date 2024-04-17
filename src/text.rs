@@ -60,6 +60,29 @@ fn cursor_index(string: &str, byte_position: usize) -> usize {
 }
 
 
+/// Clip a string at `max_width` characters, at a proper character
+/// boundary.
+pub(crate) fn clip(string: &str, max_width: usize) -> &str {
+  let extended = true;
+  let result =
+    string
+      .grapheme_indices(extended)
+      .try_fold(0, |mut total_width, (byte_idx, grapheme)| {
+        total_width += grapheme.width();
+        if total_width > max_width {
+          ControlFlow::Break(byte_idx)
+        } else {
+          ControlFlow::Continue(total_width)
+        }
+      });
+
+  match result {
+    ControlFlow::Break(byte_idx) => &string[..byte_idx],
+    ControlFlow::Continue(..) => string,
+  }
+}
+
+
 /// Some Unicode aware text.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct Text {
@@ -348,6 +371,27 @@ mod tests {
     assert_eq!(cursor_index(s, 4), 3);
     assert_eq!(cursor_index(s, 5), 4);
     assert_eq!(cursor_index(s, 6), 4);
+  }
+
+  /// Check that we can correctly "clip" a string to a maximum width.
+  #[test]
+  fn string_clipping() {
+    assert_eq!(clip("", 0), "");
+    assert_eq!(clip("a", 0), "");
+    assert_eq!(clip("ab", 0), "");
+
+    assert_eq!(clip("", 1), "");
+    assert_eq!(clip("a", 1), "a");
+    assert_eq!(clip("ab", 1), "a");
+
+    assert_eq!(clip("⚠️attn⚠️", 0), "");
+    assert_eq!(clip("⚠️attn⚠️", 1), "⚠️");
+    assert_eq!(clip("⚠️attn⚠️", 2), "⚠️a");
+
+    assert_eq!(clip("｜a｜b｜", 0), "");
+    assert_eq!(clip("｜a｜b｜", 1), "");
+    assert_eq!(clip("｜a｜b｜", 2), "｜");
+    assert_eq!(clip("｜a｜b｜", 3), "｜a");
   }
 
   /// Check that `EditableText::substr` behaves as it should.
