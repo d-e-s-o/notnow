@@ -1339,11 +1339,8 @@ mod tests {
       .await
       .handle(events)
       .await
-      .tasks()
-      .await
-      .into_iter()
-      .map(|x| x.summary())
-      .collect::<Vec<_>>();
+      .task_summaries()
+      .await;
 
     let (.., mut expected) = make_tasks_with_tags(15);
     expected[8].summary = "9ab".to_string();
@@ -2149,11 +2146,8 @@ mod tests {
       .await
       .handle(events)
       .await
-      .tasks()
-      .await
-      .into_iter()
-      .map(|x| x.summary())
-      .collect::<Vec<_>>();
+      .task_summaries()
+      .await;
 
     let (.., mut expected) = make_tasks_with_tags(15);
     let task = expected.remove(12);
@@ -2192,11 +2186,8 @@ mod tests {
       .await
       .handle(events)
       .await
-      .tasks()
-      .await
-      .into_iter()
-      .map(|x| x.summary())
-      .collect::<Vec<_>>();
+      .task_summaries()
+      .await;
 
     let (.., mut expected) = make_tasks_with_tags(15);
     expected[11].summary = "aa".to_string();
