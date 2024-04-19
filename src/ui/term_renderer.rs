@@ -9,6 +9,8 @@ use std::collections::HashMap;
 use std::io::BufWriter;
 use std::io::Result;
 use std::io::Write;
+use std::ops::Add;
+use std::ops::Sub;
 
 use termion::clear::All;
 use termion::color::Bg;
@@ -54,16 +56,29 @@ const ERROR_TEXT: &str = " Error ";
 const INPUT_TEXT: &str = " > ";
 
 
-/// Sanitize an offset.
-fn sanitize_offset(offset: usize, selection: usize, limit: usize) -> usize {
-  if selection <= offset {
-    selection
-  } else if selection > offset + (limit - 1) {
-    selection - (limit - 1)
+/// Calculate the desired starting position of a window, given a cursor
+/// that is always meant to be covered by `<return value> + size`.
+///
+/// This functionality forms the basis for all our sliding windows over
+/// a set of entities (such as tasks, tags, ...).
+fn window_start<T, U>(start: T, size: U, cursor: T) -> T
+where
+  T: Copy + Ord + Add<U, Output = T> + Sub<U, Output = T>,
+  U: Copy + From<usize>,
+{
+  // If the cursor is in front of the window it marks the start of the
+  // window. If it is past the end of the window, the window's start is
+  // adjusted such that the cursor ends up being the very last element
+  // in it.
+  if cursor <= start {
+    cursor
+  } else if cursor >= start + size {
+    cursor - size + U::from(1)
   } else {
-    offset
+    start
   }
 }
+
 
 /// Align string centrally in the given `width` or cut it off if it is too long.
 fn align_center(string: impl Into<String>, width: usize) -> String {
@@ -270,10 +285,10 @@ where
     //       terminal resizes. If the width of the terminal is increased
     //       the offset would need to be adjusted. Should/can this be
     //       fixed?
-    let count = tab_bar.iter(cap).len();
-    let limit = displayable_tabs(w.saturating_sub(1));
+    let tabs = tab_bar.iter(cap).len();
+    let count = displayable_tabs(w.saturating_sub(1));
     let selection = tab_bar.selection(cap);
-    let offset = sanitize_offset(data.offset, selection, limit);
+    let offset = window_start(data.offset, count, selection);
 
     if offset > 0 {
       let fg = self.colors.more_tasks_fg;
@@ -285,7 +300,7 @@ where
       self.writer.write(0, 0, fg, bg, " ")?;
     }
 
-    if count > offset + limit {
+    if tabs > offset + count {
       let fg = self.colors.more_tasks_fg;
       let bg = self.colors.more_tasks_bg;
       self.writer.write(w, 0, fg, bg, ">")?;
@@ -295,7 +310,7 @@ where
       self.writer.write(w, 0, fg, bg, " ")?;
     }
 
-    for (i, tab) in tab_bar.iter(cap).enumerate().skip(offset).take(limit) {
+    for (i, tab) in tab_bar.iter(cap).enumerate().skip(offset).take(count) {
       let (fg, bg) = if i == selection {
         (self.colors.selected_tab_fg, self.colors.selected_tab_bg)
       } else {
@@ -341,12 +356,12 @@ where
     let mut cursor = None;
 
     let view = task_list.view(cap);
-    let limit = displayable_tasks(bbox);
+    let count = displayable_tasks(bbox);
     let selection = task_list.selection(cap);
-    let offset = sanitize_offset(data.offset, selection, limit);
+    let offset = window_start(data.offset, count, selection);
 
     let () = view.iter(|iter| {
-      for (i, task) in iter.enumerate().skip(offset).take(limit) {
+      for (i, task) in iter.enumerate().skip(offset).take(count) {
         let tagged = task_list
           .toggle_tag(cap)
           .map(|toggle_tag| task.has_tag(&toggle_tag))
@@ -461,9 +476,9 @@ where
     let mut map = self.data.borrow_mut();
     let data = map.entry(dialog.id()).or_default();
 
-    let limit = displayable_tags(bbox);
+    let count = displayable_tags(bbox);
     let selection = dialog.selection(cap);
-    let offset = sanitize_offset(data.offset, selection, limit);
+    let offset = window_start(data.offset, count, selection);
 
     let mut tags = dialog.tags(cap).iter().enumerate().skip(offset);
 
@@ -546,9 +561,9 @@ where
 
         // Calculate the number of displayable characters we have
         // available after the "prefix".
-        let limit = bbox.w.saturating_sub(x) as usize;
+        let count = bbox.w.saturating_sub(x) as usize;
         let cursor = text.cursor();
-        let offset = sanitize_offset(data.offset, cursor, limit);
+        let offset = window_start(data.offset, count, cursor);
         let string = text.substr(offset..);
 
         data.offset = offset;
