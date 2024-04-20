@@ -75,7 +75,7 @@ impl InputText {
         InputResult::Updated
       },
       Key::Backspace => {
-        if self.text.cursor() > 0 {
+        if self.text.cursor() > self.text.cursor_start() {
           let () = self.text.move_prev();
           let () = self.text.remove_char();
           InputResult::Updated
@@ -84,7 +84,7 @@ impl InputText {
         }
       },
       Key::Delete => {
-        if self.text.cursor() < self.text.char_count() {
+        if self.text.cursor() < self.text.cursor_end() {
           let () = self.text.remove_char();
           InputResult::Updated
         } else {
@@ -92,7 +92,7 @@ impl InputText {
         }
       },
       Key::Left => {
-        if self.text.cursor() > 0 {
+        if self.text.cursor() > self.text.cursor_start() {
           let () = self.text.move_prev();
           InputResult::Updated
         } else {
@@ -100,7 +100,7 @@ impl InputText {
         }
       },
       Key::Right => {
-        if self.text.cursor() < self.text.char_count() {
+        if self.text.cursor() < self.text.cursor_end() {
           let () = self.text.move_next();
           InputResult::Updated
         } else {
@@ -108,7 +108,7 @@ impl InputText {
         }
       },
       Key::Home => {
-        if self.text.cursor() != 0 {
+        if self.text.cursor() > self.text.cursor_start() {
           let () = self.text.move_start();
           InputResult::Updated
         } else {
@@ -116,7 +116,7 @@ impl InputText {
         }
       },
       Key::End => {
-        if self.text.cursor() != self.text.char_count() {
+        if self.text.cursor() < self.text.cursor_end() {
           let () = self.text.move_end();
           InputResult::Updated
         } else {

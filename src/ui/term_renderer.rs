@@ -31,6 +31,7 @@ use gui::Renderer;
 use crate::colors::Color;
 use crate::colors::Colors;
 use crate::text;
+use crate::text::Width;
 
 use super::dialog::Dialog;
 use super::dialog::SetUnsetTag;
@@ -113,7 +114,7 @@ fn clip(x: u16, y: u16, string: &str, bbox: BBox) -> &str {
   let h = bbox.h;
 
   if y < h {
-    text::clip(string, (w - x).into())
+    text::clip(string, Width::from(usize::from(w - x)))
   } else {
     ""
   }
@@ -561,17 +562,22 @@ where
 
         // Calculate the number of displayable characters we have
         // available after the "prefix".
-        let count = bbox.w.saturating_sub(x) as usize;
+        let count = Width::from(bbox.w.saturating_sub(x) as usize);
         let cursor = text.cursor();
-        let offset = window_start(data.offset, count, cursor);
+        let offset = window_start(
+          text.cursor_start() + Width::from(data.offset),
+          count,
+          cursor,
+        );
         let string = text.substr(offset..);
 
-        data.offset = offset;
+        data.offset = offset.as_usize();
 
         let () = self.writer.write(x, bbox.h - 1, fg, bg, string)?;
-        let () = self
-          .writer
-          .goto(x + cursor as u16 - offset as u16, bbox.h - 1)?;
+        let () = self.writer.goto(
+          x + cursor.as_usize() as u16 - offset.as_usize() as u16,
+          bbox.h - 1,
+        )?;
         let () = self.writer.show()?;
       } else {
         let () = self.writer.write(x, bbox.h - 1, fg, bg, string)?;

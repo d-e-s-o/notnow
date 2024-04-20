@@ -8,6 +8,8 @@
 //! characters and not to bytes.
 
 use std::cmp::min;
+use std::ops::Add;
+use std::ops::AddAssign;
 use std::ops::Bound::Excluded;
 use std::ops::Bound::Included;
 use std::ops::Bound::Unbounded;
@@ -15,18 +17,152 @@ use std::ops::ControlFlow;
 use std::ops::Deref;
 use std::ops::DerefMut;
 use std::ops::RangeBounds;
+use std::ops::Sub;
+use std::ops::SubAssign;
 use std::slice::SliceIndex;
 
 use unicode_segmentation::UnicodeSegmentation as _;
+use unicode_width::UnicodeWidthChar as _;
 use unicode_width::UnicodeWidthStr as _;
 
 
+/// A type representing the width of a string (in "columns"), as it
+/// would be displayed.
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Width(usize);
+
+impl From<usize> for Width {
+  #[inline]
+  fn from(other: usize) -> Self {
+    Width(other)
+  }
+}
+
+impl Add<Width> for Width {
+  type Output = Width;
+
+  #[inline]
+  fn add(mut self, other: Width) -> Self::Output {
+    self += other;
+    self
+  }
+}
+
+impl AddAssign<Width> for Width {
+  #[inline]
+  fn add_assign(&mut self, other: Width) {
+    self.0 += other.0;
+  }
+}
+
+
+/// A trait for conveniently querying the width of an entity.
+pub trait DisplayWidth {
+  fn display_width(&self) -> Width;
+}
+
+impl DisplayWidth for str {
+  fn display_width(&self) -> Width {
+    let extended = true;
+    let cursor = self
+      .graphemes(extended)
+      .map(|grapheme| grapheme.width())
+      .sum();
+
+    Width(cursor)
+  }
+}
+
+impl DisplayWidth for char {
+  fn display_width(&self) -> Width {
+    Width(self.width().unwrap_or(0))
+  }
+}
+
+
+/// A cursor into a string (most likely actually an [`EditableText`] to
+/// be used mainly for display purposes.
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Cursor(usize);
+
+impl Cursor {
+  /// Create a [`Cursor`] object pointing at the beginning of a string.
+  ///
+  /// # Notes
+  /// This method constitutes the only public constructor for this type.
+  pub fn at_start() -> Cursor {
+    Self(0)
+  }
+
+  /// Convert the object back into a [`usize`].
+  pub fn as_usize(&self) -> usize {
+    self.0
+  }
+}
+
+impl Add<Width> for Cursor {
+  type Output = Cursor;
+
+  #[inline]
+  fn add(mut self, other: Width) -> Self::Output {
+    self += other;
+    self
+  }
+}
+
+impl AddAssign<Width> for Cursor {
+  #[inline]
+  fn add_assign(&mut self, other: Width) {
+    self.0 += other.0;
+  }
+}
+
+impl Sub<Width> for Cursor {
+  type Output = Cursor;
+
+  #[inline]
+  fn sub(mut self, other: Width) -> Self::Output {
+    self -= other;
+    self
+  }
+}
+
+impl SubAssign<Width> for Cursor {
+  #[inline]
+  fn sub_assign(&mut self, other: Width) {
+    self.0 = self.0.saturating_sub(other.0);
+  }
+}
+
+
+/// Find the byte index that maps to the given [`Cursor`] position.
+fn cursor_byte_index(string: &str, cursor: Cursor) -> usize {
+  let extended = true;
+  let result = string.grapheme_indices(extended).try_fold(
+    Width::from(0),
+    |total_width, (byte_idx, grapheme)| {
+      if Cursor::at_start() + total_width >= cursor {
+        ControlFlow::Break(byte_idx)
+      } else {
+        ControlFlow::Continue(total_width + grapheme.display_width())
+      }
+    },
+  );
+
+  match result {
+    ControlFlow::Break(byte_idx) => byte_idx,
+    ControlFlow::Continue(_) => string.len(),
+  }
+}
+
 /// Find the byte index that maps to the given character position.
-fn byte_index(string: &str, position: usize) -> usize {
+fn char_byte_index(string: &str, char_idx: usize) -> usize {
   let extended = true;
   let result = string.grapheme_indices(extended).enumerate().try_for_each(
     |(char_pos, (byte_idx, _grapheme))| {
-      if char_pos >= position {
+      if char_pos >= char_idx {
         ControlFlow::Break(byte_idx)
       } else {
         ControlFlow::Continue(())
@@ -40,41 +176,56 @@ fn byte_index(string: &str, position: usize) -> usize {
   }
 }
 
-/// Find the cursor index that maps to the given byte position.
-///
-/// # Notes
-/// As is expected for a cursor, this function effectively ignored
-/// control character sequences.
-fn cursor_index(string: &str, byte_position: usize) -> usize {
+
+/// Find the character index that maps to the given byte position.
+fn char_index(string: &str, byte_idx: usize) -> usize {
   let extended = true;
   string
     .grapheme_indices(extended)
     .map_while(|(idx, grapheme)| {
-      if byte_position >= idx + grapheme.len() {
-        Some(grapheme.width())
+      if byte_idx >= idx + grapheme.len() {
+        Some(())
       } else {
         None
       }
     })
-    .sum()
+    .count()
+}
+
+
+/// Find the cursor index that maps to the given byte position.
+fn cursor_index(string: &str, byte_idx: usize) -> Cursor {
+  let extended = true;
+  let width = string
+    .grapheme_indices(extended)
+    .map_while(|(idx, grapheme)| {
+      if byte_idx >= idx + grapheme.len() {
+        Some(grapheme.display_width())
+      } else {
+        None
+      }
+    })
+    .reduce(Width::add);
+
+  Cursor::at_start() + width.unwrap_or(Width::from(0))
 }
 
 
 /// Clip a string at `max_width` characters, at a proper character
 /// boundary.
-pub(crate) fn clip(string: &str, max_width: usize) -> &str {
+pub(crate) fn clip(string: &str, max_width: Width) -> &str {
   let extended = true;
-  let result =
-    string
-      .grapheme_indices(extended)
-      .try_fold(0, |mut total_width, (byte_idx, grapheme)| {
-        total_width += grapheme.width();
-        if total_width > max_width {
-          ControlFlow::Break(byte_idx)
-        } else {
-          ControlFlow::Continue(total_width)
-        }
-      });
+  let result = string.grapheme_indices(extended).try_fold(
+    Width::from(0),
+    |mut total_width, (byte_idx, grapheme)| {
+      total_width += grapheme.display_width();
+      if total_width > max_width {
+        ControlFlow::Break(byte_idx)
+      } else {
+        ControlFlow::Continue(total_width)
+      }
+    },
+  );
 
   match result {
     ControlFlow::Break(byte_idx) => &string[..byte_idx],
@@ -101,7 +252,7 @@ impl Text {
   /// Retrieve a sub-string of the text.
   pub fn substr<R>(&self, range: R) -> &str
   where
-    R: RangeBounds<usize>,
+    R: RangeBounds<Cursor>,
   {
     fn get(text: &str, range: impl SliceIndex<str, Output = str>) -> &str {
       text.get(range).unwrap_or("")
@@ -112,25 +263,25 @@ impl Text {
 
     match (start, end) {
       (Included(start), Unbounded) => {
-        let range = byte_index(&self.text, *start)..;
+        let range = cursor_byte_index(&self.text, *start)..;
         get(&self.text, range)
       },
       (Included(start), Included(end)) => {
-        let range = byte_index(&self.text, *start)..=byte_index(&self.text, *end);
+        let range = cursor_byte_index(&self.text, *start)..=cursor_byte_index(&self.text, *end);
         get(&self.text, range)
       },
       (Included(start), Excluded(end)) => {
-        let range = byte_index(&self.text, *start)..byte_index(&self.text, *end);
+        let range = cursor_byte_index(&self.text, *start)..cursor_byte_index(&self.text, *end);
         get(&self.text, range)
       },
       (Unbounded, Unbounded) => &self.text,
       (Unbounded, Included(end)) => {
-        let end = byte_index(&self.text, *end);
+        let end = cursor_byte_index(&self.text, *end);
         let range = ..=min(self.text.len().saturating_sub(1), end);
         get(&self.text, range)
       },
       (Unbounded, Excluded(end)) => {
-        let range = ..byte_index(&self.text, *end);
+        let range = ..cursor_byte_index(&self.text, *end);
         get(&self.text, range)
       },
       _ => unimplemented!(),
@@ -168,7 +319,7 @@ pub struct EditableText {
   /// The text.
   text: Text,
   /// The "character" index of the cursor.
-  cursor: usize,
+  char_idx: usize,
 }
 
 #[allow(unused)]
@@ -182,29 +333,41 @@ impl EditableText {
     Self {
       text: Text::from_string(text),
       // An index of zero is always valid, even if `text` was empty.
-      cursor: 0,
+      char_idx: 0,
     }
+  }
+
+  /// Retrieve a [`Cursor`] object pointing at the very first character
+  /// in the text (or, if the text is empty, past the last one).
+  pub fn cursor_start(&self) -> Cursor {
+    Cursor::at_start()
+  }
+
+  /// Retrieve a [`Cursor`] object pointing past the last character of
+  /// the text.
+  pub fn cursor_end(&self) -> Cursor {
+    cursor_index(&self.text.text, self.text.text.len())
   }
 
   /// Select the first character.
   pub fn move_start(&mut self) {
-    self.cursor = 0;
+    self.char_idx = 0;
   }
 
   /// Move the cursor to the end of the text, i.e., past the
   /// last character.
   pub fn move_end(&mut self) {
-    self.cursor = self.char_count();
+    self.char_idx = self.char_count();
   }
 
   /// Select the next character, if any.
   pub fn move_next(&mut self) {
-    self.cursor = min(self.cursor + 1, self.char_count());
+    self.char_idx = min(self.char_idx + 1, self.char_count());
   }
 
   /// Select the previous character, if any.
   pub fn move_prev(&mut self) {
-    self.cursor = min(self.cursor.saturating_sub(1), self.char_count());
+    self.char_idx = min(self.char_idx.saturating_sub(1), self.char_count());
   }
 
   /// Insert a character into the text at the current cursor position.
@@ -215,43 +378,44 @@ impl EditableText {
   /// A [`char`] is enough given the current set of clients we have,
   /// though.
   pub fn insert_char(&mut self, c: char) {
-    let byte_index = byte_index(&self.text.text, self.cursor);
+    let byte_index = char_byte_index(&self.text.text, self.char_idx);
     let () = self.text.text.insert(byte_index, c);
-    self.cursor = min(self.cursor + 1, self.char_count());
+    let () = self.move_next();
   }
 
   /// Remove the currently selected character from the text.
   pub fn remove_char(&mut self) {
-    if self.cursor >= self.char_count() {
+    if self.char_idx >= self.char_count() {
       return
     }
 
-    let byte_idx_start = byte_index(&self.text.text, self.cursor);
-    let byte_idx_end = byte_index(&self.text.text, self.cursor + 1);
+    let byte_idx_start = char_byte_index(&self.text.text, self.char_idx);
+    let byte_idx_end = char_byte_index(&self.text.text, self.char_idx + 1);
 
     let () = self
       .text
       .text
       .replace_range(byte_idx_start..byte_idx_end, "");
-    self.cursor = min(self.cursor, self.char_count());
+    self.char_idx = min(self.char_idx, self.char_count());
   }
 
   /// Retrieve the current cursor index.
   #[inline]
-  pub fn cursor(&self) -> usize {
-    self.cursor
+  pub fn cursor(&self) -> Cursor {
+    let byte_idx = char_byte_index(&self.text.text, self.char_idx);
+    cursor_index(&self.text.text, byte_idx)
   }
 
   /// Retrieve the current cursor position expressed as a byte index.
   #[inline]
   pub fn cursor_byte_index(&self) -> usize {
-    byte_index(&self.text.text, self.cursor)
+    char_byte_index(&self.text.text, self.char_idx)
   }
 
   /// Select a character based on its byte index.
   #[inline]
   pub fn set_cursor_byte_index(&mut self, byte_index: usize) {
-    self.cursor = cursor_index(&self.text.text, byte_index);
+    self.char_idx = char_index(&self.text.text, byte_index);
   }
 
   /// Convert the object into a `String`, discarding any cursor
@@ -284,105 +448,108 @@ mod tests {
   use super::*;
 
 
+  /// A *test-only* helper for quick [`Cursor`] creation.
+  fn c(cursor: usize) -> Cursor {
+    Cursor(cursor)
+  }
+
+  /// A *test-only* helper for quick [`Width`] creation.
+  fn w(cursor: usize) -> Width {
+    Width(cursor)
+  }
+
   /// Check that our byte indexing works as it should.
   #[test]
   fn byte_indexing() {
     let s = "";
-    assert_eq!(byte_index(s, 0), 0);
-    assert_eq!(byte_index(s, 1), 0);
+    assert_eq!(cursor_byte_index(s, c(0)), 0);
+    assert_eq!(cursor_byte_index(s, c(1)), 0);
 
     let s = "s";
-    assert_eq!(byte_index(s, 0), 0);
-    assert_eq!(byte_index(s, 1), 1);
-    assert_eq!(byte_index(s, 2), 1);
+    assert_eq!(cursor_byte_index(s, c(0)), 0);
+    assert_eq!(cursor_byte_index(s, c(1)), 1);
+    assert_eq!(cursor_byte_index(s, c(2)), 1);
 
     let s = "foobar";
-    assert_eq!(byte_index(s, 0), 0);
-    assert_eq!(byte_index(s, 1), 1);
-    assert_eq!(byte_index(s, 5), 5);
-    assert_eq!(byte_index(s, 6), 6);
-    assert_eq!(byte_index(s, 7), 6);
+    assert_eq!(cursor_byte_index(s, c(0)), 0);
+    assert_eq!(cursor_byte_index(s, c(1)), 1);
+    assert_eq!(cursor_byte_index(s, c(5)), 5);
+    assert_eq!(cursor_byte_index(s, c(6)), 6);
+    assert_eq!(cursor_byte_index(s, c(7)), 6);
 
     let s = "⚠️attn⚠️";
-    assert_eq!(byte_index(s, 0), 0);
-    assert_eq!(byte_index(s, 1), 6);
-    assert_eq!(byte_index(s, 2), 7);
-    assert_eq!(byte_index(s, 3), 8);
-    assert_eq!(byte_index(s, 5), 10);
-    assert_eq!(byte_index(s, 6), 16);
-    assert_eq!(byte_index(s, 7), 16);
+    assert_eq!(cursor_byte_index(s, c(0)), 0);
+    assert_eq!(cursor_byte_index(s, c(1)), 6);
+    assert_eq!(cursor_byte_index(s, c(2)), 7);
+    assert_eq!(cursor_byte_index(s, c(3)), 8);
+    assert_eq!(cursor_byte_index(s, c(5)), 10);
+    assert_eq!(cursor_byte_index(s, c(6)), 16);
+    assert_eq!(cursor_byte_index(s, c(7)), 16);
 
     let s = "a｜b";
-    assert_eq!(byte_index(s, 0), 0);
-    assert_eq!(byte_index(s, 1), 1);
-    assert_eq!(byte_index(s, 2), 4);
-    assert_eq!(byte_index(s, 3), 5);
-    assert_eq!(byte_index(s, 4), 5);
-    assert_eq!(byte_index(s, 5), 5);
-
-    let s = "a\nb";
-    assert_eq!(byte_index(s, 0), 0);
-    assert_eq!(byte_index(s, 1), 1);
-    assert_eq!(byte_index(s, 2), 2);
-    assert_eq!(byte_index(s, 3), 3);
-    assert_eq!(byte_index(s, 4), 3);
-    assert_eq!(byte_index(s, 5), 3);
+    assert_eq!(cursor_byte_index(s, c(0)), 0);
+    assert_eq!(cursor_byte_index(s, c(1)), 1);
+    assert_eq!(cursor_byte_index(s, c(2)), 4);
+    assert_eq!(cursor_byte_index(s, c(3)), 4);
+    assert_eq!(cursor_byte_index(s, c(4)), 5);
+    assert_eq!(cursor_byte_index(s, c(5)), 5);
+    assert_eq!(cursor_byte_index(s, c(6)), 5);
   }
 
   /// Check that our cursor indexing works as it should.
   #[test]
   fn cursor_indexing() {
     let s = "";
-    assert_eq!(cursor_index(s, 0), 0);
-    assert_eq!(cursor_index(s, 1), 0);
+    assert_eq!(cursor_index(s, 0), c(0));
+    assert_eq!(cursor_index(s, 1), c(0));
 
     let s = "s";
-    assert_eq!(cursor_index(s, 0), 0);
-    assert_eq!(cursor_index(s, 1), 1);
-    assert_eq!(cursor_index(s, 2), 1);
+    assert_eq!(cursor_index(s, 0), c(0));
+    assert_eq!(cursor_index(s, 1), c(1));
+    assert_eq!(cursor_index(s, 2), c(1));
 
     let s = "foobar";
-    assert_eq!(cursor_index(s, 0), 0);
-    assert_eq!(cursor_index(s, 1), 1);
-    assert_eq!(cursor_index(s, 5), 5);
-    assert_eq!(cursor_index(s, 6), 6);
-    assert_eq!(cursor_index(s, 7), 6);
+    assert_eq!(cursor_index(s, 0), c(0));
+    assert_eq!(cursor_index(s, 1), c(1));
+    assert_eq!(cursor_index(s, 5), c(5));
+    assert_eq!(cursor_index(s, 6), c(6));
+    assert_eq!(cursor_index(s, 7), c(6));
 
     let s = "⚠️attn⚠️";
-    assert_eq!(cursor_index(s, 0), 0);
-    assert_eq!(cursor_index(s, 1), 0);
-    assert_eq!(cursor_index(s, 6), 1);
-    assert_eq!(cursor_index(s, 7), 2);
+    assert_eq!(cursor_index(s, 0), c(0));
+    assert_eq!(cursor_index(s, 1), c(0));
+    assert_eq!(cursor_index(s, 6), c(1));
+    assert_eq!(cursor_index(s, 7), c(2));
 
     let s = "a｜b";
-    assert_eq!(cursor_index(s, 0), 0);
-    assert_eq!(cursor_index(s, 1), 1);
-    assert_eq!(cursor_index(s, 2), 1);
-    assert_eq!(cursor_index(s, 3), 1);
-    assert_eq!(cursor_index(s, 4), 3);
-    assert_eq!(cursor_index(s, 5), 4);
-    assert_eq!(cursor_index(s, 6), 4);
+    assert_eq!(cursor_index(s, 0), c(0));
+    assert_eq!(cursor_index(s, 1), c(1));
+    assert_eq!(cursor_index(s, 2), c(1));
+    assert_eq!(cursor_index(s, 3), c(1));
+    assert_eq!(cursor_index(s, 4), c(3));
+    assert_eq!(cursor_index(s, 5), c(4));
+    assert_eq!(cursor_index(s, 6), c(4));
   }
 
   /// Check that we can correctly "clip" a string to a maximum width.
   #[test]
   fn string_clipping() {
-    assert_eq!(clip("", 0), "");
-    assert_eq!(clip("a", 0), "");
-    assert_eq!(clip("ab", 0), "");
+    assert_eq!(clip("", w(0)), "");
+    assert_eq!(clip("a", w(0)), "");
+    assert_eq!(clip("ab", w(0)), "");
 
-    assert_eq!(clip("", 1), "");
-    assert_eq!(clip("a", 1), "a");
-    assert_eq!(clip("ab", 1), "a");
+    assert_eq!(clip("", w(1)), "");
+    assert_eq!(clip("a", w(1)), "a");
+    assert_eq!(clip("ab", w(1)), "a");
 
-    assert_eq!(clip("⚠️attn⚠️", 0), "");
-    assert_eq!(clip("⚠️attn⚠️", 1), "⚠️");
-    assert_eq!(clip("⚠️attn⚠️", 2), "⚠️a");
+    assert_eq!(clip("⚠️attn⚠️", w(0)), "");
+    assert_eq!(clip("⚠️attn⚠️", w(1)), "⚠️");
+    assert_eq!(clip("⚠️attn⚠️", w(2)), "⚠️a");
 
-    assert_eq!(clip("｜a｜b｜", 0), "");
-    assert_eq!(clip("｜a｜b｜", 1), "");
-    assert_eq!(clip("｜a｜b｜", 2), "｜");
-    assert_eq!(clip("｜a｜b｜", 3), "｜a");
+    assert_eq!(clip("｜a｜b｜", w(0)), "");
+    assert_eq!(clip("｜a｜b｜", w(1)), "");
+    assert_eq!(clip("｜a｜b｜", w(2)), "｜");
+    assert_eq!(clip("｜a｜b｜", w(3)), "｜a");
   }
 
   /// Check that `EditableText::substr` behaves as it should.
@@ -390,41 +557,41 @@ mod tests {
   fn text_substr() {
     let text = Text::default();
     assert_eq!(text.substr(..), "");
-    assert_eq!(text.substr(0..), "");
-    assert_eq!(text.substr(1..), "");
-    assert_eq!(text.substr(2..), "");
+    assert_eq!(text.substr(c(0)..), "");
+    assert_eq!(text.substr(c(1)..), "");
+    assert_eq!(text.substr(c(2)..), "");
 
     let text = Text::from_string("s");
     assert_eq!(text.substr(..), "s");
-    assert_eq!(text.substr(0..), "s");
-    assert_eq!(text.substr(1..), "");
-    assert_eq!(text.substr(2..), "");
+    assert_eq!(text.substr(c(0)..), "s");
+    assert_eq!(text.substr(c(1)..), "");
+    assert_eq!(text.substr(c(2)..), "");
 
     let text = Text::from_string("string");
     assert_eq!(text.substr(..), "string");
-    assert_eq!(text.substr(0..), "string");
-    assert_eq!(text.substr(1..), "tring");
-    assert_eq!(text.substr(2..), "ring");
-    assert_eq!(text.substr(5..), "g");
-    assert_eq!(text.substr(6..), "");
-    assert_eq!(text.substr(..0), "");
-    assert_eq!(text.substr(..1), "s");
-    assert_eq!(text.substr(..2), "st");
-    assert_eq!(text.substr(..5), "strin");
-    assert_eq!(text.substr(..6), "string");
-    assert_eq!(text.substr(..7), "string");
-    assert_eq!(text.substr(..8), "string");
-    assert_eq!(text.substr(..=0), "s");
-    assert_eq!(text.substr(..=1), "st");
-    assert_eq!(text.substr(..=2), "str");
-    assert_eq!(text.substr(..=5), "string");
-    assert_eq!(text.substr(..=6), "string");
-    assert_eq!(text.substr(0..0), "");
-    assert_eq!(text.substr(0..1), "s");
-    assert_eq!(text.substr(0..=1), "st");
-    assert_eq!(text.substr(1..1), "");
-    assert_eq!(text.substr(1..2), "t");
-    assert_eq!(text.substr(1..=2), "tr");
+    assert_eq!(text.substr(c(0)..), "string");
+    assert_eq!(text.substr(c(1)..), "tring");
+    assert_eq!(text.substr(c(2)..), "ring");
+    assert_eq!(text.substr(c(5)..), "g");
+    assert_eq!(text.substr(c(6)..), "");
+    assert_eq!(text.substr(..c(0)), "");
+    assert_eq!(text.substr(..c(1)), "s");
+    assert_eq!(text.substr(..c(2)), "st");
+    assert_eq!(text.substr(..c(5)), "strin");
+    assert_eq!(text.substr(..c(6)), "string");
+    assert_eq!(text.substr(..c(7)), "string");
+    assert_eq!(text.substr(..c(8)), "string");
+    assert_eq!(text.substr(..=c(0)), "s");
+    assert_eq!(text.substr(..=c(1)), "st");
+    assert_eq!(text.substr(..=c(2)), "str");
+    assert_eq!(text.substr(..=c(5)), "string");
+    assert_eq!(text.substr(..=c(6)), "string");
+    assert_eq!(text.substr(c(0)..c(0)), "");
+    assert_eq!(text.substr(c(0)..c(1)), "s");
+    assert_eq!(text.substr(c(0)..=c(1)), "st");
+    assert_eq!(text.substr(c(1)..c(1)), "");
+    assert_eq!(text.substr(c(1)..c(2)), "t");
+    assert_eq!(text.substr(c(1)..=c(2)), "tr");
   }
 
   /// Check that `Text::len` works as expected.
