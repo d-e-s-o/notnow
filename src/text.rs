@@ -139,7 +139,7 @@ impl Text {
 
   /// Retrieve the number of characters in the text.
   #[inline]
-  pub fn len(&self) -> usize {
+  pub fn char_count(&self) -> usize {
     self.text.graphemes(true).count()
   }
 
@@ -153,15 +153,6 @@ impl Text {
   #[inline]
   pub fn into_string(self) -> String {
     self.text
-  }
-}
-
-impl Deref for Text {
-  type Target = str;
-
-  #[inline]
-  fn deref(&self) -> &Self::Target {
-    self.text.as_str()
   }
 }
 
@@ -203,17 +194,17 @@ impl EditableText {
   /// Move the cursor to the end of the text, i.e., past the
   /// last character.
   pub fn move_end(&mut self) {
-    self.cursor = self.len();
+    self.cursor = self.char_count();
   }
 
   /// Select the next character, if any.
   pub fn move_next(&mut self) {
-    self.cursor = min(self.cursor + 1, self.len());
+    self.cursor = min(self.cursor + 1, self.char_count());
   }
 
   /// Select the previous character, if any.
   pub fn move_prev(&mut self) {
-    self.cursor = min(self.cursor.saturating_sub(1), self.len());
+    self.cursor = min(self.cursor.saturating_sub(1), self.char_count());
   }
 
   /// Insert a character into the text at the current cursor position.
@@ -224,25 +215,25 @@ impl EditableText {
   /// A [`char`] is enough given the current set of clients we have,
   /// though.
   pub fn insert_char(&mut self, c: char) {
-    let byte_index = byte_index(&self.text, self.cursor);
+    let byte_index = byte_index(&self.text.text, self.cursor);
     let () = self.text.text.insert(byte_index, c);
-    self.cursor = min(self.cursor + 1, self.len());
+    self.cursor = min(self.cursor + 1, self.char_count());
   }
 
   /// Remove the currently selected character from the text.
   pub fn remove_char(&mut self) {
-    if self.cursor >= self.len() {
+    if self.cursor >= self.char_count() {
       return
     }
 
-    let byte_idx_start = byte_index(&self.text, self.cursor);
-    let byte_idx_end = byte_index(&self.text, self.cursor + 1);
+    let byte_idx_start = byte_index(&self.text.text, self.cursor);
+    let byte_idx_end = byte_index(&self.text.text, self.cursor + 1);
 
     let () = self
       .text
       .text
       .replace_range(byte_idx_start..byte_idx_end, "");
-    self.cursor = min(self.cursor, self.len());
+    self.cursor = min(self.cursor, self.char_count());
   }
 
   /// Retrieve the current cursor index.
@@ -254,13 +245,13 @@ impl EditableText {
   /// Retrieve the current cursor position expressed as a byte index.
   #[inline]
   pub fn cursor_byte_index(&self) -> usize {
-    byte_index(&self.text, self.cursor)
+    byte_index(&self.text.text, self.cursor)
   }
 
   /// Select a character based on its byte index.
   #[inline]
   pub fn set_cursor_byte_index(&mut self, byte_index: usize) {
-    self.cursor = cursor_index(&self.text, byte_index);
+    self.cursor = cursor_index(&self.text.text, byte_index);
   }
 
   /// Convert the object into a `String`, discarding any cursor
@@ -440,10 +431,10 @@ mod tests {
   #[test]
   fn text_length() {
     let text = Text::default();
-    assert_eq!(text.len(), 0);
+    assert_eq!(text.char_count(), 0);
 
     let text = Text::from_string("⚠️attn⚠️");
-    assert_eq!(text.len(), 6);
+    assert_eq!(text.char_count(), 6);
   }
 
   /// Make sure that we can insert characters into a [`EditableText`]

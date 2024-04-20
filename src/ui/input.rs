@@ -84,7 +84,7 @@ impl InputText {
         }
       },
       Key::Delete => {
-        if self.text.cursor() < self.text.len() {
+        if self.text.cursor() < self.text.char_count() {
           let () = self.text.remove_char();
           InputResult::Updated
         } else {
@@ -100,7 +100,7 @@ impl InputText {
         }
       },
       Key::Right => {
-        if self.text.cursor() < self.text.len() {
+        if self.text.cursor() < self.text.char_count() {
           let () = self.text.move_next();
           InputResult::Updated
         } else {
@@ -116,7 +116,7 @@ impl InputText {
         }
       },
       Key::End => {
-        if self.text.cursor() != self.text.len() {
+        if self.text.cursor() != self.text.char_count() {
           let () = self.text.move_end();
           InputResult::Updated
         } else {
