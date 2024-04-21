@@ -56,6 +56,23 @@ impl AddAssign<Width> for Width {
   }
 }
 
+impl Sub<Width> for Width {
+  type Output = Width;
+
+  #[inline]
+  fn sub(mut self, other: Width) -> Self::Output {
+    self -= other;
+    self
+  }
+}
+
+impl SubAssign<Width> for Width {
+  #[inline]
+  fn sub_assign(&mut self, other: Width) {
+    self.0 = self.0.saturating_sub(other.0);
+  }
+}
+
 
 /// A trait for conveniently querying the width of an entity.
 pub trait DisplayWidth {
@@ -231,6 +248,81 @@ pub(crate) fn clip(string: &str, max_width: Width) -> &str {
     ControlFlow::Break(byte_idx) => &string[..byte_idx],
     ControlFlow::Continue(..) => string,
   }
+}
+
+
+/// Wrap `string` to at most [`max_width`] characters, at a word
+/// boundary.
+///
+/// # Returns
+/// This function returns a tuple of:
+/// - the potentially split input string
+/// - the optional remainder of `string` that did not fit into
+///   `max_width`
+///
+/// # Notes
+/// - if `string` contains only a single word that exceeds
+///   [`max_width`], the returned string will be split at a non-word
+///   boundary to honor the width
+/// - newlines are not treated any specially; in all likelihood you want
+///   to consider newline *before* attempting any kind of wrapping
+/// - only a single wrap is performed; the remainder may exceed
+///   [`max_width`] characters
+pub(crate) fn wrap(string: &str, max_width: Width) -> (&str, Option<&str>) {
+  fn report(string: &str, byte_idx: usize) -> (&str, Option<&str>) {
+    if byte_idx == string.len() {
+      (string, None)
+    } else {
+      let (string, remainder) = string.split_at(byte_idx);
+      (string, Some(remainder))
+    }
+  }
+
+  debug_assert_ne!(max_width, Width::from(0));
+
+  let mut words = string.unicode_word_indices();
+  let result = words.try_fold(
+    (0, Width::from(0)),
+    |(last_byte_idx, last_total_width), (byte_idx, word)| {
+      let total_width = last_total_width + string[last_byte_idx..byte_idx].display_width();
+      if total_width > max_width {
+        ControlFlow::Break((last_byte_idx, last_total_width, byte_idx))
+      } else {
+        let word_width = word.display_width();
+        if total_width + word_width > max_width {
+          if last_byte_idx != 0 {
+            ControlFlow::Break((byte_idx, total_width, byte_idx))
+          } else {
+            ControlFlow::Break((byte_idx, total_width, byte_idx + word.len()))
+          }
+        } else {
+          ControlFlow::Continue((byte_idx + word.len(), total_width + word_width))
+        }
+      }
+    },
+  );
+
+  let (last_byte_idx, last_total_width, byte_idx) = match result {
+    ControlFlow::Break((last_byte_idx, last_total_width, byte_idx)) => {
+      debug_assert!(
+        last_total_width <= max_width,
+        "{last_total_width:?} : {max_width:?}"
+      );
+      (last_byte_idx, last_total_width, byte_idx)
+    },
+    ControlFlow::Continue((byte_idx, total_width)) => {
+      debug_assert!(total_width <= max_width, "{total_width:?} : {max_width:?}");
+      // We ran out of words but haven't reached the width limit yet.
+      // That being said, we only iterated over actual words, but there
+      // may be additional non-word characters that we may have to cut
+      // off.
+      (byte_idx, total_width, string.len())
+    },
+  };
+
+  let non_words = &string[last_byte_idx..byte_idx];
+  let clipped = clip(non_words, max_width - last_total_width);
+  report(string, last_byte_idx + clipped.len())
 }
 
 
@@ -550,6 +642,82 @@ mod tests {
     assert_eq!(clip("｜a｜b｜", w(1)), "");
     assert_eq!(clip("｜a｜b｜", w(2)), "｜");
     assert_eq!(clip("｜a｜b｜", w(3)), "｜a");
+  }
+
+  #[test]
+  #[cfg(debug_assertions)]
+  #[should_panic(expected = "assertion `left != right` failed")]
+  fn line_wrapping_no_width() {
+    let s = "";
+    let (_string, _remainder) = wrap(s, w(0));
+  }
+
+  /// Check that we can wrap lines at word boundaries as expected.
+  #[test]
+  fn line_wrapping() {
+    let s = "";
+    assert_eq!(wrap(s, w(1)), ("", None));
+
+    let s = "two words";
+    assert_eq!(wrap(s, w(1)), ("t", Some("wo words")));
+    assert_eq!(wrap(s, w(2)), ("tw", Some("o words")));
+    assert_eq!(wrap(s, w(3)), ("two", Some(" words")));
+    assert_eq!(wrap(s, w(4)), ("two ", Some("words")));
+    assert_eq!(wrap(s, w(5)), ("two ", Some("words")));
+    assert_eq!(wrap(s, w(8)), ("two ", Some("words")));
+    assert_eq!(wrap(s, w(9)), ("two words", None));
+
+    let s = "two words ";
+    assert_eq!(wrap(s, w(1)), ("t", Some("wo words ")));
+    assert_eq!(wrap(s, w(2)), ("tw", Some("o words ")));
+    assert_eq!(wrap(s, w(3)), ("two", Some(" words ")));
+    assert_eq!(wrap(s, w(4)), ("two ", Some("words ")));
+    assert_eq!(wrap(s, w(5)), ("two ", Some("words ")));
+    assert_eq!(wrap(s, w(8)), ("two ", Some("words ")));
+    assert_eq!(wrap(s, w(9)), ("two words", Some(" ")));
+    assert_eq!(wrap(s, w(10)), ("two words ", None));
+
+    let s = "⚠️one⚠️";
+    assert_eq!(wrap(s, w(1)), ("⚠️", Some("one⚠️")));
+    assert_eq!(wrap(s, w(2)), ("⚠️o", Some("ne⚠️")));
+    assert_eq!(wrap(s, w(3)), ("⚠️on", Some("e⚠️")));
+    assert_eq!(wrap(s, w(4)), ("⚠️one", Some("⚠️")));
+    assert_eq!(wrap(s, w(5)), ("⚠️one⚠️", None));
+
+    let s = "one             ";
+    assert_eq!(wrap(s, w(1)), ("o", Some("ne             ")));
+    assert_eq!(wrap(s, w(2)), ("on", Some("e             ")));
+    assert_eq!(wrap(s, w(3)), ("one", Some("             ")));
+    assert_eq!(wrap(s, w(4)), ("one ", Some("            ")));
+    assert_eq!(wrap(s, w(5)), ("one  ", Some("           ")));
+    assert_eq!(wrap(s, w(15)), ("one            ", Some(" ")));
+    assert_eq!(wrap(s, w(16)), ("one             ", None));
+
+    let s = "⚠️two⚠️ words⚠️";
+    assert_eq!(wrap(s, w(1)), ("⚠️", Some("two⚠️ words⚠️")));
+    assert_eq!(wrap(s, w(2)), ("⚠️t", Some("wo⚠️ words⚠️")));
+    assert_eq!(wrap(s, w(3)), ("⚠️tw", Some("o⚠️ words⚠️")));
+    assert_eq!(wrap(s, w(4)), ("⚠️two", Some("⚠️ words⚠️")));
+    assert_eq!(wrap(s, w(11)), ("⚠️two⚠️ words", Some("⚠️")));
+    assert_eq!(wrap(s, w(12)), ("⚠️two⚠️ words⚠️", None));
+
+    let s = "⚠️two⚠️ words⚠️ ";
+    assert_eq!(wrap(s, w(1)), ("⚠️", Some("two⚠️ words⚠️ ")));
+    assert_eq!(wrap(s, w(2)), ("⚠️t", Some("wo⚠️ words⚠️ ")));
+    assert_eq!(wrap(s, w(3)), ("⚠️tw", Some("o⚠️ words⚠️ ")));
+    assert_eq!(wrap(s, w(4)), ("⚠️two", Some("⚠️ words⚠️ ")));
+    assert_eq!(wrap(s, w(11)), ("⚠️two⚠️ words", Some("⚠️ ")));
+    assert_eq!(wrap(s, w(12)), ("⚠️two⚠️ words⚠️", Some(" ")));
+    assert_eq!(wrap(s, w(13)), ("⚠️two⚠️ words⚠️ ", None));
+
+    let s = "two｜words";
+    assert_eq!(wrap(s, w(1)), ("t", Some("wo｜words")));
+    assert_eq!(wrap(s, w(2)), ("tw", Some("o｜words")));
+    assert_eq!(wrap(s, w(3)), ("two", Some("｜words")));
+    assert_eq!(wrap(s, w(4)), ("two", Some("｜words")));
+    assert_eq!(wrap(s, w(5)), ("two｜", Some("words")));
+    assert_eq!(wrap(s, w(9)), ("two｜", Some("words")));
+    assert_eq!(wrap(s, w(10)), ("two｜words", None));
   }
 
   /// Check that `EditableText::substr` behaves as it should.
