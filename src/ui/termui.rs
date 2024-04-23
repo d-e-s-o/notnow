@@ -26,8 +26,6 @@ use crate::tasks::Task;
 use crate::view::View;
 
 use super::config::Config;
-use super::dialog::Dialog;
-use super::dialog::DialogData;
 use super::event::Event;
 use super::event::Key;
 use super::in_out::InOut;
@@ -39,6 +37,8 @@ use super::state::State;
 use super::tab_bar::TabBar;
 use super::tab_bar::TabBarData;
 use super::tab_bar::TabState;
+use super::tag_dialog::TagDialog;
+use super::tag_dialog::TagDialogData;
 
 
 /// The character used for quitting the program.
@@ -120,13 +120,13 @@ impl TermUi {
     //       one on-the-fly. But doing so will also require support for
     //       destroying widgets, which is something that the `gui` crate
     //       does not support yet.
-    let dialog = cap.add_widget(
+    let tag_dialog = cap.add_widget(
       id,
-      Box::new(|| Box::new(DialogData::new())),
+      Box::new(|| Box::new(TagDialogData::new())),
       Box::new(|id, cap| {
-        let dialog = Dialog::new(id);
+        let tag_dialog = TagDialog::new(id);
         cap.hide(id);
-        Box::new(dialog)
+        Box::new(tag_dialog)
       }),
     );
     let in_out = cap.add_widget(
@@ -144,7 +144,7 @@ impl TermUi {
         Box::new(TabBar::new(
           id,
           cap,
-          dialog,
+          tag_dialog,
           in_out,
           tasks,
           views,

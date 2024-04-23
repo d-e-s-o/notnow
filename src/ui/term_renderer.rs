@@ -33,11 +33,11 @@ use crate::colors::Colors;
 use crate::text;
 use crate::text::Width;
 
-use super::dialog::Dialog;
-use super::dialog::SetUnsetTag;
 use super::in_out::InOut;
 use super::in_out::InOutArea;
 use super::tab_bar::TabBar;
+use super::tag_dialog::SetUnsetTag;
+use super::tag_dialog::TagDialog;
 use super::task_list_box::TaskListBox;
 use super::termui::TermUi;
 
@@ -46,10 +46,10 @@ const TASK_LIST_MARGIN_Y: u16 = 2;
 const TASK_SPACE: u16 = 2;
 const TAG_SPACE: u16 = 2;
 const TAB_TITLE_WIDTH: u16 = 30;
-const DIALOG_MARGIN_X: u16 = 2;
-const DIALOG_MARGIN_Y: u16 = 1;
-const DIALOG_MIN_W: u16 = 40;
-const DIALOG_MIN_H: u16 = 20;
+const TAG_DIALOG_MARGIN_X: u16 = 2;
+const TAG_DIALOG_MARGIN_Y: u16 = 1;
+const TAG_DIALOG_MIN_W: u16 = 40;
+const TAG_DIALOG_MIN_H: u16 = 20;
 
 const SAVED_TEXT: &str = " Saved ";
 const SEARCH_TEXT: &str = " Search ";
@@ -221,7 +221,7 @@ fn displayable_tasks(bbox: BBox) -> usize {
 
 /// Retrieve the number of tags that fit in the given `BBox`.
 fn displayable_tags(bbox: BBox) -> usize {
-  ((bbox.h.saturating_sub(2 * DIALOG_MARGIN_Y)) / TAG_SPACE) as usize
+  ((bbox.h.saturating_sub(2 * TAG_DIALOG_MARGIN_Y)) / TAG_SPACE) as usize
 }
 
 /// Retrieve the number of tabs that fit in the given `BBox`.
@@ -413,17 +413,21 @@ where
     Ok(bbox)
   }
 
-  /// Fill a line of the dialog.
-  fn fill_dialog_line(&self, x: u16, y: u16, w: u16) -> Result<()> {
+  /// Fill a line of the tag dialog.
+  fn fill_tag_dialog_line(&self, x: u16, y: u16, w: u16) -> Result<()> {
     (x..w).try_for_each(|x| {
-      self
-        .writer
-        .write(x, y, self.colors.dialog_fg, self.colors.dialog_bg, " ")
+      self.writer.write(
+        x,
+        y,
+        self.colors.tag_dialog_fg,
+        self.colors.tag_dialog_bg,
+        " ",
+      )
     })
   }
 
   /// Render a full line of the dialog, containing a tag.
-  fn render_dialog_tag_line(
+  fn render_tag_dialog_tag_line(
     &self,
     tag: &SetUnsetTag,
     y: u16,
@@ -434,71 +438,71 @@ where
     let (state, state_fg, state_bg) = if set {
       (
         "[X]",
-        self.colors.dialog_tag_set_fg,
-        self.colors.dialog_tag_set_bg,
+        self.colors.tag_dialog_tag_set_fg,
+        self.colors.tag_dialog_tag_set_bg,
       )
     } else {
       (
         "[ ]",
-        self.colors.dialog_tag_unset_fg,
-        self.colors.dialog_tag_unset_bg,
+        self.colors.tag_dialog_tag_unset_fg,
+        self.colors.tag_dialog_tag_unset_bg,
       )
     };
 
     let (tag_fg, tag_bg) = if selected {
       (
-        self.colors.dialog_selected_tag_fg,
-        self.colors.dialog_selected_tag_bg,
+        self.colors.tag_dialog_selected_tag_fg,
+        self.colors.tag_dialog_selected_tag_bg,
       )
     } else {
-      (self.colors.dialog_fg, self.colors.dialog_bg)
+      (self.colors.tag_dialog_fg, self.colors.tag_dialog_bg)
     };
 
     let mut x = 0;
     // Fill initial margin before state indication.
-    self.fill_dialog_line(x, y, DIALOG_MARGIN_X)?;
-    x += DIALOG_MARGIN_X;
+    self.fill_tag_dialog_line(x, y, TAG_DIALOG_MARGIN_X)?;
+    x += TAG_DIALOG_MARGIN_X;
 
     self.writer.write(x, y, state_fg, state_bg, state)?;
     x += state.len() as u16;
 
-    self.fill_dialog_line(x, y, x + 1)?;
+    self.fill_tag_dialog_line(x, y, x + 1)?;
     x += 1;
 
     self.writer.write(x, y, tag_fg, tag_bg, tag.name())?;
 
     // Fill the remainder of the line.
-    self.fill_dialog_line(x + tag.name().len() as u16, y, w)?;
+    self.fill_tag_dialog_line(x + tag.name().len() as u16, y, w)?;
     Ok(())
   }
 
-  /// Render a `Dialog`.
-  fn render_dialog(&self, dialog: &Dialog, cap: &dyn Cap, bbox: BBox) -> Result<BBox> {
+  /// Render a `TagDialog`.
+  fn render_tag_dialog(&self, tag_dialog: &TagDialog, cap: &dyn Cap, bbox: BBox) -> Result<BBox> {
     let mut map = self.data.borrow_mut();
-    let data = map.entry(dialog.id()).or_default();
+    let data = map.entry(tag_dialog.id()).or_default();
 
     let count = displayable_tags(bbox);
-    let selection = dialog.selection(cap);
+    let selection = tag_dialog.selection(cap);
     let offset = window_start(data.offset, count, selection);
 
-    let mut tags = dialog.tags(cap).iter().enumerate().skip(offset);
+    let mut tags = tag_dialog.tags(cap).iter().enumerate().skip(offset);
 
     (0..bbox.h).try_for_each(|y| {
-      if y < DIALOG_MARGIN_Y
-        || y >= bbox.h - DIALOG_MARGIN_Y
-        || (y - DIALOG_MARGIN_Y) % TAG_SPACE != 0
+      if y < TAG_DIALOG_MARGIN_Y
+        || y >= bbox.h - TAG_DIALOG_MARGIN_Y
+        || (y - TAG_DIALOG_MARGIN_Y) % TAG_SPACE != 0
       {
-        self.fill_dialog_line(0, y, bbox.w)
+        self.fill_tag_dialog_line(0, y, bbox.w)
       } else if let Some((i, tag)) = tags.next() {
-        self.render_dialog_tag_line(tag, y, bbox.w, i == selection)
+        self.render_tag_dialog_tag_line(tag, y, bbox.w, i == selection)
       } else {
-        self.fill_dialog_line(0, y, bbox.w)
+        self.fill_tag_dialog_line(0, y, bbox.w)
       }
     })?;
 
-    if cap.is_focused(dialog.id()) {
-      let x = DIALOG_MARGIN_X + 4;
-      let y = DIALOG_MARGIN_Y + (selection as u16 * TAG_SPACE);
+    if cap.is_focused(tag_dialog.id()) {
+      let x = TAG_DIALOG_MARGIN_X + 4;
+      let y = TAG_DIALOG_MARGIN_Y + (selection as u16 * TAG_SPACE);
       self.writer.goto(x, y)?;
     }
 
@@ -613,18 +617,18 @@ where
 
     let result = if let Some(ui) = widget.downcast_ref::<TermUi>() {
       self.render_term_ui(ui, bbox)
-    } else if let Some(dialog) = widget.downcast_ref::<Dialog>() {
+    } else if let Some(tag_dialog) = widget.downcast_ref::<TagDialog>() {
       // We want the dialog box displayed in the center and not filling
       // up the entire screen.
-      let w = max(DIALOG_MIN_W, bbox.w / 2);
-      let h = max(DIALOG_MIN_H, bbox.h / 2);
+      let w = max(TAG_DIALOG_MIN_W, bbox.w / 2);
+      let h = max(TAG_DIALOG_MIN_H, bbox.h / 2);
       let x = w / 2;
       let y = h / 2;
 
       let bbox = BBox { x, y, w, h };
       self.writer.restrict(bbox);
 
-      self.render_dialog(dialog, cap, bbox)
+      self.render_tag_dialog(tag_dialog, cap, bbox)
     } else if let Some(in_out) = widget.downcast_ref::<InOutArea>() {
       self.render_input_output(in_out, cap, bbox)
     } else if let Some(tab_bar) = widget.downcast_ref::<TabBar>() {

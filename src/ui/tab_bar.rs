@@ -193,7 +193,7 @@ impl TabBar {
   pub fn new(
     id: Id,
     cap: &mut dyn MutCap<Event, Message>,
-    dialog: Id,
+    tag_dialog: Id,
     in_out: Id,
     tasks: Rc<Tasks>,
     views: Vec<(View, Option<usize>)>,
@@ -216,7 +216,7 @@ impl TabBar {
           id,
           Box::new(|| Box::new(TaskListBoxData::new(tasks, view, toggle_tag))),
           Box::new(move |id, cap| {
-            Box::new(TaskListBox::new(id, cap, tab_bar, dialog, in_out, task))
+            Box::new(TaskListBox::new(id, cap, tab_bar, tag_dialog, in_out, task))
           }),
         );
 

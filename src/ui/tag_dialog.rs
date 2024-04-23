@@ -187,14 +187,14 @@ impl Selectable for Data {
 }
 
 
-/// The data associated with a `Dialog` widget.
+/// The data associated with a `TagDialog` widget.
 #[derive(Debug)]
-pub struct DialogData {
+pub struct TagDialogData {
   /// The "inner" data, set when the dialog is active.
   data: Option<Data>,
 }
 
-impl DialogData {
+impl TagDialogData {
   pub fn new() -> Self {
     Self { data: None }
   }
@@ -221,13 +221,13 @@ impl DialogData {
   }
 }
 
-impl Selectable for DialogData {
+impl Selectable for TagDialogData {
   fn selection_index(&self) -> isize {
     self
       .data
       .as_ref()
       .map(Selectable::selection_index)
-      .expect("dialog has no data set")
+      .expect("tag dialog has no data set")
   }
 
   fn set_selection_index(&mut self, selection: isize) {
@@ -235,7 +235,7 @@ impl Selectable for DialogData {
       .data
       .as_mut()
       .map(|data| data.set_selection_index(selection))
-      .expect("dialog has no data set")
+      .expect("tag dialog has no data set")
   }
 
   fn count(&self) -> usize {
@@ -243,7 +243,7 @@ impl Selectable for DialogData {
       .data
       .as_ref()
       .map(Selectable::count)
-      .expect("dialog has no data set")
+      .expect("tag dialog has no data set")
   }
 }
 
@@ -251,12 +251,12 @@ impl Selectable for DialogData {
 /// A modal dialog used for editing a task's tags.
 #[derive(Debug, Widget)]
 #[gui(Event = Event, Message = Message)]
-pub struct Dialog {
+pub struct TagDialog {
   id: Id,
 }
 
-impl Dialog {
-  /// Create a new `Dialog`.
+impl TagDialog {
+  /// Create a new `TagDialog`.
   pub fn new(id: Id) -> Self {
     Self { id }
   }
@@ -268,13 +268,13 @@ impl Dialog {
       return result
     }
 
-    let data = self.data_mut::<DialogData>(cap);
+    let data = self.data_mut::<TagDialogData>(cap);
     match key {
       Key::Esc | Key::Char('\n') | Key::Char('q') => {
         let widget = self.restore_focus(cap);
         cap.hide(self.id);
 
-        let data = self.data_mut::<DialogData>(cap);
+        let data = self.data_mut::<TagDialogData>(cap);
         let data = data.data.take();
 
         if key == Key::Char('\n') {
@@ -314,7 +314,7 @@ impl Dialog {
     key: Key,
   ) -> Option<Option<Message>> {
     let data = self
-      .data_mut::<DialogData>(cap)
+      .data_mut::<TagDialogData>(cap)
       .data
       .as_mut()
       .expect("dialog has no data set");
@@ -340,7 +340,7 @@ impl Dialog {
 
   /// Retrieve the list of set/unset tags.
   pub fn tags<'cap>(&self, cap: &'cap dyn Cap) -> &'cap [SetUnsetTag] {
-    let data = self.data::<DialogData>(cap);
+    let data = self.data::<TagDialogData>(cap);
     data
       .data
       .as_ref()
@@ -352,14 +352,14 @@ impl Dialog {
   ///
   /// The selection index indicates the currently selected tag.
   pub fn selection(&self, cap: &dyn Cap) -> usize {
-    let data = self.data::<DialogData>(cap);
+    let data = self.data::<TagDialogData>(cap);
     data.selection(0)
   }
 }
 
-impl Modal for Dialog {
+impl Modal for TagDialog {
   fn prev_focused(&self, cap: &dyn Cap) -> Option<Id> {
-    let data = self.data::<DialogData>(cap);
+    let data = self.data::<TagDialogData>(cap);
     data
       .data
       .as_ref()
@@ -368,7 +368,7 @@ impl Modal for Dialog {
   }
 
   fn set_prev_focused(&self, cap: &mut dyn MutCap<Event, Message>, focused: Option<Id>) {
-    let data = self.data_mut::<DialogData>(cap);
+    let data = self.data_mut::<TagDialogData>(cap);
     data
       .data
       .as_mut()
@@ -378,7 +378,7 @@ impl Modal for Dialog {
 }
 
 #[async_trait(?Send)]
-impl Handleable<Event, Message> for Dialog {
+impl Handleable<Event, Message> for TagDialog {
   /// Handle an event.
   async fn handle(&self, cap: &mut dyn MutCap<Event, Message>, event: Event) -> Option<Event> {
     match event {
@@ -391,7 +391,7 @@ impl Handleable<Event, Message> for Dialog {
   async fn react(&self, message: Message, cap: &mut dyn MutCap<Event, Message>) -> Option<Message> {
     match message {
       Message::EditTags(task, edited) => {
-        let data = self.data_mut::<DialogData>(cap);
+        let data = self.data_mut::<TagDialogData>(cap);
         debug_assert!(data.data.is_none());
         data.data = Some(Data::new(task, edited));
 

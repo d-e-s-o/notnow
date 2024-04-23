@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 mod config;
-mod dialog;
 mod event;
 mod in_out;
 mod input;
@@ -11,6 +10,7 @@ mod modal;
 mod selectable;
 mod state;
 mod tab_bar;
+mod tag_dialog;
 mod task_list_box;
 mod term_renderer;
 mod termui;
