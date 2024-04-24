@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2022-2024 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::convert::TryFrom;
@@ -14,6 +14,8 @@ use icalendar::Todo;
 use crate::ser::tags::Tag;
 use crate::ser::tasks::Id as TaskId;
 use crate::ser::tasks::Task;
+use crate::LINE_END;
+use crate::LINE_END_STR;
 
 use super::util::emit_list;
 use super::util::parse_list;
@@ -32,6 +34,10 @@ impl From<&Task> for Todo {
     let mut todo = Todo::new();
     todo.uid(&task.id.as_hyphenated().to_string());
     todo.summary(&task.summary);
+
+    if !task.details.is_empty() {
+      todo.description(&task.details.replace(LINE_END, "\n"));
+    }
 
     if let Some(tags) = emit_list(&task.tags) {
       todo.add_property(TAGS_PROPERTY, &tags);
@@ -68,6 +74,15 @@ impl TryFrom<&Todo> for Task {
       .transpose()?
       .unwrap_or_else(TaskId::new_v4);
     let summary = todo.get_summary().unwrap_or("").to_string();
+    let details = todo
+      .get_description()
+      .unwrap_or("")
+      .to_string()
+      // TODO: The first `replace` should not be necessary. It is needed right
+      //       now due to https://github.com/hoodie/icalendar-rs/issues/87,
+      //       but this should be fixed upstream.
+      .replace("\\n", "\n")
+      .replace('\n', LINE_END_STR);
     let tags = todo
       .property_value(TAGS_PROPERTY)
       .map(parse_list::<Tag>)
@@ -80,6 +95,7 @@ impl TryFrom<&Todo> for Task {
     Ok(Task {
       id,
       summary,
+      details,
       tags,
       position,
     })
@@ -117,6 +133,7 @@ mod tests {
   use super::*;
 
   use crate::ser::tags::Id as TagId;
+  use crate::LINE_END;
 
   use super::super::iCal;
   use super::super::Backend;
@@ -139,6 +156,19 @@ mod tests {
   fn serialize_deserialize_task_with_tag() {
     let tags = [Tag::from(TagId::try_from(1337).unwrap())];
     let task = Task::new("test task").with_tags(tags);
+
+    let data = iCal::serialize(&task).unwrap();
+    let new_task = <iCal as Backend<Task>>::deserialize(&data).unwrap();
+
+    assert_eq!(new_task, task);
+  }
+
+  /// Make sure that we can serialize and deserialize a `Task` with
+  /// details spanning multiple lines.
+  #[test]
+  fn serialize_deserialize_task_with_multiline_details() {
+    let details = format!("multi-{LINE_END}line{LINE_END}string");
+    let task = Task::new("test task").with_details(details);
 
     let data = iCal::serialize(&task).unwrap();
     let new_task = <iCal as Backend<Task>>::deserialize(&data).unwrap();

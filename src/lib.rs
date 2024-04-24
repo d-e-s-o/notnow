@@ -132,6 +132,17 @@ use crate::ui::Ui as TermUi;
 use crate::ui::UiData as TermUiData;
 
 
+/// The line end character used internally by the program.
+///
+/// The main reason for using '\r' as opposed to '\n' is that
+/// libreadline seems to input translate literal returns to it. It's
+/// rather inconvenient (though not impossible) for us to translate that
+/// on the fly. Note that any backend should translate this line ending
+/// to that expected by the backend or system.
+const LINE_END: char = '\r';
+const LINE_END_STR: &str = "\r";
+
+
 /// A tuple of (directory path, file name) representing the path to a
 /// file.
 type FilePath = (PathBuf, OsString);

@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2022 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2018-2024 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 //! A module providing serialization and deserialization support for
@@ -21,6 +21,8 @@ pub struct Task {
   pub id: Id,
   /// The task's summary.
   pub summary: String,
+  /// Arbitrary (and optional) details (such as notes) for the task.
+  pub details: String,
   /// The task's list of currently set tags.
   pub tags: Vec<Tag>,
   /// The task's position.
@@ -37,9 +39,19 @@ impl Task {
     Self {
       id: Id::new_v4(),
       summary: summary.into(),
+      details: Default::default(),
       tags: Default::default(),
       position: None,
     }
+  }
+
+  /// A convenience helper for setting the task's details.
+  pub fn with_details<D>(mut self, details: D) -> Self
+  where
+    D: ToString,
+  {
+    self.details = details.to_string();
+    self
   }
 
   /// A convenience helper for setting the task's tags.

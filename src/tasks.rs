@@ -1,4 +1,4 @@
-// Copyright (C) 2017-2023 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2017-2024 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::cell::RefCell;
@@ -40,6 +40,8 @@ struct TaskInner {
   id: Id,
   /// The task's summary.
   summary: String,
+  /// The task's details.
+  details: String,
   /// The task's tags.
   tags: BTreeSet<Tag>,
   /// Reference to the shared `Templates` object from which tags were
@@ -67,6 +69,7 @@ impl Task {
     let inner = TaskInner {
       id: Id::new_v4(),
       summary: summary.into(),
+      details: String::new(),
       tags: Default::default(),
       templates: Rc::new(Templates::new()),
     };
@@ -82,6 +85,7 @@ impl Task {
     let inner = TaskInner {
       id: Id::new_v4(),
       summary: summary.into(),
+      details: String::new(),
       tags: tags.into_iter().collect(),
       templates,
     };
@@ -102,6 +106,7 @@ impl Task {
     let inner = TaskInner {
       id: task.id,
       summary: task.summary,
+      details: task.details,
       tags,
       templates,
     };
@@ -127,13 +132,31 @@ impl Task {
     self.0.try_borrow().unwrap().summary.clone()
   }
 
-  /// Change this [Task]'s summary.
+  /// Change this [`Task`]'s summary.
   #[inline]
   pub fn set_summary(&mut self, summary: String) {
     // SANITY: The type's API surface prevents any borrows from escaping
     //         a function call and we don't call methods on `self` while
     //         a borrow is active.
     self.0.try_borrow_mut().unwrap().summary = summary
+  }
+
+  /// Retrieve the [`Task`]'s details.
+  #[inline]
+  pub fn details(&self) -> String {
+    // SANITY: The type's API surface prevents any borrows from escaping
+    //         a function call and we don't call methods on `self` while
+    //         a borrow is active.
+    self.0.try_borrow().unwrap().details.clone()
+  }
+
+  /// Change this [`Task`]'s details.
+  #[inline]
+  pub fn set_details(&mut self, details: String) {
+    // SANITY: The type's API surface prevents any borrows from escaping
+    //         a function call and we don't call methods on `self` while
+    //         a borrow is active.
+    self.0.try_borrow_mut().unwrap().details = details
   }
 
   /// Invoke a user-provided function on an iterator over all the task's
@@ -209,6 +232,7 @@ fn task_to_serde(task: &Task, position: Option<&Position>) -> SerTask {
   let TaskInner {
     ref id,
     ref summary,
+    ref details,
     ref tags,
     ..
   } = borrow.deref();
@@ -216,6 +240,7 @@ fn task_to_serde(task: &Task, position: Option<&Position>) -> SerTask {
   let task = SerTask {
     id: *id,
     summary: summary.clone(),
+    details: details.clone(),
     tags: tags.iter().map(Tag::to_serde).collect(),
     position: position.map(Position::to_serde),
   };
