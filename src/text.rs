@@ -25,6 +25,9 @@ use unicode_segmentation::UnicodeSegmentation as _;
 use unicode_width::UnicodeWidthChar as _;
 use unicode_width::UnicodeWidthStr as _;
 
+use crate::LINE_END;
+use crate::LINE_END_STR;
+
 
 /// A type representing the width of a string (in "columns"), as it
 /// would be displayed.
@@ -84,7 +87,15 @@ impl DisplayWidth for str {
     let extended = true;
     let cursor = self
       .graphemes(extended)
-      .map(|grapheme| grapheme.width())
+      .map(|grapheme| {
+        // Throughout the program we treat newlines as having a width of
+        // one, so that they can be navigated to with a cursor.
+        if grapheme == LINE_END_STR {
+          1
+        } else {
+          grapheme.width()
+        }
+      })
       .sum();
 
     Width(cursor)
@@ -93,7 +104,11 @@ impl DisplayWidth for str {
 
 impl DisplayWidth for char {
   fn display_width(&self) -> Width {
-    Width(self.width().unwrap_or(0))
+    if *self == LINE_END {
+      Width(1)
+    } else {
+      Width(self.width().unwrap_or(0))
+    }
   }
 }
 
@@ -586,6 +601,14 @@ mod tests {
     assert_eq!(cursor_byte_index(s, c(4)), 5);
     assert_eq!(cursor_byte_index(s, c(5)), 5);
     assert_eq!(cursor_byte_index(s, c(6)), 5);
+
+    let s = "a\rb";
+    assert_eq!(cursor_byte_index(s, c(0)), 0);
+    assert_eq!(cursor_byte_index(s, c(1)), 1);
+    assert_eq!(cursor_byte_index(s, c(2)), 2);
+    assert_eq!(cursor_byte_index(s, c(3)), 3);
+    assert_eq!(cursor_byte_index(s, c(4)), 3);
+    assert_eq!(cursor_byte_index(s, c(5)), 3);
   }
 
   /// Check that our cursor indexing works as it should.
@@ -784,9 +807,9 @@ mod tests {
 
     let mut text = EditableText::default();
     let () = text.insert_char('a');
-    let () = text.insert_char('\n');
+    let () = text.insert_char(LINE_END);
     let () = text.insert_char('c');
-    assert_eq!(text.as_str(), "a\nc");
+    assert_eq!(text.as_str(), "a\rc");
 
     let mut text = EditableText::from_string("⚠️attn⚠️");
     let () = text.insert_char('x');
