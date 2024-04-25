@@ -28,24 +28,21 @@ pub enum InputResult {
 }
 
 
-/// A type driving a [`EditableText`] object with terminal based key
-/// input.
-///
-/// Depending on the crate features enabled, input will transparently be
-/// libreadline based or not.
-#[derive(Debug, Default)]
-pub struct InputText {
-  text: EditableText,
-  /// A readline object used for input.
-  #[cfg(feature = "readline")]
-  readline: Readline,
+#[derive(Default)]
+pub struct InputTextBuilder {
+  /// Whether the [`InputText`] instance should support multi-line text.
+  multi_line: bool,
 }
 
-impl InputText {
-  /// Create a new [`InputText`] object working on the provided
-  /// [`EditableText`] instance.
-  pub fn new(text: EditableText) -> Self {
-    Self {
+impl InputTextBuilder {
+  pub fn with_multi_line(mut self, enable: bool) -> InputTextBuilder {
+    self.multi_line = enable;
+    self
+  }
+
+  pub fn build(self, text: EditableText) -> InputText {
+    InputText {
+      multi_line: self.multi_line,
       #[cfg(feature = "readline")]
       readline: {
         let mut rl = Readline::new();
@@ -58,14 +55,52 @@ impl InputText {
       text,
     }
   }
+}
+
+
+/// A type driving a [`EditableText`] object with terminal based key
+/// input.
+///
+/// Depending on the crate features enabled, input will transparently be
+/// libreadline based or not.
+#[derive(Debug, Default)]
+pub struct InputText {
+  text: EditableText,
+  /// Whether multi-line input is supported.
+  multi_line: bool,
+  /// A readline object used for input.
+  #[cfg(feature = "readline")]
+  readline: Readline,
+}
+
+impl InputText {
+  /// Create a new [`InputText`] object working on the provided
+  /// [`EditableText`] instance.
+  pub fn new(text: EditableText) -> Self {
+    Self::builder().build(text)
+  }
+
+  /// Create an [`InputTextBuilder`] object for creating an
+  /// [`InputText`] with certain options.
+  pub fn builder() -> InputTextBuilder {
+    InputTextBuilder::default()
+  }
 
   /// Handle a key press.
   #[cfg(not(feature = "readline"))]
   pub fn handle_key(&mut self, key: Key, _raw: &()) -> InputResult {
     use std::mem::take;
 
+    use crate::LINE_END;
+
     match key {
       Key::Esc => InputResult::Canceled,
+      // Ideally we'd want this to be Shift+\n, I guess, but `termion`
+      // doesn't seem to want to report that.
+      Key::Alt('\r') if self.multi_line => {
+        let () = self.text.insert_char(LINE_END);
+        InputResult::Updated
+      },
       Key::Char('\n') => {
         let line = take(&mut self.text);
         InputResult::Completed(line.into_string())
@@ -130,6 +165,8 @@ impl InputText {
   /// Handle a key press.
   #[cfg(feature = "readline")]
   pub fn handle_key(&mut self, key: Key, raw: &[u8]) -> InputResult {
+    use crate::LINE_END_BYTE;
+
     match self.readline.feed(raw) {
       Some(line) => InputResult::Completed(line.into_string().unwrap()),
       None => {
@@ -158,9 +195,40 @@ impl InputText {
           self.readline = Readline::new();
           InputResult::Canceled
         } else {
-          self.text = EditableText::from_string(s.to_string_lossy());
-          let () = self.text.set_cursor_byte_index(idx);
-          InputResult::Updated
+          let accepted = if !self.multi_line {
+            // We can't anticipate what inputs may cause a newline to be
+            // written proactively, but we can at least try to detect
+            // one retroactively and revert -- just as if nothing
+            // happened.
+            self.readline.peek(|s, idx| {
+              let last_idx = self.text.cursor_byte_index();
+              // We use this index comparison as a proxy bounds check to
+              // not have to do a potentially costly (linear time)
+              // length test.
+              if last_idx <= idx {
+                // SAFETY: We just checked that `last_idx` is within
+                //         bounds of the object.
+                let byte = unsafe { s.as_ptr().add(last_idx).read() };
+                byte != LINE_END_BYTE as i8
+              } else {
+                true
+              }
+            })
+          } else {
+            true
+          };
+
+          if accepted {
+            self.text = EditableText::from_string(s.to_string_lossy());
+            let () = self.text.set_cursor_byte_index(idx);
+            InputResult::Updated
+          } else {
+            let cstr = CString::new(self.text.as_str()).unwrap();
+            let cursor = self.text.cursor_byte_index();
+            let clear_undo = true;
+            let () = self.readline.reset(cstr, cursor, clear_undo);
+            InputResult::Unchanged
+          }
         }
       },
     }

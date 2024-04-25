@@ -139,7 +139,8 @@ use crate::ui::UiData as TermUiData;
 /// rather inconvenient (though not impossible) for us to translate that
 /// on the fly. Note that any backend should translate this line ending
 /// to that expected by the backend or system.
-const LINE_END: char = '\r';
+const LINE_END: char = LINE_END_BYTE as _;
+const LINE_END_BYTE: u8 = b'\r';
 const LINE_END_STR: &str = "\r";
 
 
