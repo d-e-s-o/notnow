@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 mod config;
+mod detail_dialog;
 mod event;
 mod in_out;
 mod input;

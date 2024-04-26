@@ -1,4 +1,4 @@
-// Copyright (C) 2020-2022 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2020-2024 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::rc::Rc;
@@ -26,6 +26,8 @@ pub enum Message {
   /// determines whether we accept only an exact match (true) or merely
   /// require a substring match (false).
   SearchTask(String, SearchState, bool, bool),
+  /// Edit the details associated with a task.
+  EditDetails(Rc<Task>, Task),
   /// Edit the tags associated with a task.
   EditTags(Rc<Task>, Task),
   /// Update a task.
