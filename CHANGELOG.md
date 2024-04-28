@@ -1,5 +1,5 @@
-Unreleased
-----------
+0.3.6
+-----
 - Added support for editing of multi-line free-form task "details"
 - Fixed potential panic caused by clipping task summaries at non-char
   boundaries
