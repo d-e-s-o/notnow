@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2023 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2019-2024 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use serde::de::Error;
@@ -172,6 +172,10 @@ pub struct Colors {
   pub task_done_fg: Color,
   #[serde(default = "Color::reset")]
   pub task_done_bg: Color,
+  #[serde(default = "Color::dark_white")]
+  pub detail_dialog_bg: Color,
+  #[serde(default = "Color::color0")]
+  pub detail_dialog_fg: Color,
   #[serde(alias = "dialog_bg", default = "Color::dark_white")]
   pub tag_dialog_bg: Color,
   #[serde(alias = "dialog_fg", default = "Color::color0")]
@@ -223,6 +227,8 @@ impl Default for Colors {
       task_not_started_bg: Color::reset(),
       task_done_fg: Color::bright_green(),
       task_done_bg: Color::reset(),
+      detail_dialog_fg: Color::color0(),
+      detail_dialog_bg: Color::dark_white(),
       tag_dialog_fg: Color::color0(),
       tag_dialog_bg: Color::dark_white(),
       tag_dialog_selected_tag_fg: Color::color15(),

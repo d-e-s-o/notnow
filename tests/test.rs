@@ -1,4 +1,4 @@
-// Copyright (C) 2022-2023 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2022-2024 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::ffi::OsString;
@@ -18,7 +18,8 @@ use tokio::test;
 /// Check that we can run the program.
 #[test]
 async fn prog_running() {
-  static KEYS: [u8; 2] = [b'w', b'q'];
+  // Open a bunch of dialogs to exercise as many code paths as possible.
+  static KEYS: [u8; 6] = [b't', b'\n', b'\n', b'\n', b'w', b'q'];
 
   let (ui_config, task_state) = default_tasks_and_tags();
 

@@ -27,12 +27,18 @@ use gui::Id;
 use gui::Object;
 use gui::Renderable;
 use gui::Renderer;
+use gui::Widget as _;
 
 use crate::colors::Color;
 use crate::colors::Colors;
 use crate::text;
+use crate::text::Cursor;
+use crate::text::DisplayWidth as _;
 use crate::text::Width;
+use crate::LINE_END;
 
+use super::detail_dialog::DetailDialog;
+use super::detail_dialog::DetailDialogData;
 use super::in_out::InOut;
 use super::in_out::InOutArea;
 use super::tab_bar::TabBar;
@@ -46,6 +52,10 @@ const TASK_LIST_MARGIN_Y: u16 = 2;
 const TASK_SPACE: u16 = 2;
 const TAG_SPACE: u16 = 2;
 const TAB_TITLE_WIDTH: u16 = 30;
+const DETAIL_DIALOG_MIN_W: u16 = 40;
+const DETAIL_DIALOG_MIN_H: u16 = 20;
+const DETAIL_DIALOG_MARGIN_X: u16 = 2;
+const DETAIL_DIALOG_MARGIN_Y: u16 = 1;
 const TAG_DIALOG_MARGIN_X: u16 = 2;
 const TAG_DIALOG_MARGIN_Y: u16 = 1;
 const TAG_DIALOG_MIN_W: u16 = 40;
@@ -387,7 +397,22 @@ where
         };
 
         self.writer.write(x, y, state_fg, state_bg, state)?;
-        let x = x + state.len() as u16 + 1;
+        let x = x + state.len() as u16;
+
+        let details = if task.details().is_empty() {
+          "   "
+        } else {
+          " * "
+        };
+        self.writer.write(
+          x,
+          y,
+          self.colors.unselected_task_fg,
+          self.colors.unselected_task_bg,
+          details,
+        )?;
+
+        let x = x + details.len() as u16;
         self.writer.write(x, y, task_fg, task_bg, task.summary())?;
 
         if i == selection && cap.is_focused(task_list.id()) {
@@ -410,6 +435,105 @@ where
     // We need to adjust the offset we use in order to be able to give
     // the correct impression of a sliding selection window.
     data.offset = offset;
+    Ok(bbox)
+  }
+
+  /// Fill a line of the detail dialog.
+  fn fill_detail_dialog_line(&self, y: u16, w: u16) -> Result<()> {
+    (0..w).try_for_each(|x| {
+      self.writer.write(
+        x,
+        y,
+        self.colors.detail_dialog_fg,
+        self.colors.detail_dialog_bg,
+        " ",
+      )
+    })
+  }
+
+  /// Render a full line of the dialog, containing a tag.
+  fn render_detail_dialog_line<'s>(
+    &self,
+    line: Option<&'s str>,
+    y: u16,
+    w: u16,
+  ) -> Result<(Width, Option<&'s str>)> {
+    let fg = self.colors.detail_dialog_fg;
+    let bg = self.colors.detail_dialog_bg;
+
+    let mut x = 0;
+    // Fill initial margin before content.
+    let () = self.fill_tag_dialog_line(x, y, DETAIL_DIALOG_MARGIN_X)?;
+    x += DETAIL_DIALOG_MARGIN_X;
+
+    let (width, rest) = if let Some(line) = line {
+      let (line, rest) = text::wrap(
+        line,
+        Width::from(usize::from(w.saturating_sub(2 * DETAIL_DIALOG_MARGIN_X))),
+      );
+      let width = line.display_width();
+      let () = self.writer.write(x, y, fg, bg, line)?;
+      (width, rest)
+    } else {
+      (Width::from(0), None)
+    };
+
+    x += width.as_usize() as u16;
+
+    // Fill the remainder of the line.
+    let () = self.fill_tag_dialog_line(x, y, w)?;
+    Ok((width, rest))
+  }
+
+  /// Render a `DetailDialog`.
+  fn render_detail_dialog(
+    &self,
+    detail_dialog: &DetailDialog,
+    cap: &dyn Cap,
+    bbox: BBox,
+  ) -> Result<BBox> {
+    let data = detail_dialog.data::<DetailDialogData>(cap);
+    let details = data.details();
+    let mut lines = details.as_str().split(LINE_END);
+    let mut line = None;
+    let mut selection = details.cursor();
+    let mut cursor = None;
+
+    (0..bbox.h).try_for_each(|y| {
+      if y < DETAIL_DIALOG_MARGIN_Y || y >= bbox.h - DETAIL_DIALOG_MARGIN_Y {
+        self.fill_detail_dialog_line(y, bbox.w)
+      } else {
+        let (rendered, rest) =
+          self.render_detail_dialog_line(line.or_else(|| lines.next()), y, bbox.w)?;
+
+        if cursor.is_none() {
+          if Cursor::at_start() + rendered >= selection {
+            cursor = Some((
+              selection + Width::from(usize::from(DETAIL_DIALOG_MARGIN_X)),
+              y,
+            ));
+          } else {
+            selection -= rendered;
+          }
+
+          if rest.is_none() {
+            // If there is no rest then we need to account for the line
+            // break that we split at.
+            selection -= LINE_END.display_width();
+          }
+        }
+
+        line = rest;
+        Ok(())
+      }
+    })?;
+
+    if let Some((x, y)) = cursor {
+      let () = self.writer.goto(x.as_usize() as _, y)?;
+      let () = self.writer.show()?;
+    } else if cfg!(debug_assertions) {
+      panic!("no cursor set")
+    }
     Ok(bbox)
   }
 
@@ -617,6 +741,18 @@ where
 
     let result = if let Some(ui) = widget.downcast_ref::<TermUi>() {
       self.render_term_ui(ui, bbox)
+    } else if let Some(detail_dialog) = widget.downcast_ref::<DetailDialog>() {
+      // We want the dialog box displayed in the center and not filling
+      // up the entire screen.
+      let w = max(DETAIL_DIALOG_MIN_W, bbox.w / 2);
+      let h = max(DETAIL_DIALOG_MIN_H, bbox.h / 2);
+      let x = w / 2;
+      let y = h / 2;
+
+      let bbox = BBox { x, y, w, h };
+      self.writer.restrict(bbox);
+
+      self.render_detail_dialog(detail_dialog, cap, bbox)
     } else if let Some(tag_dialog) = widget.downcast_ref::<TagDialog>() {
       // We want the dialog box displayed in the center and not filling
       // up the entire screen.

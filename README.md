@@ -113,7 +113,7 @@ where that is possible. The key bindings are as follows:
 | Key(s) | Function                                 |
 |--------|------------------------------------------|
 | a      | Add a new task                           |
-| e      | Edit selected task's description         |
+| e      | Edit selected task's summary             |
 | t      | Edit selected task's tags                |
 | d      | Delete selected task                     |
 | j      | Move task selection down                 |
@@ -136,7 +136,7 @@ where that is possible. The key bindings are as follows:
 | N      | Continue task search backward            |
 | *      | Start forward search for currently       |
 |        | selected task on other views             |
-| Return | Accept text input                        |
+| Return | Accept text input / Edit task details    |
 | Esc    | Cancel text input                        |
 | w      | Save tasks to file                       |
 | q      | Quit program                             |

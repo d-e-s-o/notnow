@@ -94,6 +94,7 @@ impl Selectable for TaskListBoxData {
 pub struct TaskListBox {
   id: Id,
   tab_bar: Id,
+  detail_dialog: Id,
   tag_dialog: Id,
   in_out: Id,
 }
@@ -104,6 +105,7 @@ impl TaskListBox {
     id: Id,
     cap: &mut dyn MutCap<Event, Message>,
     tab_bar: Id,
+    detail_dialog: Id,
     tag_dialog: Id,
     in_out: Id,
     selected: Option<usize>,
@@ -111,6 +113,7 @@ impl TaskListBox {
     let task_list_box = Self {
       id,
       tab_bar,
+      detail_dialog,
       tag_dialog,
       in_out,
     };
@@ -330,6 +333,15 @@ impl Handleable<Event, Message> for TaskListBox {
             let edited = Task::clone(task.deref());
             let message = Message::EditTags(task, edited);
             cap.send(self.tag_dialog, message).await.into_event()
+          } else {
+            None
+          }
+        },
+        Key::Char('\n') => {
+          if let Some(task) = data.selected_task() {
+            let edited = Task::clone(task.deref());
+            let message = Message::EditDetails(task, edited);
+            cap.send(self.detail_dialog, message).await.into_event()
           } else {
             None
           }

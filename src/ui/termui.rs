@@ -1,4 +1,4 @@
-// Copyright (C) 2017-2023 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2017-2024 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::ffi::OsString;
@@ -26,6 +26,8 @@ use crate::tasks::Task;
 use crate::view::View;
 
 use super::config::Config;
+use super::detail_dialog::DetailDialog;
+use super::detail_dialog::DetailDialogData;
 use super::event::Event;
 use super::event::Key;
 use super::in_out::InOut;
@@ -125,8 +127,17 @@ impl TermUi {
       Box::new(|| Box::new(TagDialogData::new())),
       Box::new(|id, cap| {
         let tag_dialog = TagDialog::new(id);
-        cap.hide(id);
+        let () = cap.hide(id);
         Box::new(tag_dialog)
+      }),
+    );
+    let detail_dialog = cap.add_widget(
+      id,
+      Box::new(|| Box::new(DetailDialogData::new())),
+      Box::new(|id, cap| {
+        let detail_dialog = DetailDialog::new(id);
+        let () = cap.hide(id);
+        Box::new(detail_dialog)
       }),
     );
     let in_out = cap.add_widget(
@@ -144,6 +155,7 @@ impl TermUi {
         Box::new(TabBar::new(
           id,
           cap,
+          detail_dialog,
           tag_dialog,
           in_out,
           tasks,
@@ -401,6 +413,7 @@ mod tests {
   use crate::test::make_tasks;
   use crate::test::make_tasks_with_tags;
   use crate::test::COMPLETE_TAG;
+  use crate::LINE_END;
 
 
   impl From<Key> for Event {
@@ -1347,6 +1360,69 @@ mod tests {
     let expected = expected.into_iter().map(|x| x.summary).collect::<Vec<_>>();
 
     assert_eq!(tasks, expected);
+  }
+
+  /// Check that we can edit a task's details.
+  #[test]
+  async fn edit_task_details() {
+    let events = vec![
+      Event::from('\n'),
+      Event::from('m'),
+      Event::from('u'),
+      Event::from('l'),
+      Event::from('t'),
+      Event::from('i'),
+      Event::Key(Key::Alt(LINE_END), ()),
+      Event::from('l'),
+      Event::from('i'),
+      Event::from('n'),
+      Event::from('e'),
+      Event::Key(Key::Alt(LINE_END), ()),
+      Event::from('t'),
+      Event::from('e'),
+      Event::from('s'),
+      Event::from('t'),
+      Event::from('\n'),
+      Event::from('w'),
+    ];
+
+    let tasks = TestUiBuilder::with_default_tasks_and_tags()
+      .build()
+      .await
+      .handle(events)
+      .await
+      .tasks()
+      .await;
+
+    assert_eq!(
+      tasks[0].details(),
+      format!("multi{LINE_END}line{LINE_END}test")
+    );
+  }
+
+  /// Check that we can abort the editing of a task's details.
+  #[test]
+  async fn edit_task_details_abort() {
+    let events = vec![
+      Event::from('\n'),
+      Event::from('t'),
+      Event::from('e'),
+      Event::from('s'),
+      Event::from('t'),
+      Event::Key(Key::Alt(LINE_END), ()),
+      Event::from(Key::Esc),
+      Event::from('w'),
+    ];
+
+    let tasks = TestUiBuilder::with_default_tasks_and_tags()
+      .build()
+      .await
+      .handle(events)
+      .await
+      .tasks()
+      .await;
+
+    assert_eq!(tasks[0].details(), "");
   }
 
   #[test]
@@ -2684,6 +2760,36 @@ mod tests {
       .await;
 
     assert_eq!(tasks[9].summary(), "10ab");
+  }
+
+  /// Check that we can undo the editing of a task's details.
+  #[test]
+  async fn undo_edit_task_details() {
+    let events = vec![
+      Event::from('\n'),
+      Event::from('t'),
+      Event::from('e'),
+      Event::from('s'),
+      Event::from('t'),
+      Event::from('\n'),
+      Event::from('\n'),
+      Event::from('a'),
+      Event::from('b'),
+      Event::from('c'),
+      Event::from('\n'),
+      Event::from('u'),
+      Event::from('w'),
+    ];
+
+    let tasks = TestUiBuilder::with_default_tasks_and_tags()
+      .build()
+      .await
+      .handle(events)
+      .await
+      .tasks()
+      .await;
+
+    assert_eq!(tasks[0].details(), "test");
   }
 
   /// Check that we can undo a task removal.

@@ -35,6 +35,14 @@ use crate::LINE_END_STR;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Width(usize);
 
+impl Width {
+  /// Convert the object back into a [`usize`].
+  #[inline]
+  pub fn as_usize(&self) -> usize {
+    self.0
+  }
+}
+
 impl From<usize> for Width {
   #[inline]
   fn from(other: usize) -> Self {
