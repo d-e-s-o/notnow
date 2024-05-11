@@ -36,11 +36,11 @@ incremental = false
 
 [features]
 default = []
-coredump = ["cdump"]
+coredump = ["dep:coredump"]
 # Enable code paths requiring a nightly toolchain. This feature is only
 # meant to be used for testing and benchmarking purposes.
 nightly = []
-readline = ["rline"]
+readline = ["dep:rline"]
 test = []
 
 [[example]]
@@ -63,9 +63,8 @@ version = "1.0.66"
 [dependencies.async-trait]
 version = "0.1.41"
 
-[dependencies.cdump]
+[dependencies.coredump]
 version = "0.1"
-package = "coredump"
 optional = true
 
 [dependencies.dirs]

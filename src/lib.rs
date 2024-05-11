@@ -108,7 +108,7 @@ use anyhow::Context as _;
 use anyhow::Result;
 
 #[cfg(feature = "coredump")]
-use cdump::register_panic_handler;
+use coredump::register_panic_handler;
 
 use dirs::cache_dir;
 use dirs::config_dir;
