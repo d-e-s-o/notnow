@@ -179,9 +179,9 @@ impl InOutArea {
         // between pre- and post-hook.
         if data.clear_gen.take() == Some(data.in_out.gen) {
           match data.in_out.get() {
-            InOut::Saved | InOut::Search(_) | InOut::Error(_) => data
-              .change_state(Some(InOut::Clear))
-              .map(|_| Event::Updated),
+            InOut::Saved | InOut::Search(_) | InOut::Error(_) => {
+              data.change_state(Some(InOut::Clear)).into_event()
+            },
             InOut::Input(..) | InOut::Clear => None,
           }
         } else {
