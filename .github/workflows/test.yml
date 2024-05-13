@@ -45,7 +45,7 @@ jobs:
       uses: taiki-e/install-action@cargo-llvm-cov
     - name: Test and gather coverage
       # We lack a TTY, so we hack one with `script`.
-      shell: script --quiet --return --command "bash {0}"
+      shell: script --quiet --return --command "bash --noprofile --norc -e -o pipefail {0}"
       run:
         cargo llvm-cov --lcov --output-path lcov.info --features=test
     - name: Upload code coverage results
