@@ -805,6 +805,9 @@ where
 mod tests {
   use super::*;
 
+  #[cfg(feature = "nightly")]
+  use unstable_test::Bencher;
+
 
   /// Check that we can centrally align a string properly using
   /// `align_center`.
@@ -862,5 +865,109 @@ mod tests {
         assert_eq!(clip(2, 3, "outside", bbox), "");
       }
     }
+  }
+
+  /// Benchmark the rendering of the UI.
+  // TODO: This is quite a monstrosity with all the setup code and there
+  //       is duplication/overlap with respect to the example and other
+  //       code paths. We should really streamline that.
+  #[cfg(feature = "nightly")]
+  #[ignore = "test requires fully functional TTY"]
+  #[bench]
+  fn bench_ui_rendering(b: &mut Bencher) {
+    use std::ffi::OsString;
+    use std::io::stdout;
+
+    use gui::Ui;
+    use tempfile::TempDir;
+    use termion::raw::IntoRawMode as _;
+    use termion::screen::IntoAlternateScreen as _;
+    use tokio::runtime::Builder;
+
+    use crate::test::default_tasks_and_tags;
+    use crate::ui::Renderer as TermUiRenderer;
+    use crate::ui::UiData as TermUiData;
+    use crate::DirCap;
+    use crate::TaskState;
+    use crate::UiConfig;
+    use crate::UiState;
+
+    let rt = Builder::new_current_thread().build().unwrap();
+
+    let () = rt.block_on(async {
+      let (ui_config, task_state) = default_tasks_and_tags();
+
+      let task_state = TaskState::with_serde(task_state).unwrap();
+      let tasks_dir = TempDir::new().unwrap();
+      let mut tasks_root_cap = DirCap::for_dir(tasks_dir.path().to_path_buf())
+        .await
+        .unwrap();
+      let () = task_state.save(&mut tasks_root_cap).await.unwrap();
+
+      let ui_config = UiConfig::with_serde(ui_config, &task_state).unwrap();
+      let ui_config_dir = TempDir::new().unwrap();
+      let ui_config_file_name = OsString::from("notnow.json");
+      let ui_config_path = (
+        ui_config_dir.path().to_path_buf(),
+        ui_config_file_name.clone(),
+      );
+      let mut ui_config_dir_cap = DirCap::for_dir(ui_config_dir.path().to_path_buf())
+        .await
+        .unwrap();
+      let ui_config_dir_write_guard = ui_config_dir_cap.write().await.unwrap();
+      let mut ui_config_file_cap = ui_config_dir_write_guard.file_cap(&ui_config_file_name);
+      let () = ui_config.save(&mut ui_config_file_cap).await.unwrap();
+
+      let ui_state_dir = TempDir::new().unwrap();
+      let ui_state_file_name = OsString::from("ui-state.json");
+      let ui_state_path = (ui_state_dir.path().to_path_buf(), ui_state_file_name);
+      let tasks_root = tasks_dir.path().to_path_buf();
+
+      let task_state = TaskState::load(&tasks_root).await.unwrap();
+      let ui_config_file = ui_config_path.0.join(&ui_config_path.1);
+      let ui_state_file = ui_state_path.0.join(&ui_state_path.1);
+      let ui_config = UiConfig::load(&ui_config_file, &task_state).await.unwrap();
+      let UiConfig {
+        colors,
+        toggle_tag,
+        views,
+      } = ui_config;
+
+      let ui_state = UiState::load(&ui_state_file).await.unwrap();
+
+      let ui_config_dir_cap = DirCap::for_dir(ui_config_path.0).await.unwrap();
+      let ui_config_file = ui_config_path.1;
+
+      let ui_state_dir_cap = DirCap::for_dir(ui_state_path.0).await.unwrap();
+      let ui_state_file = ui_state_path.1;
+
+      let tasks_root_cap = DirCap::for_dir(tasks_root).await.unwrap();
+
+      let (ui, _) = Ui::new(
+        || {
+          Box::new(TermUiData::new(
+            tasks_root_cap,
+            task_state,
+            (ui_config_dir_cap, ui_config_file),
+            (ui_state_dir_cap, ui_state_file),
+            colors,
+            toggle_tag,
+          ))
+        },
+        |id, cap| Box::new(TermUi::new(id, cap, views, ui_state)),
+      );
+
+      let screen = stdout()
+        .lock()
+        .into_alternate_screen()
+        .unwrap()
+        .into_raw_mode()
+        .unwrap();
+      let renderer = TermUiRenderer::new(screen, colors).unwrap();
+
+      let () = b.iter(|| {
+        let () = ui.render(&renderer);
+      });
+    });
   }
 }
