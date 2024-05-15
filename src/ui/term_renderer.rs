@@ -4,6 +4,7 @@
 use std::cell::Cell;
 use std::cell::RefCell;
 use std::cmp::max;
+use std::cmp::min;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::io::BufWriter;
@@ -178,6 +179,59 @@ where
         Bg(bg.as_term_color()),
         string,
       )?
+    }
+    Ok(())
+  }
+
+  /// Fill the rest of a line with the given color.
+  fn fill_line(&self, x: u16, y: u16, w: u16, color: Color) -> Result<()> {
+    // A string of 200 spaces.
+    static SPACES: &str = concat!(
+      "          ",
+      "          ",
+      "          ",
+      "          ",
+      "          ",
+      "          ",
+      "          ",
+      "          ",
+      "          ",
+      "          ",
+      "          ",
+      "          ",
+      "          ",
+      "          ",
+      "          ",
+      "          ",
+      "          ",
+      "          ",
+      "          ",
+      "          ",
+    );
+
+    let w = min(self.bbox.get().w.saturating_sub(x), w);
+    let x = self.bbox.get().x + x + 1;
+    let y = self.bbox.get().y + y + 1;
+
+    let mut x = x;
+    let mut w = w;
+    while w > 0 {
+      let cells = min(SPACES.len(), w.into());
+      // SANITY: We will always get a valid slice here, because `cells`
+      //         is guaranteed to be less `SPACES.len()` and more than
+      //         1.
+      let s = SPACES.get(..cells).unwrap();
+      let () = write!(
+        self.writer.borrow_mut(),
+        "{}{}{}{}",
+        Goto(x, y),
+        Fg(color.as_term_color()),
+        Bg(color.as_term_color()),
+        s,
+      )?;
+
+      x += cells as u16;
+      w -= cells as u16;
     }
     Ok(())
   }
@@ -438,19 +492,6 @@ where
     Ok(bbox)
   }
 
-  /// Fill a line of the detail dialog.
-  fn fill_detail_dialog_line(&self, y: u16, w: u16) -> Result<()> {
-    (0..w).try_for_each(|x| {
-      self.writer.write(
-        x,
-        y,
-        self.colors.detail_dialog_fg,
-        self.colors.detail_dialog_bg,
-        " ",
-      )
-    })
-  }
-
   /// Render a full line of the dialog, containing a tag.
   fn render_detail_dialog_line<'s>(
     &self,
@@ -463,7 +504,9 @@ where
 
     let mut x = 0;
     // Fill initial margin before content.
-    let () = self.fill_tag_dialog_line(x, y, DETAIL_DIALOG_MARGIN_X)?;
+    let () = self
+      .writer
+      .fill_line(x, y, DETAIL_DIALOG_MARGIN_X, self.colors.detail_dialog_bg)?;
     x += DETAIL_DIALOG_MARGIN_X;
 
     let (width, rest) = if let Some(line) = line {
@@ -481,7 +524,9 @@ where
     x += width.as_usize() as u16;
 
     // Fill the remainder of the line.
-    let () = self.fill_tag_dialog_line(x, y, w)?;
+    let () = self
+      .writer
+      .fill_line(x, y, w, self.colors.detail_dialog_bg)?;
     Ok((width, rest))
   }
 
@@ -501,7 +546,9 @@ where
 
     (0..bbox.h).try_for_each(|y| {
       if y < DETAIL_DIALOG_MARGIN_Y || y >= bbox.h - DETAIL_DIALOG_MARGIN_Y {
-        self.fill_detail_dialog_line(y, bbox.w)
+        self
+          .writer
+          .fill_line(0, y, bbox.w, self.colors.detail_dialog_bg)
       } else {
         let (rendered, rest) =
           self.render_detail_dialog_line(line.or_else(|| lines.next()), y, bbox.w)?;
@@ -535,19 +582,6 @@ where
       panic!("no cursor set")
     }
     Ok(bbox)
-  }
-
-  /// Fill a line of the tag dialog.
-  fn fill_tag_dialog_line(&self, x: u16, y: u16, w: u16) -> Result<()> {
-    (x..w).try_for_each(|x| {
-      self.writer.write(
-        x,
-        y,
-        self.colors.tag_dialog_fg,
-        self.colors.tag_dialog_bg,
-        " ",
-      )
-    })
   }
 
   /// Render a full line of the dialog, containing a tag.
@@ -584,19 +618,23 @@ where
 
     let mut x = 0;
     // Fill initial margin before state indication.
-    self.fill_tag_dialog_line(x, y, TAG_DIALOG_MARGIN_X)?;
+    let () = self
+      .writer
+      .fill_line(x, y, TAG_DIALOG_MARGIN_X, self.colors.tag_dialog_bg)?;
     x += TAG_DIALOG_MARGIN_X;
 
-    self.writer.write(x, y, state_fg, state_bg, state)?;
+    let () = self.writer.write(x, y, state_fg, state_bg, state)?;
     x += state.len() as u16;
 
-    self.fill_tag_dialog_line(x, y, x + 1)?;
+    let () = self.writer.fill_line(x, y, 1, self.colors.tag_dialog_bg)?;
     x += 1;
 
-    self.writer.write(x, y, tag_fg, tag_bg, tag.name())?;
+    let () = self.writer.write(x, y, tag_fg, tag_bg, tag.name())?;
 
     // Fill the remainder of the line.
-    self.fill_tag_dialog_line(x + tag.name().len() as u16, y, w)?;
+    let () = self
+      .writer
+      .fill_line(x + tag.name().len() as u16, y, w, self.colors.tag_dialog_bg)?;
     Ok(())
   }
 
@@ -616,11 +654,15 @@ where
         || y >= bbox.h - TAG_DIALOG_MARGIN_Y
         || (y - TAG_DIALOG_MARGIN_Y) % TAG_SPACE != 0
       {
-        self.fill_tag_dialog_line(0, y, bbox.w)
+        self
+          .writer
+          .fill_line(0, y, bbox.w, self.colors.tag_dialog_bg)
       } else if let Some((i, tag)) = tags.next() {
         self.render_tag_dialog_tag_line(tag, y, bbox.w, i == selection)
       } else {
-        self.fill_tag_dialog_line(0, y, bbox.w)
+        self
+          .writer
+          .fill_line(0, y, bbox.w, self.colors.tag_dialog_bg)
       }
     })?;
 
