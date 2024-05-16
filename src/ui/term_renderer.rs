@@ -32,6 +32,7 @@ use gui::Widget as _;
 
 use crate::colors::Color;
 use crate::colors::Colors;
+use crate::tasks::Task;
 use crate::text;
 use crate::text::Cursor;
 use crate::text::DisplayWidth as _;
@@ -406,6 +407,66 @@ where
     Ok(bbox)
   }
 
+  /// Render a full line of the [`TaskListBox`], containing a task.
+  fn render_task_list_line(
+    &self,
+    task: &Task,
+    tagged: bool,
+    selected: bool,
+    y: u16,
+    w: u16,
+  ) -> Result<()> {
+    let (state, state_fg, state_bg) = if !tagged {
+      (
+        "[ ]",
+        self.colors.task_not_started_fg,
+        self.colors.task_not_started_bg,
+      )
+    } else {
+      ("[X]", self.colors.task_done_fg, self.colors.task_done_bg)
+    };
+
+    let (task_fg, task_bg) = if selected {
+      (self.colors.selected_task_fg, self.colors.selected_task_bg)
+    } else {
+      (
+        self.colors.unselected_task_fg,
+        self.colors.unselected_task_bg,
+      )
+    };
+
+    let mut x = 0;
+    let () = self
+      .writer
+      .fill_line(0, y, TASK_LIST_MARGIN_X, self.colors.unselected_task_bg)?;
+    x += TASK_LIST_MARGIN_X;
+
+    self.writer.write(x, y, state_fg, state_bg, state)?;
+    x += state.len() as u16;
+
+    let details = if task.details().is_empty() {
+      "   "
+    } else {
+      " * "
+    };
+    self.writer.write(
+      x,
+      y,
+      self.colors.unselected_task_fg,
+      self.colors.unselected_task_bg,
+      details,
+    )?;
+
+    x += details.len() as u16;
+    self.writer.write(x, y, task_fg, task_bg, task.summary())?;
+
+    x += task.summary().display_width().as_usize() as u16;
+    let () = self
+      .writer
+      .fill_line(x, y, w, self.colors.unselected_task_bg)?;
+    Ok(())
+  }
+
   /// Render a `TaskListBox`.
   fn render_task_list_box(
     &self,
@@ -416,8 +477,6 @@ where
     let mut map = self.data.borrow_mut();
     let data = map.entry(task_list.id()).or_default();
 
-    let x = TASK_LIST_MARGIN_X;
-    let mut y = TASK_LIST_MARGIN_Y;
     let mut cursor = None;
 
     let view = task_list.view(cap);
@@ -426,57 +485,34 @@ where
     let offset = window_start(data.offset, count, selection);
 
     let () = view.iter(|iter| {
-      for (i, task) in iter.enumerate().skip(offset).take(count) {
-        let tagged = task_list
-          .toggle_tag(cap)
-          .map(|toggle_tag| task.has_tag(&toggle_tag))
-          .unwrap_or(false);
-        let (state, state_fg, state_bg) = if !tagged {
-          (
-            "[ ]",
-            self.colors.task_not_started_fg,
-            self.colors.task_not_started_bg,
-          )
+      let mut tasks = iter.enumerate().skip(offset).take(count);
+
+      (0..bbox.h).try_for_each(|y| {
+        if y < TASK_LIST_MARGIN_Y
+          || y > bbox.h - TASK_LIST_MARGIN_Y
+          || (y - TASK_LIST_MARGIN_Y) % TAG_SPACE != 0
+        {
+          self
+            .writer
+            .fill_line(0, y, bbox.w, self.colors.unselected_task_bg)
+        } else if let Some((i, task)) = tasks.next() {
+          let tagged = task_list
+            .toggle_tag(cap)
+            .map(|toggle_tag| task.has_tag(&toggle_tag))
+            .unwrap_or(false);
+
+          let () = self.render_task_list_line(task, tagged, i == selection, y, bbox.w)?;
+
+          if i == selection && cap.is_focused(task_list.id()) {
+            cursor = Some((TASK_LIST_MARGIN_X + 3, y));
+          }
+          Ok(())
         } else {
-          ("[X]", self.colors.task_done_fg, self.colors.task_done_bg)
-        };
-
-        let (task_fg, task_bg) = if i == selection {
-          (self.colors.selected_task_fg, self.colors.selected_task_bg)
-        } else {
-          (
-            self.colors.unselected_task_fg,
-            self.colors.unselected_task_bg,
-          )
-        };
-
-        self.writer.write(x, y, state_fg, state_bg, state)?;
-        let x = x + state.len() as u16;
-
-        let details = if task.details().is_empty() {
-          "   "
-        } else {
-          " * "
-        };
-        self.writer.write(
-          x,
-          y,
-          self.colors.unselected_task_fg,
-          self.colors.unselected_task_bg,
-          details,
-        )?;
-
-        let x = x + details.len() as u16;
-        self.writer.write(x, y, task_fg, task_bg, task.summary())?;
-
-        if i == selection && cap.is_focused(task_list.id()) {
-          cursor = Some((x, y));
+          self
+            .writer
+            .fill_line(0, y, bbox.w, self.colors.unselected_task_bg)
         }
-
-        y += TASK_SPACE;
-      }
-
-      Result::Ok(())
+      })
     })?;
 
     // Set the cursor to the first character of the selected item. This
