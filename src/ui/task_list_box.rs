@@ -142,11 +142,10 @@ impl TaskListBox {
       .iter(|mut iter| iter.position(|_task| Rc::ptr_eq(_task, &task)));
 
     if let Some(idx) = idx {
-      let update = data.select(idx as isize);
       if let Some(done) = done {
         *done = true
       }
-      MessageExt::maybe_update(None, update)
+      data.select(idx as isize).then_some(Message::Updated)
     } else {
       // If there is no `done` we were called directly from within the
       // widget and not in response to a message from the TabBar. In
@@ -244,8 +243,7 @@ impl TaskListBox {
       *search_state = SearchState::Done;
 
       let data = self.data_mut::<TaskListBoxData>(cap);
-      let update = data.select(idx as isize);
-      MessageExt::maybe_update(None, update)
+      data.select(idx as isize).then_some(Message::Updated)
     } else {
       None
     }
@@ -305,8 +303,8 @@ impl Handleable<Event, Message> for TaskListBox {
         },
         Key::Char('d') => {
           if let Some(task) = data.selected_task() {
-            data.tasks.remove(task);
-            MessageExt::maybe_update(None, true).into_event()
+            let () = data.tasks.remove(task);
+            Some(Event::Updated)
           } else {
             None
           }
@@ -352,8 +350,8 @@ impl Handleable<Event, Message> for TaskListBox {
               .view
               .iter(|mut iter| iter.nth(data.selection(1)).cloned());
             if let Some(other) = other {
-              data.tasks.move_after(to_move, other);
-              MessageExt::maybe_update(None, data.change_selection(1)).into_event()
+              let () = data.tasks.move_after(to_move, other);
+              data.change_selection(1).then_some(Event::Updated)
             } else {
               None
             }
@@ -368,8 +366,8 @@ impl Handleable<Event, Message> for TaskListBox {
                 .view
                 .iter(|mut iter| iter.nth(data.selection(-1)).cloned());
               if let Some(other) = other {
-                data.tasks.move_before(to_move, other);
-                MessageExt::maybe_update(None, data.change_selection(-1)).into_event()
+                let () = data.tasks.move_before(to_move, other);
+                data.change_selection(-1).then_some(Event::Updated)
               } else {
                 None
               }
@@ -380,10 +378,10 @@ impl Handleable<Event, Message> for TaskListBox {
             None
           }
         },
-        Key::Char('g') => MessageExt::maybe_update(None, data.select(0)).into_event(),
-        Key::Char('G') => MessageExt::maybe_update(None, data.select(isize::MAX)).into_event(),
-        Key::Char('j') => MessageExt::maybe_update(None, data.change_selection(1)).into_event(),
-        Key::Char('k') => MessageExt::maybe_update(None, data.change_selection(-1)).into_event(),
+        Key::Char('g') => data.select(0).then_some(Event::Updated),
+        Key::Char('G') => data.select(isize::MAX).then_some(Event::Updated),
+        Key::Char('j') => data.change_selection(1).then_some(Event::Updated),
+        Key::Char('k') => data.change_selection(-1).then_some(Event::Updated),
         Key::Char('*') => {
           if let Some(selected) = data.selected_task() {
             let message = Message::StartTaskSearch(selected.summary());

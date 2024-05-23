@@ -423,23 +423,21 @@ impl Handleable<Event, Message> for TabBar {
     let data = self.data_mut::<TabBarData>(cap);
     match event {
       Event::Key(key, _) => match key {
-        Key::Char('1') => MessageExt::maybe_update(None, self.set_select(cap, 0)).into_event(),
-        Key::Char('2') => MessageExt::maybe_update(None, self.set_select(cap, 1)).into_event(),
-        Key::Char('3') => MessageExt::maybe_update(None, self.set_select(cap, 2)).into_event(),
-        Key::Char('4') => MessageExt::maybe_update(None, self.set_select(cap, 3)).into_event(),
-        Key::Char('5') => MessageExt::maybe_update(None, self.set_select(cap, 4)).into_event(),
-        Key::Char('6') => MessageExt::maybe_update(None, self.set_select(cap, 5)).into_event(),
-        Key::Char('7') => MessageExt::maybe_update(None, self.set_select(cap, 6)).into_event(),
-        Key::Char('8') => MessageExt::maybe_update(None, self.set_select(cap, 7)).into_event(),
-        Key::Char('9') => MessageExt::maybe_update(None, self.set_select(cap, 8)).into_event(),
-        Key::Char('0') => {
-          MessageExt::maybe_update(None, self.set_select(cap, isize::MAX)).into_event()
-        },
-        Key::Char('`') => MessageExt::maybe_update(None, self.select_previous(cap)).into_event(),
-        Key::Char('h') => MessageExt::maybe_update(None, self.select(cap, -1)).into_event(),
-        Key::Char('l') => MessageExt::maybe_update(None, self.select(cap, 1)).into_event(),
-        Key::Char('H') => MessageExt::maybe_update(None, self.swap(cap, true)).into_event(),
-        Key::Char('L') => MessageExt::maybe_update(None, self.swap(cap, false)).into_event(),
+        Key::Char('1') => self.set_select(cap, 0).then_some(Event::Updated),
+        Key::Char('2') => self.set_select(cap, 1).then_some(Event::Updated),
+        Key::Char('3') => self.set_select(cap, 2).then_some(Event::Updated),
+        Key::Char('4') => self.set_select(cap, 3).then_some(Event::Updated),
+        Key::Char('5') => self.set_select(cap, 4).then_some(Event::Updated),
+        Key::Char('6') => self.set_select(cap, 5).then_some(Event::Updated),
+        Key::Char('7') => self.set_select(cap, 6).then_some(Event::Updated),
+        Key::Char('8') => self.set_select(cap, 7).then_some(Event::Updated),
+        Key::Char('9') => self.set_select(cap, 8).then_some(Event::Updated),
+        Key::Char('0') => self.set_select(cap, isize::MAX).then_some(Event::Updated),
+        Key::Char('`') => self.select_previous(cap).then_some(Event::Updated),
+        Key::Char('h') => self.select(cap, -1).then_some(Event::Updated),
+        Key::Char('l') => self.select(cap, 1).then_some(Event::Updated),
+        Key::Char('H') => self.swap(cap, true).then_some(Event::Updated),
+        Key::Char('L') => self.swap(cap, false).then_some(Event::Updated),
         Key::Char('n') | Key::Char('N') => {
           let event = match data.search.take() {
             Search::Preparing(..) | Search::Unset => {

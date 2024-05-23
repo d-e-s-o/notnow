@@ -1,4 +1,4 @@
-// Copyright (C) 2021-2023 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2021-2024 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::cmp::Ordering;
@@ -284,7 +284,7 @@ impl TagDialog {
 
         Some(Message::Updated)
       },
-      Key::Char(' ') => MessageExt::maybe_update(None, data.toggle_tag()),
+      Key::Char(' ') => data.toggle_tag().then_some(Message::Updated),
       Key::Char('f') => {
         data
           .data
@@ -299,10 +299,10 @@ impl TagDialog {
           .map(|data| data.jump_to = Some(Direction::Backward));
         None
       },
-      Key::Char('g') => MessageExt::maybe_update(None, data.select(0)),
-      Key::Char('G') => MessageExt::maybe_update(None, data.select(isize::MAX)),
-      Key::Char('j') => MessageExt::maybe_update(None, data.change_selection(1)),
-      Key::Char('k') => MessageExt::maybe_update(None, data.change_selection(-1)),
+      Key::Char('g') => data.select(0).then_some(Message::Updated),
+      Key::Char('G') => data.select(isize::MAX).then_some(Message::Updated),
+      Key::Char('j') => data.change_selection(1).then_some(Message::Updated),
+      Key::Char('k') => data.change_selection(-1).then_some(Message::Updated),
       _ => None,
     }
   }
@@ -325,8 +325,10 @@ impl TagDialog {
 
         match key {
           Key::Char(c) => {
-            let updated = data.select_tag_beginning_with(c, direction);
-            Some(MessageExt::maybe_update(None, updated))
+            let message = data
+              .select_tag_beginning_with(c, direction)
+              .then_some(Message::Updated);
+            Some(message)
           },
           // All non-char keys just reset the "jump to" flag directly and
           // will be handled they same way they would have been had it not
