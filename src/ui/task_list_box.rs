@@ -478,7 +478,7 @@ impl Handleable<Event, Message> for TaskListBox {
       },
       #[cfg(feature = "readline")]
       Message::InputCanceled => None,
-      m => panic!("Received unexpected message: {:?}", m),
+      message => panic!("Received unexpected message: {message:?}"),
     }
   }
 
@@ -505,7 +505,7 @@ impl Handleable<Event, Message> for TaskListBox {
         views.push((self.view(cap), selected));
         None
       },
-      m => panic!("Received unexpected message: {:?}", m),
+      message => panic!("Received unexpected message: {message:?}"),
     }
   }
 }

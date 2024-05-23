@@ -296,7 +296,7 @@ impl Handleable<Event, Message> for InOutArea {
         };
         Some(Message::GotInOut(in_out))
       },
-      m => panic!("Received unexpected message: {:?}", m),
+      message => panic!("Received unexpected message: {message:?}"),
     }
   }
 }

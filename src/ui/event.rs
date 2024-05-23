@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2022 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2018-2024 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use gui::Mergeable;
@@ -46,10 +46,9 @@ impl From<u8> for Event {
 impl Mergeable for Event {
   fn merge_with(self, other: Self) -> Self {
     match (&self, &other) {
-      (Self::Key(..), _) | (_, Self::Key(..)) => panic!(
-        "Attempting to merge incompatible events: {:?} & {:?}",
-        self, other
-      ),
+      (Self::Key(..), _) | (_, Self::Key(..)) => {
+        panic!("Attempting to merge incompatible events: {self:?} & {other:?}")
+      },
       (Self::Updated, Self::Updated) => self,
       (Self::Quit, _) | (_, Self::Quit) => Self::Quit,
     }

@@ -89,7 +89,7 @@ impl MessageExt for Option<Message> {
           None
         }
       },
-      Some(..) => panic!("Unexpected message: {:?}", self),
+      Some(..) => panic!("Unexpected message: {self:?}"),
     }
   }
 
@@ -97,7 +97,7 @@ impl MessageExt for Option<Message> {
     match self {
       Some(Message::Updated) => Some(Event::Updated),
       None => None,
-      m => panic!("Message cannot be converted to event: {:?}", m),
+      message => panic!("Message cannot be converted to event: {message:?}"),
     }
   }
 }

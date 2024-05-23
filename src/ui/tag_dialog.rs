@@ -400,7 +400,7 @@ impl Handleable<Event, Message> for TagDialog {
         self.make_focused(cap);
         Some(Message::Updated)
       },
-      m => panic!("Received unexpected message: {:?}", m),
+      message => panic!("Received unexpected message: {message:?}"),
     }
   }
 }

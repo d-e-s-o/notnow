@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2023 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2018-2024 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::cmp::Ordering;
@@ -181,7 +181,7 @@ impl Templates {
       .values()
       .find(|template| template.name() == name)
       .map(|template| Tag::new(template.clone()))
-      .unwrap_or_else(|| panic!("Attempt to create tag from invalid name: {}", name))
+      .unwrap_or_else(|| panic!("Attempt to create tag from invalid name: {name}"))
   }
 
   /// Retrieve an iterator over all the tag templates.

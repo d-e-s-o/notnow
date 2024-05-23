@@ -800,17 +800,17 @@ where
   fn renderable_area(&self) -> BBox {
     match terminal_size() {
       Ok((w, h)) => BBox { x: 0, y: 0, w, h },
-      Err(e) => panic!("Retrieving terminal size failed: {}", e),
+      Err(err) => panic!("Retrieving terminal size failed: {err}"),
     }
   }
 
   fn pre_render(&self) {
     // By default we disable the cursor, but we may opt for enabling it
     // again when rendering certain widgets.
-    let err = self.writer.clear_all().and_then(|_| self.writer.hide());
+    let result = self.writer.clear_all().and_then(|_| self.writer.hide());
 
-    if let Err(e) = err {
-      panic!("Pre-render failed: {}", e);
+    if let Err(err) = result {
+      panic!("Pre-render failed: {err}");
     }
   }
 
@@ -850,19 +850,19 @@ where
     } else if let Some(task_list) = widget.downcast_ref::<TaskListBox>() {
       self.render_task_list_box(task_list, cap, bbox)
     } else {
-      panic!("Widget {:?} is unknown to the renderer", widget)
+      panic!("Widget {widget:?} is unknown to the renderer")
     };
 
     match result {
       Ok(b) => b,
-      Err(e) => panic!("Rendering failed: {}", e),
+      Err(err) => panic!("Rendering failed: {err}"),
     }
   }
 
   fn post_render(&self) {
-    let err = self.writer.flush();
-    if let Err(e) = err {
-      panic!("Post-render failed: {}", e);
+    let result = self.writer.flush();
+    if let Err(err) = result {
+      panic!("Post-render failed: {err}");
     }
   }
 }

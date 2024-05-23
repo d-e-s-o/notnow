@@ -327,7 +327,7 @@ impl TabBar {
         // first task on any subsequent tab.
         *search_state = SearchState::First;
       } else {
-        panic!("Received unexpected message: {:?}", message)
+        panic!("Received unexpected message: {message:?}")
       }
     }
 
@@ -537,7 +537,7 @@ impl Handleable<Event, Message> for TabBar {
               break
             }
           } else {
-            panic!("Received unexpected message: {:?}", message)
+            panic!("Received unexpected message: {message:?}")
           }
         }
         result
@@ -573,7 +573,7 @@ impl Handleable<Event, Message> for TabBar {
 
         MessageExt::maybe_update(None, updated1 || updated2)
       },
-      m => panic!("Received unexpected message: {:?}", m),
+      message => panic!("Received unexpected message: {message:?}"),
     }
   }
 }

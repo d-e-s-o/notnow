@@ -376,7 +376,7 @@ impl Handleable<Event, Message> for TermUi {
         // the only entity able to satisfy the request.
         cap.send(self.in_out, message).await
       },
-      m => panic!("Received unexpected message: {:?}", m),
+      message => panic!("Received unexpected message: {message:?}"),
     }
   }
 }
@@ -571,7 +571,7 @@ mod tests {
       if let Message::GotInOut(in_out) = resp {
         in_out
       } else {
-        panic!("Unexpected response: {:?}", resp)
+        panic!("Unexpected response: {resp:?}")
       }
     }
 
@@ -587,7 +587,7 @@ mod tests {
           .map(|(view, _)| view.name().to_string())
           .collect()
       } else {
-        panic!("Unexpected response: {:?}", resp)
+        panic!("Unexpected response: {resp:?}")
       }
     }
 
@@ -598,7 +598,7 @@ mod tests {
       if let Message::GotTasks(tasks) = resp {
         tasks
       } else {
-        panic!("Unexpected response: {:?}", resp)
+        panic!("Unexpected response: {resp:?}")
       }
     }
 
