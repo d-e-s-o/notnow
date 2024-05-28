@@ -121,12 +121,16 @@ fn align_center(string: impl Into<String>, width: usize) -> String {
 }
 
 /// Clip a string according to the active bounding box.
+///
+/// # Notes
+/// The `x` and `y` coordinates are interpreted to be relative to the
+/// bounding box's origin.
 fn clip(x: u16, y: u16, string: &str, bbox: BBox) -> &str {
   let w = bbox.w;
   let h = bbox.h;
 
   if y < h {
-    text::clip(string, Width::from(usize::from(w - x)))
+    text::clip(string, Width::from(usize::from(w.saturating_sub(x))))
   } else {
     ""
   }
