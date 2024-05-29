@@ -258,20 +258,14 @@ impl TabBar {
     let data = self.data::<TabBarData>(cap);
     if !string.is_empty() && !data.tabs.is_empty() {
       let message = Message::SetInOut(InOut::Search(string.clone()));
-      let updated1 = cap
-        .send(self.in_out, message)
-        .await
-        .map(|m| m.is_updated())
-        .unwrap_or(false);
+      let result1 = cap.send(self.in_out, message).await;
 
       let search_state = SearchState::Current;
-      let updated2 = self
+      let result2 = self
         .search_task(cap, string, search_state, reverse, exact)
-        .await
-        .map(|m| m.is_updated())
-        .unwrap_or(false);
+        .await;
 
-      MessageExt::maybe_update(None, updated1 || updated2)
+      result1.maybe_update(result2)
     } else {
       None
     }
@@ -307,17 +301,13 @@ impl TabBar {
     let mut found = false;
 
     for (idx, tab) in tabs {
-      let update = cap
-        .call(tab, &mut message)
-        .await
-        .map(|m| m.is_updated())
-        .unwrap_or(false);
-      result = MessageExt::maybe_update(result, update);
+      let result1 = cap.call(tab, &mut message).await;
+      result = result.maybe_update(result1);
 
       if let Message::SearchTask(_, search_state, _, _) = &mut message {
         if let SearchState::Done = search_state {
           let update = self.set_select(cap, idx as isize);
-          result = MessageExt::maybe_update(result, update);
+          result = result.maybe_update(update.then_some(Message::Updated));
           found = true;
           break
         }
@@ -334,12 +324,8 @@ impl TabBar {
     if !found {
       let error = format!("Text '{}' not found", string);
       let message = Message::SetInOut(InOut::Error(error));
-      let update = cap
-        .send(self.in_out, message)
-        .await
-        .map(|m| m.is_updated())
-        .unwrap_or(false);
-      result = MessageExt::maybe_update(result, update);
+      let result1 = cap.send(self.in_out, message).await;
+      result = result.maybe_update(result1);
     }
 
     let data = self.data_mut::<TabBarData>(cap);
@@ -451,19 +437,10 @@ impl Handleable<Event, Message> for TabBar {
             Search::State(string, exact) => {
               let reverse = key == Key::Char('N');
               let message = Message::SetInOut(InOut::Search(string.clone()));
-              let updated1 = cap
-                .send(self.in_out, message)
-                .await
-                .map(|m| m.is_updated())
-                .unwrap_or(false);
+              let result1 = cap.send(self.in_out, message).await;
+              let result2 = self.continue_task_search(cap, string, reverse, exact).await;
 
-              let updated2 = self
-                .continue_task_search(cap, string, reverse, exact)
-                .await
-                .map(|m| m.is_updated())
-                .unwrap_or(false);
-
-              MessageExt::maybe_update(None, updated1 || updated2).into_event()
+              result1.maybe_update(result2).into_event()
             },
           };
           event
@@ -533,7 +510,7 @@ impl Handleable<Event, Message> for TabBar {
           if let Message::SelectTask(_, done) = message {
             if done {
               let update = self.set_select(cap, idx as isize);
-              result = MessageExt::maybe_update(result, update);
+              result = result.maybe_update(update.then_some(Message::Updated));
               break
             }
           } else {
@@ -555,23 +532,16 @@ impl Handleable<Event, Message> for TabBar {
           (string.clone(), false, true)
         };
 
-        let updated1 = self
+        let result1 = self
           .start_task_search(cap, string.clone(), reverse, exact)
-          .await
-          .map(|m| m.is_updated())
-          .unwrap_or(false);
-
-        let updated2 = if !entered {
-          self
-            .continue_task_search(cap, string, reverse, exact)
-            .await
-            .map(|m| m.is_updated())
-            .unwrap_or(false)
+          .await;
+        let result2 = if !entered {
+          self.continue_task_search(cap, string, reverse, exact).await
         } else {
-          false
+          None
         };
 
-        MessageExt::maybe_update(None, updated1 || updated2)
+        result1.maybe_update(result2)
       },
       message => panic!("Received unexpected message: {message:?}"),
     }

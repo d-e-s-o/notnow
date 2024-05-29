@@ -450,7 +450,10 @@ impl Handleable<Event, Message> for TaskListBox {
               if !text.is_empty() {
                 edited.set_summary(text.clone());
                 data.tasks.update(task.clone(), edited);
-                self.select_task(cap, task).await.maybe_update(true)
+                self
+                  .select_task(cap, task)
+                  .await
+                  .maybe_update(Some(Message::Updated))
               } else {
                 data.tasks.remove(task);
                 Some(Message::Updated)
@@ -466,7 +469,10 @@ impl Handleable<Event, Message> for TaskListBox {
 
         // Try to select the task now that something may have changed
         // (such as its tags).
-        self.select_task(cap, task).await.maybe_update(true)
+        self
+          .select_task(cap, task)
+          .await
+          .maybe_update(Some(Message::Updated))
       },
       #[cfg(not(feature = "readline"))]
       Message::InputCanceled => {

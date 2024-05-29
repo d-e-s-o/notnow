@@ -61,35 +61,31 @@ pub enum Message {
   GotInOut(InOut),
 }
 
-impl Message {
-  /// Check whether the message is the `Updated` variant.
-  pub fn is_updated(&self) -> bool {
-    matches!(self, Message::Updated)
-  }
-}
 
 /// A trait for converting something into an `Option<Event>`.
 pub trait MessageExt {
-  /// Potentially convert an optional `Message` into the
-  /// `Message::Updated` variant.
-  fn maybe_update(self, update: bool) -> Option<Message>;
+  /// Merge the `Message::Updated` variants of this message and the
+  /// provided one.
+  fn maybe_update(self, updated: Option<Message>) -> Option<Message>;
 
   /// Convert an optional message into an optional event.
   fn into_event(self) -> Option<Event>;
 }
 
 impl MessageExt for Option<Message> {
-  fn maybe_update(self, update: bool) -> Option<Message> {
-    match self {
-      Some(Message::Updated) => self,
-      None => {
-        if update {
-          Some(Message::Updated)
-        } else {
-          None
-        }
+  fn maybe_update(self, message: Option<Message>) -> Option<Message> {
+    match (self, message) {
+      (Some(Message::Updated), Some(Message::Updated)) => Some(Message::Updated),
+      (None, Some(Message::Updated)) => Some(Message::Updated),
+      (Some(Message::Updated), None) => Some(Message::Updated),
+      (None, None) => None,
+      (m1, m2) => {
+        debug_assert!(
+          false,
+          "Cannot update non-update messages: `{m1:?}` & `{m2:?}`"
+        );
+        None
       },
-      Some(..) => panic!("Unexpected message: {self:?}"),
     }
   }
 

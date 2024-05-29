@@ -198,10 +198,7 @@ impl InOutArea {
     string: Option<String>,
   ) -> Option<Message> {
     let data = self.data_mut::<InOutAreaData>(cap);
-    let updated1 = data
-      .change_state(Some(InOut::Clear))
-      .map(|m| m.is_updated())
-      .unwrap_or(false);
+    let result1 = data.change_state(Some(InOut::Clear));
     let widget = self.restore_focus(cap);
     let message = if let Some(s) = string {
       Message::EnteredText(s)
@@ -209,12 +206,8 @@ impl InOutArea {
       Message::InputCanceled
     };
 
-    let updated2 = cap
-      .send(widget, message)
-      .await
-      .map(|m| m.is_updated())
-      .unwrap_or(false);
-    MessageExt::maybe_update(None, updated1 || updated2)
+    let result2 = cap.send(widget, message).await;
+    result1.maybe_update(result2)
   }
 
   /// Retrieve the input/output area's current state.
