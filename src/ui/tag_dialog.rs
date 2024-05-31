@@ -282,9 +282,9 @@ impl TagDialog {
           cap.send(widget, Message::UpdateTask(task, updated)).await;
         }
 
-        Some(Message::Updated)
+        Some(Message::updated(self.id))
       },
-      Key::Char(' ') => data.toggle_tag().then_some(Message::Updated),
+      Key::Char(' ') => data.toggle_tag().then(|| Message::updated(self.id)),
       Key::Char('f') => {
         data
           .data
@@ -299,10 +299,10 @@ impl TagDialog {
           .map(|data| data.jump_to = Some(Direction::Backward));
         None
       },
-      Key::Char('g') => data.select(0).then_some(Message::Updated),
-      Key::Char('G') => data.select(isize::MAX).then_some(Message::Updated),
-      Key::Char('j') => data.change_selection(1).then_some(Message::Updated),
-      Key::Char('k') => data.change_selection(-1).then_some(Message::Updated),
+      Key::Char('g') => data.select(0).then(|| Message::updated(self.id)),
+      Key::Char('G') => data.select(isize::MAX).then(|| Message::updated(self.id)),
+      Key::Char('j') => data.change_selection(1).then(|| Message::updated(self.id)),
+      Key::Char('k') => data.change_selection(-1).then(|| Message::updated(self.id)),
       _ => None,
     }
   }
@@ -327,7 +327,7 @@ impl TagDialog {
           Key::Char(c) => {
             let message = data
               .select_tag_beginning_with(c, direction)
-              .then_some(Message::Updated);
+              .then(|| Message::updated(self.id));
             Some(message)
           },
           // All non-char keys just reset the "jump to" flag directly and
@@ -398,7 +398,7 @@ impl Handleable<Event, Message> for TagDialog {
         data.data = Some(Data::new(task, edited));
 
         self.make_focused(cap);
-        Some(Message::Updated)
+        Some(Message::updated(self.id))
       },
       message => panic!("Received unexpected message: {message:?}"),
     }

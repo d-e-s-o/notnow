@@ -307,7 +307,7 @@ impl TabBar {
       if let Message::SearchTask(_, search_state, _, _) = &mut message {
         if let SearchState::Done = search_state {
           let update = self.set_select(cap, idx as isize);
-          result = result.maybe_update(update.then_some(Message::Updated));
+          result = result.maybe_update(update.then(|| Message::updated(self.id)));
           found = true;
           break
         }
@@ -409,21 +409,23 @@ impl Handleable<Event, Message> for TabBar {
     let data = self.data_mut::<TabBarData>(cap);
     match event {
       Event::Key(key, _) => match key {
-        Key::Char('1') => self.set_select(cap, 0).then_some(Event::Updated),
-        Key::Char('2') => self.set_select(cap, 1).then_some(Event::Updated),
-        Key::Char('3') => self.set_select(cap, 2).then_some(Event::Updated),
-        Key::Char('4') => self.set_select(cap, 3).then_some(Event::Updated),
-        Key::Char('5') => self.set_select(cap, 4).then_some(Event::Updated),
-        Key::Char('6') => self.set_select(cap, 5).then_some(Event::Updated),
-        Key::Char('7') => self.set_select(cap, 6).then_some(Event::Updated),
-        Key::Char('8') => self.set_select(cap, 7).then_some(Event::Updated),
-        Key::Char('9') => self.set_select(cap, 8).then_some(Event::Updated),
-        Key::Char('0') => self.set_select(cap, isize::MAX).then_some(Event::Updated),
-        Key::Char('`') => self.select_previous(cap).then_some(Event::Updated),
-        Key::Char('h') => self.select(cap, -1).then_some(Event::Updated),
-        Key::Char('l') => self.select(cap, 1).then_some(Event::Updated),
-        Key::Char('H') => self.swap(cap, true).then_some(Event::Updated),
-        Key::Char('L') => self.swap(cap, false).then_some(Event::Updated),
+        Key::Char('1') => self.set_select(cap, 0).then(|| Event::updated(self.id)),
+        Key::Char('2') => self.set_select(cap, 1).then(|| Event::updated(self.id)),
+        Key::Char('3') => self.set_select(cap, 2).then(|| Event::updated(self.id)),
+        Key::Char('4') => self.set_select(cap, 3).then(|| Event::updated(self.id)),
+        Key::Char('5') => self.set_select(cap, 4).then(|| Event::updated(self.id)),
+        Key::Char('6') => self.set_select(cap, 5).then(|| Event::updated(self.id)),
+        Key::Char('7') => self.set_select(cap, 6).then(|| Event::updated(self.id)),
+        Key::Char('8') => self.set_select(cap, 7).then(|| Event::updated(self.id)),
+        Key::Char('9') => self.set_select(cap, 8).then(|| Event::updated(self.id)),
+        Key::Char('0') => self
+          .set_select(cap, isize::MAX)
+          .then(|| Event::updated(self.id)),
+        Key::Char('`') => self.select_previous(cap).then(|| Event::updated(self.id)),
+        Key::Char('h') => self.select(cap, -1).then(|| Event::updated(self.id)),
+        Key::Char('l') => self.select(cap, 1).then(|| Event::updated(self.id)),
+        Key::Char('H') => self.swap(cap, true).then(|| Event::updated(self.id)),
+        Key::Char('L') => self.swap(cap, false).then(|| Event::updated(self.id)),
         Key::Char('n') | Key::Char('N') => {
           let event = match data.search.take() {
             Search::Preparing(..) | Search::Unset => {
@@ -510,7 +512,7 @@ impl Handleable<Event, Message> for TabBar {
           if let Message::SelectTask(_, done) = message {
             if done {
               let update = self.set_select(cap, idx as isize);
-              result = result.maybe_update(update.then_some(Message::Updated));
+              result = result.maybe_update(update.then(|| Message::updated(self.id)));
               break
             }
           } else {

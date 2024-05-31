@@ -116,7 +116,7 @@ impl InOutAreaData {
   }
 
   /// Conditionally change the `InOut` state of the widget.
-  fn change_state(&mut self, in_out: Option<InOut>) -> Option<Message> {
+  fn change_state(&mut self, id: Id, in_out: Option<InOut>) -> Option<Message> {
     // We received a request to change the state. Unconditionally bump
     // the generation it has, irrespective of whether we actually change
     // it (which we don't, if the new state is equal to what we already
@@ -126,10 +126,10 @@ impl InOutAreaData {
     match in_out {
       Some(in_out) if in_out != *self.in_out.get() => {
         self.in_out.set(in_out);
-        Some(Message::Updated)
+        Some(Message::updated(id))
       },
       Some(..) => None,
-      None => Some(Message::Updated),
+      None => Some(Message::updated(id)),
     }
   }
 }
@@ -171,7 +171,7 @@ impl InOutArea {
             data.clear_gen = Some(data.in_out.gen);
             None
           },
-          Event::Updated | Event::Quit => None,
+          Event::Updated(..) | Event::Quit => None,
         }
       } else {
         // We only change our state to "Clear" if the generation number
@@ -179,9 +179,9 @@ impl InOutArea {
         // between pre- and post-hook.
         if data.clear_gen.take() == Some(data.in_out.gen) {
           match data.in_out.get() {
-            InOut::Saved | InOut::Search(_) | InOut::Error(_) => {
-              data.change_state(Some(InOut::Clear)).into_event()
-            },
+            InOut::Saved | InOut::Search(_) | InOut::Error(_) => data
+              .change_state(widget.id(), Some(InOut::Clear))
+              .into_event(),
             InOut::Input(..) | InOut::Clear => None,
           }
         } else {
@@ -198,7 +198,7 @@ impl InOutArea {
     string: Option<String>,
   ) -> Option<Message> {
     let data = self.data_mut::<InOutAreaData>(cap);
-    let result1 = data.change_state(Some(InOut::Clear));
+    let result1 = data.change_state(self.id, Some(InOut::Clear));
     let widget = self.restore_focus(cap);
     let message = if let Some(s) = string {
       Message::EnteredText(s)
@@ -244,7 +244,7 @@ impl Handleable<Event, Message> for InOutArea {
         let message = match text.handle_key(key, &raw) {
           InputResult::Completed(text) => self.finish_input(cap, Some(text)).await,
           InputResult::Canceled => self.finish_input(cap, None).await,
-          InputResult::Updated => data.change_state(None),
+          InputResult::Updated => data.change_state(self.id, None),
           InputResult::Unchanged => {
             data.in_out.bump();
             None
@@ -266,7 +266,7 @@ impl Handleable<Event, Message> for InOutArea {
         };
 
         let data = self.data_mut::<InOutAreaData>(cap);
-        data.change_state(Some(in_out))
+        data.change_state(self.id, Some(in_out))
       },
       #[cfg(all(test, not(feature = "readline")))]
       Message::GetInOut => {

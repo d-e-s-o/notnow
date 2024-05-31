@@ -139,9 +139,9 @@ impl Handleable<Event, Message> for DetailDialog {
 
             let data = self.data_mut::<DetailDialogData>(cap);
             let _data = data.data.take();
-            Some(Message::Updated)
+            Some(Message::updated(self.id))
           },
-          InputResult::Updated => Some(Message::Updated),
+          InputResult::Updated => Some(Message::updated(self.id)),
           InputResult::Unchanged => None,
         };
 
@@ -160,7 +160,7 @@ impl Handleable<Event, Message> for DetailDialog {
         data.data = Some(Data::new(task, edited));
 
         let () = self.make_focused(cap);
-        Some(Message::Updated)
+        Some(Message::updated(self.id))
       },
       message => panic!("Received unexpected message: {message:?}"),
     }

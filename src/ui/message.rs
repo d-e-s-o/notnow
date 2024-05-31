@@ -3,9 +3,12 @@
 
 use std::rc::Rc;
 
+use gui::Id;
+
 use crate::tasks::Task;
 
 use super::event::Event;
+use super::event::Ids;
 use super::in_out::InOut;
 use super::tab_bar::SearchState;
 use super::tab_bar::TabState;
@@ -44,9 +47,9 @@ pub enum Message {
   CollectedState(TabState),
   /// A message used to collect the state of all tabs.
   GetTabState(TabState),
-  /// A indication that some component changed and that we should
-  /// re-render everything.
-  Updated,
+  /// An indication that one or more widgets changed and that we should
+  /// re-render them.
+  Updated(Ids),
   /// Retrieve the current set of tasks.
   #[cfg(all(test, not(feature = "readline")))]
   GetTasks,
@@ -59,6 +62,14 @@ pub enum Message {
   /// The response to the `GetInOut` message.
   #[cfg(all(test, not(feature = "readline")))]
   GotInOut(InOut),
+}
+
+impl Message {
+  /// Create the `Message::Updated` variant with a single `Id`.
+  #[inline]
+  pub fn updated(id: Id) -> Self {
+    Self::Updated(Ids::One(id))
+  }
 }
 
 
@@ -75,9 +86,11 @@ pub trait MessageExt {
 impl MessageExt for Option<Message> {
   fn maybe_update(self, message: Option<Message>) -> Option<Message> {
     match (self, message) {
-      (Some(Message::Updated), Some(Message::Updated)) => Some(Message::Updated),
-      (None, Some(Message::Updated)) => Some(Message::Updated),
-      (Some(Message::Updated), None) => Some(Message::Updated),
+      (Some(Message::Updated(ids1)), Some(Message::Updated(ids2))) => {
+        Some(Message::Updated(ids1.merge_with(ids2)))
+      },
+      (None, Some(Message::Updated(ids))) => Some(Message::Updated(ids)),
+      (Some(Message::Updated(ids)), None) => Some(Message::Updated(ids)),
       (None, None) => None,
       (m1, m2) => {
         debug_assert!(
@@ -91,7 +104,7 @@ impl MessageExt for Option<Message> {
 
   fn into_event(self) -> Option<Event> {
     match self {
-      Some(Message::Updated) => Some(Event::Updated),
+      Some(Message::Updated(ids)) => Some(Event::Updated(ids)),
       None => None,
       message => panic!("Message cannot be converted to event: {message:?}"),
     }

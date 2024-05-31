@@ -145,7 +145,7 @@ impl TaskListBox {
       if let Some(done) = done {
         *done = true
       }
-      data.select(idx as isize).then_some(Message::Updated)
+      data.select(idx as isize).then(|| Message::updated(self.id))
     } else {
       // If there is no `done` we were called directly from within the
       // widget and not in response to a message from the TabBar. In
@@ -243,7 +243,7 @@ impl TaskListBox {
       *search_state = SearchState::Done;
 
       let data = self.data_mut::<TaskListBoxData>(cap);
-      data.select(idx as isize).then_some(Message::Updated)
+      data.select(idx as isize).then(|| Message::updated(self.id))
     } else {
       None
     }
@@ -304,7 +304,7 @@ impl Handleable<Event, Message> for TaskListBox {
         Key::Char('d') => {
           if let Some(task) = data.selected_task() {
             let () = data.tasks.remove(task);
-            Some(Event::Updated)
+            Some(Event::updated(self.id))
           } else {
             None
           }
@@ -351,7 +351,7 @@ impl Handleable<Event, Message> for TaskListBox {
               .iter(|mut iter| iter.nth(data.selection(1)).cloned());
             if let Some(other) = other {
               let () = data.tasks.move_after(to_move, other);
-              data.change_selection(1).then_some(Event::Updated)
+              data.change_selection(1).then(|| Event::updated(self.id))
             } else {
               None
             }
@@ -367,7 +367,7 @@ impl Handleable<Event, Message> for TaskListBox {
                 .iter(|mut iter| iter.nth(data.selection(-1)).cloned());
               if let Some(other) = other {
                 let () = data.tasks.move_before(to_move, other);
-                data.change_selection(-1).then_some(Event::Updated)
+                data.change_selection(-1).then(|| Event::updated(self.id))
               } else {
                 None
               }
@@ -378,10 +378,10 @@ impl Handleable<Event, Message> for TaskListBox {
             None
           }
         },
-        Key::Char('g') => data.select(0).then_some(Event::Updated),
-        Key::Char('G') => data.select(isize::MAX).then_some(Event::Updated),
-        Key::Char('j') => data.change_selection(1).then_some(Event::Updated),
-        Key::Char('k') => data.change_selection(-1).then_some(Event::Updated),
+        Key::Char('g') => data.select(0).then(|| Event::updated(self.id)),
+        Key::Char('G') => data.select(isize::MAX).then(|| Event::updated(self.id)),
+        Key::Char('j') => data.change_selection(1).then(|| Event::updated(self.id)),
+        Key::Char('k') => data.change_selection(-1).then(|| Event::updated(self.id)),
         Key::Char('*') => {
           if let Some(selected) = data.selected_task() {
             let message = Message::StartTaskSearch(selected.summary());
@@ -453,10 +453,10 @@ impl Handleable<Event, Message> for TaskListBox {
                 self
                   .select_task(cap, task)
                   .await
-                  .maybe_update(Some(Message::Updated))
+                  .maybe_update(Some(Message::updated(self.id)))
               } else {
                 data.tasks.remove(task);
-                Some(Message::Updated)
+                Some(Message::updated(self.id))
               }
             },
           }
@@ -472,12 +472,12 @@ impl Handleable<Event, Message> for TaskListBox {
         self
           .select_task(cap, task)
           .await
-          .maybe_update(Some(Message::Updated))
+          .maybe_update(Some(Message::updated(self.id)))
       },
       #[cfg(not(feature = "readline"))]
       Message::InputCanceled => {
         if data.state.take().is_some() {
-          Some(Message::Updated)
+          Some(Message::updated(self.id))
         } else {
           None
         }

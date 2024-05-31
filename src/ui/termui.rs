@@ -316,7 +316,7 @@ impl Handleable<Event, Message> for TermUi {
             //       a task is displayed on multiple tabs).
             cap.send(self.tab_bar, Message::SelectTask(id, false)).await;
           }
-          Some(Event::Updated)
+          Some(Event::updated(self.id))
         },
         KEY_QUIT => {
           let data = self.data::<TermUiData>(cap);
@@ -341,7 +341,7 @@ impl Handleable<Event, Message> for TermUi {
               "detected unsaved changes; repeat action to quit without saving".to_string(),
             ));
             cap.send(self.in_out, message).await;
-            Some(Event::Updated)
+            Some(Event::updated(self.id))
           } else {
             Some(Event::Quit)
           }

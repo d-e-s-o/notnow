@@ -73,9 +73,9 @@ where
 /// An event as used by the UI.
 #[derive(Clone, Debug)]
 pub enum Event {
-  /// An indication that some component changed and that we should
-  /// re-render everything.
-  Updated,
+  /// An indication that one or more widgets changed and that we should
+  /// re-render them.
+  Updated(Ids),
   /// An indication that the application should quit.
   Quit,
   /// A key press.
@@ -85,10 +85,16 @@ pub enum Event {
   Key(Key, Vec<u8>),
 }
 
-#[cfg(test)]
 impl Event {
+  /// Create the `Event::Updated` variant with a single `Id`.
+  #[inline]
+  pub fn updated(id: Id) -> Self {
+    Self::Updated(Ids::One(id))
+  }
+
+  #[cfg(all(test, not(feature = "readline")))]
   pub fn is_updated(&self) -> bool {
-    matches!(self, Self::Updated)
+    matches!(self, Self::Updated(..))
   }
 }
 
@@ -107,11 +113,11 @@ impl From<u8> for Event {
 
 impl Mergeable for Event {
   fn merge_with(self, other: Self) -> Self {
-    match (&self, &other) {
-      (Self::Key(..), _) | (_, Self::Key(..)) => {
-        panic!("Attempting to merge incompatible events: {self:?} & {other:?}")
+    match (self, other) {
+      (event @ Self::Key(..), _) | (_, event @ Self::Key(..)) => {
+        panic!("Attempting to merge incompatible event: {event:?}")
       },
-      (Self::Updated, Self::Updated) => self,
+      (Self::Updated(ids1), Self::Updated(ids2)) => Self::Updated(ids1.merge_with(ids2)),
       (Self::Quit, _) | (_, Self::Quit) => Self::Quit,
     }
   }

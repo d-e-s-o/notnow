@@ -255,7 +255,7 @@ where
           if let Some(event) = ui.handle(event).await {
             match event {
               UiEvent::Quit => break 'handler,
-              UiEvent::Updated => render = true,
+              UiEvent::Updated(..) => render = true,
               UiEvent::Key(..) => {},
             }
           }
