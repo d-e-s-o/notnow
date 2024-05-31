@@ -215,7 +215,7 @@ impl TabBar {
       .enumerate()
       .map(|(i, (view, task))| {
         let name = view.name().to_string();
-        let tasks = tasks.clone();
+        let tasks = Rc::clone(&tasks);
         let toggle_tag = toggle_tag.clone();
         let task_list = cap.add_widget(
           id,

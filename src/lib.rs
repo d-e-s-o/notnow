@@ -39,6 +39,7 @@
   unused_qualifications,
   where_clauses_object_safety,
   while_true,
+  clippy::clone_on_ref_ptr,
   clippy::dbg_macro,
   rustdoc::broken_intra_doc_links
 )]

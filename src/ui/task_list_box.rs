@@ -484,7 +484,7 @@ impl Handleable<Event, Message> for TaskListBox {
               // altogether.
               if !text.is_empty() {
                 edited.set_summary(text.clone());
-                data.tasks.update(task.clone(), edited);
+                data.tasks.update(Rc::clone(&task), edited);
                 self
                   .select_task(cap, task)
                   .await
@@ -500,7 +500,7 @@ impl Handleable<Event, Message> for TaskListBox {
         }
       },
       Message::UpdateTask(task, updated) => {
-        data.tasks.update(task.clone(), updated);
+        data.tasks.update(Rc::clone(&task), updated);
 
         // Try to select the task now that something may have changed
         // (such as its tags).
@@ -531,7 +531,9 @@ impl Handleable<Event, Message> for TaskListBox {
   ) -> Option<Message> {
     match message {
       Message::SelectTask(task, done) => {
-        self.handle_select_task(cap, task.clone(), Some(done)).await
+        self
+          .handle_select_task(cap, Rc::clone(task), Some(done))
+          .await
       },
       Message::SearchTask(string, search_state, reverse, exact) => {
         self

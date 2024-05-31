@@ -333,7 +333,7 @@ impl TaskState {
     let templates = Templates::with_serde(task_state.tasks_meta.templates)
       .map_err(|id| anyhow!("encountered duplicate tag ID {}", id))?;
     let templates = Rc::new(templates);
-    let tasks = Tasks::with_serde(task_state.tasks, templates.clone())
+    let tasks = Tasks::with_serde(task_state.tasks, Rc::clone(&templates))
       .context("failed to instantiate task database")?;
     let tasks = Rc::new(tasks);
 
@@ -346,7 +346,7 @@ impl TaskState {
     let templates = Templates::with_serde(state.tasks_meta.templates)
       .map_err(|id| anyhow!("encountered duplicate tag ID {}", id))?;
     let templates = Rc::new(templates);
-    let tasks = Tasks::with_serde(state.tasks, templates.clone())
+    let tasks = Tasks::with_serde(state.tasks, Rc::clone(&templates))
       .context("failed to instantiate task database")?;
 
     let slf = Self {
@@ -536,9 +536,9 @@ pub mod tests {
         // Remove the first three tasks. If IDs were to not be preserved
         // on serialization, the IDs of these tasks would (likely) be
         // reassigned again to others on load and we would fail below.
-        let task1 = iter.next().unwrap().clone();
-        let task2 = iter.next().unwrap().clone();
-        let task3 = iter.next().unwrap().clone();
+        let task1 = Rc::clone(iter.next().unwrap());
+        let task2 = Rc::clone(iter.next().unwrap());
+        let task3 = Rc::clone(iter.next().unwrap());
         (task1, task2, task3)
       });
 

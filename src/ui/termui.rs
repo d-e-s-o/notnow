@@ -5,6 +5,7 @@ use std::ffi::OsString;
 use std::future::Future;
 use std::iter::repeat;
 use std::pin::Pin;
+use std::rc::Rc;
 
 use anyhow::Context as _;
 use anyhow::Result;
@@ -150,7 +151,7 @@ impl TermUi {
       Box::new(|| Box::new(TabBarData::new())),
       Box::new(move |id, cap| {
         let data = cap.data(termui_id).downcast_ref::<TermUiData>().unwrap();
-        let tasks = data.task_state.tasks().clone();
+        let tasks = Rc::clone(data.task_state.tasks());
         let toggle_tag = data.toggle_tag.clone();
         Box::new(TabBar::new(
           id,

@@ -1,4 +1,4 @@
-// Copyright (C) 2017-2023 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2017-2024 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::rc::Rc;
@@ -365,7 +365,7 @@ mod tests {
     let (_, templates, tasks) = make_tasks_with_tags(count);
     let templates = Rc::new(Templates::with_serde(SerTemplates(templates)).unwrap());
     let tasks = SerTasks::from(tasks);
-    let tasks = Tasks::with_serde(tasks, templates.clone()).unwrap();
+    let tasks = Tasks::with_serde(tasks, Rc::clone(&templates)).unwrap();
     let tasks = Rc::new(tasks);
 
     (templates, tasks)
@@ -392,34 +392,34 @@ mod tests {
 
     let (templates, tasks) = make_tagged_tasks(20);
 
-    let view = ViewBuilder::new(tasks.clone()).build("test");
+    let view = ViewBuilder::new(Rc::clone(&tasks)).build("test");
     assert_eq!(pos_tags(&view), Vec::<String>::new());
 
-    let view = ViewBuilder::new(tasks.clone())
+    let view = ViewBuilder::new(Rc::clone(&tasks))
       .and(templates.instantiate_from_name(COMPLETE_TAG))
       .build("test");
     assert_eq!(pos_tags(&view), vec![COMPLETE_TAG]);
 
-    let view = ViewBuilder::new(tasks.clone())
+    let view = ViewBuilder::new(Rc::clone(&tasks))
       .and(templates.instantiate_from_name("tag1"))
       .and_not(templates.instantiate_from_name("tag2"))
       .build("test");
     assert_eq!(pos_tags(&view), vec!["tag1"]);
 
-    let view = ViewBuilder::new(tasks.clone())
+    let view = ViewBuilder::new(Rc::clone(&tasks))
       .and(templates.instantiate_from_name("tag1"))
       .or(templates.instantiate_from_name("tag2"))
       .build("test");
     assert_eq!(pos_tags(&view), vec!["tag1", "tag2"]);
 
-    let view = ViewBuilder::new(tasks.clone())
+    let view = ViewBuilder::new(Rc::clone(&tasks))
       .and(templates.instantiate_from_name("tag3"))
       .or(templates.instantiate_from_name("tag1"))
       .and_not(templates.instantiate_from_name("tag2"))
       .build("test");
     assert_eq!(pos_tags(&view), vec!["tag3", "tag1"]);
 
-    let view = ViewBuilder::new(tasks.clone())
+    let view = ViewBuilder::new(Rc::clone(&tasks))
       .or(templates.instantiate_from_name("tag3"))
       .or(templates.instantiate_from_name("tag2"))
       .or(templates.instantiate_from_name("tag5"))

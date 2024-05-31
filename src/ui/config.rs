@@ -1,7 +1,8 @@
-// Copyright (C) 2023 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2023-2024 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::path::Path;
+use std::rc::Rc;
 
 use anyhow::anyhow;
 use anyhow::Context as _;
@@ -62,7 +63,7 @@ impl Config {
       .into_iter()
       .map(|view| {
         let name = view.name.clone();
-        let view = View::with_serde(view, templates, tasks.clone())
+        let view = View::with_serde(view, templates, Rc::clone(tasks))
           .with_context(|| format!("failed to instantiate view '{}'", name))?;
         Ok(view)
       })
@@ -71,7 +72,7 @@ impl Config {
     // For convenience for the user, we add a default view capturing
     // all tasks if no other views have been configured.
     if views.is_empty() {
-      views.push(ViewBuilder::new(tasks.clone()).build("all"))
+      views.push(ViewBuilder::new(Rc::clone(tasks)).build("all"))
     }
 
     let toggle_tag = if let Some(toggle_tag) = toggle_tag {
