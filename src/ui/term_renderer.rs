@@ -508,7 +508,7 @@ where
           let () = self.render_task_list_line(task, tagged, i == selection, y, bbox.w)?;
 
           if i == selection && cap.is_focused(task_list.id()) {
-            cursor = Some((TASK_LIST_MARGIN_X + 3, y));
+            cursor = Some((TASK_LIST_MARGIN_X + 6, y));
           }
           Ok(())
         } else {
