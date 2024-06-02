@@ -336,12 +336,12 @@ where
   }
 
   /// Render a `TermUi`.
-  fn render_term_ui(&self, _ui: &TermUi, bbox: BBox) -> Result<BBox> {
-    Ok(bbox)
+  fn render_term_ui(&self, _ui: &TermUi, _bbox: BBox) -> Result<()> {
+    Ok(())
   }
 
   /// Render a `TabBar`.
-  fn render_tab_bar(&self, tab_bar: &TabBar, cap: &dyn Cap, mut bbox: BBox) -> Result<BBox> {
+  fn render_tab_bar(&self, tab_bar: &TabBar, cap: &dyn Cap, bbox: BBox) -> Result<()> {
     let mut map = self.data.borrow_mut();
     let data = map.entry(tab_bar.id()).or_default();
 
@@ -402,13 +402,7 @@ where
     }
 
     data.offset = offset;
-
-    // Account for the one line the tab bar occupies at the top and
-    // another one to have some space at the bottom to the input/output
-    // area.
-    bbox.y = bbox.y.saturating_add(1);
-    bbox.h = bbox.h.saturating_sub(2);
-    Ok(bbox)
+    Ok(())
   }
 
   /// Render a full line of the [`TaskListBox`], containing a task.
@@ -472,12 +466,7 @@ where
   }
 
   /// Render a `TaskListBox`.
-  fn render_task_list_box(
-    &self,
-    task_list: &TaskListBox,
-    cap: &dyn Cap,
-    bbox: BBox,
-  ) -> Result<BBox> {
+  fn render_task_list_box(&self, task_list: &TaskListBox, cap: &dyn Cap, bbox: BBox) -> Result<()> {
     let mut map = self.data.borrow_mut();
     let data = map.entry(task_list.id()).or_default();
 
@@ -529,7 +518,7 @@ where
     // We need to adjust the offset we use in order to be able to give
     // the correct impression of a sliding selection window.
     data.offset = offset;
-    Ok(bbox)
+    Ok(())
   }
 
   /// Render a full line of the dialog, containing a tag.
@@ -576,7 +565,7 @@ where
     detail_dialog: &DetailDialog,
     cap: &dyn Cap,
     bbox: BBox,
-  ) -> Result<BBox> {
+  ) -> Result<()> {
     let data = detail_dialog.data::<DetailDialogData>(cap);
     let details = data.details();
     let mut lines = details.as_str().split(LINE_END);
@@ -621,7 +610,7 @@ where
     } else if cfg!(debug_assertions) {
       panic!("no cursor set")
     }
-    Ok(bbox)
+    Ok(())
   }
 
   /// Render a full line of the dialog, containing a tag.
@@ -679,7 +668,7 @@ where
   }
 
   /// Render a `TagDialog`.
-  fn render_tag_dialog(&self, tag_dialog: &TagDialog, cap: &dyn Cap, bbox: BBox) -> Result<BBox> {
+  fn render_tag_dialog(&self, tag_dialog: &TagDialog, cap: &dyn Cap, bbox: BBox) -> Result<()> {
     let mut map = self.data.borrow_mut();
     let data = map.entry(tag_dialog.id()).or_default();
 
@@ -713,11 +702,11 @@ where
     }
 
     data.offset = offset;
-    Ok(bbox)
+    Ok(())
   }
 
   /// Render an `InOutArea`.
-  fn render_input_output(&self, in_out: &InOutArea, cap: &dyn Cap, bbox: BBox) -> Result<BBox> {
+  fn render_input_output(&self, in_out: &InOutArea, cap: &dyn Cap, bbox: BBox) -> Result<()> {
     let (prefix, fg, bg, string) = match in_out.state(cap) {
       InOut::Saved => (
         SAVED_TEXT,
@@ -753,7 +742,7 @@ where
         // a cleaner way to go about that than relying on us entering
         // the `Clear` state in between editing of different tasks.
         let _ = self.data.borrow_mut().remove(&in_out.id());
-        return Ok(Default::default())
+        return Ok(())
       },
     };
 
@@ -793,14 +782,15 @@ where
         let () = self.writer.write(x, bbox.h - 1, fg, bg, string)?;
       }
     }
-    Ok(Default::default())
+    Ok(())
   }
 
   fn render_widget(&self, widget: &dyn Renderable, cap: &dyn Cap, bbox: BBox) -> Result<BBox> {
     self.writer.restrict(bbox);
 
     if let Some(ui) = widget.downcast_ref::<TermUi>() {
-      self.render_term_ui(ui, bbox)
+      let () = self.render_term_ui(ui, bbox)?;
+      Ok(bbox)
     } else if let Some(detail_dialog) = widget.downcast_ref::<DetailDialog>() {
       // We want the dialog box displayed in the center and not filling
       // up the entire screen.
@@ -812,7 +802,8 @@ where
       let bbox = BBox { x, y, w, h };
       self.writer.restrict(bbox);
 
-      self.render_detail_dialog(detail_dialog, cap, bbox)
+      let () = self.render_detail_dialog(detail_dialog, cap, bbox)?;
+      Ok(bbox)
     } else if let Some(tag_dialog) = widget.downcast_ref::<TagDialog>() {
       // We want the dialog box displayed in the center and not filling
       // up the entire screen.
@@ -824,13 +815,25 @@ where
       let bbox = BBox { x, y, w, h };
       self.writer.restrict(bbox);
 
-      self.render_tag_dialog(tag_dialog, cap, bbox)
+      let () = self.render_tag_dialog(tag_dialog, cap, bbox)?;
+      Ok(bbox)
     } else if let Some(in_out) = widget.downcast_ref::<InOutArea>() {
-      self.render_input_output(in_out, cap, bbox)
+      let () = self.render_input_output(in_out, cap, bbox)?;
+      Ok(bbox)
     } else if let Some(tab_bar) = widget.downcast_ref::<TabBar>() {
-      self.render_tab_bar(tab_bar, cap, bbox)
+      let () = self.render_tab_bar(tab_bar, cap, bbox)?;
+      // Account for the one line the tab bar occupies at the top and
+      // another one to have some space at the bottom to the input/output
+      // area.
+      let bbox = BBox {
+        y: bbox.y.saturating_add(1),
+        h: bbox.h.saturating_sub(2),
+        ..bbox
+      };
+      Ok(bbox)
     } else if let Some(task_list) = widget.downcast_ref::<TaskListBox>() {
-      self.render_task_list_box(task_list, cap, bbox)
+      let () = self.render_task_list_box(task_list, cap, bbox)?;
+      Ok(bbox)
     } else {
       panic!("Widget {widget:?} is unknown to the renderer")
     }
