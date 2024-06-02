@@ -795,33 +795,11 @@ where
     }
     Ok(Default::default())
   }
-}
 
-impl<W> Renderer for TermRenderer<W>
-where
-  W: Write,
-{
-  fn renderable_area(&self) -> BBox {
-    match terminal_size() {
-      Ok((w, h)) => BBox { x: 0, y: 0, w, h },
-      Err(err) => panic!("Retrieving terminal size failed: {err}"),
-    }
-  }
-
-  fn pre_render(&self) {
-    // By default we disable the cursor, but we may opt for enabling it
-    // again when rendering certain widgets.
-    let result = self.writer.clear_all().and_then(|_| self.writer.hide());
-
-    if let Err(err) = result {
-      panic!("Pre-render failed: {err}");
-    }
-  }
-
-  fn render(&self, widget: &dyn Renderable, cap: &dyn Cap, bbox: BBox) -> BBox {
+  fn render_widget(&self, widget: &dyn Renderable, cap: &dyn Cap, bbox: BBox) -> Result<BBox> {
     self.writer.restrict(bbox);
 
-    let result = if let Some(ui) = widget.downcast_ref::<TermUi>() {
+    if let Some(ui) = widget.downcast_ref::<TermUi>() {
       self.render_term_ui(ui, bbox)
     } else if let Some(detail_dialog) = widget.downcast_ref::<DetailDialog>() {
       // We want the dialog box displayed in the center and not filling
@@ -855,8 +833,33 @@ where
       self.render_task_list_box(task_list, cap, bbox)
     } else {
       panic!("Widget {widget:?} is unknown to the renderer")
-    };
+    }
+  }
+}
 
+impl<W> Renderer for TermRenderer<W>
+where
+  W: Write,
+{
+  fn renderable_area(&self) -> BBox {
+    match terminal_size() {
+      Ok((w, h)) => BBox { x: 0, y: 0, w, h },
+      Err(err) => panic!("Retrieving terminal size failed: {err}"),
+    }
+  }
+
+  fn pre_render(&self) {
+    // By default we disable the cursor, but we may opt for enabling it
+    // again when rendering certain widgets.
+    let result = self.writer.clear_all().and_then(|_| self.writer.hide());
+
+    if let Err(err) = result {
+      panic!("Pre-render failed: {err}");
+    }
+  }
+
+  fn render(&self, widget: &dyn Renderable, cap: &dyn Cap, bbox: BBox) -> BBox {
+    let result = self.render_widget(widget, cap, bbox);
     match result {
       Ok(b) => b,
       Err(err) => panic!("Rendering failed: {err}"),
