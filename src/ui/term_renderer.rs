@@ -707,6 +707,9 @@ where
 
   /// Render an `InOutArea`.
   fn render_input_output(&self, in_out: &InOutArea, cap: &dyn Cap, bbox: BBox) -> Result<()> {
+    let mut x = 0;
+    let y = bbox.h - 1;
+
     let (prefix, fg, bg, string) = match in_out.state(cap) {
       InOut::Saved => (
         SAVED_TEXT,
@@ -742,14 +745,22 @@ where
         // a cleaner way to go about that than relying on us entering
         // the `Clear` state in between editing of different tasks.
         let _ = self.data.borrow_mut().remove(&in_out.id());
+        let () = self
+          .writer
+          .fill_line(x, y, bbox.w, self.colors.in_out_string_bg)?;
         return Ok(())
       },
     };
 
-    self.writer.write(0, bbox.h - 1, fg, bg, prefix)?;
+    let () = self.writer.write(x, y, fg, bg, prefix)?;
+    x += prefix.len() as u16;
 
-    if let Some(string) = string {
-      let x = prefix.len() as u16 + 1;
+    let () = self
+      .writer
+      .fill_line(x, y, 1, self.colors.in_out_string_bg)?;
+    x += 1;
+
+    let cursor = if let Some(string) = string {
       let fg = self.colors.in_out_string_fg;
       let bg = self.colors.in_out_string_bg;
 
@@ -772,15 +783,27 @@ where
 
         data.offset = offset.as_usize();
 
-        let () = self.writer.write(x, bbox.h - 1, fg, bg, string)?;
-        let () = self.writer.goto(
-          x + cursor.as_usize() as u16 - offset.as_usize() as u16,
-          bbox.h - 1,
-        )?;
-        let () = self.writer.show()?;
+        let () = self.writer.write(x, y, fg, bg, string)?;
+        let cursor = x + cursor.as_usize() as u16 - offset.as_usize() as u16;
+
+        x += string.display_width().as_usize() as u16;
+        Some(cursor)
       } else {
-        let () = self.writer.write(x, bbox.h - 1, fg, bg, string)?;
+        let () = self.writer.write(x, y, fg, bg, string)?;
+        x += string.display_width().as_usize() as u16;
+        None
       }
+    } else {
+      None
+    };
+
+    let () = self
+      .writer
+      .fill_line(x, y, bbox.w, self.colors.in_out_string_bg)?;
+
+    if let Some(x) = cursor {
+      let () = self.writer.goto(x, y)?;
+      let () = self.writer.show()?;
     }
     Ok(())
   }
