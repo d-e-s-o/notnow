@@ -1,3 +1,9 @@
+Unreleased
+----------
+- Converted UI to update widgets incrementally
+  - Eliminated flicker and other rendering artifacts
+
+
 0.3.6
 -----
 - Added support for editing of multi-line free-form task "details"

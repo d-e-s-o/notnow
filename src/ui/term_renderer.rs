@@ -14,10 +14,8 @@ use std::io::Write;
 use std::ops::Add;
 use std::ops::Sub;
 
-use termion::clear::All;
 use termion::color::Bg;
 use termion::color::Fg;
-use termion::color::Reset;
 use termion::cursor::Goto;
 use termion::cursor::Hide;
 use termion::cursor::Show;
@@ -248,17 +246,6 @@ where
     let x = self.bbox.get().x + x + 1;
     let y = self.bbox.get().y + y + 1;
     write!(self.writer.borrow_mut(), "{}", Goto(x, y))
-  }
-
-  /// Clear the terminal content.
-  fn clear_all(&self) -> Result<()> {
-    write!(
-      self.writer.borrow_mut(),
-      "{}{}{}",
-      Fg(Reset),
-      Bg(Reset),
-      All
-    )
   }
 
   /// Flush everything written so far.
@@ -826,11 +813,19 @@ where
     Ok(())
   }
 
-  fn render_widget(&self, widget: &dyn Renderable, cap: &dyn Cap, bbox: BBox) -> Result<BBox> {
-    self.writer.restrict(bbox);
+  fn render_widget(
+    &self,
+    widget: &dyn Renderable,
+    cap: &dyn Cap,
+    bbox: BBox,
+    render: bool,
+  ) -> Result<BBox> {
+    let () = self.writer.restrict(bbox);
 
     if let Some(ui) = widget.downcast_ref::<TermUi>() {
-      let () = self.render_term_ui(ui, bbox)?;
+      if render {
+        let () = self.render_term_ui(ui, bbox)?;
+      }
       Ok(bbox)
     } else if let Some(detail_dialog) = widget.downcast_ref::<DetailDialog>() {
       // We want the dialog box displayed in the center and not filling
@@ -841,9 +836,11 @@ where
       let y = h / 2;
 
       let bbox = BBox { x, y, w, h };
-      self.writer.restrict(bbox);
 
-      let () = self.render_detail_dialog(detail_dialog, cap, bbox)?;
+      if render {
+        let () = self.writer.restrict(bbox);
+        let () = self.render_detail_dialog(detail_dialog, cap, bbox)?;
+      }
       Ok(bbox)
     } else if let Some(tag_dialog) = widget.downcast_ref::<TagDialog>() {
       // We want the dialog box displayed in the center and not filling
@@ -854,15 +851,22 @@ where
       let y = h / 2;
 
       let bbox = BBox { x, y, w, h };
-      self.writer.restrict(bbox);
 
-      let () = self.render_tag_dialog(tag_dialog, cap, bbox)?;
+      if render {
+        let () = self.writer.restrict(bbox);
+        let () = self.render_tag_dialog(tag_dialog, cap, bbox)?;
+      }
       Ok(bbox)
     } else if let Some(in_out) = widget.downcast_ref::<InOutArea>() {
-      let () = self.render_input_output(in_out, cap, bbox)?;
+      if render {
+        let () = self.render_input_output(in_out, cap, bbox)?;
+      }
       Ok(bbox)
     } else if let Some(tab_bar) = widget.downcast_ref::<TabBar>() {
-      let () = self.render_tab_bar(tab_bar, cap, bbox)?;
+      if render {
+        let () = self.render_tab_bar(tab_bar, cap, bbox)?;
+      }
+
       // Account for the one line the tab bar occupies at the top and
       // another one to have some space at the bottom to the input/output
       // area.
@@ -873,7 +877,9 @@ where
       };
       Ok(bbox)
     } else if let Some(task_list) = widget.downcast_ref::<TaskListBox>() {
-      let () = self.render_task_list_box(task_list, cap, bbox)?;
+      if render {
+        let () = self.render_task_list_box(task_list, cap, bbox)?;
+      }
       Ok(bbox)
     } else {
       panic!("Widget {widget:?} is unknown to the renderer")
@@ -911,9 +917,10 @@ where
   }
 
   fn pre_render(&self) {
-    // By default we disable the cursor, but we may opt for enabling it
-    // again when rendering certain widgets.
-    let result = self.writer.clear_all().and_then(|_| self.writer.hide());
+    // Always hide the cursor before rendering, to prevent various
+    // related artifacts from showing up. Widgets may opt for setting
+    // and enabling the cursor as one of their last actions.
+    let result = self.writer.hide();
 
     if let Err(err) = result {
       panic!("Pre-render failed: {err}");
@@ -921,16 +928,23 @@ where
   }
 
   fn render(&self, widget: &dyn Renderable, cap: &dyn Cap, bbox: BBox) -> BBox {
-    if let Some(to_render) = &self.to_render {
+    let render = if let Some(to_render) = &self.to_render {
       if self.rendering.get().is_none() {
         let id = Self::widget_id(widget);
         if to_render.contains(&id) {
           let () = self.rendering.set(Some(id));
+          true
+        } else {
+          false
         }
+      } else {
+        true
       }
-    }
+    } else {
+      true
+    };
 
-    let result = self.render_widget(widget, cap, bbox);
+    let result = self.render_widget(widget, cap, bbox, render);
     match result {
       Ok(b) => b,
       Err(err) => panic!("Rendering failed: {err}"),
