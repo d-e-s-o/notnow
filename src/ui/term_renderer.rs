@@ -7,6 +7,7 @@ use std::cmp::max;
 use std::cmp::min;
 use std::cmp::Ordering;
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::io::BufWriter;
 use std::io::Result;
 use std::io::Write;
@@ -41,6 +42,7 @@ use crate::LINE_END;
 
 use super::detail_dialog::DetailDialog;
 use super::detail_dialog::DetailDialogData;
+use super::event::Ids;
 use super::in_out::InOut;
 use super::in_out::InOutArea;
 use super::tab_bar::TabBar;
@@ -311,6 +313,14 @@ where
   data: RefCell<HashMap<Id, OffsetData>>,
   /// The colors to use.
   colors: Colors,
+  /// An optional set of `Id` objects of widgets to render. If `None`,
+  /// all widgets will be rendered.
+  to_render: Option<HashSet<Id>>,
+  /// The widget currently being rendered.
+  ///
+  /// This attribute is set as part of a `render` call and enables
+  /// incremental redrawing.
+  rendering: Cell<Option<Id>>,
 }
 
 impl<W> TermRenderer<W>
@@ -332,7 +342,15 @@ where
       writer,
       data: Default::default(),
       colors,
+      to_render: None,
+      rendering: Cell::new(None),
     })
+  }
+
+  /// Tell the renderer which widgets to render in the next
+  /// [`render`][Self::render] call.
+  pub(crate) fn set_ids(&mut self, ids: Option<Ids>) {
+    self.to_render = ids.map(HashSet::from);
   }
 
   /// Render a `TermUi`.
@@ -861,6 +879,24 @@ where
       panic!("Widget {widget:?} is unknown to the renderer")
     }
   }
+
+  fn widget_id(widget: &dyn Renderable) -> Id {
+    if let Some(ui) = widget.downcast_ref::<TermUi>() {
+      ui.id()
+    } else if let Some(detail_dialog) = widget.downcast_ref::<DetailDialog>() {
+      detail_dialog.id()
+    } else if let Some(tag_dialog) = widget.downcast_ref::<TagDialog>() {
+      tag_dialog.id()
+    } else if let Some(in_out) = widget.downcast_ref::<InOutArea>() {
+      in_out.id()
+    } else if let Some(tab_bar) = widget.downcast_ref::<TabBar>() {
+      tab_bar.id()
+    } else if let Some(task_list) = widget.downcast_ref::<TaskListBox>() {
+      task_list.id()
+    } else {
+      panic!("Widget {:?} is unknown to the renderer", widget)
+    }
+  }
 }
 
 impl<W> Renderer for TermRenderer<W>
@@ -885,10 +921,31 @@ where
   }
 
   fn render(&self, widget: &dyn Renderable, cap: &dyn Cap, bbox: BBox) -> BBox {
+    if let Some(to_render) = &self.to_render {
+      if self.rendering.get().is_none() {
+        let id = Self::widget_id(widget);
+        if to_render.contains(&id) {
+          let () = self.rendering.set(Some(id));
+        }
+      }
+    }
+
     let result = self.render_widget(widget, cap, bbox);
     match result {
       Ok(b) => b,
       Err(err) => panic!("Rendering failed: {err}"),
+    }
+  }
+
+  fn render_done(&self, widget: &dyn Renderable, _cap: &dyn Cap, _bbox: BBox) {
+    if let Some(rendering) = self.rendering.get() {
+      let id = Self::widget_id(widget);
+
+      // If we just finished rendering the widget we set out to render, we
+      // can clear the corresponding ID marker.
+      if rendering == id {
+        self.rendering.set(None)
+      }
     }
   }
 

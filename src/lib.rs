@@ -121,11 +121,11 @@ use termion::screen::IntoAlternateScreen as _;
 
 use tokio::runtime::Builder;
 
-use gui::Renderer;
 use gui::Ui;
 
 use crate::resize::receive_window_resizes;
 use crate::ui::Event as UiEvent;
+use crate::ui::Ids;
 use crate::ui::Message;
 use crate::ui::Renderer as TermUiRenderer;
 use crate::ui::Ui as TermUi;
@@ -222,17 +222,36 @@ where
   });
 }
 
+
+/// An enumeration describing what widgets of the UI to re-render.
+enum ToRender {
+  None,
+  Ids(Ids),
+  All,
+}
+
+impl ToRender {
+  pub fn merge_with(self, ids: Ids) -> Self {
+    match self {
+      Self::None => Self::Ids(ids),
+      Self::Ids(ids1) => Self::Ids(ids1.merge_with(ids)),
+      Self::All => Self::All,
+    }
+  }
+}
+
+
 /// Handle events in a loop.
-async fn run_loop<R>(
+async fn run_loop<W>(
   mut ui: Ui<UiEvent, Message>,
-  renderer: &R,
+  renderer: &mut TermUiRenderer<W>,
   recv_event: &Receiver<IoResult<Event>>,
 ) -> Result<()>
 where
-  R: Renderer,
+  W: Write,
 {
   'handler: loop {
-    let mut render = false;
+    let mut to_render = ToRender::None;
     // We want to read keys in batches in order to avoid unnecessary
     // render invocations, for example when a user pastes text (where
     // each key would result in a UI update). To make that happen we
@@ -255,17 +274,25 @@ where
           if let Some(event) = ui.handle(event).await {
             match event {
               UiEvent::Quit => break 'handler,
-              UiEvent::Updated(..) => render = true,
+              UiEvent::Updated(ids) => to_render = to_render.merge_with(ids),
               UiEvent::Key(..) => {},
             }
           }
         },
-        Event::Resize => render = true,
+        Event::Resize => to_render = ToRender::All,
       }
     }
 
-    if render {
-      ui.render(renderer);
+    match to_render {
+      ToRender::None => (),
+      ToRender::Ids(ids) => {
+        let () = renderer.set_ids(Some(ids));
+        let () = ui.render(renderer);
+        let () = renderer.set_ids(None);
+      },
+      ToRender::All => {
+        let () = ui.render(renderer);
+      },
     }
   }
   Ok(())
@@ -304,7 +331,7 @@ where
     .into_alternate_screen()?
     .into_raw_mode()
     .context("failed to switch program output to raw mode")?;
-  let renderer =
+  let mut renderer =
     TermUiRenderer::new(screen, colors).context("failed to instantiate terminal based renderer")?;
 
   let ui_config_dir_cap = DirCap::for_dir(ui_config_path.0).await?;
@@ -338,7 +365,7 @@ where
   // recent data presented.
   ui.render(&renderer);
 
-  run_loop(ui, &renderer, &recv_event).await
+  run_loop(ui, &mut renderer, &recv_event).await
 }
 
 

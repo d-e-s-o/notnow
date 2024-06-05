@@ -74,7 +74,7 @@ version = "5.0"
 version = "0.3.1"
 
 [dependencies.gui]
-version = "0.6"
+version = "0.6.1"
 features = ["derive"]
 
 [dependencies.icalendar]

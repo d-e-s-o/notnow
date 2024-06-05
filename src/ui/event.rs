@@ -1,6 +1,8 @@
 // Copyright (C) 2018-2024 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+use std::collections::HashSet;
+
 use gui::Id;
 use gui::Mergeable;
 
@@ -65,6 +67,17 @@ where
         let () = a.append(&mut b);
         Ids::Any(a)
       },
+    }
+  }
+}
+
+impl From<Ids> for HashSet<Id> {
+  fn from(other: Ids) -> Self {
+    match other {
+      Ids::One(a) => HashSet::from([a]),
+      Ids::Two(a, b) => HashSet::from([a, b]),
+      Ids::Three(a, b, c) => HashSet::from([a, b, c]),
+      Ids::Any(ids) => HashSet::from_iter(ids),
     }
   }
 }

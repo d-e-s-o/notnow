@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2023 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2019-2024 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 mod config;
@@ -18,6 +18,7 @@ mod termui;
 
 pub use config::Config;
 pub use event::Event;
+pub use event::Ids;
 pub use message::Message;
 pub use state::State;
 pub use term_renderer::TermRenderer as Renderer;
