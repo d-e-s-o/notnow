@@ -139,7 +139,8 @@ impl Handleable<Event, Message> for DetailDialog {
 
             let data = self.data_mut::<DetailDialogData>(cap);
             let _data = data.data.take();
-            Some(Message::updated(self.id))
+            // SANITY: We know that this dialog has a parent.
+            Some(Message::updated(cap.parent_id(self.id).unwrap()))
           },
           InputResult::Updated => Some(Message::updated(self.id)),
           InputResult::Unchanged => None,

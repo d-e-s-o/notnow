@@ -282,7 +282,8 @@ impl TagDialog {
           cap.send(widget, Message::UpdateTask(task, updated)).await;
         }
 
-        Some(Message::updated(self.id))
+        // SANITY: We know that this dialog has a parent.
+        Some(Message::updated(cap.parent_id(self.id).unwrap()))
       },
       Key::Char(' ') => data.toggle_tag().then(|| Message::updated(self.id)),
       Key::Char('f') => {
