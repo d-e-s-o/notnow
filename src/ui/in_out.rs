@@ -116,7 +116,13 @@ impl InOutAreaData {
   }
 
   /// Conditionally change the `InOut` state of the widget.
-  fn change_state(&mut self, id: Id, in_out: Option<InOut>) -> Option<Message> {
+  ///
+  /// # Notes
+  /// `parent` should be the `Id` of the parent widget. We should make
+  /// sure to always update the parent widget (as opposed to the `InOut`
+  /// widget itself), because it may want to set the cursor in response
+  /// to this widget being hidden, for example.
+  fn change_state(&mut self, parent: Id, in_out: Option<InOut>) -> Option<Message> {
     // We received a request to change the state. Unconditionally bump
     // the generation it has, irrespective of whether we actually change
     // it (which we don't, if the new state is equal to what we already
@@ -126,10 +132,10 @@ impl InOutAreaData {
     match in_out {
       Some(in_out) if in_out != *self.in_out.get() => {
         self.in_out.set(in_out);
-        Some(Message::updated(id))
+        Some(Message::updated(parent))
       },
       Some(..) => None,
-      None => Some(Message::updated(id)),
+      None => Some(Message::updated(parent)),
     }
   }
 }
@@ -158,6 +164,8 @@ impl InOutArea {
     event: Option<&'f Event>,
   ) -> Pin<Box<dyn Future<Output = Option<Event>> + 'f>> {
     Box::pin(async move {
+      // SANITY: We know that this dialog has a parent.
+      let parent = cap.parent_id(widget.id()).unwrap();
       let data = cap
         .data_mut(widget.id())
         .downcast_mut::<InOutAreaData>()
@@ -179,9 +187,9 @@ impl InOutArea {
         // between pre- and post-hook.
         if data.clear_gen.take() == Some(data.in_out.gen) {
           match data.in_out.get() {
-            InOut::Saved | InOut::Search(_) | InOut::Error(_) => data
-              .change_state(widget.id(), Some(InOut::Clear))
-              .into_event(),
+            InOut::Saved | InOut::Search(_) | InOut::Error(_) => {
+              data.change_state(parent, Some(InOut::Clear)).into_event()
+            },
             InOut::Input(..) | InOut::Clear => None,
           }
         } else {
@@ -197,8 +205,10 @@ impl InOutArea {
     cap: &mut dyn MutCap<Event, Message>,
     string: Option<String>,
   ) -> Option<Message> {
+    // SANITY: We know that this dialog has a parent.
+    let parent = cap.parent_id(self.id).unwrap();
     let data = self.data_mut::<InOutAreaData>(cap);
-    let result1 = data.change_state(self.id, Some(InOut::Clear));
+    let result1 = data.change_state(parent, Some(InOut::Clear));
     let widget = self.restore_focus(cap);
     let message = if let Some(s) = string {
       Message::EnteredText(s)
@@ -234,6 +244,8 @@ impl Handleable<Event, Message> for InOutArea {
   async fn handle(&self, cap: &mut dyn MutCap<Event, Message>, event: Event) -> Option<Event> {
     match event {
       Event::Key(key, raw) => {
+        // SANITY: We know that this dialog has a parent.
+        let parent = cap.parent_id(self.id).unwrap();
         let data = self.data_mut::<InOutAreaData>(cap);
         let text = if let InOut::Input(text) = data.in_out.get_mut() {
           text
@@ -244,7 +256,7 @@ impl Handleable<Event, Message> for InOutArea {
         let message = match text.handle_key(key, &raw) {
           InputResult::Completed(text) => self.finish_input(cap, Some(text)).await,
           InputResult::Canceled => self.finish_input(cap, None).await,
-          InputResult::Updated => data.change_state(self.id, None),
+          InputResult::Updated => data.change_state(parent, None),
           InputResult::Unchanged => {
             data.in_out.bump();
             None
@@ -265,8 +277,10 @@ impl Handleable<Event, Message> for InOutArea {
           self.make_focused(cap);
         };
 
+        // SANITY: We know that this dialog has a parent.
+        let parent = cap.parent_id(self.id).unwrap();
         let data = self.data_mut::<InOutAreaData>(cap);
-        data.change_state(self.id, Some(in_out))
+        data.change_state(parent, Some(in_out))
       },
       #[cfg(all(test, not(feature = "readline")))]
       Message::GetInOut => {
