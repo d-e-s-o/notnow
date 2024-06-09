@@ -1,5 +1,5 @@
-Unreleased
-----------
+0.3.7
+-----
 - Converted UI to update widgets incrementally
   - Eliminated flicker and other rendering artifacts
 
