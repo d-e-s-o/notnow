@@ -23,7 +23,6 @@ pub enum InputResult {
   /// The text was updated but input handling is not yet complete.
   Updated,
   /// Input was handled but nothing changed.
-  #[cfg_attr(feature = "readline", allow(dead_code))]
   Unchanged,
 }
 
@@ -219,9 +218,14 @@ impl InputText {
           };
 
           if accepted {
-            self.text = EditableText::from_string(s.to_string_lossy());
-            let () = self.text.set_cursor_byte_index(idx);
-            InputResult::Updated
+            let s = s.to_string_lossy();
+            if idx != self.text.cursor_byte_index() || s != self.text.as_str() {
+              self.text = EditableText::from_string(s);
+              let () = self.text.set_cursor_byte_index(idx);
+              InputResult::Updated
+            } else {
+              InputResult::Unchanged
+            }
           } else {
             let cstr = CString::new(self.text.as_str()).unwrap();
             let cursor = self.text.cursor_byte_index();
