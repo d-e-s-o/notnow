@@ -376,6 +376,7 @@ where
 
   /// Render a `TabBar`.
   fn render_tab_bar(&self, tab_bar: &TabBar, cap: &dyn Cap, bbox: BBox) -> Result<()> {
+    crate::log::info!("rendering TabBar");
     let mut map = self.data.borrow_mut();
     let data = map.entry(tab_bar.id()).or_default();
 
@@ -501,6 +502,7 @@ where
 
   /// Render a `TaskListBox`.
   fn render_task_list_box(&self, task_list: &TaskListBox, cap: &dyn Cap, bbox: BBox) -> Result<()> {
+    crate::log::info!("rendering TaskListBox");
     let mut map = self.data.borrow_mut();
     let data = map.entry(task_list.id()).or_default();
 
@@ -600,6 +602,7 @@ where
     cap: &dyn Cap,
     bbox: BBox,
   ) -> Result<()> {
+    crate::log::info!("rendering DetailDialog");
     let data = detail_dialog.data::<DetailDialogData>(cap);
     let details = data.details();
     let mut lines = details.as_str().split(LINE_END);
@@ -703,6 +706,7 @@ where
 
   /// Render a `TagDialog`.
   fn render_tag_dialog(&self, tag_dialog: &TagDialog, cap: &dyn Cap, bbox: BBox) -> Result<()> {
+    crate::log::info!("rendering TagDialog");
     let mut map = self.data.borrow_mut();
     let data = map.entry(tag_dialog.id()).or_default();
 
@@ -741,6 +745,7 @@ where
 
   /// Render an `InOutArea`.
   fn render_input_output(&self, in_out: &InOutArea, cap: &dyn Cap, bbox: BBox) -> Result<()> {
+    crate::log::info!("rendering InOutArea");
     let mut x = 0;
     let y = bbox.h - 1;
 
