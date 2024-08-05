@@ -50,6 +50,60 @@ struct TaskInner {
 }
 
 
+/// A builder for configurable construction of [`Task`] objects.
+#[derive(Clone, Debug, Default)]
+pub struct Builder {
+  /// The task's summary.
+  summary: String,
+  /// The task's details.
+  details: String,
+  /// The task's tags.
+  tags: Vec<Tag>,
+}
+
+impl Builder {
+  /// Set/change the task's summary.
+  pub fn set_summary<S>(mut self, summary: S) -> Self
+  where
+    S: Into<String>,
+  {
+    self.summary = summary.into();
+    self
+  }
+
+  /// Set/change the task's details.
+  pub fn set_details(mut self, details: String) -> Self {
+    self.details = details;
+    self
+  }
+
+  /// Set/change the task's tags.
+  pub fn set_tags(mut self, tags: Vec<Tag>) -> Self {
+    self.tags = tags;
+    self
+  }
+
+  /// Create the [`Task`] object.
+  pub fn build(self, templates: Rc<Templates>) -> Task {
+    let Self {
+      summary,
+      details,
+      tags,
+    } = self;
+
+    let inner = TaskInner {
+      id: Id::new_v4(),
+      summary,
+      details,
+      tags: tags.into_iter().collect(),
+      templates,
+    };
+
+    Task(RefCell::new(inner))
+  }
+}
+
+
 /// A struct representing a task item.
 // Note that while conceptually this type could be fully internally
 // mutable, in practice most modifying functions still have a &mut self
@@ -66,31 +120,15 @@ impl Task {
   /// Create a new task.
   #[cfg(test)]
   pub fn new(summary: impl Into<String>) -> Self {
-    let inner = TaskInner {
-      id: Id::new_v4(),
-      summary: summary.into(),
-      details: String::new(),
-      tags: Default::default(),
-      templates: Rc::new(Templates::new()),
-    };
-
-    Self(RefCell::new(inner))
+    Self::builder()
+      .set_summary(summary)
+      .build(Rc::new(Templates::new()))
   }
 
-  /// Create a task using the given summary.
-  pub fn with_summary_and_tags<S>(summary: S, tags: Vec<Tag>, templates: Rc<Templates>) -> Self
-  where
-    S: Into<String>,
-  {
-    let inner = TaskInner {
-      id: Id::new_v4(),
-      summary: summary.into(),
-      details: String::new(),
-      tags: tags.into_iter().collect(),
-      templates,
-    };
-
-    Self(RefCell::new(inner))
+  /// Retrieve a [`Builder`] object for configurable construction of a
+  /// [`Task`].
+  pub fn builder() -> Builder {
+    Builder::default()
   }
 
   /// Create a new task from a serializable one.
@@ -633,12 +671,11 @@ impl Tasks {
       ..
     } = borrow.deref_mut();
 
-    let task = Rc::new(Task::with_summary_and_tags(
-      summary,
-      tags,
-      templates.clone(),
-    ));
-    let op = TaskOp::add(task, after);
+    let task = Task::builder()
+      .set_summary(summary)
+      .set_tags(tags)
+      .build(templates.clone());
+    let op = TaskOp::add(Rc::new(task), after);
     // SANITY: We know that an "add" operation always returns a task, so
     //         this unwrap will never panic.
     let task = operations.exec(op, tasks).unwrap();
