@@ -29,6 +29,10 @@ pub enum Message {
   /// determines whether we accept only an exact match (true) or merely
   /// require a substring match (false).
   SearchTask(String, SearchState, bool, bool),
+  /// Copy a task for later paste.
+  CopyTask(Task),
+  /// Retrieve the copied task, if any.
+  GetCopiedTask(Option<Task>),
   /// Edit the details associated with a task.
   EditDetails(Rc<Task>, Task),
   /// Edit the tags associated with a task.

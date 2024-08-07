@@ -116,6 +116,8 @@ where that is possible. The key bindings are as follows:
 | e      | Edit selected task's summary             |
 | t      | Edit selected task's tags                |
 | d      | Delete selected task                     |
+| y      | Copy the selected task                   |
+| p      | Paste a previously copied task           |
 | j      | Move task selection down                 |
 | k      | Move task selection up                   |
 | J      | Move selected task down                  |

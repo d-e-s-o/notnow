@@ -17,6 +17,7 @@ use gui::MutCap;
 use gui::Widget;
 
 use crate::tags::Tag;
+use crate::tasks::Task;
 use crate::tasks::Tasks;
 use crate::view::View;
 
@@ -146,6 +147,8 @@ pub struct TabBarData {
   prev_selection: isize,
   /// An object representing a search.
   search: Search,
+  /// A copied task. Used for copy & paste operations.
+  copied_task: Option<Task>,
 }
 
 impl TabBarData {
@@ -156,6 +159,7 @@ impl TabBarData {
       selection: 0,
       prev_selection: 0,
       search: Search::Unset,
+      copied_task: None,
     }
   }
 
@@ -544,6 +548,27 @@ impl Handleable<Event, Message> for TabBar {
         };
 
         result1.maybe_update(result2)
+      },
+      Message::CopyTask(copied) => {
+        let data = self.data_mut::<TabBarData>(cap);
+        data.copied_task = Some(copied);
+        None
+      },
+      message => panic!("Received unexpected message: {message:?}"),
+    }
+  }
+
+  /// Respond to a message.
+  async fn respond(
+    &self,
+    message: &mut Message,
+    cap: &mut dyn MutCap<Event, Message>,
+  ) -> Option<Message> {
+    match message {
+      Message::GetCopiedTask(ref mut task) => {
+        let data = self.data::<TabBarData>(cap);
+        *task = data.copied_task.clone();
+        None
       },
       message => panic!("Received unexpected message: {message:?}"),
     }
