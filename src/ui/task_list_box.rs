@@ -356,7 +356,11 @@ impl Handleable<Event, Message> for TaskListBox {
               let data = self.data_mut::<TaskListBoxData>(cap);
               let task = data.tasks.add(builder, data.selected_task());
               let result2 = self.select_task(cap, task).await;
-              result1.maybe_update(result2).into_event()
+
+              result1
+                .maybe_update(result2)
+                .maybe_update(Some(Message::updated(self.id)))
+                .into_event()
             } else {
               result1.into_event()
             }

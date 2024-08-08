@@ -2623,6 +2623,31 @@ mod tests {
     assert_eq!(tags, Vec::<&str>::new());
   }
 
+  /// Check that we can copy and paste a task.
+  #[test]
+  async fn copy_and_paste_task() {
+    let tasks = make_tasks(3);
+    let events = vec![
+      // Copy task1.
+      Event::from('y'),
+      // Move to the last task.
+      Event::from('G'),
+      // Paste the copied task.
+      Event::from('p'),
+    ];
+    let tasks = TestUiBuilder::with_ser_tasks(tasks)
+      .build()
+      .await
+      .handle(events)
+      .await
+      .task_summaries()
+      .await;
+
+    let mut expected = make_task_summaries(3);
+    expected.push("1".to_string());
+    assert_eq!(tasks, expected)
+  }
+
   /// Test setting all available tags for a task.
   #[test]
   async fn set_all_tags() {
