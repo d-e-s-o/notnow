@@ -2648,6 +2648,39 @@ mod tests {
     assert_eq!(tasks, expected)
   }
 
+  /// Check that we can copy a task and paste it on a different view.
+  #[test]
+  async fn copy_and_paste_task_different_view() {
+    let events = vec![
+      // Move to the "complete" view.
+      Event::from('l'),
+      // Copy task2.
+      Event::from('y'),
+      // Move to the "tag2 || tag3" view.
+      Event::from('l'),
+      // Paste the copied task. It should appear just after task9. But
+      // because it has different tags, we expect to select the very
+      // first view.
+      Event::from('p'),
+      // Move to the first task (which should be task1).
+      Event::from('g'),
+      // Delete it.
+      Event::from('d'),
+    ];
+    let tasks = TestUiBuilder::with_default_tasks_and_tags()
+      .build()
+      .await
+      .handle(events)
+      .await
+      .task_summaries()
+      .await;
+
+    let mut expected = make_task_summaries(15);
+    let () = expected.insert(9, "2".to_string());
+    let _removed = expected.remove(0);
+    assert_eq!(tasks, expected)
+  }
+
   /// Test setting all available tags for a task.
   #[test]
   async fn set_all_tags() {

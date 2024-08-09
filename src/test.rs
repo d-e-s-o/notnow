@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2023 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2018-2024 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 //! A module providing testing related utility functionality.
@@ -109,7 +109,7 @@ pub fn make_task_summaries(count: usize) -> Vec<String> {
 }
 
 
-/// Create the default `UiConfig` with four views and 15 tasks with
+/// Create the default `SerUiConfig` with four views and 15 tasks with
 /// tags. Tag assignment follows the pattern that
 /// `make_tasks_with_tags` creates.
 pub fn default_tasks_and_tags() -> (SerUiConfig, SerTaskState) {
