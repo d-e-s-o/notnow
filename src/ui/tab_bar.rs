@@ -3,7 +3,6 @@
 
 use std::cmp::max;
 use std::cmp::min;
-use std::isize;
 use std::mem::replace;
 use std::rc::Rc;
 

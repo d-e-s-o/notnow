@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::cmp::min;
-use std::isize;
 use std::ops::Deref as _;
 use std::rc::Rc;
 
