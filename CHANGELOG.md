@@ -1,3 +1,8 @@
+Unreleased
+----------
+- Bumped minimum supported Rust version to `1.66`
+
+
 0.3.8
 -----
 - Added support for running multiple instances as long as configuration
