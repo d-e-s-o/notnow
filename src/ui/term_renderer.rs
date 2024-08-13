@@ -1141,9 +1141,9 @@ mod tests {
 
       let screen = stdout()
         .lock()
-        .into_alternate_screen()
-        .unwrap()
         .into_raw_mode()
+        .unwrap()
+        .into_alternate_screen()
         .unwrap();
       let renderer = TermUiRenderer::new(screen, colors).unwrap();
 

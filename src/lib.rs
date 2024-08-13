@@ -97,6 +97,7 @@ use std::io::ErrorKind;
 use std::io::Read;
 use std::io::Result as IoResult;
 use std::io::Write;
+use std::os::fd::AsFd;
 use std::path::Path;
 use std::sync::mpsc::channel;
 use std::sync::mpsc::Receiver;
@@ -251,7 +252,7 @@ where
 pub async fn run_prog<R, W>(in_: R, out: W, paths: Paths) -> Result<()>
 where
   R: Read + Send + 'static,
-  W: Write,
+  W: Write + AsFd,
 {
   let task_state = TaskState::load(&paths.tasks_dir())
     .await
@@ -271,9 +272,10 @@ where
     .await
     .context("failed to load UI state")?;
   let screen = out
-    .into_alternate_screen()?
     .into_raw_mode()
-    .context("failed to switch program output to raw mode")?;
+    .context("failed to switch program output to raw mode")?
+    .into_alternate_screen()
+    .context("failed to switch to alternate screen")?;
   let mut renderer =
     TermUiRenderer::new(screen, colors).context("failed to instantiate terminal based renderer")?;
 

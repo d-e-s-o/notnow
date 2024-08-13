@@ -1,7 +1,7 @@
 // Copyright (C) 2022-2024 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use std::io::sink;
+use std::io::stdout;
 
 use notnow::run_prog;
 use notnow::test::default_tasks_and_tags;
@@ -38,7 +38,7 @@ async fn prog_running() {
   let mut ui_config_file_cap = ui_config_dir_write_guard.file_cap(paths.ui_config_file());
   let () = ui_config.save(&mut ui_config_file_cap).await.unwrap();
 
-  let mut output = sink();
+  let mut output = stdout().lock();
 
   run_prog(KEYS.as_slice(), &mut output, paths).await.unwrap()
 }
