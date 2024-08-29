@@ -78,10 +78,6 @@ impl TryFrom<&Todo> for Task {
       .get_description()
       .unwrap_or("")
       .to_string()
-      // TODO: The first `replace` should not be necessary. It is needed right
-      //       now due to https://github.com/hoodie/icalendar-rs/issues/87,
-      //       but this should be fixed upstream.
-      .replace("\\n", "\n")
       .replace('\n', LINE_END_STR);
     let tags = todo
       .property_value(TAGS_PROPERTY)
