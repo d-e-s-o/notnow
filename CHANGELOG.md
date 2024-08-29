@@ -1,5 +1,5 @@
-Unreleased
-----------
+0.3.9
+-----
 - Bumped `termion` dependency to `4.0`
 - Bumped minimum supported Rust version to `1.66`
 
