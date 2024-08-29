@@ -43,7 +43,7 @@ impl From<&Task> for Todo {
       todo.add_property(TAGS_PROPERTY, &tags);
     }
     if let Some(position) = &task.position {
-      todo.add_property(POSITION_PROPERTY, &position.to_string());
+      todo.add_property(POSITION_PROPERTY, position.to_string());
     }
 
     todo

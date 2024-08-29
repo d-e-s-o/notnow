@@ -837,7 +837,7 @@ pub mod tests {
       let () = db.data.reserve(ITEM_CNT);
 
       for item in items.iter() {
-        assert!(db.try_push(black_box(item.clone())).is_some());
+        assert!(db.try_push(black_box(Rc::clone(&item))).is_some());
       }
     });
   }
@@ -849,7 +849,7 @@ pub mod tests {
     let mut db = Db::from_iter([]);
 
     let items = (1..ITEM_CNT)
-      .map(|i| db.push(i).deref().clone())
+      .map(|i| Rc::clone(db.push(i).deref()))
       .collect::<HashSet<_>>();
 
     let () = b.iter(|| {
