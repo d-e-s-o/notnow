@@ -37,7 +37,6 @@
   unused_import_braces,
   unused_lifetimes,
   unused_qualifications,
-  where_clauses_object_safety,
   while_true,
   clippy::clone_on_ref_ptr,
   clippy::dbg_macro,
