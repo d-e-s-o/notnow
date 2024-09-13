@@ -8,19 +8,31 @@ on:
 
 jobs:
   build:
-    name: Build statically linked binary
+    name: Build notnow${{ matrix.suffix }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - suffix: ""
+            args: ""
+          - suffix: "-readline"
+            args: "--features=readline"
     steps:
       - uses: actions/checkout@v4
       - name: Install dependencies
         run: sudo apt-get install musl-tools
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: x86_64-unknown-linux-musl
-      - run: |
-          cargo install --bin=notnow --path=. --root=. --target x86_64-unknown-linux-musl
+      - name: Build notnow
+        env:
+          READLINE_STATIC: 1
+          READLINE_LIB_DIR: /usr/lib/x86_64-linux-gnu/
+          RUSTFLAGS: -C target-feature=+crt-static
+        run: |
+          sudo apt-get install libreadline-dev
+          cargo install --bin=notnow --path=. --root=. --target x86_64-unknown-linux-gnu ${{ matrix.args }}
           strip bin/notnow
       - uses: actions/upload-artifact@v4
         with:
-          name: notnow
+          name: notnow${{ matrix.suffix }}
           path: bin/notnow
