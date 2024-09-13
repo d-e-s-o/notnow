@@ -4,6 +4,13 @@
 name: Build
 
 on:
+  workflow_call:
+    inputs:
+      upload-release:
+        description: 'The release to upload artifacts to, if any'
+        default: ''
+        required: false
+        type: string
   workflow_dispatch:
 
 jobs:
@@ -36,3 +43,10 @@ jobs:
         with:
           name: notnow${{ matrix.suffix }}
           path: bin/notnow
+      - if: ${{ inputs.upload-release != '' }}
+        name: Upload release asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mv bin/notnow notnow${{ matrix.suffix }}
+          gh release upload ${{ inputs.upload-release }} notnow${{ matrix.suffix }}
