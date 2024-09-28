@@ -452,7 +452,7 @@ OPTIONS:
   -V, --version    Print version information
 ",
         name = env!("CARGO_CRATE_NAME"),
-        version = env!("NOTNOW_VERSION"),
+        version = env!("VERSION"),
       );
       Ok(())
     },
@@ -460,7 +460,7 @@ OPTIONS:
       with_lockfile(lock_file, true, run_now)
     },
     2 if args_os().any(|arg| &arg == "--version" || &arg == "-V") => {
-      println!("{} {}", env!("CARGO_CRATE_NAME"), env!("NOTNOW_VERSION"));
+      println!("{} {}", env!("CARGO_CRATE_NAME"), env!("VERSION"));
       Ok(())
     },
     _ => bail!("encountered unsupported number of program arguments"),
