@@ -394,6 +394,7 @@ where
   if force {
     let _file = File::options()
       .create(true)
+      .truncate(true)
       .write(true)
       .open(lock_file)
       .with_context(|| {
