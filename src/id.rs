@@ -1,4 +1,4 @@
-// Copyright (C) 2022-2023 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2022-2024 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::cmp::Ordering;
@@ -12,8 +12,10 @@ use std::hash::Hash;
 use std::hash::Hasher;
 use std::marker::PhantomData;
 use std::num::NonZeroUsize;
+#[cfg(test)]
 use std::ops::Bound;
 
+#[cfg(test)]
 use gaps::RangeGappable as _;
 
 use crate::ser::id::Id as SerId;
@@ -113,6 +115,7 @@ pub trait AllocId<T> {
   /// # Panics
   ///
   /// This method panics if the available ID space is exhausted.
+  #[cfg(test)]
   fn allocate_id(&mut self) -> (Self::Id, Self::Entry<'_>);
 
   /// Attempt to reserve an `Id`.
@@ -123,6 +126,7 @@ pub trait AllocId<T> {
   /// # Panics
   ///
   /// This method panics if the provided `id` is already in use.
+  #[cfg(test)]
   fn reserve_id(&mut self, id: usize) -> (Self::Id, Self::Entry<'_>) {
     self
       .try_reserve_id(id)
@@ -130,6 +134,7 @@ pub trait AllocId<T> {
   }
 
   /// Free an `Id` allocated earlier.
+  #[cfg(test)]
   fn free_id(&mut self, id: Self::Id);
 }
 
@@ -139,6 +144,7 @@ impl<T, V> AllocId<T> for BTreeMap<usize, V> {
     where
       V: 'e;
 
+  #[cfg(test)]
   fn allocate_id(&mut self) -> (Self::Id, Self::Entry<'_>) {
     let mut gaps = self.gaps(1..=usize::MAX);
     let gap = gaps.next().expect("available ID space is exhausted");
@@ -172,12 +178,14 @@ impl<T, V> AllocId<T> for BTreeMap<usize, V> {
     }
   }
 
+  #[cfg(test)]
   fn reserve_id(&mut self, id: usize) -> (Self::Id, Self::Entry<'_>) {
     self
       .try_reserve_id(id)
       .unwrap_or_else(|| panic!("ID {id} is already in use"))
   }
 
+  #[cfg(test)]
   fn free_id(&mut self, id: Self::Id) {
     let _removed = self.remove(&id.get().get());
     debug_assert!(_removed.is_some());

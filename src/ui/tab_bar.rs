@@ -567,7 +567,7 @@ impl Handleable<Event, Message> for TabBar {
     match message {
       Message::GetCopiedTask(ref mut task) => {
         let data = self.data::<TabBarData>(cap);
-        *task = data.copied_task.clone();
+        task.clone_from(&data.copied_task);
         None
       },
       message => panic!("Received unexpected message: {message:?}"),

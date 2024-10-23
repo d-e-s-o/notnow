@@ -228,7 +228,7 @@ impl Task {
     // SANITY: The type's API surface prevents any borrows from escaping
     //         a function call and we don't call methods on `self` while
     //         a borrow is active.
-    self.0.try_borrow().unwrap().tags.get(tag).is_some()
+    self.0.try_borrow().unwrap().tags.contains(tag)
   }
 
   /// Ensure that the provided tag is set on this task.

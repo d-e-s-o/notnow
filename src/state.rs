@@ -1,4 +1,4 @@
-// Copyright (C) 2017-2023 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2017-2024 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 //! Definitions pertaining UI configuration and task state of the
@@ -257,7 +257,7 @@ async fn should_save_tasks(dir: &Path, tasks: &SerTaskState) -> Result<bool> {
       .and_then(|id| SerTaskId::try_parse(id).ok());
 
     let remove = if let Some(id) = id {
-      id != TASKS_META_ID && ids.get(&id).is_none()
+      id != TASKS_META_ID && !ids.contains(&id)
     } else {
       true
     };
@@ -294,7 +294,7 @@ async fn save_tasks_to_dir(dir_cap: &mut DirCap, tasks: &SerTaskState) -> Result
       .and_then(|id| SerTaskId::try_parse(id).ok());
 
     let remove = if let Some(id) = id {
-      id != TASKS_META_ID && ids.get(&id).is_none()
+      id != TASKS_META_ID && !ids.contains(&id)
     } else {
       true
     };

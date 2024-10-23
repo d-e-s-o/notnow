@@ -70,9 +70,6 @@ optional = true
 [dependencies.dirs]
 version = "5.0"
 
-[dependencies.gaps]
-version = "0.3.1"
-
 [dependencies.gui]
 version = "0.6.1"
 features = ["derive"]
@@ -117,6 +114,9 @@ version = "=0.1.11"
 version = "1.2"
 default-features = false
 features = ["serde", "v4"]
+
+[dev-dependencies.gaps]
+version = "0.3.1"
 
 [dev-dependencies.tempfile]
 version = "3.3"

@@ -7,7 +7,7 @@ use std::hash::Hash;
 use std::hash::Hasher;
 use std::rc::Rc;
 
-use crate::id::AllocId;
+use crate::id::AllocId as _;
 use crate::id::Id as IdT;
 use crate::ser::tags::Id as SerTagId;
 use crate::ser::tags::Tag as SerTag;
