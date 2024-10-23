@@ -64,7 +64,7 @@ version = "1.0.66"
 version = "0.1.41"
 
 [dependencies.coredump]
-version = "0.1"
+version = "0.1.1"
 optional = true
 
 [dependencies.dirs]
@@ -90,7 +90,7 @@ version = "0.3"
 optional = true
 
 [dependencies.serde]
-version = "1.0"
+version = "1.0.103"
 features = ["derive"]
 
 [dependencies.serde_json]

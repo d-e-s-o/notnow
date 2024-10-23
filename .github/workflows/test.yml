@@ -26,7 +26,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        rust: [1.65.0, stable]
+        rust: [stable]
         profile: [dev, release]
     steps:
     - uses: actions/checkout@v4
@@ -36,6 +36,25 @@ jobs:
     - name: Build ${{ matrix.profile }}
       run: |
         cargo build --profile=${{ matrix.profile }} --bins --tests --examples --features=test
+  build-minimum:
+    name: Build using minimum versions of dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Nightly Rust
+        uses: dtolnay/rust-toolchain@nightly
+      - run: cargo +nightly -Z minimal-versions update
+      - name: Install minimum Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          # Please adjust README and rust-version field in Cargo.toml files when
+          # bumping version.
+          toolchain: 1.65.0
+      - name: Build
+        run: |
+          cargo build --locked
+          cargo build --locked --features=coredump
+          cargo build --locked --features=readline
   test:
     name: Test and coverage
     runs-on: ubuntu-latest
