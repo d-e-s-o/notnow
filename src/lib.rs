@@ -61,6 +61,7 @@
 #[cfg(all(test, feature = "nightly"))]
 extern crate test as unstable_test;
 
+mod args;
 mod cap;
 mod colors;
 mod db;
@@ -102,9 +103,10 @@ use std::sync::mpsc::Sender;
 use std::thread;
 
 use anyhow::anyhow;
-use anyhow::bail;
 use anyhow::Context as _;
 use anyhow::Result;
+
+use clap::Parser as _;
 
 #[cfg(feature = "coredump")]
 use coredump::register_panic_handler;
@@ -122,6 +124,7 @@ use tokio::runtime::Builder;
 
 use gui::Ui;
 
+use crate::args::Args;
 use crate::resize::receive_window_resizes;
 use crate::ui::Event as UiEvent;
 use crate::ui::Ids;
@@ -436,35 +439,18 @@ fn run_now() -> Result<()> {
 
 /// Parse the arguments and run the program.
 fn run_with_args(lock_file: &Path) -> Result<()> {
-  match args_os().len() {
-    0 | 1 => with_lockfile(lock_file, false, run_now),
-    2 if args_os().any(|arg| &arg == "--help" || &arg == "-h") => {
-      print!(
-        "{name} {version}
+  let args = match Args::try_parse_from(args_os()) {
+    Ok(args) => args,
+    Err(err) => match err.kind() {
+      clap::error::ErrorKind::DisplayHelp | clap::error::ErrorKind::DisplayVersion => {
+        print!("{}", err);
+        return Ok(())
+      },
+      _ => return Err(err.into()),
+    },
+  };
 
-USAGE:
-  {name} [OPTIONS]
-
-OPTIONS:
-  -f, --force      Force reclamation of stale lock files in case a previous program
-                   instance terminated improperly
-  -h, --help       Print help information
-  -V, --version    Print version information
-",
-        name = env!("CARGO_CRATE_NAME"),
-        version = env!("VERSION"),
-      );
-      Ok(())
-    },
-    2 if args_os().any(|arg| &arg == "--force" || &arg == "-f") => {
-      with_lockfile(lock_file, true, run_now)
-    },
-    2 if args_os().any(|arg| &arg == "--version" || &arg == "-V") => {
-      println!("{} {}", env!("CARGO_CRATE_NAME"), env!("VERSION"));
-      Ok(())
-    },
-    _ => bail!("encountered unsupported number of program arguments"),
-  }
+  with_lockfile(lock_file, args.force, run_now)
 }
 
 fn run_with_result() -> Result<()> {
@@ -495,6 +481,8 @@ pub fn run() -> i32 {
 #[cfg(test)]
 mod tests {
   use super::*;
+
+  use anyhow::bail;
 
   use tempfile::NamedTempFile;
 

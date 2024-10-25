@@ -63,6 +63,11 @@ version = "1.0.66"
 [dependencies.async-trait]
 version = "0.1.41"
 
+[dependencies.clap]
+version = "4.1"
+default-features = false
+features = ["derive", "help", "std", "suggestions", "usage"]
+
 [dependencies.coredump]
 version = "0.1.1"
 optional = true
