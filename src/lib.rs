@@ -67,6 +67,7 @@ mod colors;
 mod db;
 mod id;
 mod ops;
+mod paths;
 mod position;
 mod resize;
 mod ser;
@@ -80,12 +81,12 @@ mod ui;
 mod view;
 
 pub use crate::cap::DirCap;
+pub use crate::paths::Paths;
 pub use crate::state::TaskState;
 pub use crate::ui::Config as UiConfig;
 pub use crate::ui::State as UiState;
 
 use std::env::args_os;
-use std::ffi::OsString;
 use std::fs::create_dir_all;
 use std::fs::remove_file;
 use std::fs::File;
@@ -96,13 +97,11 @@ use std::io::Read;
 use std::io::Result as IoResult;
 use std::io::Write;
 use std::path::Path;
-use std::path::PathBuf;
 use std::sync::mpsc::channel;
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc::Sender;
 use std::thread;
 
-use anyhow::anyhow;
 use anyhow::Context as _;
 use anyhow::Result;
 
@@ -110,9 +109,6 @@ use clap::Parser as _;
 
 #[cfg(feature = "coredump")]
 use coredump::register_panic_handler;
-
-use dirs::cache_dir;
-use dirs::config_dir;
 
 use termion::event::Event as TermEvent;
 use termion::event::Key;
@@ -146,11 +142,6 @@ const LINE_END_BYTE: u8 = b'\r';
 const LINE_END_STR: &str = "\r";
 
 
-/// A tuple of (directory path, file name) representing the path to a
-/// file.
-type FilePath = (PathBuf, OsString);
-
-
 /// An event to be handled by the program.
 #[derive(Clone, Debug)]
 pub enum Event {
@@ -160,51 +151,6 @@ pub enum Event {
   Resize,
 }
 
-
-/// Retrieve the path to the program's lock file.
-fn lock_file() -> Result<PathBuf> {
-  let path = cache_dir()
-    .ok_or_else(|| anyhow!("unable to determine cache directory"))?
-    .join("notnow.lock");
-  Ok(path)
-}
-
-/// Retrieve the path to the program's task directory.
-fn tasks_root() -> Result<PathBuf> {
-  Ok(
-    config_dir()
-      .ok_or_else(|| anyhow!("unable to determine config directory"))?
-      .join("notnow")
-      .join("tasks"),
-  )
-}
-
-/// Retrieve the path to the UI's configuration file, in the form of a
-/// (directory path, file name) tuple.
-fn ui_config() -> Result<FilePath> {
-  let config_dir = config_dir()
-    .ok_or_else(|| anyhow!("unable to determine config directory"))?
-    .join("notnow");
-  let config_file = OsString::from("notnow.json");
-
-  Ok((config_dir, config_file))
-}
-
-/// Retrieve the path to the program's "volatile" UI state.
-///
-/// This UI "state" refers to anything UI related that has not
-/// explicitly been configured by the user and that, if lost, wouldn't
-/// constitute data loss because it can either be recreated easily or
-/// was just a convenience to have persisted to begin with. Think of the
-/// currently selected tab and task of the UI.
-fn ui_state() -> Result<FilePath> {
-  let cache_dir = cache_dir()
-    .ok_or_else(|| anyhow!("unable to determine cache directory"))?
-    .join("notnow");
-  let state_file = OsString::from("ui-state.json");
-
-  Ok((cache_dir, state_file))
-}
 
 /// Instantiate a key receiver thread and have it send key events through the given channel.
 fn receive_keys<R>(stdin: R, send_event: Sender<IoResult<Event>>)
@@ -301,22 +247,16 @@ where
 }
 
 /// Run the program.
-pub async fn run_prog<R, W>(
-  in_: R,
-  out: W,
-  tasks_root: PathBuf,
-  ui_config_path: FilePath,
-  ui_state_path: FilePath,
-) -> Result<()>
+pub async fn run_prog<R, W>(in_: R, out: W, paths: Paths) -> Result<()>
 where
   R: Read + Send + 'static,
   W: Write,
 {
-  let task_state = TaskState::load(&tasks_root)
+  let task_state = TaskState::load(&paths.tasks_dir())
     .await
     .context("failed to load task state")?;
-  let ui_config_file = ui_config_path.0.join(&ui_config_path.1);
-  let ui_state_file = ui_state_path.0.join(&ui_state_path.1);
+  let ui_config_file = paths.ui_config_dir().join(paths.ui_config_file());
+  let ui_state_file = paths.ui_state_dir().join(paths.ui_state_file());
   let ui_config = UiConfig::load(&ui_config_file, &task_state)
     .await
     .context("failed to load UI configuration")?;
@@ -336,13 +276,13 @@ where
   let mut renderer =
     TermUiRenderer::new(screen, colors).context("failed to instantiate terminal based renderer")?;
 
-  let ui_config_dir_cap = DirCap::for_dir(ui_config_path.0).await?;
-  let ui_config_file = ui_config_path.1;
+  let ui_config_dir_cap = DirCap::for_dir(paths.ui_config_dir().to_path_buf()).await?;
+  let ui_config_file = paths.ui_config_file().to_os_string();
 
-  let ui_state_dir_cap = DirCap::for_dir(ui_state_path.0).await?;
-  let ui_state_file = ui_state_path.1;
+  let ui_state_dir_cap = DirCap::for_dir(paths.ui_state_dir().to_path_buf()).await?;
+  let ui_state_file = paths.ui_state_file().to_os_string();
 
-  let tasks_root_cap = DirCap::for_dir(tasks_root).await?;
+  let tasks_root_cap = DirCap::for_dir(paths.tasks_dir()).await?;
 
   let (ui, _) = Ui::new(
     || {
@@ -423,22 +363,19 @@ where
 }
 
 /// Run an instance of the program in the default configuration.
-fn run_now() -> Result<()> {
-  let ui_config = ui_config()?;
-  let ui_state = ui_state()?;
-  let tasks_root = tasks_root()?;
+fn run_now(paths: Paths) -> Result<()> {
   let rt = Builder::new_current_thread()
     .build()
     .context("failed to instantiate async runtime")?;
 
   let stdin = stdin();
   let stdout = stdout();
-  let future = run_prog(stdin, stdout.lock(), tasks_root, ui_config, ui_state);
+  let future = run_prog(stdin, stdout.lock(), paths);
   rt.block_on(future)
 }
 
 /// Parse the arguments and run the program.
-fn run_with_args(lock_file: &Path) -> Result<()> {
+fn run_with_args() -> Result<()> {
   let args = match Args::try_parse_from(args_os()) {
     Ok(args) => args,
     Err(err) => match err.kind() {
@@ -450,7 +387,8 @@ fn run_with_args(lock_file: &Path) -> Result<()> {
     },
   };
 
-  with_lockfile(lock_file, args.force, run_now)
+  let paths = Paths::new(None)?;
+  with_lockfile(&paths.lock_file(), args.force, || run_now(paths))
 }
 
 fn run_with_result() -> Result<()> {
@@ -463,7 +401,7 @@ fn run_with_result() -> Result<()> {
     })?;
   }
 
-  run_with_args(&lock_file()?)
+  run_with_args()
 }
 
 /// Run the program and handle errors.
