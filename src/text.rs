@@ -592,14 +592,14 @@ mod tests {
     assert_eq!(cursor_byte_index(s, c(6)), 6);
     assert_eq!(cursor_byte_index(s, c(7)), 6);
 
-    let s = "⚠️attn⚠️";
+    let s = "⚠attn⚠";
     assert_eq!(cursor_byte_index(s, c(0)), 0);
-    assert_eq!(cursor_byte_index(s, c(1)), 6);
-    assert_eq!(cursor_byte_index(s, c(2)), 7);
-    assert_eq!(cursor_byte_index(s, c(3)), 8);
-    assert_eq!(cursor_byte_index(s, c(5)), 10);
-    assert_eq!(cursor_byte_index(s, c(6)), 16);
-    assert_eq!(cursor_byte_index(s, c(7)), 16);
+    assert_eq!(cursor_byte_index(s, c(1)), 3);
+    assert_eq!(cursor_byte_index(s, c(2)), 4);
+    assert_eq!(cursor_byte_index(s, c(3)), 5);
+    assert_eq!(cursor_byte_index(s, c(5)), 7);
+    assert_eq!(cursor_byte_index(s, c(6)), 10);
+    assert_eq!(cursor_byte_index(s, c(7)), 10);
 
     let s = "a｜b";
     assert_eq!(cursor_byte_index(s, c(0)), 0);
@@ -638,11 +638,13 @@ mod tests {
     assert_eq!(cursor_index(s, 6), c(6));
     assert_eq!(cursor_index(s, 7), c(6));
 
-    let s = "⚠️attn⚠️";
+    let s = "⚠attn⚠";
     assert_eq!(cursor_index(s, 0), c(0));
     assert_eq!(cursor_index(s, 1), c(0));
-    assert_eq!(cursor_index(s, 6), c(1));
-    assert_eq!(cursor_index(s, 7), c(2));
+    assert_eq!(cursor_index(s, 2), c(0));
+    assert_eq!(cursor_index(s, 3), c(1));
+    assert_eq!(cursor_index(s, 6), c(4));
+    assert_eq!(cursor_index(s, 7), c(5));
 
     let s = "a｜b";
     assert_eq!(cursor_index(s, 0), c(0));
@@ -665,9 +667,9 @@ mod tests {
     assert_eq!(clip("a", w(1)), "a");
     assert_eq!(clip("ab", w(1)), "a");
 
-    assert_eq!(clip("⚠️attn⚠️", w(0)), "");
-    assert_eq!(clip("⚠️attn⚠️", w(1)), "⚠️");
-    assert_eq!(clip("⚠️attn⚠️", w(2)), "⚠️a");
+    assert_eq!(clip("⚠attn⚠", w(0)), "");
+    assert_eq!(clip("⚠attn⚠", w(1)), "⚠");
+    assert_eq!(clip("⚠attn⚠", w(2)), "⚠a");
 
     assert_eq!(clip("｜a｜b｜", w(0)), "");
     assert_eq!(clip("｜a｜b｜", w(1)), "");
@@ -708,12 +710,12 @@ mod tests {
     assert_eq!(wrap(s, w(9)), ("two words", Some(" ")));
     assert_eq!(wrap(s, w(10)), ("two words ", None));
 
-    let s = "⚠️one⚠️";
-    assert_eq!(wrap(s, w(1)), ("⚠️", Some("one⚠️")));
-    assert_eq!(wrap(s, w(2)), ("⚠️o", Some("ne⚠️")));
-    assert_eq!(wrap(s, w(3)), ("⚠️on", Some("e⚠️")));
-    assert_eq!(wrap(s, w(4)), ("⚠️one", Some("⚠️")));
-    assert_eq!(wrap(s, w(5)), ("⚠️one⚠️", None));
+    let s = "⚠one⚠";
+    assert_eq!(wrap(s, w(1)), ("⚠", Some("one⚠")));
+    assert_eq!(wrap(s, w(2)), ("⚠o", Some("ne⚠")));
+    assert_eq!(wrap(s, w(3)), ("⚠on", Some("e⚠")));
+    assert_eq!(wrap(s, w(4)), ("⚠one", Some("⚠")));
+    assert_eq!(wrap(s, w(5)), ("⚠one⚠", None));
 
     let s = "one             ";
     assert_eq!(wrap(s, w(1)), ("o", Some("ne             ")));
@@ -724,22 +726,22 @@ mod tests {
     assert_eq!(wrap(s, w(15)), ("one            ", Some(" ")));
     assert_eq!(wrap(s, w(16)), ("one             ", None));
 
-    let s = "⚠️two⚠️ words⚠️";
-    assert_eq!(wrap(s, w(1)), ("⚠️", Some("two⚠️ words⚠️")));
-    assert_eq!(wrap(s, w(2)), ("⚠️t", Some("wo⚠️ words⚠️")));
-    assert_eq!(wrap(s, w(3)), ("⚠️tw", Some("o⚠️ words⚠️")));
-    assert_eq!(wrap(s, w(4)), ("⚠️two", Some("⚠️ words⚠️")));
-    assert_eq!(wrap(s, w(11)), ("⚠️two⚠️ words", Some("⚠️")));
-    assert_eq!(wrap(s, w(12)), ("⚠️two⚠️ words⚠️", None));
+    let s = "⚠two⚠ words⚠";
+    assert_eq!(wrap(s, w(1)), ("⚠", Some("two⚠ words⚠")));
+    assert_eq!(wrap(s, w(2)), ("⚠t", Some("wo⚠ words⚠")));
+    assert_eq!(wrap(s, w(3)), ("⚠tw", Some("o⚠ words⚠")));
+    assert_eq!(wrap(s, w(4)), ("⚠two", Some("⚠ words⚠")));
+    assert_eq!(wrap(s, w(11)), ("⚠two⚠ words", Some("⚠")));
+    assert_eq!(wrap(s, w(12)), ("⚠two⚠ words⚠", None));
 
-    let s = "⚠️two⚠️ words⚠️ ";
-    assert_eq!(wrap(s, w(1)), ("⚠️", Some("two⚠️ words⚠️ ")));
-    assert_eq!(wrap(s, w(2)), ("⚠️t", Some("wo⚠️ words⚠️ ")));
-    assert_eq!(wrap(s, w(3)), ("⚠️tw", Some("o⚠️ words⚠️ ")));
-    assert_eq!(wrap(s, w(4)), ("⚠️two", Some("⚠️ words⚠️ ")));
-    assert_eq!(wrap(s, w(11)), ("⚠️two⚠️ words", Some("⚠️ ")));
-    assert_eq!(wrap(s, w(12)), ("⚠️two⚠️ words⚠️", Some(" ")));
-    assert_eq!(wrap(s, w(13)), ("⚠️two⚠️ words⚠️ ", None));
+    let s = "⚠two⚠ words⚠ ";
+    assert_eq!(wrap(s, w(1)), ("⚠", Some("two⚠ words⚠ ")));
+    assert_eq!(wrap(s, w(2)), ("⚠t", Some("wo⚠ words⚠ ")));
+    assert_eq!(wrap(s, w(3)), ("⚠tw", Some("o⚠ words⚠ ")));
+    assert_eq!(wrap(s, w(4)), ("⚠two", Some("⚠ words⚠ ")));
+    assert_eq!(wrap(s, w(11)), ("⚠two⚠ words", Some("⚠ ")));
+    assert_eq!(wrap(s, w(12)), ("⚠two⚠ words⚠", Some(" ")));
+    assert_eq!(wrap(s, w(13)), ("⚠two⚠ words⚠ ", None));
 
     let s = "two｜words";
     assert_eq!(wrap(s, w(1)), ("t", Some("wo｜words")));
@@ -799,7 +801,7 @@ mod tests {
     let text = Text::default();
     assert_eq!(text.char_count(), 0);
 
-    let text = Text::from_string("⚠️attn⚠️");
+    let text = Text::from_string("⚠attn⚠");
     assert_eq!(text.char_count(), 6);
   }
 
@@ -819,30 +821,30 @@ mod tests {
     let () = text.insert_char('c');
     assert_eq!(text.as_str(), "a\rc");
 
-    let mut text = EditableText::from_string("⚠️attn⚠️");
+    let mut text = EditableText::from_string("⚠attn⚠");
     let () = text.insert_char('x');
-    assert_eq!(text.as_str(), "x⚠️attn⚠️");
+    assert_eq!(text.as_str(), "x⚠attn⚠");
     let () = text.move_next();
     let () = text.insert_char('y');
-    assert_eq!(text.as_str(), "x⚠️yattn⚠️");
+    assert_eq!(text.as_str(), "x⚠yattn⚠");
     let () = text.move_end();
     let () = text.insert_char('z');
-    assert_eq!(text.as_str(), "x⚠️yattn⚠️z");
+    assert_eq!(text.as_str(), "x⚠yattn⚠z");
 
-    let mut text = EditableText::from_string("⚠️attn⚠️");
+    let mut text = EditableText::from_string("⚠attn⚠");
     let () = text.insert_char('x');
-    assert_eq!(text.as_str(), "x⚠️attn⚠️");
+    assert_eq!(text.as_str(), "x⚠attn⚠");
     let () = text.move_next();
     let () = text.insert_char('y');
-    assert_eq!(text.as_str(), "x⚠️yattn⚠️");
+    assert_eq!(text.as_str(), "x⚠yattn⚠");
     let () = text.move_end();
     let () = text.insert_char('z');
-    assert_eq!(text.as_str(), "x⚠️yattn⚠️z");
+    assert_eq!(text.as_str(), "x⚠yattn⚠z");
     let () = text.move_start();
     let () = text.remove_char();
-    assert_eq!(text.as_str(), "⚠️yattn⚠️z");
+    assert_eq!(text.as_str(), "⚠yattn⚠z");
     let () = text.insert_char('x');
-    assert_eq!(text.as_str(), "x⚠️yattn⚠️z");
+    assert_eq!(text.as_str(), "x⚠yattn⚠z");
 
     let mut text = EditableText::from_string("｜a｜b｜");
     let () = text.insert_char('x');
@@ -858,14 +860,14 @@ mod tests {
   /// object as expected.
   #[test]
   fn character_removal() {
-    let mut text = EditableText::from_string("⚠️attn⚠️");
+    let mut text = EditableText::from_string("⚠attn⚠");
     let () = text.remove_char();
-    assert_eq!(text.as_str(), "attn⚠️");
+    assert_eq!(text.as_str(), "attn⚠");
 
     let () = text.move_end();
     // The cursor is at the end, which means nothing should get removed.
     let () = text.remove_char();
-    assert_eq!(text.as_str(), "attn⚠️");
+    assert_eq!(text.as_str(), "attn⚠");
 
     let () = text.move_prev();
     let () = text.remove_char();
