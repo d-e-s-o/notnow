@@ -1,5 +1,9 @@
 Unreleased
 ----------
+- Added support for running multiple instances as long as configuration
+  directories differ
+- Added `--config-dir`/`-c` option to make configuration directory to
+  use configurable
 - Added support for copying and pasting a task via 'y' and 'p'
 
 

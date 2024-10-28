@@ -387,7 +387,7 @@ fn run_with_args() -> Result<()> {
     },
   };
 
-  let paths = Paths::new(None)?;
+  let paths = Paths::new(args.config_dir)?;
   with_lockfile(&paths.lock_file(), args.force, || run_now(paths))
 }
 
