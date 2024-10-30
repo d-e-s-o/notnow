@@ -1,5 +1,5 @@
-Unreleased
-----------
+0.3.8
+-----
 - Added support for running multiple instances as long as configuration
   directories differ
 - Added `--config-dir`/`-c` option to make configuration directory to
