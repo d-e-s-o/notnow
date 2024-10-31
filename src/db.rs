@@ -1,4 +1,4 @@
-// Copyright (C) 2022-2023 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2022-2024 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::cell::Cell;
@@ -141,7 +141,7 @@ where
 fn update_ptr_idx<T, U>(by_ptr_idx: &mut HashMap<HRc<T>, ReplayIdx>, data: &[(Rc<T>, U)]) {
   let iter = data.iter().enumerate().map(|(idx, (rc, _aux))| {
     let rep_idx = ReplayIdx::new(idx, Gen(0));
-    (HRc(rc.clone()), rep_idx)
+    (HRc(Rc::clone(rc)), rep_idx)
   });
 
   let () = by_ptr_idx.clear();
@@ -307,7 +307,7 @@ impl<T> Db<T, ()> {
     let set = HashSet::with_capacity(data.len());
     let _set = data.iter().try_fold(set, |mut set, (rc, _aux)| {
       if !set.insert(Rc::as_ptr(rc)) {
-        Err(rc.clone())
+        Err(Rc::clone(rc))
       } else {
         Ok(set)
       }
@@ -384,7 +384,7 @@ impl<T, Aux> Db<T, Aux> {
     let rep_idx = ReplayIdx::new(idx, gen);
 
     let rc = &self.data[idx].0;
-    let _prev = by_ptr_idx.insert(HRc(rc.clone()), rep_idx);
+    let _prev = by_ptr_idx.insert(HRc(Rc::clone(rc)), rep_idx);
     debug_assert!(
       _prev.is_none(),
       "attempting to index already existing element @ {idx}"
@@ -408,7 +408,7 @@ impl<T, Aux> Db<T, Aux> {
 
     let rc = &self.data[idx].0;
     // TODO: Should not clone.
-    let _removed = by_ptr_idx.remove(&HRc(rc.clone()));
+    let _removed = by_ptr_idx.remove(&HRc(Rc::clone(rc)));
     debug_assert!(
       _removed.is_some(),
       "attempting to de-index non-existent element @ {idx}"
@@ -421,14 +421,16 @@ impl<T, Aux> Db<T, Aux> {
     let mut by_ptr_idx = self.by_ptr_idx.borrow_mut();
 
     // TODO: Should not clone.
-    by_ptr_idx.get_mut(&HRc(item.clone())).and_then(|rep_idx| {
-      let data_idx = rep_idx.replay(&self.ins_del);
+    by_ptr_idx
+      .get_mut(&HRc(Rc::clone(item)))
+      .and_then(|rep_idx| {
+        let data_idx = rep_idx.replay(&self.ins_del);
 
-      let gen = Gen::new(self.ins_del.len());
-      *rep_idx = ReplayIdx::new(data_idx, gen);
+        let gen = Gen::new(self.ins_del.len());
+        *rep_idx = ReplayIdx::new(data_idx, gen);
 
-      self.get(data_idx)
-    })
+        self.get(data_idx)
+      })
   }
 
   /// Insert an item into the database at the given `index`.
@@ -679,10 +681,10 @@ pub mod tests {
   fn create_from_iter_duplicate() {
     let foo = Rc::new("foo");
     let items = [
-      foo.clone(),
+      Rc::clone(&foo),
       Rc::new("bar"),
       Rc::new("baz"),
-      foo.clone(),
+      Rc::clone(&foo),
       Rc::new("foobar"),
     ];
     let duplicate = Db::try_from_iter(items).unwrap_err();
@@ -696,7 +698,7 @@ pub mod tests {
       .into_iter()
       .map(Rc::new)
       .collect::<Vec<_>>();
-    let bar = items[1].clone();
+    let bar = Rc::clone(&items[1]);
 
     let db = Db::try_from_iter(items.clone()).unwrap();
     assert_eq!(db.find(&bar).map(|entry| entry.index()), Some(1));
@@ -712,11 +714,11 @@ pub mod tests {
     let items = ["foo", "bar", "baz", "foobar"];
 
     let mut db = Db::from_iter(items);
-    let item = db.insert(0, "foobarbaz").deref().clone();
+    let item = Rc::clone(&db.insert(0, "foobarbaz"));
     let idx = db.find(&item).unwrap().index();
     assert_eq!(idx, 0);
 
-    let item = db.insert(5, "outoffoos").deref().clone();
+    let item = Rc::clone(&db.insert(5, "outoffoos"));
     let idx = db.find(&item).unwrap().index();
     assert_eq!(idx, 5);
   }
@@ -727,15 +729,11 @@ pub mod tests {
     let items = ["foo", "bar", "baz", "foobar"];
 
     let mut db = Db::from_iter(items);
-    let item = db
-      .try_insert(0, Rc::new("foobarbaz"))
-      .unwrap()
-      .deref()
-      .clone();
+    let item = Rc::clone(&db.try_insert(0, Rc::new("foobarbaz")).unwrap());
     let idx = db.find(&item).unwrap().index();
     assert_eq!(idx, 0);
 
-    let item = db.get(0).unwrap().deref().clone();
+    let item = Rc::clone(&db.get(0).unwrap());
     assert!(db.try_insert(5, item).is_none())
   }
 
@@ -743,16 +741,16 @@ pub mod tests {
   #[test]
   fn push_item() {
     let mut db = Db::from_iter([]);
-    let item = db.push("foo").deref().clone();
+    let item = Rc::clone(&db.push("foo"));
     let idx = db.find(&item).unwrap().index();
     assert_eq!(idx, 0);
 
-    let item = db.push("bar").deref().clone();
+    let item = Rc::clone(&db.push("bar"));
     let idx = db.find(&item).unwrap().index();
     assert_eq!(idx, 1);
 
     let _removed = db.remove(0);
-    let item = db.push("baz").deref().clone();
+    let item = Rc::clone(&db.push("baz"));
     let idx = db.find(&item).unwrap().index();
     assert_eq!(idx, 1);
   }
@@ -762,11 +760,11 @@ pub mod tests {
   #[test]
   fn try_push_item() {
     let mut db = Db::from_iter(["foo", "boo", "blah"]);
-    let item = db.try_push(Rc::new("foo")).unwrap().deref().clone();
+    let item = Rc::clone(&db.try_push(Rc::new("foo")).unwrap());
     let idx = db.find(&item).unwrap().index();
     assert_eq!(idx, 3);
 
-    let item = db.get(1).unwrap().deref().clone();
+    let item = Rc::clone(&db.get(1).unwrap());
     assert!(db.try_push(item).is_none())
   }
 

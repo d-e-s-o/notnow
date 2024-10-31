@@ -435,7 +435,7 @@ mod tests {
     let task = Task::builder()
       .set_summary("do something, mate")
       .set_tags(tags)
-      .build(templates.clone());
+      .build(Rc::clone(&templates));
     let tags = prepare_tags(&task);
     let expected = vec![
       SetUnsetTag::Set(templates.instantiate_from_name("foobar")),
@@ -470,7 +470,7 @@ mod tests {
     let iter = [task];
     let db = Db::from_iter(iter);
     let entry = db.get(0).unwrap();
-    let task = entry.deref().clone();
+    let task = Rc::clone(&entry);
     // Make a deep copy of the task.
     let clone = Task::clone(task.deref());
     let mut data = Data::new(task, clone);

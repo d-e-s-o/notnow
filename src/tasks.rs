@@ -260,7 +260,7 @@ impl Task {
 
   /// Retrieve the `Templates` object associated with this task.
   pub fn templates(&self) -> Rc<Templates> {
-    self.0.try_borrow().unwrap().templates.clone()
+    Rc::clone(&self.0.try_borrow().unwrap().templates)
   }
 }
 
@@ -371,7 +371,7 @@ fn add_task(tasks: &mut Db<Task, Position>, task: Rc<Task>, target: Option<Targe
   let position = find_position(before, after);
 
   let _entry = tasks
-    .try_insert_with_aux(idx, task.clone(), position)
+    .try_insert_with_aux(idx, Rc::clone(&task), position)
     .unwrap();
 
   if cfg!(debug_assertions) {
@@ -487,7 +487,7 @@ impl Op<Db<Task, Position>, Option<Rc<Task>>> for TaskOp {
         ref mut task,
         after,
       } => {
-        let added = add_task(tasks, task.clone(), after.clone().map(Target::After));
+        let added = add_task(tasks, Rc::clone(task), after.clone().map(Target::After));
         Some(added)
       },
       Self::Remove { task, position } => {
@@ -499,7 +499,7 @@ impl Op<Db<Task, Position>, Option<Rc<Task>>> for TaskOp {
         let task = &updated.0;
         let _task = update_task(task, updated.1.clone());
         *before = Some(_task);
-        Some(task.clone())
+        Some(Rc::clone(task))
       },
       Self::Move { task, to, position } => {
         // SANITY: The task really should be in our `Tasks` object or we
@@ -529,8 +529,10 @@ impl Op<Db<Task, Position>, Option<Rc<Task>>> for TaskOp {
         let (idx, aux) = position.unwrap();
         // SANITY: The task had been removed earlier, so it is not
         //         currently present.
-        tasks.try_insert_with_aux(idx, task.clone(), aux).unwrap();
-        Some(task.clone())
+        tasks
+          .try_insert_with_aux(idx, Rc::clone(task), aux)
+          .unwrap();
+        Some(Rc::clone(task))
       },
       Self::Update { updated, before } => {
         // SANITY: `before` is guaranteed to be set on this path.
@@ -538,7 +540,7 @@ impl Op<Db<Task, Position>, Option<Rc<Task>>> for TaskOp {
         let task = &updated.0;
         let _task = update_task(task, before);
         let entry = tasks.find(task).unwrap();
-        Some(entry.deref().clone())
+        Some(Rc::clone(&entry))
       },
       Self::Move { task, position, .. } => {
         // SANITY: `position` is guaranteed to be set on this path.
@@ -547,7 +549,7 @@ impl Op<Db<Task, Position>, Option<Rc<Task>>> for TaskOp {
         let (removed, _aux) = tasks.remove(idx);
         // SANITY: We just removed the task, so it can't be present.
         let _entry = tasks
-          .try_insert_with_aux(position, removed.clone(), aux)
+          .try_insert_with_aux(position, Rc::clone(&removed), aux)
           .unwrap();
         Some(removed)
       },
@@ -591,7 +593,7 @@ impl Tasks {
         .into_iter()
         .try_fold(Vec::with_capacity(len), |mut vec, task| -> Result<_> {
           let position = task.position;
-          let task = Task::with_serde(task, templates.clone())?;
+          let task = Task::with_serde(task, Rc::clone(&templates))?;
           let position = position.map(Position::new).unwrap_or_else(|| {
             let prev_pos = vec.last().map(|(_task, position)| position);
             // SANITY: Under real world scenarios we shall always find
@@ -672,7 +674,7 @@ impl Tasks {
       ..
     } = borrow.deref_mut();
 
-    let task = task.build(templates.clone());
+    let task = task.build(Rc::clone(templates));
     let op = TaskOp::add(Rc::new(task), after);
     // SANITY: We know that an "add" operation always returns a task, so
     //         this unwrap will never panic.
@@ -859,7 +861,7 @@ pub mod tests {
     assert_eq!(tasks.get(1).unwrap().summary(), "task2");
 
     let task3 = Rc::new(Task::new("task3"));
-    let after = tasks.get(0).unwrap().deref().clone();
+    let after = Rc::clone(&tasks.get(0).unwrap());
     let op = TaskOp::add(task3, Some(after));
     ops.exec(op, &mut tasks);
     assert_eq!(tasks.iter().len(), 3);
@@ -888,7 +890,7 @@ pub mod tests {
     let mut tasks = Db::from_iter_with_aux(iter);
     let mut ops = Ops::new(3);
 
-    let task = tasks.get(0).unwrap().deref().clone();
+    let task = Rc::clone(&tasks.get(0).unwrap());
     let op = TaskOp::remove(task);
     ops.exec(op, &mut tasks);
     assert_eq!(tasks.iter().len(), 0);
@@ -912,7 +914,7 @@ pub mod tests {
     let mut tasks = Db::from_iter_with_aux(iter);
     let mut ops = Ops::new(3);
 
-    let task = tasks.get(1).unwrap().deref().clone();
+    let task = Rc::clone(&tasks.get(1).unwrap());
     let op = TaskOp::remove(task);
     ops.exec(op, &mut tasks);
     assert_eq!(tasks.iter().len(), 2);
@@ -941,7 +943,7 @@ pub mod tests {
     let mut tasks = Db::from_iter_with_aux(iter);
     let mut ops = Ops::new(3);
 
-    let task = tasks.get(0).unwrap().deref().clone();
+    let task = Rc::clone(&tasks.get(0).unwrap());
     // Make a deep copy of the task.
     let mut updated = Task::clone(task.deref());
     updated.set_summary("foo!".to_string());
@@ -973,8 +975,8 @@ pub mod tests {
     let mut tasks = Db::from_iter_with_aux(iter);
     let mut ops = Ops::new(3);
 
-    let task = tasks.get(1).unwrap().deref().clone();
-    let before = tasks.get(0).unwrap().deref().clone();
+    let task = Rc::clone(&tasks.get(1).unwrap());
+    let before = Rc::clone(&tasks.get(0).unwrap());
     let op = TaskOp::move_(task, Target::Before(before));
     ops.exec(op, &mut tasks);
     assert_eq!(tasks.iter().len(), 2);
@@ -986,8 +988,8 @@ pub mod tests {
     assert_eq!(tasks.get(0).unwrap().summary(), "task1");
     assert_eq!(tasks.get(1).unwrap().summary(), "task2");
 
-    let task = tasks.get(1).unwrap().deref().clone();
-    let after = tasks.get(0).unwrap().deref().clone();
+    let task = Rc::clone(&tasks.get(1).unwrap());
+    let after = Rc::clone(&tasks.get(0).unwrap());
     let op = TaskOp::move_(task, Target::After(after));
     ops.exec(op, &mut tasks);
     assert_eq!(tasks.iter().len(), 2);
@@ -1019,7 +1021,7 @@ pub mod tests {
   fn add_task_after() {
     let task_vec = make_tasks(3);
     let tasks = Tasks::with_serde_tasks(task_vec.clone()).unwrap();
-    let after = tasks.0.borrow().tasks.get(0).unwrap().deref().clone();
+    let after = Rc::clone(&tasks.0.borrow().tasks.get(0).unwrap());
     let builder = Task::builder().set_summary("4");
     let task = tasks.add(builder, Some(after));
 
@@ -1036,7 +1038,7 @@ pub mod tests {
   fn remove_task() {
     let task_vec = make_tasks(3);
     let tasks = Tasks::with_serde_tasks(task_vec.clone()).unwrap();
-    let task = tasks.iter(|mut iter| iter.nth(1).unwrap().clone());
+    let task = tasks.iter(|mut iter| Rc::clone(iter.nth(1).unwrap()));
     tasks.remove(task);
 
     let tasks = tasks.to_serde().into_task_vec();
@@ -1051,7 +1053,7 @@ pub mod tests {
   fn update_task() {
     let task_vec = make_tasks(3);
     let tasks = Tasks::with_serde_tasks(task_vec.clone()).unwrap();
-    let task = tasks.iter(|mut iter| iter.nth(1).unwrap().clone());
+    let task = tasks.iter(|mut iter| Rc::clone(iter.nth(1).unwrap()));
     // Make a deep copy of the task.
     let mut updated = Task::clone(task.deref());
     updated.set_summary("amended".to_string());
@@ -1069,8 +1071,8 @@ pub mod tests {
   fn move_before_for_first() {
     let task_vec = make_tasks(3);
     let tasks = Tasks::with_serde_tasks(task_vec.clone()).unwrap();
-    let task1 = tasks.iter(|mut iter| iter.next().unwrap().clone());
-    let task2 = tasks.iter(|mut iter| iter.nth(1).unwrap().clone());
+    let task1 = tasks.iter(|mut iter| Rc::clone(iter.next().unwrap()));
+    let task2 = tasks.iter(|mut iter| Rc::clone(iter.nth(1).unwrap()));
     tasks.move_before(task1, task2);
 
     let tasks = tasks.to_serde().into_task_vec();
@@ -1083,8 +1085,8 @@ pub mod tests {
   fn move_after_for_last() {
     let task_vec = make_tasks(3);
     let tasks = Tasks::with_serde_tasks(task_vec.clone()).unwrap();
-    let task1 = tasks.iter(|mut iter| iter.nth(2).unwrap().clone());
-    let task2 = tasks.iter(|mut iter| iter.nth(1).unwrap().clone());
+    let task1 = tasks.iter(|mut iter| Rc::clone(iter.nth(2).unwrap()));
+    let task2 = tasks.iter(|mut iter| Rc::clone(iter.nth(1).unwrap()));
     tasks.move_after(task1, task2);
 
     let expected = task_vec;
@@ -1097,8 +1099,8 @@ pub mod tests {
   fn move_before() {
     let task_vec = make_tasks(4);
     let tasks = Tasks::with_serde_tasks(task_vec.clone()).unwrap();
-    let task1 = tasks.iter(|mut iter| iter.nth(2).unwrap().clone());
-    let task2 = tasks.iter(|mut iter| iter.nth(1).unwrap().clone());
+    let task1 = tasks.iter(|mut iter| Rc::clone(iter.nth(2).unwrap()));
+    let task2 = tasks.iter(|mut iter| Rc::clone(iter.nth(1).unwrap()));
     tasks.move_before(task1, task2);
 
     let tasks = tasks.to_serde().into_task_vec();
@@ -1113,8 +1115,8 @@ pub mod tests {
   fn move_after() {
     let task_vec = make_tasks(4);
     let tasks = Tasks::with_serde_tasks(task_vec.clone()).unwrap();
-    let task1 = tasks.iter(|mut iter| iter.nth(1).unwrap().clone());
-    let task2 = tasks.iter(|mut iter| iter.nth(2).unwrap().clone());
+    let task1 = tasks.iter(|mut iter| Rc::clone(iter.nth(1).unwrap()));
+    let task2 = tasks.iter(|mut iter| Rc::clone(iter.nth(2).unwrap()));
     tasks.move_after(task1, task2);
 
     let tasks = tasks.to_serde().into_task_vec();
@@ -1134,7 +1136,7 @@ pub mod tests {
         let tasks = tasks.0.borrow();
         let entry1 = tasks.tasks.get(1).unwrap();
         let entry2 = tasks.tasks.get(2).unwrap();
-        (entry1.deref().clone(), entry2.deref().clone())
+        (Rc::clone(&entry1), Rc::clone(&entry2))
       };
 
       // Swapping the same two tasks repeatedly will skew positions

@@ -112,7 +112,7 @@ impl Tag {
 
   /// Retrieve the tag's underlying template.
   pub fn template(&self) -> Rc<Template> {
-    self.template.clone()
+    Rc::clone(&self.template)
   }
 }
 
@@ -170,7 +170,7 @@ impl Templates {
     self
       .templates
       .get(&id.get())
-      .map(|template| Tag::new(template.clone()))
+      .map(|template| Tag::new(Rc::clone(template)))
   }
 
   /// Instantiate a new tag based on a name.
@@ -180,7 +180,7 @@ impl Templates {
       .templates
       .values()
       .find(|template| template.name() == name)
-      .map(|template| Tag::new(template.clone()))
+      .map(|template| Tag::new(Rc::clone(template)))
       .unwrap_or_else(|| panic!("Attempt to create tag from invalid name: {name}"))
   }
 
