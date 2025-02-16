@@ -1,4 +1,4 @@
-// Copyright (C) 2017-2024 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2017-2025 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::rc::Rc;
@@ -123,7 +123,7 @@ impl<'tasks> Iterator for Filter<'tasks> {
   }
 }
 
-impl<'tasks> DoubleEndedIterator for Filter<'tasks> {
+impl DoubleEndedIterator for Filter<'_> {
   fn next_back(&mut self) -> Option<Self::Item> {
     loop {
       match self.iter.next_back() {

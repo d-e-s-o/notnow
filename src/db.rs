@@ -1,4 +1,4 @@
-// Copyright (C) 2022-2024 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2022-2025 Daniel Mueller (deso@posteo.net)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::cell::Cell;
@@ -806,7 +806,7 @@ pub mod tests {
 
       for item in items.iter() {
         assert!(db
-          .try_insert(black_box(0), black_box(item.clone()))
+          .try_insert(black_box(0), black_box(Rc::clone(item)))
           .is_some());
       }
     });
@@ -837,7 +837,7 @@ pub mod tests {
       let () = db.data.reserve(ITEM_CNT);
 
       for item in items.iter() {
-        assert!(db.try_push(black_box(Rc::clone(&item))).is_some());
+        assert!(db.try_push(black_box(Rc::clone(item))).is_some());
       }
     });
   }
