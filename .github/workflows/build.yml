@@ -28,7 +28,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install dependencies
-        run: sudo apt-get install musl-tools
+        run: sudo apt-get install --yes --no-install-recommends musl-tools
       - uses: dtolnay/rust-toolchain@stable
       - name: Build notnow
         env:
@@ -36,7 +36,7 @@ jobs:
           READLINE_LIB_DIR: /usr/lib/x86_64-linux-gnu/
           RUSTFLAGS: -C target-feature=+crt-static
         run: |
-          sudo apt-get install libreadline-dev
+          sudo apt-get install --yes --no-install-recommends libreadline-dev
           cargo install --bin=notnow --path=. --root=. --target x86_64-unknown-linux-gnu ${{ matrix.args }}
           strip bin/notnow
       - uses: actions/upload-artifact@v4
