@@ -1,4 +1,4 @@
-# Copyright (C) 2022-2024 Daniel Mueller <deso@posteo.net>
+# Copyright (C) 2022-2025 Daniel Mueller <deso@posteo.net>
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 name: Test
@@ -38,7 +38,7 @@ jobs:
         cargo build --profile=${{ matrix.profile }} --bins --tests --examples --features=test
   build-minimum:
     name: Build using minimum versions of dependencies
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
       - name: Install Nightly Rust
