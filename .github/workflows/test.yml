@@ -38,7 +38,7 @@ jobs:
         cargo build --profile=${{ matrix.profile }} --bins --tests --examples --features=test
   build-minimum:
     name: Build using minimum versions of dependencies
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
       - name: Install Nightly Rust
