@@ -1,4 +1,4 @@
-// Copyright (C) 2017-2024 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2017-2024 Daniel Mueller <deso@posteo.net>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 // We basically deny most lints that "warn" by default, except for

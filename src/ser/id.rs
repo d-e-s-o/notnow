@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2022 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2018-2022 Daniel Mueller <deso@posteo.net>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 //! A module for the serialization of IDs.

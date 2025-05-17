@@ -1,4 +1,4 @@
-// Copyright (C) 2022-2024 Daniel Mueller (deso@posteo.net)
+// Copyright (C) 2022-2024 Daniel Mueller <deso@posteo.net>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use anyhow::Result;
