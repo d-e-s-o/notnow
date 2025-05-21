@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2024 Daniel Mueller <deso@posteo.net>
+// Copyright (C) 2018-2025 Daniel Mueller <deso@posteo.net>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::cell::Cell;
@@ -137,13 +137,19 @@ fn clip(x: u16, y: u16, string: &str, bbox: BBox) -> &str {
 }
 
 
-/// A writer that clips writes according to a bounding box.
+/// A writer that clips writes according to a bounding box (typically
+/// representing a widget) as well as the terminal size.
 struct ClippingWriter<W>
 where
   W: Write,
 {
+  /// The writer in use.
   writer: RefCell<W>,
+  /// The currently active bounding box.
   bbox: Cell<BBox>,
+  /// The size of the terminal, cached for each render pass (i.e., for
+  /// everything between [`pre_render`] and [`post_render`]).
+  terminal_size: Cell<Option<(u16, u16)>>,
 }
 
 impl<W> ClippingWriter<W>
@@ -155,6 +161,7 @@ where
     Self {
       writer: RefCell::new(writer),
       bbox: Default::default(),
+      terminal_size: Default::default(),
     }
   }
 
@@ -338,6 +345,13 @@ where
   /// [`render`][Self::render] call.
   pub(crate) fn set_ids(&mut self, ids: Option<Ids>) {
     self.to_render = ids.map(HashSet::from);
+  }
+
+  fn query_terminal_size() -> (u16, u16) {
+    match terminal_size() {
+      Ok(size) => size,
+      Err(err) => panic!("Retrieving terminal size failed: {err}"),
+    }
   }
 
   /// Render a `TermUi`.
@@ -910,13 +924,25 @@ where
   W: Write,
 {
   fn renderable_area(&self) -> BBox {
-    match terminal_size() {
-      Ok((w, h)) => BBox { x: 0, y: 0, w, h },
-      Err(err) => panic!("Retrieving terminal size failed: {err}"),
+    // SANITY: The renderable area should only ever be queried between
+    //         `pre_render` and `post_render`, in which case a
+    //         renderable area should always be available.
+    let tsize = self.writer.terminal_size.get().unwrap();
+
+    BBox {
+      x: 0,
+      y: 0,
+      w: tsize.0,
+      h: tsize.1,
     }
   }
 
   fn pre_render(&self) {
+    let () = self
+      .writer
+      .terminal_size
+      .set(Some(Self::query_terminal_size()));
+
     // Always hide the cursor before rendering, to prevent various
     // related artifacts from showing up. Widgets may opt for setting
     // and enabling the cursor as one of their last actions.
@@ -968,6 +994,8 @@ where
     if let Err(err) = result {
       panic!("Post-render failed: {err}");
     }
+
+    let () = self.writer.terminal_size.set(None);
   }
 }
 
