@@ -170,12 +170,26 @@ where
     self.bbox.set(bbox)
   }
 
+  fn current_bbox(&self) -> BBox {
+    let bbox = self.bbox.get();
+    // SANITY: This function is only ever called when rendering, in
+    //         which case our invariant dictates that the terminal size
+    //         is set.
+    let tsize = self.terminal_size.get().unwrap();
+    BBox {
+      x: bbox.x,
+      y: bbox.y,
+      w: min(bbox.w, tsize.0.saturating_sub(bbox.x)),
+      h: min(bbox.h, tsize.1.saturating_sub(bbox.y)),
+    }
+  }
+
   /// Write a string to the terminal.
   fn write<S>(&self, x: u16, y: u16, fg: Color, bg: Color, string: S) -> Result<()>
   where
     S: AsRef<str>,
   {
-    let string = clip(x, y, string.as_ref(), self.bbox.get());
+    let string = clip(x, y, string.as_ref(), self.current_bbox());
     if !string.is_empty() {
       // Specified coordinates are always relative to the bounding box
       // set. Termion works with an origin at (1,1). We fudge that by
@@ -221,9 +235,10 @@ where
       "          ",
     );
 
-    let w = min(self.bbox.get().w.saturating_sub(x), w);
-    let x = self.bbox.get().x + x + 1;
-    let y = self.bbox.get().y + y + 1;
+    let bbox = self.current_bbox();
+    let w = min(bbox.w.saturating_sub(x), w);
+    let x = bbox.x + x + 1;
+    let y = bbox.y + y + 1;
 
     let mut x = x;
     let mut w = w;

@@ -1,3 +1,8 @@
+Unreleased
+----------
+- Fixed rendering bugs encountered on small terminal sizes
+
+
 0.3.9
 -----
 - Bumped `termion` dependency to `4.0`
