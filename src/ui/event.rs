@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2024 Daniel Mueller <deso@posteo.net>
+// Copyright (C) 2018-2025 Daniel Mueller <deso@posteo.net>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::collections::HashSet;
@@ -13,7 +13,7 @@ pub use termion::event::Key;
 
 /// A type representing a set of `ID` objects, providing operations for
 /// merging sets.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Ids<T = Id> {
   One(T),
   Two(T, T),

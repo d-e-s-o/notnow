@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2024 Daniel Mueller <deso@posteo.net>
+// Copyright (C) 2018-2025 Daniel Mueller <deso@posteo.net>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::future::Future;
@@ -54,7 +54,7 @@ struct InOutState {
   in_out: InOut,
   /// The generation ID. The ID is incremented on every change being
   /// made to `in_out`.
-  gen: usize,
+  r#gen: usize,
 }
 
 impl InOutState {
@@ -80,7 +80,7 @@ impl InOutState {
 
   /// Bump the generation ID.
   fn bump(&mut self) {
-    self.gen += 1;
+    self.r#gen += 1;
   }
 }
 
@@ -88,7 +88,7 @@ impl Default for InOutState {
   fn default() -> Self {
     Self {
       in_out: InOut::Clear,
-      gen: 0,
+      r#gen: 0,
     }
   }
 }
@@ -176,7 +176,7 @@ impl InOutArea {
         // "Clear" or not on the post-hook path.
         match event {
           Event::Key(..) => {
-            data.clear_gen = Some(data.in_out.gen);
+            data.clear_gen = Some(data.in_out.r#gen);
             None
           },
           Event::Updated(..) | Event::Quit => None,
@@ -185,7 +185,7 @@ impl InOutArea {
         // We only change our state to "Clear" if the generation number
         // is still the same, meaning that we did not change our state
         // between pre- and post-hook.
-        if data.clear_gen.take() == Some(data.in_out.gen) {
+        if data.clear_gen.take() == Some(data.in_out.r#gen) {
           match data.in_out.get() {
             InOut::Saved | InOut::Search(_) | InOut::Error(_) => {
               data.change_state(parent, Some(InOut::Clear)).into_event()

@@ -1,58 +1,5 @@
-// Copyright (C) 2017-2024 Daniel Mueller <deso@posteo.net>
+// Copyright (C) 2017-2025 Daniel Mueller <deso@posteo.net>
 // SPDX-License-Identifier: GPL-3.0-or-later
-
-// We basically deny most lints that "warn" by default, except for
-// those that may change in incompatible ways the future. We want to
-// avoid build breakages when upgrading to new Rust versions.
-#![warn(
-  bad_style,
-  dead_code,
-  future_incompatible,
-  improper_ctypes,
-  late_bound_lifetime_arguments,
-  missing_copy_implementations,
-  missing_debug_implementations,
-  missing_docs,
-  no_mangle_generic_items,
-  non_shorthand_field_patterns,
-  nonstandard_style,
-  overflowing_literals,
-  path_statements,
-  patterns_in_fns_without_body,
-  proc_macro_derive_resolution_fallback,
-  renamed_and_removed_lints,
-  rust_2018_compatibility,
-  rust_2018_idioms,
-  stable_features,
-  trivial_bounds,
-  trivial_numeric_casts,
-  type_alias_bounds,
-  tyvar_behind_raw_pointer,
-  unconditional_recursion,
-  unreachable_code,
-  unreachable_patterns,
-  unstable_name_collisions,
-  unused,
-  unused_comparisons,
-  unused_import_braces,
-  unused_lifetimes,
-  unused_qualifications,
-  while_true,
-  clippy::clone_on_ref_ptr,
-  clippy::dbg_macro,
-  rustdoc::broken_intra_doc_links
-)]
-#![allow(
-  deref_into_dyn_supertrait,
-  unreachable_pub,
-  clippy::collapsible_if,
-  clippy::derive_partial_eq_without_eq,
-  clippy::let_and_return,
-  clippy::let_unit_value,
-  clippy::new_ret_no_self,
-  clippy::new_without_default,
-  clippy::redundant_field_names
-)]
 
 //! A terminal based task management application.
 
@@ -106,6 +53,7 @@ use std::thread;
 use anyhow::Context as _;
 use anyhow::Result;
 
+use clap::error::ErrorKind as ClapError;
 use clap::Parser as _;
 
 #[cfg(feature = "coredump")]
@@ -381,8 +329,8 @@ fn run_with_args() -> Result<()> {
   let args = match Args::try_parse_from(args_os()) {
     Ok(args) => args,
     Err(err) => match err.kind() {
-      clap::error::ErrorKind::DisplayHelp | clap::error::ErrorKind::DisplayVersion => {
-        print!("{}", err);
+      ClapError::DisplayHelp | ClapError::DisplayVersion => {
+        print!("{err}");
         return Ok(())
       },
       _ => return Err(err.into()),
@@ -411,7 +359,7 @@ pub fn run() -> i32 {
   match run_with_result() {
     Ok(_) => 0,
     Err(err) => {
-      eprintln!("{:?}", err);
+      eprintln!("{err:?}");
       1
     },
   }

@@ -125,3 +125,32 @@ version = "0.3.1"
 
 [dev-dependencies.tempfile]
 version = "3.3"
+
+[lints.rust]
+deprecated-safe = "warn"
+future-incompatible = "warn"
+keyword-idents = "warn"
+let-underscore = "warn"
+missing-copy-implementations = "warn"
+missing-debug-implementations = "warn"
+missing-docs = "warn"
+trivial-numeric-casts = "warn"
+unused = "warn"
+
+[lints.clippy]
+collapsible-else-if = "allow"
+collapsible-if = "allow"
+let-and-return = "allow"
+let-unit-value = "allow"
+module-inception = "allow"
+absolute-paths = "warn"
+allow-attributes = "warn"
+clone-on-ref-ptr = "warn"
+dbg-macro = "warn"
+derive-partial-eq-without-eq = "warn"
+doc-markdown = "warn"
+join-absolute-paths = "warn"
+large-enum-variant = "warn"
+redundant-closure-for-method-calls = "warn"
+unchecked-duration-subtraction = "warn"
+uninlined-format-args = "warn"

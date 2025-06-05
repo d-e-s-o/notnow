@@ -1,4 +1,4 @@
-// Copyright (C) 2023-2024 Daniel Mueller <deso@posteo.net>
+// Copyright (C) 2023-2025 Daniel Mueller <deso@posteo.net>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 //! Please note that we use the word character ("char") loosely in this
@@ -437,7 +437,7 @@ pub struct EditableText {
   char_idx: usize,
 }
 
-#[allow(unused)]
+#[expect(unused)]
 impl EditableText {
   /// Create a `EditableText` from the given string, selecting the very first
   /// character.

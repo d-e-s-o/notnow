@@ -1,4 +1,4 @@
-// Copyright (C) 2021-2024 Daniel Mueller <deso@posteo.net>
+// Copyright (C) 2021-2025 Daniel Mueller <deso@posteo.net>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::cmp::Ordering;
@@ -26,7 +26,7 @@ use super::selectable::Selectable;
 
 
 /// An enum for tags present on a task.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SetUnsetTag {
   /// A set tag of a task.
   Set(Tag),
@@ -262,7 +262,7 @@ impl TagDialog {
   }
 
   /// Handle a key press.
-  #[allow(clippy::option_map_unit_fn)]
+  #[expect(clippy::option_map_unit_fn)]
   async fn handle_key(&self, cap: &mut dyn MutCap<Event, Message>, key: Key) -> Option<Message> {
     if let Some(result) = self.handle_jump_to(cap, key) {
       return result

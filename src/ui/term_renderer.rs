@@ -277,12 +277,12 @@ where
 
   /// Hide the cursor.
   fn hide(&self) -> Result<()> {
-    write!(self.writer.borrow_mut(), "{}", Hide)
+    write!(self.writer.borrow_mut(), "{Hide}")
   }
 
   /// Show the cursor.
   fn show(&self) -> Result<()> {
-    write!(self.writer.borrow_mut(), "{}", Show)
+    write!(self.writer.borrow_mut(), "{Show}")
   }
 }
 
@@ -422,7 +422,7 @@ where
       };
 
       let title = align_center(tab.clone(), TAB_TITLE_WIDTH as usize - 4);
-      let padded = format!("  {}  ", title);
+      let padded = format!("  {title}  ");
       self.writer.write(x, 0, fg, bg, padded)?;
 
       x += TAB_TITLE_WIDTH;
@@ -929,7 +929,7 @@ where
     } else if let Some(task_list) = widget.downcast_ref::<TaskListBox>() {
       task_list.id()
     } else {
-      panic!("Widget {:?} is unknown to the renderer", widget)
+      panic!("Widget {widget:?} is unknown to the renderer")
     }
   }
 }
@@ -1021,7 +1021,7 @@ where
   fn drop(&mut self) {
     // We should never panic in a destructor so don't unwrap and just
     // swallow the result. We are done anyway.
-    let _ = self.writer.show();
+    let _result = self.writer.show();
   }
 }
 

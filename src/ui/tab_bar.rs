@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2024 Daniel Mueller <deso@posteo.net>
+// Copyright (C) 2018-2025 Daniel Mueller <deso@posteo.net>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::cmp::max;
@@ -72,7 +72,7 @@ impl Search {
 
 
 /// An enum capturing the search behavior on an individual tab.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum SearchState {
   /// Start the search at the currently selected task.
   Current,
@@ -192,7 +192,7 @@ pub struct TabBar {
 
 impl TabBar {
   /// Create a new `TabBar` widget.
-  #[allow(clippy::too_many_arguments)]
+  #[expect(clippy::too_many_arguments)]
   pub fn new(
     id: Id,
     cap: &mut dyn MutCap<Event, Message>,
@@ -325,7 +325,7 @@ impl TabBar {
     }
 
     if !found {
-      let error = format!("Text '{}' not found", string);
+      let error = format!("Text '{string}' not found");
       let message = Message::SetInOut(InOut::Error(error));
       let result1 = cap.send(self.in_out, message).await;
       result = result.maybe_update(result1);

@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2023 Daniel Mueller <deso@posteo.net>
+// Copyright (C) 2018-2025 Daniel Mueller <deso@posteo.net>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 //! A module providing serialization and deserialization support for the
@@ -31,7 +31,7 @@ pub struct UiConfig {
 
 
 /// A struct comprising the program's UI state.
-#[derive(Debug, Default, Deserialize, PartialEq, Serialize)]
+#[derive(Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
 pub struct UiState {
   #[serde(default, skip_serializing_if = "Vec::is_empty")]
   pub selected_tasks: Vec<Option<usize>>,

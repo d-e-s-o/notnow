@@ -1,0 +1,9 @@
+# For general information about this file, check
+# https://doc.rust-lang.org/stable/clippy/configuration.html
+
+allow-unwrap-in-tests = true
+doc-valid-idents = [
+  "ANDed",
+  "ORed",
+  "..",
+]

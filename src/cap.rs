@@ -33,7 +33,7 @@ use tokio::runtime::Handle;
 fn read_only(mut permissions: Permissions) -> Permissions {
   // Remove user write permissions. Note that `S_IWUSR` is `u16` on some
   // platforms.
-  #[allow(trivial_numeric_casts, clippy::unnecessary_cast)]
+  #[expect(trivial_numeric_casts, clippy::unnecessary_cast)]
   let () = permissions.set_mode(permissions.mode() & !S_IWUSR as u32);
   permissions
 }
@@ -49,7 +49,7 @@ fn read_only(mut permissions: Permissions) -> Permissions {
 #[cfg(unix)]
 fn writeable(mut permissions: Permissions) -> Permissions {
   // Set user write permissions.
-  #[allow(trivial_numeric_casts, clippy::unnecessary_cast)]
+  #[expect(trivial_numeric_casts, clippy::unnecessary_cast)]
   let () = permissions.set_mode(permissions.mode() | S_IWUSR as u32);
   permissions
 }

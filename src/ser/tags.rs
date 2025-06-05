@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2022 Daniel Mueller <deso@posteo.net>
+// Copyright (C) 2018-2025 Daniel Mueller <deso@posteo.net>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 //! A module providing serialization and deserialization support for
@@ -33,7 +33,7 @@ const TEMPLATE_COMPONENT_SEPARATOR: char = ',';
 ///
 /// Objects of this type are used to describe what a tag looks like and
 /// are the form in which the concept of a particular tag is persisted.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Template {
   pub id: Id,
   pub name: String,
@@ -61,7 +61,7 @@ impl FromStr for Template {
 
 
 /// A serializable tag instance.
-#[derive(Copy, Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[derive(Copy, Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(transparent)]
 pub struct Tag {
   pub id: Id,
@@ -93,7 +93,7 @@ impl Display for Tag {
 
 /// A container of `Template` objects that we can deserialize into and
 /// serialize from.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Templates(pub Vec<Template>);
 
 

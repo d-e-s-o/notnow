@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2023 Daniel Mueller <deso@posteo.net>
+// Copyright (C) 2018-2025 Daniel Mueller <deso@posteo.net>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 //! A module providing serialization and deserialization support for
@@ -12,7 +12,7 @@ use crate::ser::tags::Tag;
 
 
 /// A literal that can be serialized and deserialized.
-#[derive(Copy, Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[derive(Copy, Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum TagLit {
   Pos(Tag),
@@ -62,7 +62,7 @@ impl From<ViewTuple> for View {
 /// A view that can be serialized and deserialized.
 // TODO: Remove the `from` conversion with the next compatibility
 //       breaking release.
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(from = "ViewTuple")]
 pub struct View {
   pub name: String,

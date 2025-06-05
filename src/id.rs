@@ -1,4 +1,4 @@
-// Copyright (C) 2022-2024 Daniel Mueller <deso@posteo.net>
+// Copyright (C) 2022-2025 Daniel Mueller <deso@posteo.net>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::cmp::Ordering;
@@ -140,9 +140,10 @@ pub trait AllocId<T> {
 
 impl<T, V> AllocId<T> for BTreeMap<usize, V> {
   type Id = Id<T>;
-  type Entry<'e> = VacantEntry<'e, usize, V>
-    where
-      V: 'e;
+  type Entry<'e>
+    = VacantEntry<'e, usize, V>
+  where
+    V: 'e;
 
   #[cfg(test)]
   fn allocate_id(&mut self) -> (Self::Id, Self::Entry<'_>) {

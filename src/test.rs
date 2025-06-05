@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2024 Daniel Mueller <deso@posteo.net>
+// Copyright (C) 2018-2025 Daniel Mueller <deso@posteo.net>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 //! A module providing testing related utility functionality.
@@ -71,7 +71,7 @@ pub fn make_tasks_with_tags(count: usize) -> (Vec<SerTag>, Vec<SerTemplate>, Vec
       } else {
         SerTemplate {
           id: tags[x].id,
-          name: format!("tag{}", x),
+          name: format!("tag{x}"),
         }
       }
     })

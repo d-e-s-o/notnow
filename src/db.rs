@@ -226,14 +226,14 @@ impl InsDel {
 struct Gen(u16);
 
 impl Gen {
-  fn new(gen: usize) -> Self {
-    let gen = if cfg!(debug_assertions) {
-      gen.try_into().unwrap()
+  fn new(r#gen: usize) -> Self {
+    let r#gen = if cfg!(debug_assertions) {
+      r#gen.try_into().unwrap()
     } else {
-      gen as _
+      r#gen as _
     };
 
-    Self(gen)
+    Self(r#gen)
   }
 }
 
@@ -243,23 +243,23 @@ impl Gen {
 #[derive(Debug)]
 struct ReplayIdx {
   idx: u32,
-  gen: Gen,
+  r#gen: Gen,
 }
 
 impl ReplayIdx {
-  fn new(idx: usize, gen: Gen) -> Self {
+  fn new(idx: usize, r#gen: Gen) -> Self {
     Self {
       idx: idx as u32,
-      gen,
+      r#gen,
     }
   }
 
   /// Replay a set of insert/delete operations on this index.
   fn replay(&self, ins_del: &[InsDel]) -> usize {
-    let gen = usize::from(self.gen.0);
+    let r#gen = usize::from(self.r#gen.0);
 
-    let idx = if gen < ins_del.len() {
-      ins_del[gen..]
+    let idx = if r#gen < ins_del.len() {
+      ins_del[r#gen..]
         .iter()
         .fold(self.idx, |idx, op| op.adjust(idx))
     } else {
@@ -380,8 +380,8 @@ impl<T, Aux> Db<T, Aux> {
 
     let by_ptr_idx = self.by_ptr_idx.get_mut();
     let () = self.ins_del.push(InsDel::insert(idx));
-    let gen = Gen::new(self.ins_del.len());
-    let rep_idx = ReplayIdx::new(idx, gen);
+    let r#gen = Gen::new(self.ins_del.len());
+    let rep_idx = ReplayIdx::new(idx, r#gen);
 
     let rc = &self.data[idx].0;
     let _prev = by_ptr_idx.insert(HRc(Rc::clone(rc)), rep_idx);
@@ -426,8 +426,8 @@ impl<T, Aux> Db<T, Aux> {
       .and_then(|rep_idx| {
         let data_idx = rep_idx.replay(&self.ins_del);
 
-        let gen = Gen::new(self.ins_del.len());
-        *rep_idx = ReplayIdx::new(data_idx, gen);
+        let r#gen = Gen::new(self.ins_del.len());
+        *rep_idx = ReplayIdx::new(data_idx, r#gen);
 
         self.get(data_idx)
       })

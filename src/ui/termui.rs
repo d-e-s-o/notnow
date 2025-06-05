@@ -1,4 +1,4 @@
-// Copyright (C) 2017-2024 Daniel Mueller <deso@posteo.net>
+// Copyright (C) 2017-2025 Daniel Mueller <deso@posteo.net>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::ffi::OsString;
@@ -244,7 +244,7 @@ impl TermUi {
   ) -> Option<Message> {
     let in_out = match self.save_all(cap, ui_config, ui_state).await {
       Ok(_) => InOut::Saved,
-      Err(err) => InOut::Error(format!("{}", err)),
+      Err(err) => InOut::Error(format!("{err}")),
     };
 
     let message = Message::SetInOut(in_out);
@@ -1807,7 +1807,7 @@ mod tests {
       .await
       .evaluate(Event::from('y'))
       .await
-      .map_or(false, |x| x.is_updated());
+      .is_some_and(|x| x.is_updated());
 
     assert!(updated);
   }
@@ -2401,7 +2401,7 @@ mod tests {
       let updated = ui
         .evaluate(Event::from(c))
         .await
-        .map_or(false, |x| x.is_updated());
+        .is_some_and(|x| x.is_updated());
 
       let c = c as char;
       let expected =
@@ -2416,14 +2416,14 @@ mod tests {
     let updated = ui
       .evaluate(Event::from('n'))
       .await
-      .map_or(false, |x| x.is_updated());
+      .is_some_and(|x| x.is_updated());
 
     assert!(updated);
 
     let updated = ui
       .evaluate(Event::from('n'))
       .await
-      .map_or(false, |x| x.is_updated());
+      .is_some_and(|x| x.is_updated());
 
     assert!(!updated);
   }

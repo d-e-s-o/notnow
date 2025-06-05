@@ -1,4 +1,4 @@
-// Copyright (C) 2017-2024 Daniel Mueller <deso@posteo.net>
+// Copyright (C) 2017-2025 Daniel Mueller <deso@posteo.net>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 //! Definitions pertaining UI configuration and task state of the
@@ -95,7 +95,6 @@ async fn load_task_from_dir_entry(entry: &DirEntry) -> Result<Option<SerTask>> {
 }
 
 /// Load tasks by iterating over the entries of a `ReadDir` object.
-#[allow(clippy::type_complexity)]
 async fn load_tasks_from_read_dir(dir: ReadDir) -> Result<(Vec<SerTask>, Option<SerTasksMeta>)> {
   let mut dir = dir;
   // Ideally we'd size the `Vec` as per the number of directory entries,

@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Daniel Mueller <deso@posteo.net>
+// Copyright (C) 2022-2025 Daniel Mueller <deso@posteo.net>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 mod task;
@@ -54,7 +54,7 @@ where
 
 
 /// A backend for serializing to and deserializing from iCal.
-#[allow(non_camel_case_types)]
+#[expect(non_camel_case_types)]
 #[derive(Clone, Copy, Debug)]
 pub struct iCal;
 

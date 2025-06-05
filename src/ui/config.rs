@@ -1,4 +1,4 @@
-// Copyright (C) 2023-2024 Daniel Mueller <deso@posteo.net>
+// Copyright (C) 2023-2025 Daniel Mueller <deso@posteo.net>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::path::Path;
@@ -64,7 +64,7 @@ impl Config {
       .map(|view| {
         let name = view.name.clone();
         let view = View::with_serde(view, templates, Rc::clone(tasks))
-          .with_context(|| format!("failed to instantiate view '{}'", name))?;
+          .with_context(|| format!("failed to instantiate view '{name}'"))?;
         Ok(view)
       })
       .collect::<Result<Vec<_>>>()?;
