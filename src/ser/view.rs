@@ -29,54 +29,11 @@ impl TagLit {
 }
 
 
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
-struct ViewImpl {
-  name: String,
-  lits: Vec<Vec<TagLit>>,
-}
-
-
-// This type exists solely for the purpose of preserving backwards
-// compatibility with respect to the configuration format used, and
-// where earlier versions of the program stored a `View` together with
-// the index of the selected task.
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
-#[serde(untagged)]
-enum ViewTuple {
-  Tuple((ViewImpl, Option<usize>)),
-  View(ViewImpl),
-}
-
-impl From<ViewTuple> for View {
-  fn from(other: ViewTuple) -> Self {
-    let deprecated = matches!(other, ViewTuple::Tuple(..));
-    match other {
-      ViewTuple::View(view) | ViewTuple::Tuple((view, ..)) => {
-        let ViewImpl { name, lits } = view;
-        View {
-          name,
-          lits,
-          deprecated,
-        }
-      },
-    }
-  }
-}
-
-
 /// A view that can be serialized and deserialized.
-// TODO: Remove the `from` conversion with the next compatibility
-//       breaking release.
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
-#[serde(from = "ViewTuple")]
 pub struct View {
   pub name: String,
   pub lits: Vec<Vec<TagLit>>,
-  /// A flag indicating whether this `View` was using the deprecated
-  /// configuration format.
-  // TODO: Remove this flag with the next breaking release.
-  #[serde(skip_serializing)]
-  pub deprecated: bool,
 }
 
 
@@ -113,7 +70,6 @@ mod tests {
         vec![TagLit::Pos(tag2), TagLit::Neg(tag3)],
         vec![TagLit::Neg(tag4), TagLit::Pos(tag2)],
       ],
-      deprecated: false,
     };
 
     let serialized = Json::serialize(&view).unwrap();
