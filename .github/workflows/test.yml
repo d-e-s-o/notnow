@@ -49,7 +49,7 @@ jobs:
         with:
           # Please adjust README and rust-version field in Cargo.toml files when
           # bumping version.
-          toolchain: 1.66.0
+          toolchain: 1.81.0
       - name: Build
         run: |
           cargo build --locked

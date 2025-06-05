@@ -1,6 +1,7 @@
 Unreleased
 ----------
 - Fixed rendering bugs encountered on small terminal sizes
+- Bumped minimum supported Rust version to `1.81`
 
 
 0.3.9
