@@ -11,13 +11,13 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
-  # Build without debug information enabled to decrease compilation time
-  # and binary sizes in CI. This option is assumed to only have marginal
-  # effects on the generated code, likely only in terms of section
-  # arrangement. See
+  # Build with only line information enabled to decrease compilation
+  # time and binary sizes in CI. This option is assumed to only have
+  # marginal effects on the generated code, likely only in terms of
+  # section arrangement. See
   # https://doc.rust-lang.org/cargo/reference/environment-variables.html
   # https://doc.rust-lang.org/rustc/codegen-options/index.html#debuginfo
-  RUSTFLAGS: '-C debuginfo=0'
+  RUSTFLAGS: '-C debuginfo=line-tables-only'
 
 jobs:
   build:
