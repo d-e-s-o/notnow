@@ -1,5 +1,6 @@
 Unreleased
 ----------
+- Automatically convert `notnow.json` to new format on "save"
 - Fixed rendering bugs encountered on small terminal sizes
 - Bumped minimum supported Rust version to `1.81`
 

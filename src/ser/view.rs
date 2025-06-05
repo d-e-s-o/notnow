@@ -49,10 +49,15 @@ enum ViewTuple {
 
 impl From<ViewTuple> for View {
   fn from(other: ViewTuple) -> Self {
+    let deprecated = matches!(other, ViewTuple::Tuple(..));
     match other {
       ViewTuple::View(view) | ViewTuple::Tuple((view, ..)) => {
         let ViewImpl { name, lits } = view;
-        View { name, lits }
+        View {
+          name,
+          lits,
+          deprecated,
+        }
       },
     }
   }
@@ -67,6 +72,11 @@ impl From<ViewTuple> for View {
 pub struct View {
   pub name: String,
   pub lits: Vec<Vec<TagLit>>,
+  /// A flag indicating whether this `View` was using the deprecated
+  /// configuration format.
+  // TODO: Remove this flag with the next breaking release.
+  #[serde(skip_serializing)]
+  pub deprecated: bool,
 }
 
 
@@ -103,6 +113,7 @@ mod tests {
         vec![TagLit::Pos(tag2), TagLit::Neg(tag3)],
         vec![TagLit::Neg(tag4), TagLit::Pos(tag2)],
       ],
+      deprecated: false,
     };
 
     let serialized = Json::serialize(&view).unwrap();

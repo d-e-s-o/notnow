@@ -336,6 +336,9 @@ impl ToSerde for View {
     SerView {
       name: self.name.clone(),
       lits,
+      // We always set the value to false here. This way, if on-disk
+      // state still uses the deprecated format, we will force a save.
+      deprecated: false,
     }
   }
 }

@@ -2448,6 +2448,7 @@ mod tests {
       views: vec![SerView {
         name: "all".to_string(),
         lits: vec![],
+        deprecated: false,
       }],
       colors: Default::default(),
       toggle_tag: None,
@@ -2483,6 +2484,7 @@ mod tests {
       views: vec![SerView {
         name: "all".to_string(),
         lits: vec![],
+        deprecated: false,
       }],
       colors: Default::default(),
       toggle_tag: None,
