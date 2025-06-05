@@ -49,11 +49,6 @@ two-fold:
     contains task meta data such as tag information
   - the program takes care of creating said files as tasks are added
 
-*Note*: If you were a user of **notnow** in version `0.2.*` and want to
-carry managed tasks and configuration over to version `0.3`, the script
-at [var/config-conversion-v02-to-v03.sh](var/config-conversion-v02-to-v03.sh)
-may be of help.
-
 ### vdirsyncer
 
 If you would like to synchronize tasks with your CalDAV enabled calendar
