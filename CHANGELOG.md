@@ -1,3 +1,8 @@
+Unreleased
+----------
+- Removed support for deprecated `notnow.json` configuration format
+
+
 0.3.10
 ------
 - Automatically convert `notnow.json` to new format on "save"
