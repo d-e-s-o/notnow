@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2024 Daniel Mueller <deso@posteo.net>
+// Copyright (C) 2019-2025 Daniel Mueller <deso@posteo.net>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use serde::de::Error;
@@ -141,7 +141,6 @@ impl PartialEq for Color {
 }
 
 
-// TODO: Remove all aliases with next breaking release.
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Colors {
   #[serde(default = "Color::color0")]
@@ -176,21 +175,21 @@ pub struct Colors {
   pub detail_dialog_bg: Color,
   #[serde(default = "Color::color0")]
   pub detail_dialog_fg: Color,
-  #[serde(alias = "dialog_bg", default = "Color::dark_white")]
+  #[serde(default = "Color::dark_white")]
   pub tag_dialog_bg: Color,
-  #[serde(alias = "dialog_fg", default = "Color::color0")]
+  #[serde(default = "Color::color0")]
   pub tag_dialog_fg: Color,
-  #[serde(alias = "dialog_selected_tag_fg", default = "Color::color15")]
+  #[serde(default = "Color::color15")]
   pub tag_dialog_selected_tag_fg: Color,
-  #[serde(alias = "dialog_selected_tag_bg", default = "Color::color240")]
+  #[serde(default = "Color::color240")]
   pub tag_dialog_selected_tag_bg: Color,
-  #[serde(alias = "dialog_tag_set_fg", default = "Color::bright_green")]
+  #[serde(default = "Color::bright_green")]
   pub tag_dialog_tag_set_fg: Color,
-  #[serde(alias = "dialog_tag_set_bg", default = "Color::dark_white")]
+  #[serde(default = "Color::dark_white")]
   pub tag_dialog_tag_set_bg: Color,
-  #[serde(alias = "dialog_tag_unset_fg", default = "Color::soft_red")]
+  #[serde(default = "Color::soft_red")]
   pub tag_dialog_tag_unset_fg: Color,
-  #[serde(alias = "dialog_tag_unset_bg", default = "Color::dark_white")]
+  #[serde(default = "Color::dark_white")]
   pub tag_dialog_tag_unset_bg: Color,
   #[serde(default = "Color::color0")]
   pub in_out_success_fg: Color,
