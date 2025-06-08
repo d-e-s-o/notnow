@@ -33,7 +33,7 @@ impl TagLit {
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 pub struct View {
   pub name: String,
-  pub lits: Vec<Vec<TagLit>>,
+  pub lits: Box<[Box<[TagLit]>]>,
 }
 
 
@@ -65,11 +65,11 @@ mod tests {
 
     let view = View {
       name: "test-view".to_string(),
-      lits: vec![
-        vec![TagLit::Pos(tag1)],
-        vec![TagLit::Pos(tag2), TagLit::Neg(tag3)],
-        vec![TagLit::Neg(tag4), TagLit::Pos(tag2)],
-      ],
+      lits: Box::new([
+        Box::new([TagLit::Pos(tag1)]),
+        Box::new([TagLit::Pos(tag2), TagLit::Neg(tag3)]),
+        Box::new([TagLit::Neg(tag4), TagLit::Pos(tag2)]),
+      ]),
     };
 
     let serialized = Json::serialize(&view).unwrap();

@@ -57,12 +57,12 @@ impl ToSerde for TagLit {
 #[derive(Clone, Debug)]
 pub struct Filter<'tasks> {
   iter: TaskIter<'tasks>,
-  lits: &'tasks [Vec<TagLit>],
+  lits: &'tasks [Box<[TagLit]>],
 }
 
 impl<'tasks> Filter<'tasks> {
   /// Create a new `Filter` wrapping an iterator and filtering using the given set of literals.
-  fn new(iter: TaskIter<'tasks>, lits: &'tasks [Vec<TagLit>]) -> Self {
+  fn new(iter: TaskIter<'tasks>, lits: &'tasks [Box<[TagLit]>]) -> Self {
     Self { iter, lits }
   }
 
@@ -231,7 +231,11 @@ impl ViewBuilder {
     View {
       name: name.into(),
       tasks: self.tasks,
-      lits: self.lits,
+      lits: self
+        .lits
+        .into_iter()
+        .map(|vec| vec.into_boxed_slice())
+        .collect::<Box<[_]>>(),
     }
   }
 }
@@ -257,18 +261,17 @@ pub struct View {
   /// available tasks.
   tasks: Rc<Tasks>,
   /// Tags are stored in Conjunctive Normal Form, meaning we have a
-  /// large AND (all elements in the outer vector) of ORs (all the
-  /// elements in the inner vector).
-  lits: Vec<Vec<TagLit>>,
+  /// large AND (all the "outer" elements) of ORs (all the inner ones).
+  lits: Box<[Box<[TagLit]>]>,
 }
 
 impl View {
   /// Create a new `View` object from a serializable one.
   pub fn with_serde(view: SerView, templates: &Rc<Templates>, tasks: Rc<Tasks>) -> Result<Self> {
     let mut and_lits = Vec::with_capacity(view.lits.len());
-    for lits in view.lits.into_iter() {
+    for lits in view.lits {
       let mut or_lits = Vec::with_capacity(lits.len());
-      for lit in lits.into_iter() {
+      for lit in lits {
         let tag = templates
           .instantiate(lit.id())
           .ok_or_else(|| anyhow!("encountered invalid tag ID {}", lit.id()))?;
@@ -279,13 +282,13 @@ impl View {
         or_lits.push(lit);
       }
 
-      and_lits.push(or_lits);
+      and_lits.push(or_lits.into_boxed_slice());
     }
 
     Ok(Self {
       name: view.name,
       tasks,
-      lits: and_lits,
+      lits: and_lits.into_boxed_slice(),
     })
   }
 

@@ -2447,7 +2447,7 @@ mod tests {
     let expected = SerUiConfig {
       views: vec![SerView {
         name: "all".to_string(),
-        lits: vec![],
+        lits: Box::new([]),
       }],
       colors: Default::default(),
       toggle_tag: None,
@@ -2482,7 +2482,7 @@ mod tests {
     let expected = SerUiConfig {
       views: vec![SerView {
         name: "all".to_string(),
-        lits: vec![],
+        lits: Box::new([]),
       }],
       colors: Default::default(),
       toggle_tag: None,

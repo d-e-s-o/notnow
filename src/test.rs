@@ -118,19 +118,22 @@ pub fn default_tasks_and_tags() -> (SerUiConfig, SerTaskState) {
     views: vec![
       SerView {
         name: "all".to_string(),
-        lits: vec![],
+        lits: Box::new([]),
       },
       SerView {
         name: "tag complete".to_string(),
-        lits: vec![vec![SerTagLit::Pos(tags[0])]],
+        lits: Box::new([Box::new([SerTagLit::Pos(tags[0])])]),
       },
       SerView {
         name: "tag2 || tag3".to_string(),
-        lits: vec![vec![SerTagLit::Pos(tags[2]), SerTagLit::Pos(tags[3])]],
+        lits: Box::new([Box::new([SerTagLit::Pos(tags[2]), SerTagLit::Pos(tags[3])])]),
       },
       SerView {
         name: "tag1 && tag3".to_string(),
-        lits: vec![vec![SerTagLit::Pos(tags[1])], vec![SerTagLit::Pos(tags[3])]],
+        lits: Box::new([
+          Box::new([SerTagLit::Pos(tags[1])]),
+          Box::new([SerTagLit::Pos(tags[3])]),
+        ]),
       },
     ],
     colors: Default::default(),
