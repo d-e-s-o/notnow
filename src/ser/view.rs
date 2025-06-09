@@ -4,6 +4,10 @@
 //! A module providing serialization and deserialization support for
 //! task views.
 
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::fmt::Result as FmtResult;
+
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -12,11 +16,20 @@ use crate::ser::tags::Tag;
 
 
 /// A literal that can be serialized and deserialized.
-#[derive(Copy, Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
+#[derive(Copy, Clone, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum TagLit {
   Pos(Tag),
   Neg(Tag),
+}
+
+impl Debug for TagLit {
+  fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+    match self {
+      Self::Pos(tag) => write!(f, "{tag}"),
+      Self::Neg(tag) => write!(f, "!{tag}"),
+    }
+  }
 }
 
 impl TagLit {
