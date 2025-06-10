@@ -60,28 +60,22 @@ mod tests {
   use crate::ser::id::Id;
 
 
+  fn tag(tag: usize) -> Tag {
+    Tag {
+      id: Id::try_from(tag).unwrap(),
+    }
+  }
+
+
   /// Check that we can serialize and deserialize a `View`.
   #[test]
   fn serialize_deserialize_view() {
-    let tag1 = Tag {
-      id: Id::try_from(1).unwrap(),
-    };
-    let tag2 = Tag {
-      id: Id::try_from(2).unwrap(),
-    };
-    let tag3 = Tag {
-      id: Id::try_from(3).unwrap(),
-    };
-    let tag4 = Tag {
-      id: Id::try_from(4).unwrap(),
-    };
-
     let view = View {
       name: "test-view".to_string(),
       lits: Box::new([
-        Box::new([TagLit::Pos(tag1)]),
-        Box::new([TagLit::Pos(tag2), TagLit::Neg(tag3)]),
-        Box::new([TagLit::Neg(tag4), TagLit::Pos(tag2)]),
+        Box::new([TagLit::Pos(tag(1))]),
+        Box::new([TagLit::Pos(tag(2)), TagLit::Neg(tag(3))]),
+        Box::new([TagLit::Neg(tag(4)), TagLit::Pos(tag(2))]),
       ]),
     };
 
