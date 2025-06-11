@@ -8,6 +8,7 @@ use std::collections::HashSet;
 use std::ffi::OsStr;
 use std::io::ErrorKind;
 use std::path::Path;
+use std::fmt::Debug;
 use std::rc::Rc;
 
 use anyhow::anyhow;
@@ -147,18 +148,25 @@ async fn load_tasks_from_dir(root: &Path) -> Result<SerTaskState> {
 pub(crate) async fn should_save_state<B, T>(file: &Path, state: &T) -> Result<bool>
 where
   B: Backend<T>,
-  T: PartialEq,
+  T: Debug + PartialEq,
 {
   load_state_from_file::<B, T>(file)
     .await
-    .map(|existing| existing.as_ref() != Some(state))
+    .map(|existing| {
+      let result = existing.as_ref() != Some(state);
+      if result {
+        crate::log::info!("{existing:?}");
+        crate::log::info!("{state:?}");
+      }
+      result
+    })
 }
 
 /// Save some state into a file.
 pub(crate) async fn save_state_to_file<B, T>(file_cap: &mut FileCap<'_>, state: &T) -> Result<()>
 where
   B: Backend<T>,
-  T: PartialEq,
+  T: Debug + PartialEq,
 {
   let path = file_cap.path();
   // If in doubt (or in err), always be sure to suggest a save.
