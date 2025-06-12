@@ -12,6 +12,7 @@ mod args;
 mod cap;
 mod colors;
 mod db;
+mod formula;
 mod id;
 mod ops;
 mod paths;
