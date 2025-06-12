@@ -1,5 +1,5 @@
-Unreleased
-----------
+0.4.0-beta.0
+------------
 - Reworked "view" configuration to store human-modifiable logical
   formulas instead of structured but cryptic Conjunctive Normal Form
   data
