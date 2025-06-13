@@ -1,6 +1,9 @@
 // Copyright (C) 2025 Daniel Mueller <deso@posteo.net>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+use std::fmt::Display;
+use std::fmt::Formatter;
+use std::fmt::Result as FmtResult;
 use std::num::ParseIntError;
 use std::ops::BitAnd;
 use std::ops::BitOr;
@@ -216,6 +219,59 @@ impl FromStr for Formula {
 
   fn from_str(s: &str) -> Result<Self, Self::Err> {
     parse_formula(s).map_err(|rest| anyhow!("failed to parse formula starting at `{rest}`"))
+  }
+}
+
+impl Display for Formula {
+  fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+    fn print<const T: char>(formula: &Formula, fmt: &mut Formatter<'_>) -> FmtResult {
+      match formula {
+        Formula::Var(var) => write!(fmt, "{var}")?,
+        Formula::Not(formula) => {
+          write!(fmt, "!")?;
+          let group = !matches!(formula.as_ref(), Formula::Var(..) | Formula::Not(..));
+
+          if group {
+            write!(fmt, "(")?;
+          }
+          print::<T>(formula, fmt)?;
+          if group {
+            write!(fmt, ")")?;
+          }
+        },
+        Formula::And(formula1, formula2) => {
+          let group = T == 'd';
+          if group {
+            write!(fmt, "(")?;
+          }
+
+          print::<'c'>(formula1, fmt)?;
+          write!(fmt, " & ")?;
+          print::<'c'>(formula2, fmt)?;
+
+          if group {
+            write!(fmt, ")")?;
+          }
+        },
+        Formula::Or(formula1, formula2) => {
+          let group = T == 'c';
+          if group {
+            write!(fmt, "(")?;
+          }
+
+          print::<'d'>(formula1, fmt)?;
+          write!(fmt, " | ")?;
+          print::<'d'>(formula2, fmt)?;
+
+          if group {
+            write!(fmt, ")")?;
+          }
+        },
+      }
+      Ok(())
+    }
+
+    print::<'a'>(self, f)
   }
 }
 
@@ -605,6 +661,26 @@ mod tests {
 
     let err = parse_formula("1&&2").unwrap_err();
     assert_eq!(err, "&&2");
+  }
+
+  /// Make sure that our formula formatting works as expected.
+  #[test]
+  fn formula_displaying() {
+    fn test(input: &str) {
+      let formula = parse_formula(input).unwrap();
+      let s = formula.to_string();
+      assert_eq!(s, input);
+      assert_eq!(parse_formula(&s).unwrap(), formula);
+    }
+
+    test("42");
+    test("1 | 2");
+    test("(1 & 2) | 3");
+    test("(1 & 2 & 3) | 4");
+    test("1 | (2 & 3)");
+    test("1 & !2 & !3");
+    test("!(!45 & 9) & 8");
+    test("!!(1 | 2)");
   }
 
   /// Benchmark the parsing of a formula.
