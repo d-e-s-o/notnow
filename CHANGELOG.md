@@ -1,5 +1,8 @@
 Unreleased
 ----------
+- Reworked "view" configuration to store human-modifiable logical
+  formulas instead of structured but cryptic Conjunctive Normal Form
+  data
 - Removed support for deprecated `notnow.json` configuration format
 
 

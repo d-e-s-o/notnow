@@ -8,6 +8,7 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
 use std::num::NonZeroUsize;
+use std::str::FromStr as _;
 
 use serde::Deserialize;
 use serde::Serialize;
@@ -53,11 +54,132 @@ impl From<&TagLit> for Formula {
 }
 
 
+#[derive(Clone, Debug, Default)]
+pub struct FormulaPair {
+  /// The textual representation of the formula.
+  pub string: String,
+  /// The parsed formula.
+  pub formula: Option<Formula>,
+}
+
+// We sport a custom `PartialEq` impl here, because we treat only the
+// string as the source of the truth. Basically, when serializing such
+// an object `formula` may not be filled in, but we still need objects
+// with equal string representation to be considered equal for our
+// warn-on-unsaved-changes logic.
+impl PartialEq for FormulaPair {
+  fn eq(&self, other: &Self) -> bool {
+    self.string == other.string
+  }
+}
+
+impl Eq for FormulaPair {}
+
+impl From<Formula> for FormulaPair {
+  fn from(other: Formula) -> Self {
+    Self {
+      string: other.to_string(),
+      formula: Some(other),
+    }
+  }
+}
+
+
+mod formula {
+  use super::*;
+
+  use serde::de::Error;
+  use serde::de::Unexpected;
+  use serde::Deserialize;
+  use serde::Deserializer;
+  use serde::Serializer;
+
+
+  /// Deserialize a [`Formula`] value.
+  pub(crate) fn deserialize<'de, D>(deserializer: D) -> Result<FormulaPair, D::Error>
+  where
+    D: Deserializer<'de>,
+  {
+    let s = Option::<String>::deserialize(deserializer)?;
+    let f = match s.as_deref() {
+      Some(s) if !s.is_empty() => {
+        // TODO: By using what currently are implementation details it
+        //       would be possible to provide specifically the bits that
+        //       could not be parsed.
+        let f = Formula::from_str(s)
+          .map_err(|_err| Error::invalid_value(Unexpected::Str(s), &"a logical formula"))?;
+        Some(f)
+      },
+      _ => None,
+    };
+
+    let f = FormulaPair {
+      string: s.unwrap_or_default(),
+      formula: f,
+    };
+    Ok(f)
+  }
+
+  /// Serialize a [`FormulaPair`] value.
+  pub(crate) fn serialize<S>(f: &FormulaPair, serializer: S) -> Result<S::Ok, S::Error>
+  where
+    S: Serializer,
+  {
+    serializer.serialize_str(&f.string)
+  }
+}
+
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+enum ViewEnum {
+  Lits(Box<[Box<[TagLit]>]>),
+  #[serde(with = "formula")]
+  Formula(FormulaPair),
+}
+
+impl ViewEnum {
+  fn into_formula(self) -> FormulaPair {
+    match self {
+      Self::Lits(lits) => {
+        let formula = cnf_to_formula::<TagLit>(&lits);
+        let string = formula.as_ref().map(Formula::to_string);
+        FormulaPair {
+          formula,
+          string: string.unwrap_or_default(),
+        }
+      },
+      Self::Formula(formula) => formula,
+    }
+  }
+}
+
+impl From<ViewImpl> for View {
+  fn from(other: ViewImpl) -> Self {
+    let ViewImpl { name, view } = other;
+
+    Self {
+      name,
+      formula: view.into_formula(),
+    }
+  }
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
+struct ViewImpl {
+  name: String,
+  #[serde(flatten)]
+  view: ViewEnum,
+}
+
+
 /// A view that can be serialized and deserialized.
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(from = "ViewImpl")]
 pub struct View {
   pub name: String,
-  pub lits: Box<[Box<[TagLit]>]>,
+  #[serde(serialize_with = "formula::serialize")]
+  pub formula: FormulaPair,
 }
 
 
@@ -160,8 +282,6 @@ pub(crate) fn formula_to_cnf(formula: Formula) -> Option<Box<[Box<[TagLit]>]>> {
 mod tests {
   use super::*;
 
-  use std::str::FromStr as _;
-
   use crate::ser::backends::Backend;
   use crate::ser::backends::Json;
 
@@ -181,19 +301,21 @@ mod tests {
   /// Check that we can serialize and deserialize a `View`.
   #[test]
   fn serialize_deserialize_view() {
-    let view = View {
-      name: "test-view".to_string(),
-      lits: Box::new([
-        Box::new([TagLit::Pos(tag(1))]),
-        Box::new([TagLit::Pos(tag(2)), TagLit::Neg(tag(3))]),
-        Box::new([TagLit::Neg(tag(4)), TagLit::Pos(tag(2))]),
-      ]),
-    };
+    fn test(formula: FormulaPair) {
+      let view = View {
+        name: "test-view".to_string(),
+        formula,
+      };
 
-    let serialized = Json::serialize(&view).unwrap();
-    let deserialized = <Json as Backend<View>>::deserialize(&serialized).unwrap();
+      let serialized = Json::serialize(&view).unwrap();
+      let deserialized = <Json as Backend<View>>::deserialize(&serialized).unwrap();
 
-    assert_eq!(deserialized, view);
+      assert_eq!(deserialized, view);
+    }
+
+    let formula = Formula::from_str("1 & (2 | !3) & (!4 | 2)").unwrap();
+    let () = test(FormulaPair::from(formula));
+    let () = test(FormulaPair::default());
   }
 
   /// Spot-test the conversion of a CNF formula into a "generic" one.

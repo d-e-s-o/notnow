@@ -3,6 +3,7 @@
 
 //! A module providing testing related utility functionality.
 
+use crate::formula::Formula;
 use crate::ser::state::TaskState as SerTaskState;
 use crate::ser::state::UiConfig as SerUiConfig;
 use crate::ser::tags::Id as SerId;
@@ -12,7 +13,7 @@ use crate::ser::tags::Templates as SerTemplates;
 use crate::ser::tasks::Task as SerTask;
 use crate::ser::tasks::Tasks as SerTasks;
 use crate::ser::tasks::TasksMeta as SerTasksMeta;
-use crate::ser::view::TagLit as SerTagLit;
+use crate::ser::view::FormulaPair as SerFormulaPair;
 use crate::ser::view::View as SerView;
 
 /// The name of a tag describing the completion state of a task.
@@ -118,22 +119,23 @@ pub fn default_tasks_and_tags() -> (SerUiConfig, SerTaskState) {
     views: vec![
       SerView {
         name: "all".to_string(),
-        lits: Box::new([]),
+        formula: SerFormulaPair::default(),
       },
       SerView {
         name: "tag complete".to_string(),
-        lits: Box::new([Box::new([SerTagLit::Pos(tags[0])])]),
+        formula: SerFormulaPair::from(Formula::Var(tags[0].id.get())),
       },
       SerView {
         name: "tag2 || tag3".to_string(),
-        lits: Box::new([Box::new([SerTagLit::Pos(tags[2]), SerTagLit::Pos(tags[3])])]),
+        formula: SerFormulaPair::from(
+          Formula::Var(tags[2].id.get()) | Formula::Var(tags[3].id.get()),
+        ),
       },
       SerView {
         name: "tag1 && tag3".to_string(),
-        lits: Box::new([
-          Box::new([SerTagLit::Pos(tags[1])]),
-          Box::new([SerTagLit::Pos(tags[3])]),
-        ]),
+        formula: SerFormulaPair::from(
+          Formula::Var(tags[1].id.get()) & Formula::Var(tags[3].id.get()),
+        ),
       },
     ],
     colors: Default::default(),

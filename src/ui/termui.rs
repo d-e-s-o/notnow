@@ -406,6 +406,7 @@ mod tests {
   use crate::ser::tasks::Task as SerTask;
   use crate::ser::tasks::Tasks as SerTasks;
   use crate::ser::tasks::TasksMeta as SerTasksMeta;
+  use crate::ser::view::FormulaPair;
   use crate::ser::view::View as SerView;
   use crate::ser::ToSerde;
   use crate::state::TaskState;
@@ -2447,7 +2448,7 @@ mod tests {
     let expected = SerUiConfig {
       views: vec![SerView {
         name: "all".to_string(),
-        lits: Box::new([]),
+        formula: FormulaPair::default(),
       }],
       colors: Default::default(),
       toggle_tag: None,
@@ -2482,7 +2483,7 @@ mod tests {
     let expected = SerUiConfig {
       views: vec![SerView {
         name: "all".to_string(),
-        lits: Box::new([]),
+        formula: FormulaPair::default(),
       }],
       colors: Default::default(),
       toggle_tag: None,

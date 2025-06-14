@@ -43,6 +43,12 @@ impl Template {
     Self::new(id, template.name)
   }
 
+  /// Retrieve the tag template's ID.
+  #[inline]
+  pub fn id(&self) -> Id {
+    self.id
+  }
+
   /// Retrieve the tag template's name.
   #[inline]
   pub fn name(&self) -> &str {

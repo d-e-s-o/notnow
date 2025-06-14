@@ -6,6 +6,10 @@ use std::rc::Rc;
 use anyhow::anyhow;
 use anyhow::Result;
 
+use crate::formula::Formula;
+use crate::ser::view::cnf_to_formula;
+use crate::ser::view::formula_to_cnf;
+use crate::ser::view::FormulaPair;
 use crate::ser::view::TagLit as SerTagLit;
 use crate::ser::view::View as SerView;
 use crate::ser::ToSerde;
@@ -36,6 +40,15 @@ impl TagLit {
     match self {
       TagLit::Pos(_) => true,
       TagLit::Neg(_) => false,
+    }
+  }
+}
+
+impl From<&TagLit> for Formula {
+  fn from(other: &TagLit) -> Self {
+    match other {
+      TagLit::Pos(tag) => Formula::Var(tag.template().id().get().get()),
+      TagLit::Neg(tag) => !Formula::Var(tag.template().id().get().get()),
     }
   }
 }
@@ -228,14 +241,19 @@ impl ViewBuilder {
 
   /// Build the final `View` instance.
   pub fn build(self, name: impl Into<String>) -> View {
+    let lits = self
+      .lits
+      .into_iter()
+      .map(|vec| vec.into_boxed_slice())
+      .collect::<Box<[_]>>();
+
     View {
       name: name.into(),
       tasks: self.tasks,
-      lits: self
-        .lits
-        .into_iter()
-        .map(|vec| vec.into_boxed_slice())
-        .collect::<Box<[_]>>(),
+      formula: cnf_to_formula::<TagLit>(&lits)
+        .map(|f| f.to_string())
+        .unwrap_or_default(),
+      lits,
     }
   }
 }
@@ -260,6 +278,9 @@ pub struct View {
   /// A reference to the `Tasks` object we use for retrieving the set of
   /// available tasks.
   tasks: Rc<Tasks>,
+  /// The textual representation of the logical formula describing the
+  /// view (and from which the Conjunctive Normal Form is derived).
+  formula: String,
   /// Tags are stored in Conjunctive Normal Form, meaning we have a
   /// large AND (all the "outer" elements) of ORs (all the inner ones).
   lits: Box<[Box<[TagLit]>]>,
@@ -268,27 +289,39 @@ pub struct View {
 impl View {
   /// Create a new `View` object from a serializable one.
   pub fn with_serde(view: SerView, templates: &Rc<Templates>, tasks: Rc<Tasks>) -> Result<Self> {
-    let mut and_lits = Vec::with_capacity(view.lits.len());
-    for lits in view.lits {
-      let mut or_lits = Vec::with_capacity(lits.len());
-      for lit in lits {
-        let tag = templates
-          .instantiate(lit.id())
-          .ok_or_else(|| anyhow!("encountered invalid tag ID {}", lit.id()))?;
-        let lit = match lit {
-          SerTagLit::Pos(_) => TagLit::Pos(tag),
-          SerTagLit::Neg(_) => TagLit::Neg(tag),
-        };
-        or_lits.push(lit);
-      }
+    let SerView { name, formula } = view;
 
-      and_lits.push(or_lits.into_boxed_slice());
-    }
+    let FormulaPair { string, formula } = formula;
+    let lits = if let Some(formula) = formula {
+      let cnf =
+        formula_to_cnf(formula).ok_or_else(|| anyhow!("encountered invalid tag with value `0`"))?;
+      let lits = cnf
+        .iter()
+        .map(|b| {
+          b.into_iter()
+            .map(|lit| {
+              let tag = templates
+                .instantiate(lit.id())
+                .ok_or_else(|| anyhow!("encountered invalid tag ID `{}`", lit.id()))?;
+              let lit = match lit {
+                SerTagLit::Pos(_) => TagLit::Pos(tag),
+                SerTagLit::Neg(_) => TagLit::Neg(tag),
+              };
+              Ok(lit)
+            })
+            .collect::<Result<Box<[_]>>>()
+        })
+        .collect::<Result<Box<[_]>>>()?;
+      lits
+    } else {
+      Box::default()
+    };
 
     Ok(Self {
-      name: view.name,
+      name,
       tasks,
-      lits: and_lits.into_boxed_slice(),
+      formula: string,
+      lits,
     })
   }
 
@@ -330,15 +363,14 @@ impl ToSerde for View {
 
   /// Convert this view into a serializable one.
   fn to_serde(&self) -> Self::Output {
-    let lits = self
-      .lits
-      .iter()
-      .map(|lits| lits.iter().map(ToSerde::to_serde).collect())
-      .collect();
-
     SerView {
       name: self.name.clone(),
-      lits,
+      formula: FormulaPair {
+        string: self.formula.clone(),
+        // We intend for the resulting object to the serializable and for
+        // that we only need the string.
+        formula: None,
+      },
     }
   }
 }
