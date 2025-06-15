@@ -5,6 +5,7 @@
 //! task views.
 
 use std::fmt::Debug;
+use std::fmt::Display;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
 use std::num::NonZeroUsize;
@@ -21,12 +22,15 @@ use crate::ser::tags::Tag;
 /// A literal that can be serialized and deserialized.
 #[derive(Copy, Clone, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
-pub enum TagLit {
-  Pos(Tag),
-  Neg(Tag),
+pub enum TagLit<T = Tag> {
+  Pos(T),
+  Neg(T),
 }
 
-impl Debug for TagLit {
+impl<T> Debug for TagLit<T>
+where
+  T: Display,
+{
   fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
     match self {
       Self::Pos(tag) => write!(f, "{tag}"),
@@ -35,7 +39,7 @@ impl Debug for TagLit {
   }
 }
 
-impl TagLit {
+impl TagLit<Tag> {
   /// Retrieve the ID of the wrapped tag.
   pub fn id(&self) -> Id {
     match self {
