@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::ffi::OsString;
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::fmt::Result as FmtResult;
 use std::future::Future;
 use std::iter::repeat;
 use std::pin::Pin;
@@ -13,6 +16,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 
 use gui::derive::Widget;
+use gui::EventHookFn;
 use gui::Handleable;
 use gui::Id;
 use gui::MutCap;
@@ -50,6 +54,18 @@ const CHAR_QUIT: char = 'q';
 const KEY_QUIT: Key = Key::Char(CHAR_QUIT);
 
 
+/// A type providing a derive for `Debug` for types that
+/// otherwise don't.
+#[derive(Clone, Copy)]
+struct D<T>(T);
+
+impl<T> Debug for D<T> {
+  fn fmt(&self, fmt: &mut Formatter<'_>) -> FmtResult {
+    write!(fmt, "{:?}", &self.0 as *const T)
+  }
+}
+
+
 /// The data associated with a `TermUi`.
 pub struct TermUiData {
   /// The capability to the directory containing the tasks.
@@ -64,6 +80,8 @@ pub struct TermUiData {
   ui_state_dir_cap: DirCap,
   /// The name of the file in which to save the UI state.
   ui_state_file: OsString,
+  /// The event hook that was previously active.
+  hook_fn: Option<D<EventHookFn<Event, Message>>>,
   /// The colors we use.
   colors: Colors,
   /// The tag to toggle on user initiated action.
@@ -89,6 +107,7 @@ impl TermUiData {
       ui_config_file: ui_config_path.1,
       ui_state_dir_cap: ui_state_path.0,
       ui_state_file: ui_state_path.1,
+      hook_fn: None,
       colors,
       toggle_tag,
       displayed_unsaved_changes_warning: false,
@@ -167,8 +186,6 @@ impl TermUi {
       }),
     );
 
-    let _prev_hook = cap.hook_events(id, Some(&Self::handle_hooked_event));
-
     Self {
       id,
       in_out,
@@ -183,17 +200,21 @@ impl TermUi {
     event: Option<&'f Event>,
   ) -> Pin<Box<dyn Future<Output = Option<Event>> + 'f>> {
     Box::pin(async move {
+      let data = cap
+        .data_mut(widget.id())
+        .downcast_mut::<TermUiData>()
+        .unwrap();
+
       if let Some(event) = event {
         match event {
           Event::Key(key, ..) if key != &KEY_QUIT => {
-            let data = cap
-              .data_mut(widget.id())
-              .downcast_mut::<TermUiData>()
-              .unwrap();
             data.displayed_unsaved_changes_warning = false;
           },
           _ => (),
         }
+
+        let hook_fn = data.hook_fn.take().map(|D(h)| h);
+        let _hook_fn = cap.hook_events(widget.id(), hook_fn);
       }
       None
     })
@@ -341,7 +362,10 @@ impl Handleable<Event, Message> for TermUi {
             let message = Message::SetInOut(InOut::Error(
               "detected unsaved changes; repeat action to quit without saving".to_string(),
             ));
-            cap.send(self.in_out, message).await;
+            let _msg = cap.send(self.in_out, message).await;
+            let hook_fn = cap.hook_events(self.id, Some(&Self::handle_hooked_event));
+            let data = self.data_mut::<TermUiData>(cap);
+            data.hook_fn = hook_fn.map(D);
             Some(Event::updated(self.id))
           } else {
             Some(Event::Quit)
