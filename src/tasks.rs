@@ -1,4 +1,4 @@
-// Copyright (C) 2017-2024 Daniel Mueller <deso@posteo.net>
+// Copyright (C) 2017-2025 Daniel Mueller <deso@posteo.net>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::cell::RefCell;
@@ -806,7 +806,7 @@ pub mod tests {
       name: COMPLETE_TAG.to_string(),
     }];
     let templates = Templates::with_serde(SerTemplates(templates)).unwrap();
-    let complete = templates.instantiate_from_name(COMPLETE_TAG);
+    let complete = templates.instantiate_from_name(COMPLETE_TAG).unwrap();
 
     let mut task = Task::new("test task");
     assert!(!task.has_tag(&complete));

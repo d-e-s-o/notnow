@@ -428,8 +428,8 @@ mod tests {
 
     // We have two tags set.
     let tags = vec![
-      templates.instantiate_from_name("foobaz"),
-      templates.instantiate_from_name("foobar"),
+      templates.instantiate_from_name("foobaz").unwrap(),
+      templates.instantiate_from_name("foobar").unwrap(),
     ];
 
     let task = Task::builder()
@@ -438,11 +438,11 @@ mod tests {
       .build(Rc::clone(&templates));
     let tags = prepare_tags(&task);
     let expected = vec![
-      SetUnsetTag::Set(templates.instantiate_from_name("foobar")),
-      SetUnsetTag::Set(templates.instantiate_from_name("foobaz")),
-      SetUnsetTag::Unset(templates.instantiate_from_name("a")),
-      SetUnsetTag::Unset(templates.instantiate_from_name(COMPLETE_TAG)),
-      SetUnsetTag::Unset(templates.instantiate_from_name("Z")),
+      SetUnsetTag::Set(templates.instantiate_from_name("foobar").unwrap()),
+      SetUnsetTag::Set(templates.instantiate_from_name("foobaz").unwrap()),
+      SetUnsetTag::Unset(templates.instantiate_from_name("a").unwrap()),
+      SetUnsetTag::Unset(templates.instantiate_from_name(COMPLETE_TAG).unwrap()),
+      SetUnsetTag::Unset(templates.instantiate_from_name("Z").unwrap()),
     ];
     assert_eq!(tags, expected);
   }
@@ -456,9 +456,9 @@ mod tests {
 
     // We have two tags set.
     let tags = vec![
-      templates.instantiate_from_name("a"),
-      templates.instantiate_from_name("h"),
-      templates.instantiate_from_name("d"),
+      templates.instantiate_from_name("a").unwrap(),
+      templates.instantiate_from_name("h").unwrap(),
+      templates.instantiate_from_name("d").unwrap(),
     ];
 
     // The full list of tags will look like this:

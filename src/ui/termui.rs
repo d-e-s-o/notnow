@@ -1179,7 +1179,10 @@ mod tests {
 
     let mut ui = TestUiBuilder::with_default_tasks_and_tags().build().await;
     let tasks = ui.tasks().await;
-    let complete_tag = tasks[0].templates().instantiate_from_name(COMPLETE_TAG);
+    let complete_tag = tasks[0]
+      .templates()
+      .instantiate_from_name(COMPLETE_TAG)
+      .unwrap();
     assert!(!tasks[0].has_tag(&complete_tag));
     assert!(tasks[1].has_tag(&complete_tag));
     assert!(!tasks[2].has_tag(&complete_tag));

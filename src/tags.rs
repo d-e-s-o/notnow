@@ -182,13 +182,12 @@ impl Templates {
 
   /// Instantiate a new tag based on a name.
   #[cfg(test)]
-  pub fn instantiate_from_name(&self, name: &str) -> Tag {
+  pub fn instantiate_from_name(&self, name: &str) -> Option<Tag> {
     self
       .templates
       .values()
       .find(|template| template.name() == name)
       .map(|template| Tag::new(Rc::clone(template)))
-      .unwrap_or_else(|| panic!("Attempt to create tag from invalid name: {name}"))
   }
 
   /// Retrieve an iterator over all the tag templates.

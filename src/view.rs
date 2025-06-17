@@ -431,40 +431,40 @@ mod tests {
     assert_eq!(pos_tags(&view), Vec::<String>::new());
 
     let view = ViewBuilder::new(Rc::clone(&tasks))
-      .and(templates.instantiate_from_name(COMPLETE_TAG))
+      .and(templates.instantiate_from_name(COMPLETE_TAG).unwrap())
       .build("test");
     assert_eq!(pos_tags(&view), vec![COMPLETE_TAG]);
 
     let view = ViewBuilder::new(Rc::clone(&tasks))
-      .and(templates.instantiate_from_name("tag1"))
-      .and_not(templates.instantiate_from_name("tag2"))
+      .and(templates.instantiate_from_name("tag1").unwrap())
+      .and_not(templates.instantiate_from_name("tag2").unwrap())
       .build("test");
     assert_eq!(pos_tags(&view), vec!["tag1"]);
 
     let view = ViewBuilder::new(Rc::clone(&tasks))
-      .and(templates.instantiate_from_name("tag1"))
-      .or(templates.instantiate_from_name("tag2"))
+      .and(templates.instantiate_from_name("tag1").unwrap())
+      .or(templates.instantiate_from_name("tag2").unwrap())
       .build("test");
     assert_eq!(pos_tags(&view), vec!["tag1", "tag2"]);
 
     let view = ViewBuilder::new(Rc::clone(&tasks))
-      .and(templates.instantiate_from_name("tag3"))
-      .or(templates.instantiate_from_name("tag1"))
-      .and_not(templates.instantiate_from_name("tag2"))
+      .and(templates.instantiate_from_name("tag3").unwrap())
+      .or(templates.instantiate_from_name("tag1").unwrap())
+      .and_not(templates.instantiate_from_name("tag2").unwrap())
       .build("test");
     assert_eq!(pos_tags(&view), vec!["tag3", "tag1"]);
 
     let view = ViewBuilder::new(Rc::clone(&tasks))
-      .or(templates.instantiate_from_name("tag3"))
-      .or(templates.instantiate_from_name("tag2"))
-      .or(templates.instantiate_from_name("tag5"))
+      .or(templates.instantiate_from_name("tag3").unwrap())
+      .or(templates.instantiate_from_name("tag2").unwrap())
+      .or(templates.instantiate_from_name("tag5").unwrap())
       .build("test");
     assert_eq!(pos_tags(&view), vec!["tag3", "tag2", "tag5"]);
 
     let view = ViewBuilder::new(tasks)
-      .and(templates.instantiate_from_name("tag3"))
-      .and(templates.instantiate_from_name("tag2"))
-      .and(templates.instantiate_from_name("tag5"))
+      .and(templates.instantiate_from_name("tag3").unwrap())
+      .and(templates.instantiate_from_name("tag2").unwrap())
+      .and(templates.instantiate_from_name("tag5").unwrap())
       .build("test");
     assert_eq!(pos_tags(&view), vec!["tag3", "tag2", "tag5"]);
   }
@@ -473,7 +473,7 @@ mod tests {
   #[test]
   fn filter_completions() {
     let (templates, tasks) = make_tagged_tasks(16);
-    let complete_tag = templates.instantiate_from_name(COMPLETE_TAG);
+    let complete_tag = templates.instantiate_from_name(COMPLETE_TAG).unwrap();
     let view = ViewBuilder::new(tasks)
       .and(complete_tag.clone())
       .build("test");
@@ -498,7 +498,7 @@ mod tests {
   #[test]
   fn filter_no_completions() {
     let (templates, tasks) = make_tagged_tasks(16);
-    let complete_tag = templates.instantiate_from_name(COMPLETE_TAG);
+    let complete_tag = templates.instantiate_from_name(COMPLETE_TAG).unwrap();
     let view = ViewBuilder::new(tasks)
       .and_not(complete_tag.clone())
       .build("test");
@@ -523,8 +523,12 @@ mod tests {
   #[test]
   fn filter_tag1_and_tag2() {
     let (templates, tasks) = make_tagged_tasks(20);
-    let tag1 = templates.instantiate_from_name(templates.iter().nth(1).unwrap().name());
-    let tag2 = templates.instantiate_from_name(templates.iter().nth(2).unwrap().name());
+    let tag1 = templates
+      .instantiate_from_name(templates.iter().nth(1).unwrap().name())
+      .unwrap();
+    let tag2 = templates
+      .instantiate_from_name(templates.iter().nth(2).unwrap().name())
+      .unwrap();
     let view = ViewBuilder::new(tasks).and(tag1).and(tag2).build("test");
 
     let () = view.iter(|mut iter| {
@@ -541,8 +545,12 @@ mod tests {
   #[test]
   fn filter_tag3_or_tag1() {
     let (templates, tasks) = make_tagged_tasks(20);
-    let tag1 = templates.instantiate_from_name(templates.iter().nth(1).unwrap().name());
-    let tag3 = templates.instantiate_from_name(templates.iter().nth(3).unwrap().name());
+    let tag1 = templates
+      .instantiate_from_name(templates.iter().nth(1).unwrap().name())
+      .unwrap();
+    let tag3 = templates
+      .instantiate_from_name(templates.iter().nth(3).unwrap().name())
+      .unwrap();
     let view = ViewBuilder::new(tasks).or(tag3).or(tag1).build("test");
 
     let () = view.iter(|mut iter| {
@@ -565,9 +573,13 @@ mod tests {
   #[test]
   fn filter_tag1_and_complete_or_tag4() {
     let (templates, tasks) = make_tagged_tasks(20);
-    let complete_tag = templates.instantiate_from_name(COMPLETE_TAG);
-    let tag1 = templates.instantiate_from_name(templates.iter().nth(1).unwrap().name());
-    let tag4 = templates.instantiate_from_name(templates.iter().nth(4).unwrap().name());
+    let complete_tag = templates.instantiate_from_name(COMPLETE_TAG).unwrap();
+    let tag1 = templates
+      .instantiate_from_name(templates.iter().nth(1).unwrap().name())
+      .unwrap();
+    let tag4 = templates
+      .instantiate_from_name(templates.iter().nth(4).unwrap().name())
+      .unwrap();
     let view = ViewBuilder::new(tasks)
       .and(tag1)
       .and(complete_tag)
@@ -588,8 +600,10 @@ mod tests {
   #[test]
   fn filter_tag2_and_not_complete() {
     let (templates, tasks) = make_tagged_tasks(20);
-    let complete_tag = templates.instantiate_from_name(COMPLETE_TAG);
-    let tag2 = templates.instantiate_from_name(templates.iter().nth(2).unwrap().name());
+    let complete_tag = templates.instantiate_from_name(COMPLETE_TAG).unwrap();
+    let tag2 = templates
+      .instantiate_from_name(templates.iter().nth(2).unwrap().name())
+      .unwrap();
     let view = ViewBuilder::new(tasks)
       .and_not(tag2)
       .and_not(complete_tag)
@@ -609,9 +623,13 @@ mod tests {
   #[test]
   fn filter_tag2_or_not_complete_and_tag3() {
     let (templates, tasks) = make_tagged_tasks(20);
-    let complete_tag = templates.instantiate_from_name(COMPLETE_TAG);
-    let tag2 = templates.instantiate_from_name(templates.iter().nth(2).unwrap().name());
-    let tag3 = templates.instantiate_from_name(templates.iter().nth(3).unwrap().name());
+    let complete_tag = templates.instantiate_from_name(COMPLETE_TAG).unwrap();
+    let tag2 = templates
+      .instantiate_from_name(templates.iter().nth(2).unwrap().name())
+      .unwrap();
+    let tag3 = templates
+      .instantiate_from_name(templates.iter().nth(3).unwrap().name())
+      .unwrap();
     let view = ViewBuilder::new(tasks)
       .or_not(tag2)
       .or_not(complete_tag)
