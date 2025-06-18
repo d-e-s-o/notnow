@@ -4,7 +4,6 @@
 use std::fmt::Display;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
-use std::num::ParseIntError;
 use std::ops::BitAnd;
 use std::ops::BitOr;
 use std::ops::Not;
@@ -15,7 +14,7 @@ use anyhow::Error;
 
 
 type ParseResult<'i, Output> = Result<(&'i str, Output), &'i str>;
-type Var = usize;
+type Var = String;
 
 
 /// A trait representing something that can parse data from a string.
@@ -98,21 +97,22 @@ where
 }
 
 
-/// Parse a number from a string.
-///
-/// # Notes
-/// This function assumes that `N` is an *unsigned* integer type.
-fn parse_number<'i, N>(input: &'i str) -> ParseResult<'i, N>
-where
-  N: FromStr<Err = ParseIntError>,
-{
+/// Parse a variable from a string.
+fn parse_var(input: &str) -> ParseResult<'_, Var> {
   let mut end = 0;
+  let mut chars = input.chars();
 
-  for c in input.chars() {
-    if c.is_ascii_digit() {
+  if let Some(c) = chars.next() {
+    if c.is_ascii_alphabetic() {
       end += c.len_utf8();
-    } else {
-      break;
+
+      for c in chars {
+        if c.is_ascii_alphanumeric() || c == '-' || c == '_' {
+          end += c.len_utf8();
+        } else {
+          break;
+        }
+      }
     }
   }
 
@@ -120,13 +120,8 @@ where
     return Err(input)
   }
 
-  let (num, rest) = input.split_at(end);
-  let num = N::from_str(num).map_err(|_err| num)?;
-  Ok((rest, num))
-}
-
-fn parse_var(input: &str) -> ParseResult<'_, Var> {
-  parse_number::<Var>(input)
+  let (var, rest) = input.split_at(end);
+  Ok((rest, var.to_string()))
 }
 
 
@@ -158,6 +153,16 @@ pub enum Formula {
   Not(Box<Formula>),
   And(Box<Formula>, Box<Formula>),
   Or(Box<Formula>, Box<Formula>),
+}
+
+impl Formula {
+  #[cfg(test)]
+  pub fn var<S>(s: S) -> Self
+  where
+    S: Into<String>,
+  {
+    Self::Var(s.into())
+  }
 }
 
 impl BitAnd for Formula {
@@ -404,27 +409,40 @@ mod tests {
 
   /// Check that we can parse a single number.
   #[test]
-  fn number_parsing() {
-    let (rest, num) = parse_number::<u64>("0").unwrap();
+  fn variable_parsing() {
+    let (rest, var) = parse_var("a").unwrap();
     assert_eq!(rest, "");
-    assert_eq!(num, 0);
+    assert_eq!(var, "a");
 
-    let (rest, num) = parse_number::<u64>("1").unwrap();
+    let (rest, var) = parse_var("abc").unwrap();
     assert_eq!(rest, "");
-    assert_eq!(num, 1);
+    assert_eq!(var, "abc");
 
-    // We currently accept leading zeroes, as it's easier to do so than
-    // to explicitly exclude them.
-    let (rest, num) = parse_number::<u64>("01").unwrap();
+    let (rest, var) = parse_var("a12345").unwrap();
     assert_eq!(rest, "");
-    assert_eq!(num, 1);
+    assert_eq!(var, "a12345");
 
-    let (rest, num) = parse_number::<u64>("12345").unwrap();
+    let (rest, var) = parse_var("a12-").unwrap();
     assert_eq!(rest, "");
-    assert_eq!(num, 12345);
+    assert_eq!(var, "a12-");
 
-    let err = parse_number::<u64>("").unwrap_err();
+    let (rest, var) = parse_var("super-test").unwrap();
+    assert_eq!(rest, "");
+    assert_eq!(var, "super-test");
+
+    let (rest, var) = parse_var("X_X").unwrap();
+    assert_eq!(rest, "");
+    assert_eq!(var, "X_X");
+
+    let (rest, var) = parse_var("a#").unwrap();
+    assert_eq!(rest, "#");
+    assert_eq!(var, "a");
+
+    let err = parse_var("").unwrap_err();
     assert_eq!(err, "");
+
+    let err = parse_var("1").unwrap_err();
+    assert_eq!(err, "1");
   }
 
   /// Test that we can parse a NOT ("!").
@@ -484,32 +502,32 @@ mod tests {
   #[test]
   fn parser_anding() {
     let parser = parse_var.and_then(|_var| parse_or);
-    let (rest, ()) = parser.parse("123|").unwrap();
+    let (rest, ()) = parser.parse("hello|").unwrap();
     assert_eq!(rest, "");
 
-    let err = parser.parse("123").unwrap_err();
-    assert_eq!(err, "123");
+    let err = parser.parse("hello").unwrap_err();
+    assert_eq!(err, "hello");
   }
 
   /// Check that we can map the output of parsers.
   #[test]
   fn output_mapping() {
-    let input = "1234&";
+    let input = "hihi&";
     let (rest, var) = parse_var
       .chain(parse_and)
       .map(|(l, ())| l)
       .parse(input)
       .unwrap();
-    assert_eq!(var, 1234);
+    assert_eq!(var, "hihi");
     assert_eq!(rest, "");
 
-    let input = "|987";
+    let input = "|hoho";
     let (rest, var) = parse_or
       .chain(parse_var)
       .map(|((), r)| r)
       .parse(input)
       .unwrap();
-    assert_eq!(var, 987);
+    assert_eq!(var, "hoho");
     assert_eq!(rest, "");
   }
 
@@ -534,71 +552,71 @@ mod tests {
   #[test]
   fn formula_parsing_precedence() {
     // "NOT" (`!`) should have precedence over "AND".
-    let formula = parse_formula("!45&9").unwrap();
-    let expected = (!Formula::Var(45)) & Formula::Var(9);
+    let formula = parse_formula("!a & b").unwrap();
+    let expected = (!Formula::var("a")) & Formula::var("b");
     assert_eq!(formula, expected);
 
     // To avoid confusion when it comes to precedence between "OR" and
     // "AND", we don't allow intermixing at all and require explicit
     // grouping instead.
-    let err = parse_formula("45|9&65").unwrap_err();
-    assert_eq!(err, "&65");
+    let err = parse_formula("a | b & c").unwrap_err();
+    assert_eq!(err, "& c");
 
-    let err = parse_formula("45&9|65").unwrap_err();
-    assert_eq!(err, "|65");
+    let err = parse_formula("a & b | c").unwrap_err();
+    assert_eq!(err, "| c");
 
-    let err = parse_formula("45&9|!65").unwrap_err();
-    assert_eq!(err, "|!65");
+    let err = parse_formula("a & b | !c").unwrap_err();
+    assert_eq!(err, "| !c");
 
-    let err = parse_formula("45&!9|65").unwrap_err();
-    assert_eq!(err, "|65");
+    let err = parse_formula("a & !b | c").unwrap_err();
+    assert_eq!(err, "| c");
 
-    let err = parse_formula("!45&9|65").unwrap_err();
-    assert_eq!(err, "|65");
+    let err = parse_formula("!a & b | c").unwrap_err();
+    assert_eq!(err, "| c");
   }
 
   /// Check that various formulas can be parsed successfully.
   #[test]
   fn formula_parsing() {
-    let formula = parse_formula("23").unwrap();
-    let expected = Formula::Var(23);
+    let formula = parse_formula("abc").unwrap();
+    let expected = Formula::var("abc");
     assert_eq!(formula, expected);
 
-    let formula = parse_formula("!12").unwrap();
-    let expected = !Formula::Var(12);
+    let formula = parse_formula("!ab").unwrap();
+    let expected = !Formula::var("ab");
     assert_eq!(formula, expected);
 
-    let formula = parse_formula("!!45").unwrap();
-    let expected = !!Formula::Var(45);
+    let formula = parse_formula("!!ab").unwrap();
+    let expected = !!Formula::var("ab");
     assert_eq!(formula, expected);
 
-    let formula = parse_formula("1&2").unwrap();
-    let expected = Formula::Var(1) & Formula::Var(2);
+    let formula = parse_formula("a & b").unwrap();
+    let expected = Formula::var("a") & Formula::var("b");
     assert_eq!(formula, expected);
 
-    let formula = parse_formula("1|2").unwrap();
-    let expected = Formula::Var(1) | Formula::Var(2);
+    let formula = parse_formula("a | b").unwrap();
+    let expected = Formula::var("a") | Formula::var("b");
     assert_eq!(formula, expected);
 
-    let formula = parse_formula("(1|2)&3").unwrap();
-    let expected = (Formula::Var(1) | Formula::Var(2)) & Formula::Var(3);
+    let formula = parse_formula("(a | b) & c").unwrap();
+    let expected = (Formula::var("a") | Formula::var("b")) & Formula::var("c");
     assert_eq!(formula, expected);
 
-    let formula = parse_formula("!1&(2|3)").unwrap();
-    let expected = !Formula::Var(1) & (Formula::Var(2) | Formula::Var(3));
+    let formula = parse_formula("!a & (b | c)").unwrap();
+    let expected = !Formula::var("a") & (Formula::var("b") | Formula::var("c"));
     assert_eq!(formula, expected);
 
     // Double negation of grouping.
-    let formula = parse_formula("!!(45)").unwrap();
-    let expected = !!Formula::Var(45);
+    let formula = parse_formula("!!(xyz)").unwrap();
+    let expected = !!Formula::var("xyz");
     assert_eq!(formula, expected);
 
-    let formula = parse_formula("!(!45&9)&8").unwrap();
-    let expected = !(!Formula::Var(45) & Formula::Var(9)) & Formula::Var(8);
+    let formula = parse_formula("!(!a & b) & c").unwrap();
+    let expected = !(!Formula::var("a") & Formula::var("b")) & Formula::var("c");
     assert_eq!(formula, expected);
 
-    let err = parse_formula("xyz").unwrap_err();
-    assert_eq!(err, "xyz");
+    let err = parse_formula("123").unwrap_err();
+    assert_eq!(err, "123");
   }
 
   /// Check that various combinations of white spaces in formulas don't
@@ -608,44 +626,44 @@ mod tests {
   #[test]
   fn formula_parsing_whitespaces() {
     // White spaces around literal.
-    let formula = parse_formula(" 23").unwrap();
-    let expected = Formula::Var(23);
+    let formula = parse_formula(" ab").unwrap();
+    let expected = Formula::var("ab");
     assert_eq!(formula, expected);
 
-    let formula = parse_formula(" 23   ").unwrap();
-    let expected = Formula::Var(23);
+    let formula = parse_formula(" ab   ").unwrap();
+    let expected = Formula::var("ab");
     assert_eq!(formula, expected);
 
-    let formula = parse_formula("23 ").unwrap();
-    let expected = Formula::Var(23);
+    let formula = parse_formula("ab ").unwrap();
+    let expected = Formula::var("ab");
     assert_eq!(formula, expected);
 
-    let formula = parse_formula("!  12").unwrap();
-    let expected = !Formula::Var(12);
+    let formula = parse_formula("!  cd").unwrap();
+    let expected = !Formula::var("cd");
     assert_eq!(formula, expected);
 
-    let formula = parse_formula("  !  12 ").unwrap();
-    let expected = !Formula::Var(12);
+    let formula = parse_formula("  !  cd ").unwrap();
+    let expected = !Formula::var("cd");
     assert_eq!(formula, expected);
 
-    let formula = parse_formula("  !   !  12 ").unwrap();
-    let expected = !!Formula::Var(12);
+    let formula = parse_formula("  !   !  ef ").unwrap();
+    let expected = !!Formula::var("ef");
     assert_eq!(formula, expected);
 
-    let formula = parse_formula("1  & 2  ").unwrap();
-    let expected = Formula::Var(1) & Formula::Var(2);
+    let formula = parse_formula("a  & b  ").unwrap();
+    let expected = Formula::var("a") & Formula::var("b");
     assert_eq!(formula, expected);
 
-    let formula = parse_formula("(  45 )").unwrap();
-    let expected = Formula::Var(45);
+    let formula = parse_formula("(  ab )").unwrap();
+    let expected = Formula::var("ab");
     assert_eq!(formula, expected);
 
-    let formula = parse_formula("!  ! (  45 )").unwrap();
-    let expected = !!Formula::Var(45);
+    let formula = parse_formula("!  ! (  ab )").unwrap();
+    let expected = !!Formula::var("ab");
     assert_eq!(formula, expected);
 
-    let formula = parse_formula("!  (  !45&    9) &8   ").unwrap();
-    let expected = !(!Formula::Var(45) & Formula::Var(9)) & Formula::Var(8);
+    let formula = parse_formula("!  (  !a&    b) &c   ").unwrap();
+    let expected = !(!Formula::var("a") & Formula::var("b")) & Formula::var("c");
     assert_eq!(formula, expected);
   }
 
@@ -653,19 +671,20 @@ mod tests {
   #[test]
   fn formula_parsing_error() {
     // Trailing negation symbol.
-    let err = parse_formula("!!45!").unwrap_err();
+    let err = parse_formula("!!a!").unwrap_err();
     assert_eq!(err, "!");
 
-    let err = parse_formula("(1&2").unwrap_err();
-    assert_eq!(err, "(1&2");
+    let err = parse_formula("(a & b").unwrap_err();
+    assert_eq!(err, "(a & b");
 
-    let err = parse_formula("1&&2").unwrap_err();
-    assert_eq!(err, "&&2");
+    let err = parse_formula("a && b").unwrap_err();
+    assert_eq!(err, "&& b");
   }
 
   /// Make sure that our formula formatting works as expected.
   #[test]
   fn formula_displaying() {
+    #[track_caller]
     fn test(input: &str) {
       let formula = parse_formula(input).unwrap();
       let s = formula.to_string();
@@ -673,21 +692,21 @@ mod tests {
       assert_eq!(parse_formula(&s).unwrap(), formula);
     }
 
-    test("42");
-    test("1 | 2");
-    test("(1 & 2) | 3");
-    test("(1 & 2 & 3) | 4");
-    test("1 | (2 & 3)");
-    test("1 & !2 & !3");
-    test("!(!45 & 9) & 8");
-    test("!!(1 | 2)");
+    test("ab");
+    test("a | b");
+    test("(a & b) | c");
+    test("(a & b & c) | d");
+    test("a | (b & c)");
+    test("a & !b & !c");
+    test("!(!xy & g) & h");
+    test("!!(a | b)");
   }
 
   /// Benchmark the parsing of a formula.
   #[cfg(feature = "nightly")]
   #[bench]
   fn bench_formula_parsing(b: &mut Bencher) {
-    let formula = "(!1&!2)|((43&!!!6)|(2&3))";
+    let formula = "(!a & !b) | ((ab & !!!c) | (d & z))";
     let () = b.iter(|| {
       let _formula = black_box(parse_formula(black_box(formula)).unwrap());
     });

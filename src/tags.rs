@@ -181,7 +181,6 @@ impl Templates {
   }
 
   /// Instantiate a new tag based on a name.
-  #[cfg(test)]
   pub fn instantiate_from_name(&self, name: &str) -> Option<Tag> {
     self
       .templates

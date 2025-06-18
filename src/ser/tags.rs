@@ -36,6 +36,10 @@ const TEMPLATE_COMPONENT_SEPARATOR: char = ',';
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Template {
   pub id: Id,
+  // TODO: Our `Formula` actually imposes restrictions on what can
+  //       constitute a tag ("variable"). We should probably do the same
+  //       here or we risk allowing templates that can never be
+  //       instantiated.
   pub name: String,
 }
 

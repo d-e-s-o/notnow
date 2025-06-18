@@ -8,7 +8,6 @@ use std::fmt::Debug;
 use std::fmt::Display;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
-use std::num::NonZeroUsize;
 use std::str::FromStr as _;
 
 use serde::Deserialize;
@@ -48,11 +47,20 @@ impl TagLit<Tag> {
   }
 }
 
-impl From<&TagLit> for Formula {
-  fn from(other: &TagLit) -> Self {
+impl TagLit<String> {
+  /// Retrieve the name of the tag.
+  pub fn name(&self) -> &str {
+    match self {
+      TagLit::Pos(tag) | TagLit::Neg(tag) => tag,
+    }
+  }
+}
+
+impl From<&TagLit<String>> for Formula {
+  fn from(other: &TagLit<String>) -> Self {
     match other {
-      TagLit::Pos(tag) => Formula::Var(tag.id.get()),
-      TagLit::Neg(tag) => !Formula::Var(tag.id.get()),
+      TagLit::Pos(tag) => Formula::Var(tag.to_string()),
+      TagLit::Neg(tag) => !Formula::Var(tag.to_string()),
     }
   }
 }
@@ -136,54 +144,25 @@ mod formula {
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
-enum ViewEnum {
+pub enum ViewEnum {
   Lits(Box<[Box<[TagLit]>]>),
   #[serde(with = "formula")]
   Formula(FormulaPair),
 }
 
-impl ViewEnum {
-  fn into_formula(self) -> FormulaPair {
-    match self {
-      Self::Lits(lits) => {
-        let formula = cnf_to_formula::<TagLit>(&lits);
-        let string = formula.as_ref().map(Formula::to_string);
-        FormulaPair {
-          formula,
-          string: string.unwrap_or_default(),
-        }
-      },
-      Self::Formula(formula) => formula,
-    }
+impl Default for ViewEnum {
+  fn default() -> Self {
+    Self::Formula(FormulaPair::default())
   }
-}
-
-impl From<ViewImpl> for View {
-  fn from(other: ViewImpl) -> Self {
-    let ViewImpl { name, view } = other;
-
-    Self {
-      name,
-      formula: view.into_formula(),
-    }
-  }
-}
-
-#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
-struct ViewImpl {
-  name: String,
-  #[serde(flatten)]
-  view: ViewEnum,
 }
 
 
 /// A view that can be serialized and deserialized.
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
-#[serde(from = "ViewImpl")]
 pub struct View {
   pub name: String,
-  #[serde(serialize_with = "formula::serialize")]
-  pub formula: FormulaPair,
+  #[serde(flatten)]
+  pub view: ViewEnum,
 }
 
 
@@ -218,16 +197,12 @@ where
 /// Convert a formula into an equivalent CNF form.
 ///
 /// If a tag with value zero is encountered, `None` will be returned.
-pub(crate) fn formula_to_cnf(formula: Formula) -> Option<Box<[Box<[TagLit]>]>> {
-  fn rewrite(formula: Formula) -> Option<Vec<Vec<TagLit>>> {
+pub(crate) fn formula_to_cnf(formula: Formula) -> Option<Box<[Box<[TagLit<String>]>]>> {
+  fn rewrite(formula: Formula) -> Option<Vec<Vec<TagLit<String>>>> {
     match formula {
-      Formula::Var(a) => Some(vec![vec![TagLit::Pos(Tag::from(Id::new(
-        NonZeroUsize::new(a)?,
-      )))]]),
+      Formula::Var(a) => Some(vec![vec![TagLit::Pos(a)]]),
       Formula::Not(a) => match *a {
-        Formula::Var(b) => Some(vec![vec![TagLit::Neg(Tag::from(Id::new(
-          NonZeroUsize::new(b)?,
-        )))]]),
+        Formula::Var(b) => Some(vec![vec![TagLit::Neg(b)]]),
         // Remove double negation.
         Formula::Not(b) => rewrite(*b),
         // De Morgan: !(b & c) -> (!b | !c)
@@ -263,8 +238,8 @@ pub(crate) fn formula_to_cnf(formula: Formula) -> Option<Box<[Box<[TagLit]>]>> {
           for bx in &b {
             let conjunctions = ax
               .iter()
-              .copied()
-              .chain(bx.iter().copied())
+              .cloned()
+              .chain(bx.iter().cloned())
               .collect::<Vec<_>>();
             let () = c.push(conjunctions);
           }
@@ -289,18 +264,6 @@ mod tests {
   use crate::ser::backends::Backend;
   use crate::ser::backends::Json;
 
-  use crate::ser::id::Id;
-
-  fn var(var: usize) -> Formula {
-    Formula::Var(var)
-  }
-
-  fn tag(tag: usize) -> Tag {
-    Tag {
-      id: Id::try_from(tag).unwrap(),
-    }
-  }
-
 
   /// Check that we can serialize and deserialize a `View`.
   #[test]
@@ -308,7 +271,7 @@ mod tests {
     fn test(formula: FormulaPair) {
       let view = View {
         name: "test-view".to_string(),
-        formula,
+        view: ViewEnum::Formula(formula),
       };
 
       let serialized = Json::serialize(&view).unwrap();
@@ -317,7 +280,7 @@ mod tests {
       assert_eq!(deserialized, view);
     }
 
-    let formula = Formula::from_str("1 & (2 | !3) & (!4 | 2)").unwrap();
+    let formula = Formula::from_str("a & (b | !c) & (!d | b)").unwrap();
     let () = test(FormulaPair::from(formula));
     let () = test(FormulaPair::default());
   }
@@ -325,18 +288,13 @@ mod tests {
   /// Spot-test the conversion of a CNF formula into a "generic" one.
   #[test]
   fn cnf_formula_conversion() {
-    let tag1 = tag(1);
-    let tag2 = tag(2);
-    let tag3 = tag(3);
-    let tag4 = tag(4);
-
     let cnf = Box::from([
-      Box::from([TagLit::Pos(tag1)]),
-      Box::from([TagLit::Pos(tag2), TagLit::Neg(tag3)]),
-      Box::from([TagLit::Neg(tag4), TagLit::Pos(tag2)]),
+      Box::from([TagLit::Pos("a".to_string())]),
+      Box::from([TagLit::Pos("b".to_string()), TagLit::Neg("c".to_string())]),
+      Box::from([TagLit::Neg("d".to_string()), TagLit::Pos("b".to_string())]),
     ]);
 
-    let expected = Formula::from_str("1 & (2 | !3) & (!4 | 2)").unwrap();
+    let expected = Formula::from_str("a & (b | !c) & (!d | b)").unwrap();
     assert_eq!(cnf_to_formula(&cnf).unwrap(), expected);
   }
 
@@ -344,14 +302,15 @@ mod tests {
   #[test]
   fn formula_cnf_conversion() {
     // Formula already in CNF, just not the right type.
-    let formula = (var(1) | !var(2) | !var(3)) & (!var(4) | var(5));
+    let formula = (Formula::var("a") | !Formula::var("b") | !Formula::var("c"))
+      & (!Formula::var("d") | Formula::var("e"));
     let expected = Box::from([
       Box::from([
-        TagLit::Pos(tag(1)),
-        TagLit::Neg(tag(2)),
-        TagLit::Neg(tag(3)),
+        TagLit::Pos("a".to_string()),
+        TagLit::Neg("b".to_string()),
+        TagLit::Neg("c".to_string()),
       ]),
-      Box::from([TagLit::Neg(tag(4)), TagLit::Pos(tag(5))]),
+      Box::from([TagLit::Neg("d".to_string()), TagLit::Pos("e".to_string())]),
     ]);
     let cnf = formula_to_cnf(formula).unwrap();
     assert_eq!(cnf, expected);
@@ -365,11 +324,11 @@ mod tests {
     fn test(input: &str) {
       let formula = Formula::from_str(input).unwrap();
       let cnf = formula_to_cnf(formula.clone()).unwrap();
-      let new = cnf_to_formula(&cnf).unwrap();
+      let new = cnf_to_formula::<TagLit<String>>(&cnf).unwrap();
       assert_eq!(new, formula);
     }
 
-    test("1 & !2 & !3");
-    test("1 | !2 | !3");
+    test("a & !b & !c");
+    test("a | !b | !c");
   }
 }

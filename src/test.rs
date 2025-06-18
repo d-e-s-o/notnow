@@ -3,6 +3,8 @@
 
 //! A module providing testing related utility functionality.
 
+use std::str::FromStr as _;
+
 use crate::formula::Formula;
 use crate::ser::state::TaskState as SerTaskState;
 use crate::ser::state::UiConfig as SerUiConfig;
@@ -15,6 +17,7 @@ use crate::ser::tasks::Tasks as SerTasks;
 use crate::ser::tasks::TasksMeta as SerTasksMeta;
 use crate::ser::view::FormulaPair as SerFormulaPair;
 use crate::ser::view::View as SerView;
+use crate::ser::view::ViewEnum as SerViewEnum;
 
 /// The name of a tag describing the completion state of a task.
 pub const COMPLETE_TAG: &str = "complete";
@@ -119,23 +122,23 @@ pub fn default_tasks_and_tags() -> (SerUiConfig, SerTaskState) {
     views: vec![
       SerView {
         name: "all".to_string(),
-        formula: SerFormulaPair::default(),
+        view: SerViewEnum::default(),
       },
       SerView {
         name: "tag complete".to_string(),
-        formula: SerFormulaPair::from(Formula::Var(tags[0].id.get())),
+        view: SerViewEnum::Formula(SerFormulaPair::from(Formula::Var(COMPLETE_TAG.to_string()))),
       },
       SerView {
         name: "tag2 || tag3".to_string(),
-        formula: SerFormulaPair::from(
-          Formula::Var(tags[2].id.get()) | Formula::Var(tags[3].id.get()),
-        ),
+        view: SerViewEnum::Formula(SerFormulaPair::from(
+          Formula::from_str("tag2 | tag3").unwrap(),
+        )),
       },
       SerView {
         name: "tag1 && tag3".to_string(),
-        formula: SerFormulaPair::from(
-          Formula::Var(tags[1].id.get()) & Formula::Var(tags[3].id.get()),
-        ),
+        view: SerViewEnum::Formula(SerFormulaPair::from(
+          Formula::from_str("tag1 & tag3").unwrap(),
+        )),
       },
     ],
     colors: Default::default(),
