@@ -12,7 +12,6 @@ use crate::ser::view::formula_to_cnf;
 use crate::ser::view::FormulaPair;
 use crate::ser::view::TagLit as SerTagLit;
 use crate::ser::view::View as SerView;
-use crate::ser::view::ViewEnum;
 use crate::ser::ToSerde;
 use crate::tags::Tag;
 use crate::tags::Templates;
@@ -50,18 +49,6 @@ impl From<&TagLit> for Formula {
     match other {
       TagLit::Pos(tag) => Formula::Var(tag.template().name().to_string()),
       TagLit::Neg(tag) => !Formula::Var(tag.template().name().to_string()),
-    }
-  }
-}
-
-impl ToSerde for TagLit {
-  type Output = SerTagLit;
-
-  /// Convert this object into a serializable one.
-  fn to_serde(&self) -> Self::Output {
-    match self {
-      TagLit::Pos(tag) => SerTagLit::Pos(tag.to_serde()),
-      TagLit::Neg(tag) => SerTagLit::Neg(tag.to_serde()),
     }
   }
 }
@@ -251,6 +238,10 @@ impl ViewBuilder {
     View {
       name: name.into(),
       tasks: self.tasks,
+      // TODO: This conversion should not exist at a conceptual level.
+      //       We should eventually transition everything to a world
+      //       where we start with a formula instead of going back to
+      //       it.
       formula: cnf_to_formula::<TagLit>(&lits)
         .map(|f| f.to_string())
         .unwrap_or_default(),
@@ -290,37 +281,9 @@ pub struct View {
 impl View {
   /// Create a new `View` object from a serializable one.
   pub fn with_serde(view: SerView, templates: &Rc<Templates>, tasks: Rc<Tasks>) -> Result<Self> {
-    let SerView { name, view } = view;
-
-    let formula = match view {
-      ViewEnum::Lits(view_lits) => {
-        let mut and_lits = Vec::with_capacity(view_lits.len());
-        for lits in view_lits {
-          let mut or_lits = Vec::with_capacity(lits.len());
-          for lit in lits {
-            let tag = templates
-              .instantiate(lit.id())
-              .ok_or_else(|| anyhow!("encountered invalid tag ID {}", lit.id()))?;
-            let lit = match lit {
-              SerTagLit::Pos(_) => TagLit::Pos(tag),
-              SerTagLit::Neg(_) => TagLit::Neg(tag),
-            };
-            or_lits.push(lit);
-          }
-
-          and_lits.push(or_lits.into_boxed_slice());
-        }
-        let lits = and_lits.into_boxed_slice();
-        let formula = cnf_to_formula(&lits);
-        FormulaPair {
-          string: formula.as_ref().map(Formula::to_string).unwrap_or_default(),
-          formula,
-        }
-      },
-      ViewEnum::Formula(formula) => formula,
-    };
-
+    let SerView { name, formula } = view;
     let FormulaPair { string, formula } = formula;
+
     let lits = if let Some(formula) = formula {
       let cnf =
         formula_to_cnf(formula).ok_or_else(|| anyhow!("encountered invalid tag with value `0`"))?;
@@ -394,12 +357,12 @@ impl ToSerde for View {
   fn to_serde(&self) -> Self::Output {
     SerView {
       name: self.name.clone(),
-      view: ViewEnum::Formula(FormulaPair {
+      formula: FormulaPair {
         string: self.formula.clone(),
         // We intend for the resulting object to the serializable and for
         // that we only need the string.
         formula: None,
-      }),
+      },
     }
   }
 }

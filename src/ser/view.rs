@@ -14,7 +14,6 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use crate::formula::Formula;
-use crate::ser::tags::Id;
 use crate::ser::tags::Tag;
 
 
@@ -34,15 +33,6 @@ where
     match self {
       Self::Pos(tag) => write!(f, "{tag}"),
       Self::Neg(tag) => write!(f, "!{tag}"),
-    }
-  }
-}
-
-impl TagLit<Tag> {
-  /// Retrieve the ID of the wrapped tag.
-  pub fn id(&self) -> Id {
-    match self {
-      TagLit::Pos(tag) | TagLit::Neg(tag) => tag.id,
     }
   }
 }
@@ -142,27 +132,12 @@ mod formula {
 }
 
 
-#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum ViewEnum {
-  Lits(Box<[Box<[TagLit]>]>),
-  #[serde(with = "formula")]
-  Formula(FormulaPair),
-}
-
-impl Default for ViewEnum {
-  fn default() -> Self {
-    Self::Formula(FormulaPair::default())
-  }
-}
-
-
 /// A view that can be serialized and deserialized.
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 pub struct View {
   pub name: String,
-  #[serde(flatten)]
-  pub view: ViewEnum,
+  #[serde(with = "formula")]
+  pub formula: FormulaPair,
 }
 
 
@@ -271,7 +246,7 @@ mod tests {
     fn test(formula: FormulaPair) {
       let view = View {
         name: "test-view".to_string(),
-        view: ViewEnum::Formula(formula),
+        formula,
       };
 
       let serialized = Json::serialize(&view).unwrap();
