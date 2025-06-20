@@ -5,7 +5,6 @@
 //! task views.
 
 use std::fmt::Debug;
-use std::fmt::Display;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
 use std::str::FromStr as _;
@@ -14,21 +13,17 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use crate::formula::Formula;
-use crate::ser::tags::Tag;
 
 
 /// A literal that can be serialized and deserialized.
-#[derive(Copy, Clone, Deserialize, PartialEq, Eq, Serialize)]
+#[derive(Clone, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
-pub enum TagLit<T = Tag> {
-  Pos(T),
-  Neg(T),
+pub enum TagLit {
+  Pos(String),
+  Neg(String),
 }
 
-impl<T> Debug for TagLit<T>
-where
-  T: Display,
-{
+impl Debug for TagLit {
   fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
     match self {
       Self::Pos(tag) => write!(f, "{tag}"),
@@ -37,7 +32,7 @@ where
   }
 }
 
-impl TagLit<String> {
+impl TagLit {
   /// Retrieve the name of the tag.
   pub fn name(&self) -> &str {
     match self {
@@ -46,8 +41,8 @@ impl TagLit<String> {
   }
 }
 
-impl From<&TagLit<String>> for Formula {
-  fn from(other: &TagLit<String>) -> Self {
+impl From<&TagLit> for Formula {
+  fn from(other: &TagLit) -> Self {
     match other {
       TagLit::Pos(tag) => Formula::Var(tag.to_string()),
       TagLit::Neg(tag) => !Formula::Var(tag.to_string()),
@@ -172,8 +167,8 @@ where
 /// Convert a formula into an equivalent CNF form.
 ///
 /// If a tag with value zero is encountered, `None` will be returned.
-pub(crate) fn formula_to_cnf(formula: Formula) -> Option<Box<[Box<[TagLit<String>]>]>> {
-  fn rewrite(formula: Formula) -> Option<Vec<Vec<TagLit<String>>>> {
+pub(crate) fn formula_to_cnf(formula: Formula) -> Option<Box<[Box<[TagLit]>]>> {
+  fn rewrite(formula: Formula) -> Option<Vec<Vec<TagLit>>> {
     match formula {
       Formula::Var(a) => Some(vec![vec![TagLit::Pos(a)]]),
       Formula::Not(a) => match *a {
@@ -299,7 +294,7 @@ mod tests {
     fn test(input: &str) {
       let formula = Formula::from_str(input).unwrap();
       let cnf = formula_to_cnf(formula.clone()).unwrap();
-      let new = cnf_to_formula::<TagLit<String>>(&cnf).unwrap();
+      let new = cnf_to_formula::<TagLit>(&cnf).unwrap();
       assert_eq!(new, formula);
     }
 
