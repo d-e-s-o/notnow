@@ -279,9 +279,12 @@ pub struct View {
 }
 
 impl View {
-  /// Create a new `View` object from a serializable one.
-  pub fn with_serde(view: SerView, templates: &Rc<Templates>, tasks: Rc<Tasks>) -> Result<Self> {
-    let SerView { name, formula } = view;
+  fn from_formula(
+    name: String,
+    formula: FormulaPair,
+    templates: &Templates,
+    tasks: Rc<Tasks>,
+  ) -> Result<Self> {
     let FormulaPair { string, formula } = formula;
 
     let lits = if let Some(formula) = formula {
@@ -315,6 +318,12 @@ impl View {
       formula: string,
       lits,
     })
+  }
+
+  /// Create a new `View` object from a serializable one.
+  pub fn with_serde(view: SerView, templates: &Rc<Templates>, tasks: Rc<Tasks>) -> Result<Self> {
+    let SerView { name, formula } = view;
+    Self::from_formula(name, formula, templates, tasks)
   }
 
   /// Invoke a user-provided function on an iterator over the tasks
