@@ -2,12 +2,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::rc::Rc;
+use std::str::FromStr as _;
 
 use anyhow::anyhow;
 use anyhow::Result;
 
 use crate::formula::Formula;
-use crate::ser::view::cnf_to_formula;
 use crate::ser::view::formula_to_cnf;
 use crate::ser::view::FormulaPair;
 use crate::ser::view::TagLit as SerTagLit;
@@ -141,112 +141,37 @@ impl DoubleEndedIterator for Filter<'_> {
 
 
 /// A builder object to create a `View`.
-// Strictly speaking the builder contains the same members as the actual
-// `View` object and, hence, could be merged into it easily. However,
-// the API would be rather unnatural and non-obvious. A `View` is
-// supposed to be something that does not change over its lifetime.
 pub struct ViewBuilder {
+  templates: Rc<Templates>,
   tasks: Rc<Tasks>,
-  lits: Vec<Vec<TagLit>>,
 }
 
 impl ViewBuilder {
   /// Create a new `ViewBuilder` object.
-  pub fn new(tasks: Rc<Tasks>) -> ViewBuilder {
+  pub fn new(templates: &Rc<Templates>, tasks: &Rc<Tasks>) -> ViewBuilder {
     Self {
-      tasks,
-      lits: Default::default(),
+      templates: Rc::clone(templates),
+      tasks: Rc::clone(tasks),
     }
-  }
-
-  /// Add a new conjunction containing the given literal to the view.
-  #[cfg(test)]
-  fn and_lit(mut self, lit: TagLit) -> ViewBuilder {
-    // An AND always starts a new vector of ORs.
-    self.lits.push(vec![lit]);
-    self
-  }
-
-  /// Add a new conjunction containing the given tag to the view.
-  ///
-  /// Note that ANDed tags always associate with previously ANDed ones.
-  /// That is, if you ORed a tag before you won't be able to OR any more
-  /// tags to that same tag after a tag was ANDed in. E.g.,
-  ///
-  /// view
-  ///  .or(tag1)  // `and` or `or` act equivalently for the first tag
-  ///  .and(tag2)
-  ///  .or(tag3)
-  ///  .and(tag4)
-  ///
-  /// Is equivalent to tag1 && (tag2 || tag3) && tag4.
-  #[cfg(test)]
-  pub fn and(self, tag: impl Into<Tag>) -> ViewBuilder {
-    self.and_lit(TagLit::Pos(tag.into()))
-  }
-
-  /// Add a new conjunction containing the given tag in negated form to
-  /// the view.
-  ///
-  /// Please see `View::and` for more details on how ANDed tags
-  /// associate with one another and with ORed ones.
-  #[cfg(test)]
-  pub fn and_not(self, tag: impl Into<Tag>) -> ViewBuilder {
-    self.and_lit(TagLit::Neg(tag.into()))
-  }
-
-  /// Add a new literal to the last disjunction.
-  #[cfg(test)]
-  fn or_lit(mut self, lit: TagLit) -> ViewBuilder {
-    let last = self.lits.pop();
-    match last {
-      Some(mut last) => {
-        last.push(lit);
-        self.lits.push(last);
-      },
-      None => self.lits.push(vec![lit]),
-    };
-    self
-  }
-
-  /// Add a new tag to the last disjunction.
-  ///
-  /// Please see `View::and` for more details on how ORed tags
-  /// associate with one another and with ANDed ones.
-  #[cfg(test)]
-  pub fn or(self, tag: impl Into<Tag>) -> ViewBuilder {
-    self.or_lit(TagLit::Pos(tag.into()))
-  }
-
-  /// Add a new tag in negated form to the last disjunction.
-  ///
-  /// Please see `View::and` for more details on how ORed tags
-  /// associate with one another and with ANDed ones.
-  #[cfg(test)]
-  pub fn or_not(self, tag: impl Into<Tag>) -> ViewBuilder {
-    self.or_lit(TagLit::Neg(tag.into()))
   }
 
   /// Build the final `View` instance.
-  pub fn build(self, name: impl Into<String>) -> View {
-    let lits = self
-      .lits
-      .into_iter()
-      .map(|vec| vec.into_boxed_slice())
-      .collect::<Box<[_]>>();
+  pub fn build(&self, name: impl Into<String>, formula: &str) -> Result<View> {
+    let formula = FormulaPair {
+      formula: if formula.is_empty() {
+        None
+      } else {
+        Some(Formula::from_str(formula)?)
+      },
+      string: formula.to_string(),
+    };
 
-    View {
-      name: name.into(),
-      tasks: self.tasks,
-      // TODO: This conversion should not exist at a conceptual level.
-      //       We should eventually transition everything to a world
-      //       where we start with a formula instead of going back to
-      //       it.
-      formula: cnf_to_formula::<TagLit>(&lits)
-        .map(|f| f.to_string())
-        .unwrap_or_default(),
-      lits,
-    }
+    View::from_formula(
+      name.into(),
+      formula,
+      &self.templates,
+      Rc::clone(&self.tasks),
+    )
   }
 }
 
@@ -391,9 +316,12 @@ mod tests {
 
   /// Create a view with the given number of tasks in it.
   fn make_view(count: usize) -> View {
+    let templates = Rc::new(Templates::new());
     let tasks = Tasks::with_serde_tasks(make_tasks(count));
     let tasks = Rc::new(tasks.unwrap());
-    let view = ViewBuilder::new(tasks).build("test");
+    let view = ViewBuilder::new(&templates, &tasks)
+      .build("test", "")
+      .unwrap();
     view
   }
 
@@ -427,46 +355,27 @@ mod tests {
     }
 
     let (templates, tasks) = make_tagged_tasks(20);
+    let builder = ViewBuilder::new(&templates, &tasks);
 
-    let view = ViewBuilder::new(Rc::clone(&tasks)).build("test");
+    let view = builder.build("test", "").unwrap();
     assert_eq!(pos_tags(&view), Vec::<String>::new());
 
-    let view = ViewBuilder::new(Rc::clone(&tasks))
-      .and(templates.instantiate_from_name(COMPLETE_TAG).unwrap())
-      .build("test");
+    let view = builder.build("test", "complete").unwrap();
     assert_eq!(pos_tags(&view), vec![COMPLETE_TAG]);
 
-    let view = ViewBuilder::new(Rc::clone(&tasks))
-      .and(templates.instantiate_from_name("tag1").unwrap())
-      .and_not(templates.instantiate_from_name("tag2").unwrap())
-      .build("test");
+    let view = builder.build("test", "tag1 & !tag2").unwrap();
     assert_eq!(pos_tags(&view), vec!["tag1"]);
 
-    let view = ViewBuilder::new(Rc::clone(&tasks))
-      .and(templates.instantiate_from_name("tag1").unwrap())
-      .or(templates.instantiate_from_name("tag2").unwrap())
-      .build("test");
+    let view = builder.build("test", "tag1 | tag2").unwrap();
     assert_eq!(pos_tags(&view), vec!["tag1", "tag2"]);
 
-    let view = ViewBuilder::new(Rc::clone(&tasks))
-      .and(templates.instantiate_from_name("tag3").unwrap())
-      .or(templates.instantiate_from_name("tag1").unwrap())
-      .and_not(templates.instantiate_from_name("tag2").unwrap())
-      .build("test");
+    let view = builder.build("test", "(tag3 | tag1) & !tag2").unwrap();
     assert_eq!(pos_tags(&view), vec!["tag3", "tag1"]);
 
-    let view = ViewBuilder::new(Rc::clone(&tasks))
-      .or(templates.instantiate_from_name("tag3").unwrap())
-      .or(templates.instantiate_from_name("tag2").unwrap())
-      .or(templates.instantiate_from_name("tag5").unwrap())
-      .build("test");
+    let view = builder.build("test", "tag3 | tag2 | tag5").unwrap();
     assert_eq!(pos_tags(&view), vec!["tag3", "tag2", "tag5"]);
 
-    let view = ViewBuilder::new(tasks)
-      .and(templates.instantiate_from_name("tag3").unwrap())
-      .and(templates.instantiate_from_name("tag2").unwrap())
-      .and(templates.instantiate_from_name("tag5").unwrap())
-      .build("test");
+    let view = builder.build("test", "tag3 & tag2 & tag5").unwrap();
     assert_eq!(pos_tags(&view), vec!["tag3", "tag2", "tag5"]);
   }
 
@@ -475,9 +384,9 @@ mod tests {
   fn filter_completions() {
     let (templates, tasks) = make_tagged_tasks(16);
     let complete_tag = templates.instantiate_from_name(COMPLETE_TAG).unwrap();
-    let view = ViewBuilder::new(tasks)
-      .and(complete_tag.clone())
-      .build("test");
+    let view = ViewBuilder::new(&templates, &tasks)
+      .build("test", COMPLETE_TAG)
+      .unwrap();
 
     let () = view.iter(|mut iter| {
       let () = iter
@@ -500,9 +409,9 @@ mod tests {
   fn filter_no_completions() {
     let (templates, tasks) = make_tagged_tasks(16);
     let complete_tag = templates.instantiate_from_name(COMPLETE_TAG).unwrap();
-    let view = ViewBuilder::new(tasks)
-      .and_not(complete_tag.clone())
-      .build("test");
+    let view = ViewBuilder::new(&templates, &tasks)
+      .build("test", "!complete")
+      .unwrap();
 
     view.iter(|mut iter| {
       let () = iter
@@ -524,13 +433,9 @@ mod tests {
   #[test]
   fn filter_tag1_and_tag2() {
     let (templates, tasks) = make_tagged_tasks(20);
-    let tag1 = templates
-      .instantiate_from_name(templates.iter().nth(1).unwrap().name())
+    let view = ViewBuilder::new(&templates, &tasks)
+      .build("test", "tag1 & tag2")
       .unwrap();
-    let tag2 = templates
-      .instantiate_from_name(templates.iter().nth(2).unwrap().name())
-      .unwrap();
-    let view = ViewBuilder::new(tasks).and(tag1).and(tag2).build("test");
 
     let () = view.iter(|mut iter| {
       assert_eq!(iter.next().unwrap().summary(), "11");
@@ -546,13 +451,9 @@ mod tests {
   #[test]
   fn filter_tag3_or_tag1() {
     let (templates, tasks) = make_tagged_tasks(20);
-    let tag1 = templates
-      .instantiate_from_name(templates.iter().nth(1).unwrap().name())
+    let view = ViewBuilder::new(&templates, &tasks)
+      .build("test", "tag3 | tag1")
       .unwrap();
-    let tag3 = templates
-      .instantiate_from_name(templates.iter().nth(3).unwrap().name())
-      .unwrap();
-    let view = ViewBuilder::new(tasks).or(tag3).or(tag1).build("test");
 
     let () = view.iter(|mut iter| {
       assert_eq!(iter.next().unwrap().summary(), "5");
@@ -574,18 +475,9 @@ mod tests {
   #[test]
   fn filter_tag1_and_complete_or_tag4() {
     let (templates, tasks) = make_tagged_tasks(20);
-    let complete_tag = templates.instantiate_from_name(COMPLETE_TAG).unwrap();
-    let tag1 = templates
-      .instantiate_from_name(templates.iter().nth(1).unwrap().name())
+    let view = ViewBuilder::new(&templates, &tasks)
+      .build("test", "tag1 & (complete | tag4)")
       .unwrap();
-    let tag4 = templates
-      .instantiate_from_name(templates.iter().nth(4).unwrap().name())
-      .unwrap();
-    let view = ViewBuilder::new(tasks)
-      .and(tag1)
-      .and(complete_tag)
-      .or(tag4)
-      .build("test");
 
     let () = view.iter(|mut iter| {
       assert_eq!(iter.next().unwrap().summary(), "6");
@@ -601,14 +493,9 @@ mod tests {
   #[test]
   fn filter_tag2_and_not_complete() {
     let (templates, tasks) = make_tagged_tasks(20);
-    let complete_tag = templates.instantiate_from_name(COMPLETE_TAG).unwrap();
-    let tag2 = templates
-      .instantiate_from_name(templates.iter().nth(2).unwrap().name())
+    let view = ViewBuilder::new(&templates, &tasks)
+      .build("test", "!tag2 & !complete")
       .unwrap();
-    let view = ViewBuilder::new(tasks)
-      .and_not(tag2)
-      .and_not(complete_tag)
-      .build("test");
 
     let () = view.iter(|mut iter| {
       assert_eq!(iter.next().unwrap().summary(), "1");
@@ -624,18 +511,9 @@ mod tests {
   #[test]
   fn filter_tag2_or_not_complete_and_tag3() {
     let (templates, tasks) = make_tagged_tasks(20);
-    let complete_tag = templates.instantiate_from_name(COMPLETE_TAG).unwrap();
-    let tag2 = templates
-      .instantiate_from_name(templates.iter().nth(2).unwrap().name())
+    let view = ViewBuilder::new(&templates, &tasks)
+      .build("test", "(!tag2 | !complete) & tag3")
       .unwrap();
-    let tag3 = templates
-      .instantiate_from_name(templates.iter().nth(3).unwrap().name())
-      .unwrap();
-    let view = ViewBuilder::new(tasks)
-      .or_not(tag2)
-      .or_not(complete_tag)
-      .and(tag3)
-      .build("test");
 
     let () = view.iter(|mut iter| {
       assert_eq!(iter.next().unwrap().summary(), "13");

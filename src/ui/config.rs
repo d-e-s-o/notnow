@@ -72,7 +72,7 @@ impl Config {
     // For convenience for the user, we add a default view capturing
     // all tasks if no other views have been configured.
     if views.is_empty() {
-      views.push(ViewBuilder::new(Rc::clone(tasks)).build("all"))
+      views.push(ViewBuilder::new(templates, tasks).build("all", "")?)
     }
 
     let toggle_tag = if let Some(toggle_tag) = toggle_tag {
