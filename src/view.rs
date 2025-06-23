@@ -44,15 +44,6 @@ impl TagLit {
   }
 }
 
-impl From<&TagLit> for Formula {
-  fn from(other: &TagLit) -> Self {
-    match other {
-      TagLit::Pos(tag) => Formula::Var(tag.template().name().to_string()),
-      TagLit::Neg(tag) => !Formula::Var(tag.template().name().to_string()),
-    }
-  }
-}
-
 
 /// An object providing filtered iteration over an iterator of tasks.
 #[derive(Clone, Debug)]

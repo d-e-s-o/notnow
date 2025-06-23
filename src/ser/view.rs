@@ -41,15 +41,6 @@ impl TagLit {
   }
 }
 
-impl From<&TagLit> for Formula {
-  fn from(other: &TagLit) -> Self {
-    match other {
-      TagLit::Pos(tag) => Formula::Var(tag.to_string()),
-      TagLit::Neg(tag) => !Formula::Var(tag.to_string()),
-    }
-  }
-}
-
 
 #[derive(Clone, Debug, Default)]
 pub struct FormulaPair {
@@ -133,34 +124,6 @@ pub struct View {
   pub name: String,
   #[serde(with = "formula")]
   pub formula: FormulaPair,
-}
-
-
-/// Convert a formula in CNF form into a [`Formula`] object.
-pub(crate) fn cnf_to_formula<T>(cnf: &[Box<[T]>]) -> Option<Formula>
-where
-  for<'t> Formula: From<&'t T>,
-{
-  let mut formula = None;
-
-  for ors in cnf.iter().rev() {
-    let mut it = ors.iter().rev().map(Formula::from);
-    let mut ors = if let Some(or) = it.next() {
-      or
-    } else {
-      continue
-    };
-
-    ors = it.fold(ors, |ors, or| or | ors);
-
-    formula = if let Some(formula) = formula {
-      Some(ors & formula)
-    } else {
-      Some(ors)
-    };
-  }
-
-  formula
 }
 
 
@@ -255,19 +218,6 @@ mod tests {
     let () = test(FormulaPair::default());
   }
 
-  /// Spot-test the conversion of a CNF formula into a "generic" one.
-  #[test]
-  fn cnf_formula_conversion() {
-    let cnf = Box::from([
-      Box::from([TagLit::Pos("a".to_string())]),
-      Box::from([TagLit::Pos("b".to_string()), TagLit::Neg("c".to_string())]),
-      Box::from([TagLit::Neg("d".to_string()), TagLit::Pos("b".to_string())]),
-    ]);
-
-    let expected = Formula::from_str("a & (b | !c) & (!d | b)").unwrap();
-    assert_eq!(cnf_to_formula(&cnf).unwrap(), expected);
-  }
-
   /// Check that we can convert a formula into an equivalent CNF form.
   #[test]
   fn formula_cnf_conversion() {
@@ -284,21 +234,5 @@ mod tests {
     ]);
     let cnf = formula_to_cnf(formula).unwrap();
     assert_eq!(cnf, expected);
-  }
-
-  /// Check that the `Formula` object produced by parsing a string and
-  /// by converting a CNF formula into a regular `Formula` are
-  /// equivalent.
-  #[test]
-  fn parsing_cnf_conversion_equivalence() {
-    fn test(input: &str) {
-      let formula = Formula::from_str(input).unwrap();
-      let cnf = formula_to_cnf(formula.clone()).unwrap();
-      let new = cnf_to_formula::<TagLit>(&cnf).unwrap();
-      assert_eq!(new, formula);
-    }
-
-    test("a & !b & !c");
-    test("a | !b | !c");
   }
 }
