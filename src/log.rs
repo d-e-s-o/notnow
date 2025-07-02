@@ -8,6 +8,8 @@
 mod log {
   use std::env::temp_dir;
   use std::fs::File;
+  use std::panic::set_hook;
+  use std::panic::take_hook;
   use std::path::Path;
 
   use anyhow::Context as _;
@@ -53,6 +55,12 @@ mod log {
     let log_file = temp_dir().join("notnow.log");
     let subscriber = make_subscriber(&log_file).context("failed to create tracing subscriber")?;
     let () = set_global_subscriber(subscriber).context("failed to set tracing subscriber")?;
+
+    let default_panic = take_hook();
+    let () = set_hook(Box::new(move |panic_info| {
+      error!("Panic: {panic_info}");
+      default_panic(panic_info);
+    }));
     Ok(())
   }
 }
