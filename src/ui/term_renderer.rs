@@ -765,7 +765,7 @@ where
         self.colors.in_out_error_bg,
         Some(e.as_ref()),
       ),
-      InOut::Input(Input { text }) => (
+      InOut::Input(Input { text, .. }) => (
         INPUT_TEXT,
         self.colors.in_out_success_fg,
         self.colors.in_out_success_bg,
@@ -800,7 +800,7 @@ where
       let fg = self.colors.in_out_string_fg;
       let bg = self.colors.in_out_string_bg;
 
-      if let InOut::Input(Input { text }) = in_out.state(cap) {
+      if let InOut::Input(Input { text, .. }) = in_out.state(cap) {
         debug_assert!(cap.is_focused(in_out.id()));
 
         let mut map = self.data.borrow_mut();

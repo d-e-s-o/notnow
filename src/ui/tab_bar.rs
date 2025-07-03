@@ -457,6 +457,7 @@ impl Handleable<Event, Message> for TabBar {
 
           let input = Input {
             text: InputText::default(),
+            response_id: self.id,
           };
           let message = Message::SetInOut(InOut::Input(input));
           cap.send(self.in_out, message).await.into_event()
@@ -551,6 +552,11 @@ impl Handleable<Event, Message> for TabBar {
         };
 
         result1.maybe_update(result2)
+      },
+      Message::InputCanceled => {
+        let data = self.data_mut::<TabBarData>(cap);
+        data.search = Search::Unset;
+        None
       },
       Message::CopyTask(copied) => {
         let data = self.data_mut::<TabBarData>(cap);

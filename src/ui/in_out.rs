@@ -26,6 +26,8 @@ use super::modal::Modal;
 pub struct Input {
   /// The input text.
   pub text: InputText,
+  /// The ID of the widget waiting for the input data.
+  pub response_id: Id,
 }
 
 
@@ -45,7 +47,16 @@ impl PartialEq for InOut {
       (InOut::Saved, InOut::Saved) => true,
       (InOut::Search(x), InOut::Search(y)) => x == y,
       (InOut::Error(x), InOut::Error(y)) => x == y,
-      (InOut::Input(Input { text: x }), InOut::Input(Input { text: y })) => x.deref() == y.deref(),
+      (
+        InOut::Input(Input {
+          text: text1,
+          response_id: _,
+        }),
+        InOut::Input(Input {
+          text: text2,
+          response_id: _,
+        }),
+      ) => text1.deref() == text2.deref(),
       (InOut::Clear, InOut::Clear) => true,
       _ => false,
     }
@@ -210,20 +221,21 @@ impl InOutArea {
   async fn finish_input(
     &self,
     cap: &mut dyn MutCap<Event, Message>,
+    response_id: Id,
     string: Option<String>,
   ) -> Option<Message> {
     // SANITY: We know that this dialog has a parent.
     let parent = cap.parent_id(self.id).unwrap();
     let data = self.data_mut::<InOutAreaData>(cap);
     let result1 = data.change_state(parent, Some(InOut::Clear));
-    let widget = self.restore_focus(cap);
+    let _widget = self.restore_focus(cap);
     let message = if let Some(s) = string {
       Message::EnteredText(s)
     } else {
       Message::InputCanceled
     };
 
-    let result2 = cap.send(widget, message).await;
+    let result2 = cap.send(response_id, message).await;
     result1.maybe_update(result2)
   }
 
@@ -254,15 +266,16 @@ impl Handleable<Event, Message> for InOutArea {
         // SANITY: We know that this dialog has a parent.
         let parent = cap.parent_id(self.id).unwrap();
         let data = self.data_mut::<InOutAreaData>(cap);
-        let text = if let InOut::Input(Input { text }) = data.in_out.get_mut() {
-          text
-        } else {
-          panic!("In/out area not used for input.");
-        };
+        let (text, response_id) =
+          if let InOut::Input(Input { text, response_id }) = data.in_out.get_mut() {
+            (text, *response_id)
+          } else {
+            panic!("In/out area not used for input.");
+          };
 
         let message = match text.handle_key(key, &raw) {
-          InputResult::Completed(text) => self.finish_input(cap, Some(text)).await,
-          InputResult::Canceled => self.finish_input(cap, None).await,
+          InputResult::Completed(text) => self.finish_input(cap, response_id, Some(text)).await,
+          InputResult::Canceled => self.finish_input(cap, response_id, None).await,
           InputResult::Updated => data.change_state(parent, None),
           InputResult::Unchanged => {
             data.in_out.bump();
@@ -305,9 +318,12 @@ impl Handleable<Event, Message> for InOutArea {
           InOut::Saved => InOut::Saved,
           InOut::Search(x) => InOut::Search(x.clone()),
           InOut::Error(x) => InOut::Error(x.clone()),
-          InOut::Input(Input { text }) => {
+          InOut::Input(Input { text, response_id }) => {
             let text = InputText::new(EditableText::clone(text.deref()));
-            InOut::Input(Input { text })
+            InOut::Input(Input {
+              text,
+              response_id: *response_id,
+            })
           },
           InOut::Clear => InOut::Clear,
         };

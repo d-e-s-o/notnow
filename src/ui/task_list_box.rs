@@ -300,6 +300,7 @@ impl Handleable<Event, Message> for TaskListBox {
           data.state = Some(State::Add);
           let input = Input {
             text: InputText::default(),
+            response_id: self.id,
           };
           let message = Message::SetInOut(InOut::Input(input));
           cap.send(self.in_out, message).await.into_event()
@@ -324,6 +325,7 @@ impl Handleable<Event, Message> for TaskListBox {
 
             let input = Input {
               text: InputText::new(text),
+              response_id: self.id,
             };
             let message = Message::SetInOut(InOut::Input(input));
             cap.send(self.in_out, message).await.into_event()
@@ -441,68 +443,67 @@ impl Handleable<Event, Message> for TaskListBox {
     let data = self.data_mut::<TaskListBoxData>(cap);
     match message {
       Message::EnteredText(ref text) => {
-        if let Some(state) = data.state.take() {
-          match state {
-            State::Add => {
-              if !text.is_empty() {
-                let tags = if let Some(task) = data.selected_task() {
-                  // Copy all tags except for the one that we allow
-                  // toggling.
-                  task.tags(|iter| {
-                    iter
-                      .filter(|tag| Some(*tag) != data.toggle_tag.as_ref())
-                      .cloned()
-                      .collect()
-                  })
-                } else {
-                  // If there is no selected task to take as a
-                  // "template", fall back to assigning all positive
-                  // literals from the view as tags. The user can always
-                  // deselect them, but having it show up without tags
-                  // (which would be the only other way we can conjure
-                  // up to handle this case), is much worse of a user
-                  // experience.
-                  data.view.positive_tag_iter().cloned().collect()
-                };
+        let state = data
+          .state
+          .take()
+          .expect("TaskListBox is in unexpected state");
+        match state {
+          State::Add => {
+            if !text.is_empty() {
+              let tags = if let Some(task) = data.selected_task() {
+                // Copy all tags except for the one that we allow
+                // toggling.
+                task.tags(|iter| {
+                  iter
+                    .filter(|tag| Some(*tag) != data.toggle_tag.as_ref())
+                    .cloned()
+                    .collect()
+                })
+              } else {
+                // If there is no selected task to take as a
+                // "template", fall back to assigning all positive
+                // literals from the view as tags. The user can always
+                // deselect them, but having it show up without tags
+                // (which would be the only other way we can conjure
+                // up to handle this case), is much worse of a user
+                // experience.
+                data.view.positive_tag_iter().cloned().collect()
+              };
 
-                // We want the new task to be displayed after the
-                // currently selected one, so find the ID of the
-                // currently selected task first.
-                // TODO: The movement initiated here may lead to a bit
-                //       surprising placement for tasks that were
-                //       previously tagged 'complete', because we move
-                //       the new task just after this one, but given
-                //       that we removed the tag it may end up being
-                //       displayed on a different view altogether -- and
-                //       at a rather random seeming location because of
-                //       it. Eventually we may want to remove the
-                //       special case logic for the 'complete' tag.
-                let after = data.selected_task();
-                let builder = Task::builder().set_summary(text).set_tags(tags);
-                let task = data.tasks.add(builder, after);
-                self.select_task(cap, task).await
-              } else {
-                None
-              }
-            },
-            State::Edit { task, mut edited } => {
-              // Editing a task to empty just removes the task
-              // altogether.
-              if !text.is_empty() {
-                edited.set_summary(text.clone());
-                data.tasks.update(Rc::clone(&task), edited);
-                self
-                  .select_task(cap, task)
-                  .await
-                  .maybe_update(Some(Message::updated(self.id)))
-              } else {
-                data.tasks.remove(task);
-                Some(Message::updated(self.id))
-              }
-            },
-          }
-        } else {
-          cap.send(self.tab_bar, message).await
+              // We want the new task to be displayed after the
+              // currently selected one, so find the ID of the
+              // currently selected task first.
+              // TODO: The movement initiated here may lead to a bit
+              //       surprising placement for tasks that were
+              //       previously tagged 'complete', because we move
+              //       the new task just after this one, but given
+              //       that we removed the tag it may end up being
+              //       displayed on a different view altogether -- and
+              //       at a rather random seeming location because of
+              //       it. Eventually we may want to remove the
+              //       special case logic for the 'complete' tag.
+              let after = data.selected_task();
+              let builder = Task::builder().set_summary(text).set_tags(tags);
+              let task = data.tasks.add(builder, after);
+              self.select_task(cap, task).await
+            } else {
+              None
+            }
+          },
+          State::Edit { task, mut edited } => {
+            // Editing a task to empty just removes the task altogether.
+            if !text.is_empty() {
+              edited.set_summary(text.clone());
+              data.tasks.update(Rc::clone(&task), edited);
+              self
+                .select_task(cap, task)
+                .await
+                .maybe_update(Some(Message::updated(self.id)))
+            } else {
+              data.tasks.remove(task);
+              Some(Message::updated(self.id))
+            }
+          },
         }
       },
       Message::UpdateTask(task, updated) => {
