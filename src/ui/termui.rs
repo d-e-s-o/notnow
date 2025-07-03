@@ -300,17 +300,6 @@ impl Handleable<Event, Message> for TermUi {
           Some(Event::updated(self.id))
         },
         KEY_QUIT => {
-          // SANITY: The `Kseq` widget always uses `KseqData`.
-          let data = cap.data(self.kseq).downcast_ref::<KseqData>().unwrap();
-          if data.is_active() {
-            // A quit-quit key sequence is already in progress. The hook
-            // handler is all we need for handling it, no need to do
-            // anything here.
-            // TODO: This condition should be removed once `gui` support
-            //       proper discarding of events from an event hook.
-            return None
-          }
-
           let data = self.data::<TermUiData>(cap);
           let tasks_dir = data.tasks_dir_cap.path();
           let tasks_changed = data.task_state.is_changed(tasks_dir).await;
@@ -348,7 +337,7 @@ impl Handleable<Event, Message> for TermUi {
         cap.send(self.tab_bar, message).await
       },
       Message::GotKeySeq((KEY_QUIT, ..), (KEY_QUIT, ..)) => Some(Message::Quit),
-      Message::GotKeySeq(..) => None,
+      Message::GotKeySeq(.., key) => Some(Message::UnhandledKey(key)),
       #[cfg(all(test, not(feature = "readline")))]
       Message::GetTasks => {
         let data = self.data::<TermUiData>(cap);

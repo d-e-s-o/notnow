@@ -2,15 +2,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
-use std::fmt::Result as FmtResult;
-use std::future::Future;
-use std::pin::Pin;
 
 use async_trait::async_trait;
 
 use gui::derive::Widget;
-use gui::EventHookFn;
+use gui::Cap;
 use gui::Handleable;
 use gui::Id;
 use gui::MutCap;
@@ -20,37 +16,17 @@ use super::event::Event;
 use super::event::KeyEvent;
 use super::message::Message;
 use super::message::MessageExt as _;
-
-
-/// A type providing a derive for `Debug` for types that
-/// otherwise don't.
-#[derive(Clone, Copy)]
-struct D<T>(T);
-
-impl<T> Debug for D<T> {
-  fn fmt(&self, fmt: &mut Formatter<'_>) -> FmtResult {
-    write!(fmt, "{:p}", &self.0)
-  }
-}
+use super::modal::Modal;
 
 
 #[derive(Debug, Default)]
 pub struct KseqData {
+  /// The ID of the widget that was focused beforehand.
+  prev_focused: Option<Id>,
   /// The key pressed to initiate the key sequence.
   seq_key: Option<KeyEvent>,
   /// The ID of the widget that installed the key sequence hook.
-  hooker_id: Option<Id>,
-  /// The event hook that was previously active.
-  hook_fn: Option<D<EventHookFn<Event, Message>>>,
-  /// Whether the widget is currently actively sequencing.
-  active: bool,
-}
-
-impl KseqData {
-  /// Whether the widget is currently actively sequencing.
-  pub fn is_active(&self) -> bool {
-    self.active
-  }
+  response_id: Option<Id>,
 }
 
 
@@ -67,61 +43,62 @@ impl Kseq {
     let _data = slf.data_mut::<KseqData>(cap);
     slf
   }
+}
 
-  /// Handle a hooked event.
-  fn handle_hooked_event<'f>(
-    widget: &'f dyn Widget<Event, Message>,
-    cap: &'f mut dyn MutCap<Event, Message>,
-    event: Option<&'f Event>,
-  ) -> Pin<Box<dyn Future<Output = Option<Event>> + 'f>> {
-    Box::pin(async move {
-      if let Some(event) = event {
-        if let Event::Key(key) = event {
-          let data = cap
-            .data_mut(widget.id())
-            .downcast_mut::<KseqData>()
-            .unwrap();
-          // SANITY: We always ensure a `seq_key` is set before
-          //         setting up an event hook.
-          let seq_key = data.seq_key.unwrap();
-          // SANITY: We always ensure a `hooker_id` is set before
-          //         setting up an event hook.
-          let hooker_id = data.hooker_id.unwrap();
-          let msg = Message::GotKeySeq(seq_key, *key);
-          cap.send(hooker_id, msg).await.into_event()
-        } else {
-          None
-        }
-      } else {
-        // Always remove the event hook on the post-hook path.
-        let data = cap
-          .data_mut(widget.id())
-          .downcast_mut::<KseqData>()
-          .unwrap();
-        data.active = false;
+impl Modal for Kseq {
+  fn prev_focused(&self, cap: &dyn Cap) -> Option<Id> {
+    self.data::<KseqData>(cap).prev_focused
+  }
 
-        let _seq_key = data.seq_key.take();
-        let _hooker_id = data.hooker_id.take();
-        let hook_fn = data.hook_fn.take().map(|D(h)| h);
-        let _hook_fn = cap.hook_events(widget.id(), hook_fn);
-        None
-      }
-    })
+  fn set_prev_focused(&self, cap: &mut dyn MutCap<Event, Message>, focused: Option<Id>) {
+    let data = self.data_mut::<KseqData>(cap);
+    data.prev_focused = focused;
   }
 }
 
 #[async_trait(?Send)]
 impl Handleable<Event, Message> for Kseq {
+  /// Handle an event.
+  async fn handle(&self, cap: &mut dyn MutCap<Event, Message>, event: Event) -> Option<Event> {
+    let msg = match event {
+      Event::Key(key_event) => {
+        let data = self.data_mut::<KseqData>(cap);
+        // SANITY: We always ensure a `seq_key` is set before
+        //         setting up an event hook.
+        let seq_key = data.seq_key.take().unwrap();
+        // SANITY: We always ensure a `response_id` is set before
+        //         setting up an event hook.
+        let response_id = data.response_id.unwrap();
+        let msg = Message::GotKeySeq(seq_key, key_event);
+        cap.send(response_id, msg).await
+      },
+      // We effectively swallow every event here.
+      _ => None,
+    };
+
+    let data = self.data_mut::<KseqData>(cap);
+    let _seq_key = data.seq_key.take();
+    let _response_id = data.response_id.take();
+    let focused = self.restore_focus(cap);
+
+    // If the widget did not consume the key press, let the now-focused
+    // widget deal with it.
+    if let Some(Message::UnhandledKey(key)) = msg {
+      cap.rehandle(focused, Event::Key(key)).await
+    } else {
+      msg.into_event()
+    }
+  }
+
   /// React to a message.
   async fn react(&self, message: Message, cap: &mut dyn MutCap<Event, Message>) -> Option<Message> {
     match message {
-      Message::StartKeySeq(hooker_id, key) => {
-        let hook_fn = cap.hook_events(self.id, Some(&Self::handle_hooked_event));
+      Message::StartKeySeq(response_id, key) => {
+        let () = self.make_focused(cap);
+
         let data = self.data_mut::<KseqData>(cap);
-        data.hooker_id = Some(hooker_id);
+        data.response_id = Some(response_id);
         data.seq_key = Some(key);
-        data.hook_fn = hook_fn.map(D);
-        data.active = true;
         None
       },
       message => panic!("Received unexpected message: {message:?}"),

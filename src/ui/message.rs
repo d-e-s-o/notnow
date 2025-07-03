@@ -42,6 +42,9 @@ pub enum Message {
   StartKeySeq(Id, KeyEvent),
   /// A sequence of key presses was completed.
   GotKeySeq(KeyEvent, KeyEvent),
+  /// A key press (typically in response to a key sequence) was
+  /// not handled (e.g., because it wasn't a key sequence of interest).
+  UnhandledKey(KeyEvent),
   /// Update a task.
   UpdateTask(Rc<Task>, Task),
   /// Set the state of the input/output area.
