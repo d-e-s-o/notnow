@@ -16,9 +16,8 @@ use gui::Id;
 use gui::MutCap;
 use gui::Widget;
 
-use termion::event::Key;
-
 use super::event::Event;
+use super::event::KeyEvent;
 use super::message::Message;
 use super::message::MessageExt as _;
 
@@ -38,7 +37,7 @@ impl<T> Debug for D<T> {
 #[derive(Debug, Default)]
 pub struct KseqData {
   /// The key pressed to initiate the key sequence.
-  seq_key: Option<Key>,
+  seq_key: Option<KeyEvent>,
   /// The ID of the widget that installed the key sequence hook.
   hooker_id: Option<Id>,
   /// The event hook that was previously active.
@@ -77,7 +76,7 @@ impl Kseq {
   ) -> Pin<Box<dyn Future<Output = Option<Event>> + 'f>> {
     Box::pin(async move {
       if let Some(event) = event {
-        if let Event::Key((key, ..)) = event {
+        if let Event::Key(key) = event {
           let data = cap
             .data_mut(widget.id())
             .downcast_mut::<KseqData>()

@@ -277,7 +277,7 @@ impl Handleable<Event, Message> for TermUi {
   /// Check for new input and react to it.
   async fn handle(&self, cap: &mut dyn MutCap<Event, Message>, event: Event) -> Option<Event> {
     match event {
-      Event::Key((key, _)) => match key {
+      Event::Key(key_event @ (key, _)) => match key {
         Key::Char('u') | Key::Char('U') => {
           let data = self.data::<TermUiData>(cap);
           let tasks = data.task_state.tasks();
@@ -324,7 +324,7 @@ impl Handleable<Event, Message> for TermUi {
               "detected unsaved changes; repeat action to quit without saving".to_string(),
             ));
             let _msg = cap.send(self.in_out, message).await;
-            let message = Message::StartKeySeq(self.id, key);
+            let message = Message::StartKeySeq(self.id, key_event);
             let _msg = cap.send(self.kseq, message).await;
             Some(Event::updated(self.id))
           } else {
@@ -347,7 +347,7 @@ impl Handleable<Event, Message> for TermUi {
         // We just forward the event to the TabBar.
         cap.send(self.tab_bar, message).await
       },
-      Message::GotKeySeq(KEY_QUIT, KEY_QUIT) => Some(Message::Quit),
+      Message::GotKeySeq((KEY_QUIT, ..), (KEY_QUIT, ..)) => Some(Message::Quit),
       Message::GotKeySeq(..) => None,
       #[cfg(all(test, not(feature = "readline")))]
       Message::GetTasks => {

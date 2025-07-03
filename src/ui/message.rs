@@ -5,12 +5,11 @@ use std::rc::Rc;
 
 use gui::Id;
 
-use termion::event::Key;
-
 use crate::tasks::Task;
 
 use super::event::Event;
 use super::event::Ids;
+use super::event::KeyEvent;
 use super::in_out::InOut;
 use super::tab_bar::SearchState;
 use super::tab_bar::TabState;
@@ -40,9 +39,9 @@ pub enum Message {
   /// Edit the tags associated with a task.
   EditTags(Rc<Task>, Task),
   /// Initiate the capture of a sequence of key presses.
-  StartKeySeq(Id, Key),
+  StartKeySeq(Id, KeyEvent),
   /// A sequence of key presses was completed.
-  GotKeySeq(Key, Key),
+  GotKeySeq(KeyEvent, KeyEvent),
   /// Update a task.
   UpdateTask(Rc<Task>, Task),
   /// Set the state of the input/output area.
