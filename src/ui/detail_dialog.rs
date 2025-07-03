@@ -1,4 +1,4 @@
-// Copyright (C) 2024 Daniel Mueller <deso@posteo.net>
+// Copyright (C) 2024-2025 Daniel Mueller <deso@posteo.net>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::rc::Rc;
@@ -118,7 +118,7 @@ impl Handleable<Event, Message> for DetailDialog {
   /// Handle an event.
   async fn handle(&self, cap: &mut dyn MutCap<Event, Message>, event: Event) -> Option<Event> {
     match event {
-      Event::Key(key, raw) => {
+      Event::Key((key, raw)) => {
         let data = self.data_mut::<DetailDialogData>(cap);
         let data = data.data.as_mut().unwrap();
 

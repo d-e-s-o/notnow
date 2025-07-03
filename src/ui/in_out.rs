@@ -262,7 +262,7 @@ impl Handleable<Event, Message> for InOutArea {
   /// Handle an event.
   async fn handle(&self, cap: &mut dyn MutCap<Event, Message>, event: Event) -> Option<Event> {
     match event {
-      Event::Key(key, raw) => {
+      Event::Key((key, raw)) => {
         // SANITY: We know that this dialog has a parent.
         let parent = cap.parent_id(self.id).unwrap();
         let data = self.data_mut::<InOutAreaData>(cap);

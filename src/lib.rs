@@ -168,9 +168,9 @@ where
           // the key is not supported. We just ignore the failure. The UI
           // could not possibly react to it anyway.
           #[cfg(not(feature = "readline"))]
-          let event = UiEvent::Key(key, ());
+          let event = UiEvent::Key((key, ()));
           #[cfg(feature = "readline")]
-          let event = UiEvent::Key(key, _raw);
+          let event = UiEvent::Key((key, _raw));
 
           if let Some(event) = ui.handle(event).await {
             match event {

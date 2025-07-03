@@ -385,7 +385,7 @@ impl Handleable<Event, Message> for TagDialog {
   /// Handle an event.
   async fn handle(&self, cap: &mut dyn MutCap<Event, Message>, event: Event) -> Option<Event> {
     match event {
-      Event::Key(key, _raw) => self.handle_key(cap, key).await.into_event(),
+      Event::Key((key, _raw)) => self.handle_key(cap, key).await.into_event(),
       _ => Some(event),
     }
   }

@@ -277,7 +277,7 @@ impl Handleable<Event, Message> for TermUi {
   /// Check for new input and react to it.
   async fn handle(&self, cap: &mut dyn MutCap<Event, Message>, event: Event) -> Option<Event> {
     match event {
-      Event::Key(key, _) => match key {
+      Event::Key((key, _)) => match key {
         Key::Char('u') | Key::Char('U') => {
           let data = self.data::<TermUiData>(cap);
           let tasks = data.task_state.tasks();
@@ -406,13 +406,13 @@ mod tests {
 
   impl From<Key> for Event {
     fn from(key: Key) -> Self {
-      Event::Key(key, ())
+      Event::Key((key, ()))
     }
   }
 
   impl From<char> for Event {
     fn from(c: char) -> Self {
-      Event::Key(Key::Char(c), ())
+      Event::Key((Key::Char(c), ()))
     }
   }
 
@@ -1390,12 +1390,12 @@ mod tests {
       Event::from('l'),
       Event::from('t'),
       Event::from('i'),
-      Event::Key(Key::Alt(LINE_END), ()),
+      Event::Key((Key::Alt(LINE_END), ())),
       Event::from('l'),
       Event::from('i'),
       Event::from('n'),
       Event::from('e'),
-      Event::Key(Key::Alt(LINE_END), ()),
+      Event::Key((Key::Alt(LINE_END), ())),
       Event::from('t'),
       Event::from('e'),
       Event::from('s'),
@@ -1427,7 +1427,7 @@ mod tests {
       Event::from('e'),
       Event::from('s'),
       Event::from('t'),
-      Event::Key(Key::Alt(LINE_END), ()),
+      Event::Key((Key::Alt(LINE_END), ())),
       Event::from(Key::Esc),
       Event::from('w'),
     ];

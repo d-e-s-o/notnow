@@ -412,7 +412,7 @@ impl Handleable<Event, Message> for TabBar {
   async fn handle(&self, cap: &mut dyn MutCap<Event, Message>, event: Event) -> Option<Event> {
     let data = self.data_mut::<TabBarData>(cap);
     match event {
-      Event::Key(key, _) => match key {
+      Event::Key((key, _)) => match key {
         Key::Char('1') => self.set_select(cap, 0).then(|| Event::updated(self.id)),
         Key::Char('2') => self.set_select(cap, 1).then(|| Event::updated(self.id)),
         Key::Char('3') => self.set_select(cap, 2).then(|| Event::updated(self.id)),

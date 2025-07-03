@@ -276,7 +276,7 @@ impl Handleable<Event, Message> for TaskListBox {
   async fn handle(&self, cap: &mut dyn MutCap<Event, Message>, event: Event) -> Option<Event> {
     let data = self.data_mut::<TaskListBoxData>(cap);
     match event {
-      Event::Key(key, _) => match key {
+      Event::Key((key, _)) => match key {
         Key::Char(' ') => {
           if let Some(task) = data.selected_task() {
             if let Some(toggle_tag) = &data.toggle_tag {

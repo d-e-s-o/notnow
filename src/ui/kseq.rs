@@ -77,7 +77,7 @@ impl Kseq {
   ) -> Pin<Box<dyn Future<Output = Option<Event>> + 'f>> {
     Box::pin(async move {
       if let Some(event) = event {
-        if let Event::Key(key, ..) = event {
+        if let Event::Key((key, ..)) = event {
           let data = cap
             .data_mut(widget.id())
             .downcast_mut::<KseqData>()

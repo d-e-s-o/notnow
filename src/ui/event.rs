@@ -83,6 +83,11 @@ impl From<Ids> for HashSet<Id> {
 }
 
 
+#[cfg(not(feature = "readline"))]
+pub type KeyEvent = (Key, ());
+#[cfg(feature = "readline")]
+pub type KeyEvent = (Key, Vec<u8>);
+
 /// An event as used by the UI.
 #[derive(Clone, Debug)]
 pub enum Event {
@@ -92,10 +97,7 @@ pub enum Event {
   /// An indication that the application should quit.
   Quit,
   /// A key press.
-  #[cfg(not(feature = "readline"))]
-  Key(Key, ()),
-  #[cfg(feature = "readline")]
-  Key(Key, Vec<u8>),
+  Key(KeyEvent),
 }
 
 impl Event {
@@ -115,11 +117,11 @@ impl From<u8> for Event {
   fn from(b: u8) -> Self {
     #[cfg(not(feature = "readline"))]
     {
-      Event::Key(Key::Char(char::from(b)), ())
+      Event::Key((Key::Char(char::from(b)), ()))
     }
     #[cfg(feature = "readline")]
     {
-      Event::Key(Key::Char(char::from(b)), vec![b])
+      Event::Key((Key::Char(char::from(b)), vec![b]))
     }
   }
 }
