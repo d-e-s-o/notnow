@@ -43,6 +43,7 @@ use super::detail_dialog::DetailDialogData;
 use super::event::Ids;
 use super::in_out::InOut;
 use super::in_out::InOutArea;
+use super::in_out::Input;
 use super::kseq::Kseq;
 use super::tab_bar::TabBar;
 use super::tag_dialog::SetUnsetTag;
@@ -764,7 +765,7 @@ where
         self.colors.in_out_error_bg,
         Some(e.as_ref()),
       ),
-      InOut::Input(ref text) => (
+      InOut::Input(Input { text }) => (
         INPUT_TEXT,
         self.colors.in_out_success_fg,
         self.colors.in_out_success_bg,
@@ -799,7 +800,7 @@ where
       let fg = self.colors.in_out_string_fg;
       let bg = self.colors.in_out_string_bg;
 
-      if let InOut::Input(text) = in_out.state(cap) {
+      if let InOut::Input(Input { text }) = in_out.state(cap) {
         debug_assert!(cap.is_focused(in_out.id()));
 
         let mut map = self.data.borrow_mut();

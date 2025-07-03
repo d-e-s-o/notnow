@@ -23,6 +23,7 @@ use crate::view::View;
 use super::event::Event;
 use super::event::Key;
 use super::in_out::InOut;
+use super::in_out::Input;
 use super::input::InputText;
 use super::message::Message;
 use super::message::MessageExt;
@@ -454,7 +455,10 @@ impl Handleable<Event, Message> for TabBar {
           let reverse = key == Key::Char('?');
           data.search = Search::Preparing(reverse);
 
-          let message = Message::SetInOut(InOut::Input(InputText::default()));
+          let input = Input {
+            text: InputText::default(),
+          };
+          let message = Message::SetInOut(InOut::Input(input));
           cap.send(self.in_out, message).await.into_event()
         },
         _ => Some(event),

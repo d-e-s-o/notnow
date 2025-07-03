@@ -22,13 +22,20 @@ use super::message::MessageExt;
 use super::modal::Modal;
 
 
+#[derive(Debug)]
+pub struct Input {
+  /// The input text.
+  pub text: InputText,
+}
+
+
 /// An object representing the in/out area within the `TermUi`.
 #[derive(Debug)]
 pub enum InOut {
   Saved,
   Search(String),
   Error(String),
-  Input(InputText),
+  Input(Input),
   Clear,
 }
 
@@ -38,7 +45,7 @@ impl PartialEq for InOut {
       (InOut::Saved, InOut::Saved) => true,
       (InOut::Search(x), InOut::Search(y)) => x == y,
       (InOut::Error(x), InOut::Error(y)) => x == y,
-      (InOut::Input(x), InOut::Input(y)) => x.deref() == y.deref(),
+      (InOut::Input(Input { text: x }), InOut::Input(Input { text: y })) => x.deref() == y.deref(),
       (InOut::Clear, InOut::Clear) => true,
       _ => false,
     }
@@ -247,7 +254,7 @@ impl Handleable<Event, Message> for InOutArea {
         // SANITY: We know that this dialog has a parent.
         let parent = cap.parent_id(self.id).unwrap();
         let data = self.data_mut::<InOutAreaData>(cap);
-        let text = if let InOut::Input(text) = data.in_out.get_mut() {
+        let text = if let InOut::Input(Input { text }) = data.in_out.get_mut() {
           text
         } else {
           panic!("In/out area not used for input.");
@@ -298,7 +305,10 @@ impl Handleable<Event, Message> for InOutArea {
           InOut::Saved => InOut::Saved,
           InOut::Search(x) => InOut::Search(x.clone()),
           InOut::Error(x) => InOut::Error(x.clone()),
-          InOut::Input(x) => InOut::Input(InputText::new(EditableText::clone(x.deref()))),
+          InOut::Input(Input { text }) => {
+            let text = InputText::new(EditableText::clone(text.deref()));
+            InOut::Input(Input { text })
+          },
           InOut::Clear => InOut::Clear,
         };
         Some(Message::GotInOut(in_out))
