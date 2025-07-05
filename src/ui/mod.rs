@@ -1,4 +1,4 @@
-// Copyright (C) 2019-2024 Daniel Mueller <deso@posteo.net>
+// Copyright (C) 2019-2025 Daniel Mueller <deso@posteo.net>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 mod config;
@@ -6,6 +6,7 @@ mod detail_dialog;
 mod event;
 mod in_out;
 mod input;
+mod kseq;
 mod message;
 mod modal;
 mod selectable;

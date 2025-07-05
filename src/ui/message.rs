@@ -1,9 +1,11 @@
-// Copyright (C) 2020-2024 Daniel Mueller <deso@posteo.net>
+// Copyright (C) 2020-2025 Daniel Mueller <deso@posteo.net>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::rc::Rc;
 
 use gui::Id;
+
+use termion::event::Key;
 
 use crate::tasks::Task;
 
@@ -37,6 +39,10 @@ pub enum Message {
   EditDetails(Rc<Task>, Task),
   /// Edit the tags associated with a task.
   EditTags(Rc<Task>, Task),
+  /// Initiate the capture of a sequence of key presses.
+  StartKeySeq(Id, Key),
+  /// A sequence of key presses was completed.
+  GotKeySeq(Key, Key),
   /// Update a task.
   UpdateTask(Rc<Task>, Task),
   /// Set the state of the input/output area.

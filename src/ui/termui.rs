@@ -3,11 +3,7 @@
 
 use std::ffi::OsString;
 use std::fmt::Debug;
-use std::fmt::Formatter;
-use std::fmt::Result as FmtResult;
-use std::future::Future;
 use std::iter::repeat;
-use std::pin::Pin;
 use std::rc::Rc;
 
 use anyhow::Context as _;
@@ -16,7 +12,6 @@ use anyhow::Result;
 use async_trait::async_trait;
 
 use gui::derive::Widget;
-use gui::EventHookFn;
 use gui::Handleable;
 use gui::Id;
 use gui::MutCap;
@@ -38,6 +33,8 @@ use super::event::Key;
 use super::in_out::InOut;
 use super::in_out::InOutArea;
 use super::in_out::InOutAreaData;
+use super::kseq::Kseq;
+use super::kseq::KseqData;
 use super::message::Message;
 use super::message::MessageExt as _;
 use super::state::State;
@@ -54,18 +51,6 @@ const CHAR_QUIT: char = 'q';
 const KEY_QUIT: Key = Key::Char(CHAR_QUIT);
 
 
-/// A type providing a derive for `Debug` for types that
-/// otherwise don't.
-#[derive(Clone, Copy)]
-struct D<T>(T);
-
-impl<T> Debug for D<T> {
-  fn fmt(&self, fmt: &mut Formatter<'_>) -> FmtResult {
-    write!(fmt, "{:?}", &self.0 as *const T)
-  }
-}
-
-
 /// The data associated with a `TermUi`.
 pub struct TermUiData {
   /// The capability to the directory containing the tasks.
@@ -80,8 +65,6 @@ pub struct TermUiData {
   ui_state_dir_cap: DirCap,
   /// The name of the file in which to save the UI state.
   ui_state_file: OsString,
-  /// The event hook that was previously active.
-  hook_fn: Option<D<EventHookFn<Event, Message>>>,
   /// The colors we use.
   colors: Colors,
   /// The tag to toggle on user initiated action.
@@ -107,7 +90,6 @@ impl TermUiData {
       ui_config_file: ui_config_path.1,
       ui_state_dir_cap: ui_state_path.0,
       ui_state_file: ui_state_path.1,
-      hook_fn: None,
       colors,
       toggle_tag,
       displayed_unsaved_changes_warning: false,
@@ -120,6 +102,7 @@ impl TermUiData {
 #[gui(Event = Event, Message = Message)]
 pub struct TermUi {
   id: Id,
+  kseq: Id,
   in_out: Id,
   tab_bar: Id,
 }
@@ -129,6 +112,12 @@ impl TermUi {
   /// Create a new UI encompassing the given set of `View` objects.
   pub fn new(id: Id, cap: &mut dyn MutCap<Event, Message>, views: Vec<View>, state: State) -> Self {
     let termui_id = id;
+
+    let kseq = cap.add_widget(
+      id,
+      Box::new(|| Box::new(KseqData::default())),
+      Box::new(|id, cap| Box::new(Kseq::new(id, cap))),
+    );
 
     let State {
       selected_tasks,
@@ -141,7 +130,7 @@ impl TermUi {
     // TODO: Ideally, widgets that need a modal dialog could just create
     //       one on-the-fly. But doing so will also require support for
     //       destroying widgets, which is something that the `gui` crate
-    //       does not support yet.
+    //       does not yet have.
     let tag_dialog = cap.add_widget(
       id,
       Box::new(|| Box::new(TagDialogData::new())),
@@ -188,36 +177,10 @@ impl TermUi {
 
     Self {
       id,
+      kseq,
       in_out,
       tab_bar,
     }
-  }
-
-  /// Handle a hooked event.
-  fn handle_hooked_event<'f>(
-    widget: &'f dyn Widget<Event, Message>,
-    cap: &'f mut dyn MutCap<Event, Message>,
-    event: Option<&'f Event>,
-  ) -> Pin<Box<dyn Future<Output = Option<Event>> + 'f>> {
-    Box::pin(async move {
-      let data = cap
-        .data_mut(widget.id())
-        .downcast_mut::<TermUiData>()
-        .unwrap();
-
-      if let Some(event) = event {
-        match event {
-          Event::Key(key, ..) if key != &KEY_QUIT => {
-            data.displayed_unsaved_changes_warning = false;
-          },
-          _ => (),
-        }
-
-        let hook_fn = data.hook_fn.take().map(|D(h)| h);
-        let _hook_fn = cap.hook_events(widget.id(), hook_fn);
-      }
-      None
-    })
   }
 
   /// Persist configuration and state.
@@ -363,9 +326,8 @@ impl Handleable<Event, Message> for TermUi {
               "detected unsaved changes; repeat action to quit without saving".to_string(),
             ));
             let _msg = cap.send(self.in_out, message).await;
-            let hook_fn = cap.hook_events(self.id, Some(&Self::handle_hooked_event));
-            let data = self.data_mut::<TermUiData>(cap);
-            data.hook_fn = hook_fn.map(D);
+            let message = Message::StartKeySeq(self.id, key);
+            let _msg = cap.send(self.kseq, message).await;
             Some(Event::updated(self.id))
           } else {
             Some(Event::Quit)
@@ -387,6 +349,12 @@ impl Handleable<Event, Message> for TermUi {
         // We just forward the event to the TabBar.
         cap.send(self.tab_bar, message).await
       },
+      Message::GotKeySeq(KEY_QUIT, key) if key != KEY_QUIT => {
+        let data = self.data_mut::<TermUiData>(cap);
+        data.displayed_unsaved_changes_warning = false;
+        None
+      },
+      Message::GotKeySeq(..) => None,
       #[cfg(all(test, not(feature = "readline")))]
       Message::GetTasks => {
         let data = self.data::<TermUiData>(cap);

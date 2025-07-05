@@ -43,6 +43,7 @@ use super::detail_dialog::DetailDialogData;
 use super::event::Ids;
 use super::in_out::InOut;
 use super::in_out::InOutArea;
+use super::kseq::Kseq;
 use super::tab_bar::TabBar;
 use super::tag_dialog::SetUnsetTag;
 use super::tag_dialog::TagDialog;
@@ -910,6 +911,8 @@ where
         let () = self.render_task_list_box(task_list, cap, bbox)?;
       }
       Ok(bbox)
+    } else if let Some(_kseq) = widget.downcast_ref::<Kseq>() {
+      Ok(bbox)
     } else {
       panic!("Widget {widget:?} is unknown to the renderer")
     }
@@ -928,6 +931,8 @@ where
       tab_bar.id()
     } else if let Some(task_list) = widget.downcast_ref::<TaskListBox>() {
       task_list.id()
+    } else if let Some(kseq) = widget.downcast_ref::<Kseq>() {
+      kseq.id()
     } else {
       panic!("Widget {widget:?} is unknown to the renderer")
     }
