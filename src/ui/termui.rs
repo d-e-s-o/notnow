@@ -656,6 +656,33 @@ mod tests {
     assert_eq!(tasks.len(), 1)
   }
 
+  /// Check that the program cannot be quit directly when unsaved
+  /// changes are present, even when the quit-"sequence" is interrupted
+  /// at first.
+  #[test]
+  async fn dont_exit_on_unsaved_config_repeated() {
+    let events = vec![
+      Event::from(CHAR_QUIT),
+      Event::from('k'),
+      Event::from(CHAR_QUIT),
+      Event::from('k'),
+      Event::from(CHAR_QUIT),
+      Event::from('a'),
+      Event::from('f'),
+      Event::from('\n'),
+    ];
+
+    let tasks = TestUiBuilder::new()
+      .build()
+      .await
+      .handle(events)
+      .await
+      .task_summaries()
+      .await;
+
+    assert_eq!(tasks.len(), 1)
+  }
+
   /// Check that the user can force an exit on unsaved changes.
   #[test]
   async fn forced_exit_on_unsaved_config() {
@@ -1778,7 +1805,7 @@ mod tests {
   #[test]
   async fn in_out_state_on_unsaved_changes() {
     let tasks = make_tasks(2);
-    let events = vec![Event::from('q')];
+    let events = vec![Event::from(CHAR_QUIT)];
 
     let state = TestUiBuilder::with_ser_tasks(tasks)
       .build()
