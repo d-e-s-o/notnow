@@ -8,6 +8,9 @@
 #[cfg(all(test, feature = "nightly"))]
 extern crate test as unstable_test;
 
+#[macro_use]
+mod log;
+
 mod args;
 mod cap;
 mod colors;
@@ -343,6 +346,7 @@ fn run_with_args() -> Result<()> {
 }
 
 fn run_with_result() -> Result<()> {
+  let () = log::init()?;
   #[cfg(feature = "coredump")]
   {
     let () = register_panic_handler().or_else(|(ctx, err)| {

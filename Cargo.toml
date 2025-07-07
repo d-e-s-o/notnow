@@ -36,10 +36,15 @@ incremental = false
 
 [features]
 default = []
+# Enable support for attempting to create a core dump on program panic.
 coredump = ["dep:coredump"]
+# Enable logging support. This is only a development feature at this
+# point.
+log = ["dep:tracing", "dep:tracing-subscriber"]
 # Enable code paths requiring a nightly toolchain. This feature is only
 # meant to be used for testing and benchmarking purposes.
 nightly = []
+# Enable readline support for user input handling.
 readline = ["dep:rline"]
 test = []
 
@@ -108,6 +113,17 @@ version = "4.0"
 version = "1.8"
 default-features = false
 features = ["fs", "io-util", "macros", "rt"]
+
+[dependencies.tracing]
+version = "0.1"
+default-features = false
+optional = true
+
+[dependencies.tracing-subscriber]
+version = "0.3"
+default-features = false
+features = ["ansi", "fmt"]
+optional = true
 
 [dependencies.unicode-segmentation]
 version = "1.10"
