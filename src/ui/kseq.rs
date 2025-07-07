@@ -20,6 +20,7 @@ use termion::event::Key;
 
 use super::event::Event;
 use super::message::Message;
+use super::message::MessageExt as _;
 
 
 /// A type providing a derive for `Debug` for types that
@@ -29,7 +30,7 @@ struct D<T>(T);
 
 impl<T> Debug for D<T> {
   fn fmt(&self, fmt: &mut Formatter<'_>) -> FmtResult {
-    write!(fmt, "{:?}", &self.0 as *const T)
+    write!(fmt, "{:p}", &self.0)
   }
 }
 
@@ -42,6 +43,15 @@ pub struct KseqData {
   hooker_id: Option<Id>,
   /// The event hook that was previously active.
   hook_fn: Option<D<EventHookFn<Event, Message>>>,
+  /// Whether the widget is currently actively sequencing.
+  active: bool,
+}
+
+impl KseqData {
+  /// Whether the widget is currently actively sequencing.
+  pub fn is_active(&self) -> bool {
+    self.active
+  }
 }
 
 
@@ -79,19 +89,24 @@ impl Kseq {
           //         setting up an event hook.
           let hooker_id = data.hooker_id.unwrap();
           let msg = Message::GotKeySeq(seq_key, *key);
-          let _msg = cap.send(hooker_id, msg).await;
+          cap.send(hooker_id, msg).await.into_event()
+        } else {
+          None
         }
-
+      } else {
+        // Always remove the event hook on the post-hook path.
         let data = cap
           .data_mut(widget.id())
           .downcast_mut::<KseqData>()
           .unwrap();
+        data.active = false;
+
         let _seq_key = data.seq_key.take();
         let _hooker_id = data.hooker_id.take();
         let hook_fn = data.hook_fn.take().map(|D(h)| h);
         let _hook_fn = cap.hook_events(widget.id(), hook_fn);
+        None
       }
-      None
     })
   }
 }
@@ -107,6 +122,7 @@ impl Handleable<Event, Message> for Kseq {
         data.hooker_id = Some(hooker_id);
         data.seq_key = Some(key);
         data.hook_fn = hook_fn.map(D);
+        data.active = true;
         None
       },
       message => panic!("Received unexpected message: {message:?}"),
