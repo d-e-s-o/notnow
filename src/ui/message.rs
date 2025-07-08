@@ -60,6 +60,8 @@ pub enum Message {
   /// An indication that one or more widgets changed and that we should
   /// re-render them.
   Updated(Ids),
+  /// An indication that the application should quit.
+  Quit,
   /// Retrieve the current set of tasks.
   #[cfg(all(test, not(feature = "readline")))]
   GetTasks,
@@ -115,6 +117,7 @@ impl MessageExt for Option<Message> {
   fn into_event(self) -> Option<Event> {
     match self {
       Some(Message::Updated(ids)) => Some(Event::Updated(ids)),
+      Some(Message::Quit) => Some(Event::Quit),
       None => None,
       message => panic!("Message cannot be converted to event: {message:?}"),
     }

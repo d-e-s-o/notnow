@@ -69,9 +69,6 @@ pub struct TermUiData {
   colors: Colors,
   /// The tag to toggle on user initiated action.
   toggle_tag: Option<Tag>,
-  /// Flag indicating whether we showed an "unsaved changes" warning to
-  /// the user.
-  displayed_unsaved_changes_warning: bool,
 }
 
 impl TermUiData {
@@ -92,7 +89,6 @@ impl TermUiData {
       ui_state_file: ui_state_path.1,
       colors,
       toggle_tag,
-      displayed_unsaved_changes_warning: false,
     }
   }
 }
@@ -304,14 +300,18 @@ impl Handleable<Event, Message> for TermUi {
           Some(Event::updated(self.id))
         },
         KEY_QUIT => {
-          let data = self.data::<TermUiData>(cap);
-          if data.displayed_unsaved_changes_warning {
-            // If we already displayed an "unsaved changes" warning to
-            // the user and they asked to quit the program again, then
-            // just honor the request straight away.
-            return Some(Event::Quit)
+          // SANITY: The `Kseq` widget always uses `KseqData`.
+          let data = cap.data(self.kseq).downcast_ref::<KseqData>().unwrap();
+          if data.is_active() {
+            // A quit-quit key sequence is already in progress. The hook
+            // handler is all we need for handling it, no need to do
+            // anything here.
+            // TODO: This condition should be removed once `gui` support
+            //       proper discarding of events from an event hook.
+            return None
           }
 
+          let data = self.data::<TermUiData>(cap);
           let tasks_dir = data.tasks_dir_cap.path();
           let tasks_changed = data.task_state.is_changed(tasks_dir).await;
 
@@ -320,8 +320,6 @@ impl Handleable<Event, Message> for TermUi {
           let config_changed = config.is_changed(&ui_config_path).await;
 
           if tasks_changed || config_changed {
-            let data = self.data_mut::<TermUiData>(cap);
-            data.displayed_unsaved_changes_warning = true;
             let message = Message::SetInOut(InOut::Error(
               "detected unsaved changes; repeat action to quit without saving".to_string(),
             ));
@@ -349,11 +347,7 @@ impl Handleable<Event, Message> for TermUi {
         // We just forward the event to the TabBar.
         cap.send(self.tab_bar, message).await
       },
-      Message::GotKeySeq(KEY_QUIT, key) if key != KEY_QUIT => {
-        let data = self.data_mut::<TermUiData>(cap);
-        data.displayed_unsaved_changes_warning = false;
-        None
-      },
+      Message::GotKeySeq(KEY_QUIT, KEY_QUIT) => Some(Message::Quit),
       Message::GotKeySeq(..) => None,
       #[cfg(all(test, not(feature = "readline")))]
       Message::GetTasks => {
