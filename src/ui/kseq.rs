@@ -60,30 +60,38 @@ impl Modal for Kseq {
 impl Handleable<Event, Message> for Kseq {
   /// Handle an event.
   async fn handle(&self, cap: &mut dyn MutCap<Event, Message>, event: Event) -> Option<Event> {
+    // We are sure that we are done here, so always make sure to restore
+    // the input focus before potentially interacting with other
+    // widgets.
+    let focused = self.restore_focus(cap);
+
+    let data = self.data_mut::<KseqData>(cap);
+    // SANITY: We always ensure a `seq_key` is set before
+    //         setting up an event hook.
+    let seq_key = data.seq_key.take().unwrap();
+    // SANITY: We always ensure a `response_id` is set before
+    //         setting up an event hook.
+    let response_id = data.response_id.take().unwrap();
+
     let msg = match event {
       Event::Key(key_event) => {
-        let data = self.data_mut::<KseqData>(cap);
-        // SANITY: We always ensure a `seq_key` is set before
-        //         setting up an event hook.
-        let seq_key = data.seq_key.take().unwrap();
-        // SANITY: We always ensure a `response_id` is set before
-        //         setting up an event hook.
-        let response_id = data.response_id.unwrap();
         let msg = Message::GotKeySeq(seq_key, key_event);
         cap.send(response_id, msg).await
       },
-      // We effectively swallow every event here.
-      _ => None,
+      // SANITY: We shouldn't receive anything but a key press if for no
+      //         other reason than that all other `Event` variants are
+      //         only meant as output.
+      _ => unreachable!(),
     };
-
-    let data = self.data_mut::<KseqData>(cap);
-    let _seq_key = data.seq_key.take();
-    let _response_id = data.response_id.take();
-    let focused = self.restore_focus(cap);
 
     // If the widget did not consume the key press, let the now-focused
     // widget deal with it.
     if let Some(Message::UnhandledKey(key)) = msg {
+      // Note that `focused` does not necessarily have to actually be
+      // focused anymore at this point (it could have been changed in
+      // response to the message sent above). But it's up for debate
+      // which widget to forward the event to. We can revisit this
+      // decision should it turn out to be wrong.
       cap.rehandle(focused, Event::Key(key)).await
     } else {
       msg.into_event()
