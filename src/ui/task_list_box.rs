@@ -516,16 +516,10 @@ impl Handleable<Event, Message> for TaskListBox {
           .await
           .maybe_update(Some(Message::updated(self.id)))
       },
-      #[cfg(not(feature = "readline"))]
       Message::InputCanceled => {
-        if data.state.take().is_some() {
-          Some(Message::updated(self.id))
-        } else {
-          None
-        }
+        let _state = data.state.take();
+        None
       },
-      #[cfg(feature = "readline")]
-      Message::InputCanceled => None,
       message => panic!("Received unexpected message: {message:?}"),
     }
   }
