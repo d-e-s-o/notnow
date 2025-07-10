@@ -124,6 +124,7 @@ where that is possible. The key bindings are as follows:
 | l      | Select view to the right                 |
 | H      | Move view to the left                    |
 | L      | Move view to the right                   |
+| v-e    | Edit the current view's tag formula      |
 | 1..9   | Select view #x                           |
 | 0      | Select last view                         |
 | `      | Select previous view                     |

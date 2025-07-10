@@ -1,3 +1,8 @@
+Unreleased
+----------
+- Added support for editing a view's tag formula via `v-e` key sequence
+
+
 0.4.0-beta.0
 ------------
 - Reworked "view" configuration to store human-modifiable logical

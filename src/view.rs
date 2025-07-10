@@ -246,6 +246,28 @@ impl View {
     Self::from_formula(name, formula, templates, tasks)
   }
 
+  /// Try to replace the formula used by this `View` with one
+  /// represented by the given string.
+  pub fn try_replace_formula(&mut self, formula: &str) -> Result<()> {
+    let string = formula.to_string();
+    let formula = if string.is_empty() {
+      None
+    } else {
+      Some(Formula::from_str(formula)?)
+    };
+    let pair = FormulaPair { string, formula };
+
+    let slf = Self::from_formula(
+      self.name.clone(),
+      pair,
+      Rc::clone(&self.templates),
+      Rc::clone(&self.tasks),
+    )?;
+
+    *self = slf;
+    Ok(())
+  }
+
   /// Invoke a user-provided function on an iterator over the tasks
   /// represented by this view.
   #[inline]
@@ -276,6 +298,11 @@ impl View {
   /// Retrieve the view's name.
   pub fn name(&self) -> &str {
     &self.name
+  }
+
+  /// Retrieve the textual representation of the formula this view uses.
+  pub fn formula(&self) -> &str {
+    &self.formula
   }
 }
 

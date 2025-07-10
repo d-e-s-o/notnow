@@ -37,6 +37,7 @@ use super::tab_bar::TabState;
 enum State {
   AddTask,
   EditTask { task: Rc<Task>, edited: Task },
+  EditFormula,
 }
 
 
@@ -93,6 +94,7 @@ impl Selectable for TaskListBoxData {
 #[gui(Event = Event, Message = Message)]
 pub struct TaskListBox {
   id: Id,
+  kseq: Id,
   tab_bar: Id,
   detail_dialog: Id,
   tag_dialog: Id,
@@ -101,9 +103,11 @@ pub struct TaskListBox {
 
 impl TaskListBox {
   /// Create a new `TaskListBox` widget.
+  #[expect(clippy::too_many_arguments)]
   pub fn new(
     id: Id,
     cap: &mut dyn MutCap<Event, Message>,
+    kseq: Id,
     tab_bar: Id,
     detail_dialog: Id,
     tag_dialog: Id,
@@ -112,6 +116,7 @@ impl TaskListBox {
   ) -> Self {
     let task_list_box = Self {
       id,
+      kseq,
       tab_bar,
       detail_dialog,
       tag_dialog,
@@ -276,7 +281,7 @@ impl Handleable<Event, Message> for TaskListBox {
   async fn handle(&self, cap: &mut dyn MutCap<Event, Message>, event: Event) -> Option<Event> {
     let data = self.data_mut::<TaskListBoxData>(cap);
     match event {
-      Event::Key((key, _)) => match key {
+      Event::Key(key_event @ (key, _)) => match key {
         Key::Char(' ') => {
           if let Some(task) = data.selected_task() {
             if let Some(toggle_tag) = &data.toggle_tag {
@@ -432,7 +437,11 @@ impl Handleable<Event, Message> for TaskListBox {
             None
           }
         },
-        _ => Some(event),
+        Key::Char('v') => {
+          let message = Message::StartKeySeq(self.id, key_event);
+          cap.send(self.kseq, message).await.into_event()
+        },
+        _ => Some(Event::Key(key_event)),
       },
       _ => Some(event),
     }
@@ -504,6 +513,26 @@ impl Handleable<Event, Message> for TaskListBox {
               Some(Message::updated(self.id))
             }
           },
+          State::EditFormula => {
+            // Update the formula used by this `TaskListBox`'s view.
+            // Note that we just keep selection where it was, which may
+            // or may not make sense (it likely doesn't...). It's hard
+            // to come up with a good heuristic here. We could do the
+            // same thing we do when changing tags and find the
+            // currently selected task on whatever view comes next, but
+            // that seems too task-centric a view. Unsure.
+            // TODO: Ideally this update should be properly undoable,
+            //       but we don't really support any of that for UI
+            //       updates (as opposed to task updates).
+            match data.view.try_replace_formula(text) {
+              Ok(()) => Some(Message::updated(self.id)),
+              Err(err) => {
+                let error = InOut::Error(format!("Failed to update formula: {err}"));
+                let message = Message::SetInOut(error);
+                cap.send(self.in_out, message).await
+              },
+            }
+          },
         }
       },
       Message::UpdateTask(task, updated) => {
@@ -516,6 +545,20 @@ impl Handleable<Event, Message> for TaskListBox {
           .await
           .maybe_update(Some(Message::updated(self.id)))
       },
+      Message::GotKeySeq((Key::Char('v'), ..), (Key::Char('e'), ..)) => {
+        data.state = Some(State::EditFormula);
+
+        let mut text = EditableText::from_string(data.view.formula());
+        let () = text.move_end();
+
+        let input = Input {
+          text: InputText::new(text),
+          response_id: self.id,
+        };
+        let message = Message::SetInOut(InOut::Input(input));
+        cap.send(self.in_out, message).await
+      },
+      Message::GotKeySeq(..) => None,
       Message::InputCanceled => {
         let _state = data.state.take();
         None
