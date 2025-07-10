@@ -199,6 +199,7 @@ impl TabBar {
     cap: &mut dyn MutCap<Event, Message>,
     detail_dialog: Id,
     tag_dialog: Id,
+    kseq: Id,
     in_out: Id,
     tasks: Rc<Tasks>,
     views: Vec<(View, Option<usize>)>,
@@ -224,6 +225,7 @@ impl TabBar {
             Box::new(TaskListBox::new(
               id,
               cap,
+              kseq,
               tab_bar,
               detail_dialog,
               tag_dialog,

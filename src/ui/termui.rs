@@ -162,6 +162,7 @@ impl TermUi {
           cap,
           detail_dialog,
           tag_dialog,
+          kseq,
           in_out,
           tasks,
           views,
@@ -2979,5 +2980,101 @@ mod tests {
       true,
     )
     .await;
+  }
+
+  /// Check that we can update the formula used in a view.
+  #[test]
+  async fn update_view_formula() {
+    let events = vec![
+      // Change the first view's formula from "all" to `tag1`.
+      Event::from('v'),
+      Event::from('e'),
+      Event::from('t'),
+      Event::from('a'),
+      Event::from('g'),
+      Event::from('1'),
+      Event::from('\n'),
+      // Edit the task under the cursor, which now should be `task5`.
+      Event::from('e'),
+      Event::from('t'),
+      Event::from('e'),
+      Event::from('s'),
+      Event::from('t'),
+      Event::from('\n'),
+    ];
+
+    let tasks = TestUiBuilder::with_default_tasks_and_tags()
+      .build()
+      .await
+      .handle(events)
+      .await
+      .tasks()
+      .await;
+
+    assert_eq!(tasks[4].summary(), "5test");
+  }
+
+  /// Check that errors are reported correctly when an invalid formula
+  /// is entered.
+  #[test]
+  async fn update_view_formula_error() {
+    let events = vec![
+      // First make sure that everything is persisted.
+      Event::from('w'),
+      // Now change the first view's formula.
+      Event::from('v'),
+      Event::from('e'),
+      // Attempt to use a tag called `t`, which does not exist.
+      Event::from('t'),
+      Event::from('\n'),
+    ];
+
+    let state = TestUiBuilder::with_default_tasks_and_tags()
+      .build()
+      .await
+      .handle(events)
+      .await
+      .in_out()
+      .await;
+
+    assert!(
+      matches!(
+        state,
+        InOut::Error(ref text) if text == "Failed to update formula: encountered invalid tag `t`"
+      ),
+      "{state:?}"
+    );
+  }
+
+  /// Make sure that a view formula update triggers a "changed" warning.
+  #[test]
+  async fn update_view_formula_unsaved() {
+    let events = vec![
+      // First make sure that everything is persisted.
+      Event::from('w'),
+      // Now change the first view's formula.
+      Event::from('v'),
+      Event::from('e'),
+      Event::from('t'),
+      Event::from('a'),
+      Event::from('g'),
+      Event::from('1'),
+      Event::from('\n'),
+      // Attempt to quit.
+      Event::from(CHAR_QUIT),
+    ];
+
+    let state = TestUiBuilder::with_default_tasks_and_tags()
+      .build()
+      .await
+      .handle(events)
+      .await
+      .in_out()
+      .await;
+
+    assert!(
+      matches!(state, InOut::Error(ref text) if text.contains("detected unsaved changes")),
+      "{state:?}"
+    );
   }
 }
