@@ -35,8 +35,8 @@ use super::tab_bar::TabState;
 /// An enum representing the state a `TaskListBox` can be in.
 #[derive(Debug)]
 enum State {
-  Add,
-  Edit { task: Rc<Task>, edited: Task },
+  AddTask,
+  EditTask { task: Rc<Task>, edited: Task },
 }
 
 
@@ -297,7 +297,7 @@ impl Handleable<Event, Message> for TaskListBox {
           }
         },
         Key::Char('a') => {
-          data.state = Some(State::Add);
+          data.state = Some(State::AddTask);
           let input = Input {
             text: InputText::default(),
             response_id: self.id,
@@ -318,7 +318,7 @@ impl Handleable<Event, Message> for TaskListBox {
             // Make a deep copy of the task.
             let edited = Task::clone(task.deref());
             let string = edited.summary();
-            data.state = Some(State::Edit { task, edited });
+            data.state = Some(State::EditTask { task, edited });
 
             let mut text = EditableText::from_string(string);
             let () = text.move_end();
@@ -448,7 +448,7 @@ impl Handleable<Event, Message> for TaskListBox {
           .take()
           .expect("TaskListBox is in unexpected state");
         match state {
-          State::Add => {
+          State::AddTask => {
             if !text.is_empty() {
               let tags = if let Some(task) = data.selected_task() {
                 // Copy all tags except for the one that we allow
@@ -490,7 +490,7 @@ impl Handleable<Event, Message> for TaskListBox {
               None
             }
           },
-          State::Edit { task, mut edited } => {
+          State::EditTask { task, mut edited } => {
             // Editing a task to empty just removes the task altogether.
             if !text.is_empty() {
               edited.set_summary(text.clone());
