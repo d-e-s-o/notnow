@@ -117,16 +117,16 @@ where that is possible. The key bindings are as follows:
 | k      | Move task selection up                   |
 | J      | Move selected task down                  |
 | K      | Move selected task up                    |
-| g      | Select first task on the current tab     |
-| G      | Select last task on the current tab      |
+| g      | Select first task on the current view    |
+| G      | Select last task on the current view     |
 | Space  | Toggle completion state of selected task |
-| h      | Select tab to the left                   |
-| l      | Select tab to the right                  |
-| H      | Move tab to the left                     |
-| L      | Move tab to the right                    |
-| 1-9    | Select tab #x                            |
-| 0      | Select last tab                          |
-| `      | Select previous tab                      |
+| h      | Select view to the left                  |
+| l      | Select view to the right                 |
+| H      | Move view to the left                    |
+| L      | Move view to the right                   |
+| 1..9   | Select view #x                           |
+| 0      | Select last view                         |
+| `      | Select previous view                     |
 | /      | Start task search forward                |
 | ?      | Start task search backward               |
 | n      | Continue task search forward             |
