@@ -63,7 +63,7 @@ impl Config {
       .into_iter()
       .map(|view| {
         let name = view.name.clone();
-        let view = View::with_serde(view, templates, Rc::clone(tasks))
+        let view = View::with_serde(view, Rc::clone(templates), Rc::clone(tasks))
           .with_context(|| format!("failed to instantiate view '{name}'"))?;
         Ok(view)
       })

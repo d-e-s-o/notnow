@@ -160,7 +160,7 @@ impl ViewBuilder {
     View::from_formula(
       name.into(),
       formula,
-      &self.templates,
+      Rc::clone(&self.templates),
       Rc::clone(&self.tasks),
     )
   }
@@ -183,6 +183,9 @@ pub struct View {
   //       the necessary infrastructure for storing it elsewhere it
   //       should be removed from this struct.
   name: String,
+  /// A reference to the `Templates` object we use for instantiating
+  /// tags.
+  templates: Rc<Templates>,
   /// A reference to the `Tasks` object we use for retrieving the set of
   /// available tasks.
   tasks: Rc<Tasks>,
@@ -198,7 +201,7 @@ impl View {
   fn from_formula(
     name: String,
     formula: FormulaPair,
-    templates: &Templates,
+    templates: Rc<Templates>,
     tasks: Rc<Tasks>,
   ) -> Result<Self> {
     let FormulaPair { string, formula } = formula;
@@ -230,6 +233,7 @@ impl View {
 
     Ok(Self {
       name,
+      templates,
       tasks,
       formula: string,
       lits,
@@ -237,7 +241,7 @@ impl View {
   }
 
   /// Create a new `View` object from a serializable one.
-  pub fn with_serde(view: SerView, templates: &Rc<Templates>, tasks: Rc<Tasks>) -> Result<Self> {
+  pub fn with_serde(view: SerView, templates: Rc<Templates>, tasks: Rc<Tasks>) -> Result<Self> {
     let SerView { name, formula } = view;
     Self::from_formula(name, formula, templates, tasks)
   }
