@@ -514,8 +514,11 @@ mod tests {
   /// An UI object used for testing. It is just a handy wrapper around a
   /// `Ui`.
   struct TestUi {
-    tasks_root: TempDir,
+    // Please keep `ui` first to make it get dropped first. This will
+    // ensure that temporary files/directories are no longer write
+    // protected and can get cleaned up properly.
     ui: Ui<Event, Message>,
+    tasks_root: TempDir,
     _ui_config_dir: TempDir,
     ui_config_file: NamedTempFile,
     _ui_state_dir: TempDir,

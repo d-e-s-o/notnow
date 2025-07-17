@@ -349,6 +349,7 @@ mod tests {
 
   use tokio::fs::create_dir;
   use tokio::fs::read_to_string;
+  use tokio::fs::remove_dir_all;
   use tokio::fs::remove_file;
   use tokio::fs::write;
   use tokio::test;
@@ -419,19 +420,23 @@ mod tests {
       dir.path().to_path_buf()
     };
 
-    let mut capability = DirCap::for_dir(path.clone()).await.unwrap();
     {
-      let _write_guard = capability.write().await.unwrap();
-      let () = create_dir(&path).await.unwrap();
+      let mut capability = DirCap::for_dir(path.clone()).await.unwrap();
+      {
+        let _write_guard = capability.write().await.unwrap();
+        let () = create_dir(&path).await.unwrap();
 
-      // We should have write access to the newly created directory.
-      let () = write(path.join("test-file"), "test data").await.unwrap();
+        // We should have write access to the newly created directory.
+        let () = write(path.join("test-file"), "test data").await.unwrap();
+      }
+
+      // The newly created directory should have been "retroactively"
+      // write-protected once the write guard went out of scope.
+      let error = write(path.join("another-file"), "test").await.unwrap_err();
+      assert_eq!(error.kind(), ErrorKind::PermissionDenied);
     }
 
-    // The newly created directory should have been "retroactively"
-    // write-protected once the write guard went out of scope.
-    let error = write(path.join("another-file"), "test").await.unwrap_err();
-    assert_eq!(error.kind(), ErrorKind::PermissionDenied);
+    let () = remove_dir_all(&path).await.unwrap();
   }
 
   /// Check that we can use a [`FileCap`] to open a file for
