@@ -3,11 +3,17 @@
 
 //! A terminal based task management application.
 
-use std::process::exit;
+use std::process::ExitCode;
 
 use notnow::run;
 
 
-fn main() {
-  exit(run());
+fn main() -> ExitCode {
+  match run() {
+    Ok(_) => ExitCode::SUCCESS,
+    Err(err) => {
+      eprintln!("{err:?}");
+      ExitCode::FAILURE
+    },
+  }
 }

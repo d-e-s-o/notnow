@@ -345,7 +345,8 @@ fn run_with_args() -> Result<()> {
   with_lockfile(&paths.lock_file(), args.force, || run_now(paths))
 }
 
-fn run_with_result() -> Result<()> {
+/// Run the program.
+pub fn run() -> Result<()> {
   let () = log::init()?;
   #[cfg(feature = "coredump")]
   {
@@ -357,17 +358,6 @@ fn run_with_result() -> Result<()> {
   }
 
   run_with_args()
-}
-
-/// Run the program and handle errors.
-pub fn run() -> i32 {
-  match run_with_result() {
-    Ok(_) => 0,
-    Err(err) => {
-      eprintln!("{err:?}");
-      1
-    },
-  }
 }
 
 
