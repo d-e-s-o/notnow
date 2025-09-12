@@ -330,7 +330,7 @@ impl TaskState {
     })?;
 
     let templates = Templates::with_serde(task_state.tasks_meta.templates)
-      .map_err(|id| anyhow!("encountered duplicate tag ID {}", id))?;
+      .map_err(|id| anyhow!("encountered duplicate tag ID {id}"))?;
     let templates = Rc::new(templates);
     let tasks = Tasks::with_serde(task_state.tasks, Rc::clone(&templates))
       .context("failed to instantiate task database")?;
@@ -343,7 +343,7 @@ impl TaskState {
   /// Create a `TaskState` object from serialized state.
   pub fn with_serde(state: SerTaskState) -> Result<Self> {
     let templates = Templates::with_serde(state.tasks_meta.templates)
-      .map_err(|id| anyhow!("encountered duplicate tag ID {}", id))?;
+      .map_err(|id| anyhow!("encountered duplicate tag ID {id}"))?;
     let templates = Rc::new(templates);
     let tasks = Tasks::with_serde(state.tasks, Rc::clone(&templates))
       .context("failed to instantiate task database")?;
