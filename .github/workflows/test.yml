@@ -89,6 +89,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
       - run: |
           cargo clippy --no-deps --tests -- -A unknown_lints -D warnings
           cargo clippy --no-deps --features=readline -- -A unknown_lints -D warnings
