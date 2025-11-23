@@ -93,7 +93,7 @@ features = ["parser"]
 version = "0.2"
 
 [dependencies.rbuf]
-version = "0.1.3"
+version = "0.2"
 
 [dependencies.rline]
 version = "0.3.2"

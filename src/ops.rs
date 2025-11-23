@@ -1,4 +1,4 @@
-// Copyright (C) 2021-2022 Daniel Mueller <deso@posteo.net>
+// Copyright (C) 2021-2025 Daniel Mueller <deso@posteo.net>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::marker::PhantomData;
@@ -48,29 +48,29 @@ where
   pub fn exec(&mut self, mut op: O, data: &mut D) -> T {
     let result = op.exec(data);
 
-    self.ops.push_front(Some(op));
+    self.ops.push_back(Some(op));
     // We just inserted a new element, which means that if we still have
     // some operations in the ring buffer that we undid earlier, now is
     // the time to just drop them (we only keep one linear line of
     // operations, not a tree of sorts). Hence, insert a sentinel value
     // replacing the least recently executed operation.
-    *self.ops.back_mut() = None;
+    *self.ops.front_mut() = None;
     result
   }
 
   /// Undo the most recent operation, returning the result of the action
   /// if one was performed, or `None`.
   pub fn undo(&mut self, data: &mut D) -> Option<T> {
-    if let Some(op) = self.ops.front_mut() {
+    if let Some(op) = self.ops.back_mut() {
       let result = op.undo(data);
 
-      let op = self.ops.pop_front();
+      let op = self.ops.pop_back();
       // We didn't actually need to remove the operation from the ring
-      // buffer, but there is no method for just decrementing the front
+      // buffer, but there is no method for just decrementing the back
       // pointer or similar. As such, just put the element back in at
-      // what is now the back. This way, it will still be available
+      // what is now the front. This way, it will still be available
       // should we decide to `redo` it.
-      *self.ops.back_mut() = op;
+      *self.ops.front_mut() = op;
       Some(result)
     } else {
       None
@@ -80,15 +80,15 @@ where
   /// Re-do the next operation, returning the result of the action
   /// if one was performed, or `None`.
   pub fn redo(&mut self, data: &mut D) -> Option<T> {
-    if let Some(op) = self.ops.back_mut() {
+    if let Some(op) = self.ops.front_mut() {
       let result = op.exec(data);
 
       // There is no way for us to tell the ring buffer to just advance
-      // the "front" pointer. So we actually have to take a peek at the
-      // "back" element and then push it in there to become the new
-      // front.
-      let op = self.ops.back_mut().take();
-      self.ops.push_front(op);
+      // the "back" pointer. So we actually have to take a peek at the
+      // "front" element and then push it in there to become the new
+      // back.
+      let op = self.ops.front_mut().take();
+      self.ops.push_back(op);
       Some(result)
     } else {
       None
