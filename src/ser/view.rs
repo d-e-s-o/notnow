@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2025 Daniel Mueller <deso@posteo.net>
+// Copyright (C) 2018-2026 Daniel Mueller <deso@posteo.net>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 //! A module providing serialization and deserialization support for
@@ -184,7 +184,7 @@ pub(crate) fn formula_to_cnf(formula: Formula) -> Option<Box<[Box<[TagLit]>]>> {
 
   let cnf = rewrite(formula)?
     .into_iter()
-    .map(|vec| vec.into_boxed_slice())
+    .map(Vec::into_boxed_slice)
     .collect::<Box<[_]>>();
   Some(cnf)
 }

@@ -1,4 +1,4 @@
-// Copyright (C) 2018,2021 Daniel Mueller <deso@posteo.net>
+// Copyright (C) 2018-2026 Daniel Mueller <deso@posteo.net>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 //! Infrastructure for intercepting and handling SIGWINCH signals.
@@ -81,7 +81,7 @@ pub fn receive_window_resizes(send_event: Sender<Result<Event>>) -> Result<()> {
   let mut fds = [0, 0];
   unsafe {
     check(pipe(fds.as_mut_ptr()), -1)?;
-    check(signal(SIGWINCH, handler as size_t), SIG_ERR)?;
+    check(signal(SIGWINCH, handler as *const () as size_t), SIG_ERR)?;
     WRITE_FD = fds[1]
   }
   let read_fd = fds[0];
