@@ -39,7 +39,7 @@ jobs:
           sudo apt-get install --yes --no-install-recommends libreadline-dev
           cargo install --bin=notnow --path=. --root=. --target x86_64-unknown-linux-gnu ${{ matrix.args }}
           strip bin/notnow
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: notnow${{ matrix.suffix }}
           path: bin/notnow
