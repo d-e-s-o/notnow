@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2025 Daniel Mueller <deso@posteo.net>
+// Copyright (C) 2018-2026 Daniel Mueller <deso@posteo.net>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 //! A module providing serialization and deserialization support for the
@@ -45,7 +45,6 @@ pub struct UiState {
 /// Note that this type is not actually serialized or deserialized in
 /// this form directly. It merely acts as a way of grouping
 /// functionality that is frequently used alongside each other.
-///
 #[derive(Debug, Default, PartialEq)]
 pub struct TaskState {
   /// Meta data about tasks.

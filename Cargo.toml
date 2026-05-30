@@ -69,7 +69,7 @@ version = "1.0.66"
 version = "0.1.41"
 
 [dependencies.clap]
-version = "4.1"
+version = "4.2"
 default-features = false
 features = ["derive", "help", "std", "suggestions", "usage"]
 

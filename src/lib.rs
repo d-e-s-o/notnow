@@ -1,4 +1,4 @@
-// Copyright (C) 2017-2025 Daniel Mueller <deso@posteo.net>
+// Copyright (C) 2017-2026 Daniel Mueller <deso@posteo.net>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 //! A terminal based task management application.
@@ -31,13 +31,13 @@ mod text;
 mod ui;
 mod view;
 
+pub use crate::args::Args;
 pub use crate::cap::DirCap;
 pub use crate::paths::Paths;
 pub use crate::state::TaskState;
 pub use crate::ui::Config as UiConfig;
 pub use crate::ui::State as UiState;
 
-use std::env::args_os;
 use std::fs::create_dir_all;
 use std::fs::remove_file;
 use std::fs::File;
@@ -57,9 +57,6 @@ use std::thread;
 use anyhow::Context as _;
 use anyhow::Result;
 
-use clap::error::ErrorKind as ClapError;
-use clap::Parser as _;
-
 #[cfg(feature = "coredump")]
 use coredump::register_panic_handler;
 
@@ -73,7 +70,6 @@ use tokio::runtime::Builder;
 
 use gui::Ui;
 
-use crate::args::Args;
 use crate::resize::receive_window_resizes;
 use crate::ui::Event as UiEvent;
 use crate::ui::Ids;
@@ -328,25 +324,8 @@ fn run_now(paths: Paths) -> Result<()> {
   rt.block_on(future)
 }
 
-/// Parse the arguments and run the program.
-fn run_with_args() -> Result<()> {
-  let args = match Args::try_parse_from(args_os()) {
-    Ok(args) => args,
-    Err(err) => match err.kind() {
-      ClapError::DisplayHelp | ClapError::DisplayVersion => {
-        print!("{err}");
-        return Ok(())
-      },
-      _ => return Err(err.into()),
-    },
-  };
-
-  let paths = Paths::new(args.config_dir)?;
-  with_lockfile(&paths.lock_file(), args.force, || run_now(paths))
-}
-
 /// Run the program.
-pub fn run() -> Result<()> {
+pub fn run(args: Args) -> Result<()> {
   let () = log::init()?;
   #[cfg(feature = "coredump")]
   {
@@ -357,7 +336,8 @@ pub fn run() -> Result<()> {
     })?;
   }
 
-  run_with_args()
+  let paths = Paths::new(args.config_dir)?;
+  with_lockfile(&paths.lock_file(), args.force, || run_now(paths))
 }
 
 
