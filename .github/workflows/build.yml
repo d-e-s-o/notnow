@@ -26,7 +26,7 @@ jobs:
           - suffix: "-readline"
             args: "--features=readline"
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Install dependencies
         run: sudo apt-get install --yes --no-install-recommends musl-tools
       - uses: dtolnay/rust-toolchain@stable
