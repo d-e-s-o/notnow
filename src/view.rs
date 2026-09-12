@@ -1,4 +1,4 @@
-// Copyright (C) 2017-2025 Daniel Mueller <deso@posteo.net>
+// Copyright (C) 2017-2026 Daniel Mueller <deso@posteo.net>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::rc::Rc;
@@ -103,13 +103,11 @@ impl<'tasks> Iterator for Filter<'tasks> {
     //       invocation, however, both versions do not compile due to
     //       borrowing/ownership conflicts.
     loop {
-      match self.iter.next() {
-        Some(task) => {
-          if task.tags(|iter| self.matched_by(&iter)) {
-            return Some(task)
-          }
-        },
-        None => return None,
+      {
+        let task = self.iter.next()?;
+        if task.tags(|iter| self.matched_by(&iter)) {
+          return Some(task)
+        }
       }
     }
   }
@@ -118,13 +116,11 @@ impl<'tasks> Iterator for Filter<'tasks> {
 impl DoubleEndedIterator for Filter<'_> {
   fn next_back(&mut self) -> Option<Self::Item> {
     loop {
-      match self.iter.next_back() {
-        Some(task) => {
-          if task.tags(|iter| self.matched_by(&iter)) {
-            return Some(task)
-          }
-        },
-        None => return None,
+      {
+        let task = self.iter.next_back()?;
+        if task.tags(|iter| self.matched_by(&iter)) {
+          return Some(task)
+        }
       }
     }
   }
