@@ -2,7 +2,7 @@
 name = "notnow"
 version = "0.4.0-beta.0"
 edition = "2021"
-rust-version = "1.81"
+rust-version = "1.85"
 authors = ["Daniel Mueller <deso@posteo.net>"]
 license = "GPL-3.0-or-later"
 homepage = "https://github.com/d-e-s-o/notnow"

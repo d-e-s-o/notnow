@@ -1,6 +1,7 @@
 Unreleased
 ----------
 - Added support for editing a view's tag formula via `v-e` key sequence
+- Bumped minimum supported Rust version to `1.85`
 
 
 0.4.0-beta.0

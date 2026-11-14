@@ -1,7 +1,7 @@
 [![pipeline](https://github.com/d-e-s-o/notnow/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/d-e-s-o/notnow/actions/workflows/test.yml)
 [![coverage](https://codecov.io/gh/d-e-s-o/notnow/branch/main/graph/badge.svg)](https://codecov.io/gh/d-e-s-o/notnow)
 [![crates.io](https://img.shields.io/crates/v/notnow.svg)](https://crates.io/crates/notnow)
-[![rustc](https://img.shields.io/badge/rustc-1.81+-blue.svg)](https://blog.rust-lang.org/2024/09/05/Rust-1.81.0/)
+[![rustc](https://img.shields.io/badge/rustc-1.85+-blue.svg)](https://blog.rust-lang.org/2025/02/20/Rust-1.85.0/)
 
 notnow
 ======
