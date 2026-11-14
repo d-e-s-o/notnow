@@ -9,12 +9,12 @@ use std::rc::Rc;
 
 use crate::id::AllocId as _;
 use crate::id::Id as IdT;
+use crate::ser::ToSerde;
 use crate::ser::tags::Id as SerTagId;
+use crate::ser::tags::T;
 use crate::ser::tags::Tag as SerTag;
 use crate::ser::tags::Template as SerTemplate;
 use crate::ser::tags::Templates as SerTemplates;
-use crate::ser::tags::T;
-use crate::ser::ToSerde;
 
 type Id = IdT<T>;
 

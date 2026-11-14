@@ -1,4 +1,4 @@
-// Copyright (C) 2023 Daniel Mueller <deso@posteo.net>
+// Copyright (C) 2023-2026 Daniel Mueller <deso@posteo.net>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::path::Path;
@@ -7,9 +7,9 @@ use anyhow::Context as _;
 use anyhow::Result;
 
 use crate::cap::FileCap;
+use crate::ser::ToSerde;
 use crate::ser::backends::Json;
 use crate::ser::state::UiState as SerUiState;
-use crate::ser::ToSerde;
 use crate::state::load_state_from_file;
 use crate::state::save_state_to_file;
 

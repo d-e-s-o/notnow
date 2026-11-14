@@ -1,4 +1,4 @@
-// Copyright (C) 2022-2025 Daniel Mueller <deso@posteo.net>
+// Copyright (C) 2022-2026 Daniel Mueller <deso@posteo.net>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::cell::Cell;
@@ -208,11 +208,7 @@ impl InsDel {
     if op_idx <= idx {
       let insert = (self.0 & INSERT_MASK) != 0;
 
-      if insert {
-        idx + 1
-      } else {
-        idx - 1
-      }
+      if insert { idx + 1 } else { idx - 1 }
     } else {
       idx
     }
@@ -805,9 +801,10 @@ pub mod tests {
       let () = db.data.reserve(ITEM_CNT);
 
       for item in items.iter() {
-        assert!(db
-          .try_insert(black_box(0), black_box(Rc::clone(item)))
-          .is_some());
+        assert!(
+          db.try_insert(black_box(0), black_box(Rc::clone(item)))
+            .is_some()
+        );
       }
     });
   }

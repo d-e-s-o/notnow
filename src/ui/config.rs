@@ -1,22 +1,22 @@
-// Copyright (C) 2023-2025 Daniel Mueller <deso@posteo.net>
+// Copyright (C) 2023-2026 Daniel Mueller <deso@posteo.net>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::path::Path;
 use std::rc::Rc;
 
-use anyhow::anyhow;
 use anyhow::Context as _;
 use anyhow::Result;
+use anyhow::anyhow;
 
 use crate::cap::FileCap;
 use crate::colors::Colors;
+use crate::ser::ToSerde;
 use crate::ser::backends::Json;
 use crate::ser::state::UiConfig as SerUiConfig;
-use crate::ser::ToSerde;
+use crate::state::TaskState;
 use crate::state::load_state_from_file;
 use crate::state::save_state_to_file;
 use crate::state::should_save_state;
-use crate::state::TaskState;
 use crate::tags::Tag;
 use crate::view::View;
 use crate::view::ViewBuilder;

@@ -1,4 +1,4 @@
-// Copyright (C) 2025 Daniel Mueller <deso@posteo.net>
+// Copyright (C) 2025-2026 Daniel Mueller <deso@posteo.net>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::fmt::Display;
@@ -9,8 +9,8 @@ use std::ops::BitOr;
 use std::ops::Not;
 use std::str::FromStr;
 
-use anyhow::anyhow;
 use anyhow::Error;
+use anyhow::anyhow;
 
 
 type ParseResult<'i, Output> = Result<(&'i str, Output), &'i str>;

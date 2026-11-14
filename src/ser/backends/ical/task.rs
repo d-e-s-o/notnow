@@ -1,4 +1,4 @@
-// Copyright (C) 2022-2024 Daniel Mueller <deso@posteo.net>
+// Copyright (C) 2022-2026 Daniel Mueller <deso@posteo.net>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::convert::TryFrom;
@@ -11,16 +11,16 @@ use icalendar::Calendar;
 use icalendar::Component as _;
 use icalendar::Todo;
 
+use crate::LINE_END;
+use crate::LINE_END_STR;
 use crate::ser::tags::Tag;
 use crate::ser::tasks::Id as TaskId;
 use crate::ser::tasks::Task;
-use crate::LINE_END;
-use crate::LINE_END_STR;
 
+use super::SerICal;
 use super::util::emit_list;
 use super::util::parse_list;
 use super::util::try_from_calendar_with_single_todo;
-use super::SerICal;
 
 
 /// The name of the property used for storing a task's tags.
@@ -128,11 +128,11 @@ impl SerICal for Task {
 mod tests {
   use super::*;
 
-  use crate::ser::tags::Id as TagId;
   use crate::LINE_END;
+  use crate::ser::tags::Id as TagId;
 
-  use super::super::iCal;
   use super::super::Backend;
+  use super::super::iCal;
 
 
   /// Make sure that we can serialize and deserialize a `Task` that

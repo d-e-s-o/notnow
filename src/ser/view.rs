@@ -76,11 +76,11 @@ impl From<Formula> for FormulaPair {
 mod formula {
   use super::*;
 
-  use serde::de::Error;
-  use serde::de::Unexpected;
   use serde::Deserialize;
   use serde::Deserializer;
   use serde::Serializer;
+  use serde::de::Error;
+  use serde::de::Unexpected;
 
 
   /// Deserialize a [`Formula`] value.

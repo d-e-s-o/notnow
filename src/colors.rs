@@ -1,13 +1,13 @@
-// Copyright (C) 2019-2025 Daniel Mueller <deso@posteo.net>
+// Copyright (C) 2019-2026 Daniel Mueller <deso@posteo.net>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-use serde::de::Error;
-use serde::de::Unexpected;
-use serde::ser::SerializeTuple as _;
 use serde::Deserialize;
 use serde::Deserializer;
 use serde::Serialize;
 use serde::Serializer;
+use serde::de::Error;
+use serde::de::Unexpected;
+use serde::ser::SerializeTuple as _;
 
 use termion::color::Color as TermColor;
 use termion::color::Reset;

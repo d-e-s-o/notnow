@@ -1,10 +1,10 @@
-// Copyright (C) 2022-2025 Daniel Mueller <deso@posteo.net>
+// Copyright (C) 2022-2026 Daniel Mueller <deso@posteo.net>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::cmp::Ordering;
+use std::collections::BTreeMap;
 use std::collections::btree_map::Entry;
 use std::collections::btree_map::VacantEntry;
-use std::collections::BTreeMap;
 use std::fmt::Display;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
@@ -18,8 +18,8 @@ use std::ops::Bound;
 #[cfg(test)]
 use gaps::RangeGappable as _;
 
-use crate::ser::id::Id as SerId;
 use crate::ser::ToSerde;
+use crate::ser::id::Id as SerId;
 
 
 /// An ID used to uniquely identify an item in some defined space.

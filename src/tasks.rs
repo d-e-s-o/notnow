@@ -1,15 +1,15 @@
-// Copyright (C) 2017-2025 Daniel Mueller <deso@posteo.net>
+// Copyright (C) 2017-2026 Daniel Mueller <deso@posteo.net>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::cell::RefCell;
-use std::collections::btree_set::Iter as BTreeSetIter;
 use std::collections::BTreeSet;
+use std::collections::btree_set::Iter as BTreeSetIter;
 use std::ops::Deref as _;
 use std::ops::DerefMut as _;
 use std::rc::Rc;
 
-use anyhow::anyhow;
 use anyhow::Result;
+use anyhow::anyhow;
 
 use uuid::Uuid;
 
@@ -19,9 +19,9 @@ use crate::db::Iter as DbIter;
 use crate::ops::Op;
 use crate::ops::Ops;
 use crate::position::Position;
+use crate::ser::ToSerde;
 use crate::ser::tasks::Task as SerTask;
 use crate::ser::tasks::Tasks as SerTasks;
-use crate::ser::ToSerde;
 use crate::tags::Tag;
 use crate::tags::Templates;
 use crate::tasks::Builder as TaskBuilder;
@@ -269,10 +269,10 @@ impl Task {
 fn task_to_serde(task: &Task, position: Option<&Position>) -> SerTask {
   let borrow = task.0.try_borrow().unwrap();
   let TaskInner {
-    ref id,
-    ref summary,
-    ref details,
-    ref tags,
+    id,
+    summary,
+    details,
+    tags,
     ..
   } = borrow.deref();
 
@@ -483,10 +483,7 @@ impl TaskOp {
 impl Op<Db<Task, Position>, Option<Rc<Task>>> for TaskOp {
   fn exec(&mut self, tasks: &mut Db<Task, Position>) -> Option<Rc<Task>> {
     match self {
-      Self::Add {
-        ref mut task,
-        after,
-      } => {
+      Self::Add { task, after } => {
         let added = add_task(tasks, Rc::clone(task), after.clone().map(Target::After));
         Some(added)
       },
@@ -668,9 +665,9 @@ impl Tasks {
     //         a borrow is active.
     let mut borrow = self.0.try_borrow_mut().unwrap();
     let TasksInner {
-      ref mut templates,
-      ref mut operations,
-      ref mut tasks,
+      templates,
+      operations,
+      tasks,
       ..
     } = borrow.deref_mut();
 
@@ -690,9 +687,7 @@ impl Tasks {
     //         a borrow is active.
     let mut borrow = self.0.try_borrow_mut().unwrap();
     let TasksInner {
-      ref mut operations,
-      ref mut tasks,
-      ..
+      operations, tasks, ..
     } = borrow.deref_mut();
 
     let op = TaskOp::remove(task);
@@ -706,9 +701,7 @@ impl Tasks {
     //         a borrow is active.
     let mut borrow = self.0.try_borrow_mut().unwrap();
     let TasksInner {
-      ref mut operations,
-      ref mut tasks,
-      ..
+      operations, tasks, ..
     } = borrow.deref_mut();
 
     let op = TaskOp::update(task, updated);
@@ -723,9 +716,7 @@ impl Tasks {
       //         a borrow is active.
       let mut borrow = self.0.try_borrow_mut().unwrap();
       let TasksInner {
-        ref mut operations,
-        ref mut tasks,
-        ..
+        operations, tasks, ..
       } = borrow.deref_mut();
 
       let to = Target::Before(other);
@@ -742,9 +733,7 @@ impl Tasks {
       //         a borrow is active.
       let mut borrow = self.0.try_borrow_mut().unwrap();
       let TasksInner {
-        ref mut operations,
-        ref mut tasks,
-        ..
+        operations, tasks, ..
       } = borrow.deref_mut();
 
       let to = Target::After(other);
@@ -760,9 +749,7 @@ impl Tasks {
     //         a borrow is active.
     let mut borrow = self.0.try_borrow_mut().unwrap();
     let TasksInner {
-      ref mut operations,
-      ref mut tasks,
-      ..
+      operations, tasks, ..
     } = borrow.deref_mut();
 
     operations.undo(tasks)
@@ -775,9 +762,7 @@ impl Tasks {
     //         a borrow is active.
     let mut borrow = self.0.try_borrow_mut().unwrap();
     let TasksInner {
-      ref mut operations,
-      ref mut tasks,
-      ..
+      operations, tasks, ..
     } = borrow.deref_mut();
 
     operations.redo(tasks)
@@ -794,8 +779,8 @@ pub mod tests {
   use crate::ser::tags::Id as SerTemplateId;
   use crate::ser::tags::Template as SerTemplate;
   use crate::ser::tags::Templates as SerTemplates;
-  use crate::test::make_tasks;
   use crate::test::COMPLETE_TAG;
+  use crate::test::make_tasks;
 
 
   /// Check that we can query and set/unset tags on a task.

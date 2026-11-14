@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2025 Daniel Mueller <deso@posteo.net>
+// Copyright (C) 2018-2026 Daniel Mueller <deso@posteo.net>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::cmp::min;
@@ -7,12 +7,12 @@ use std::rc::Rc;
 
 use async_trait::async_trait;
 
-use gui::derive::Widget;
 use gui::Cap;
 use gui::Handleable;
 use gui::Id;
 use gui::MutCap;
 use gui::Widget;
+use gui::derive::Widget;
 
 use crate::tags::Tag;
 use crate::tasks::Task;
@@ -584,8 +584,8 @@ impl Handleable<Event, Message> for TaskListBox {
           .handle_search_task(cap, string, search_state, *reverse, *exact)
           .await
       },
-      Message::GetTabState(ref mut tab_state) => {
-        let TabState { ref mut views, .. } = tab_state;
+      Message::GetTabState(tab_state) => {
+        let TabState { views, .. } = tab_state;
         let data = self.data::<TaskListBoxData>(cap);
         let selected = Some(data.selection(0));
 

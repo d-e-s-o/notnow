@@ -1,4 +1,4 @@
-// Copyright (C) 2025 Daniel Mueller <deso@posteo.net>
+// Copyright (C) 2025-2026 Daniel Mueller <deso@posteo.net>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 
@@ -15,11 +15,11 @@ mod log {
   use anyhow::Context as _;
   use anyhow::Result;
 
-  use tracing::subscriber::set_global_default as set_global_subscriber;
   use tracing::Level;
   use tracing::Subscriber;
-  use tracing_subscriber::fmt::time::SystemTime;
+  use tracing::subscriber::set_global_default as set_global_subscriber;
   use tracing_subscriber::FmtSubscriber;
+  use tracing_subscriber::fmt::time::SystemTime;
 
   pub(crate) use tracing::debug;
   pub(crate) use tracing::error;

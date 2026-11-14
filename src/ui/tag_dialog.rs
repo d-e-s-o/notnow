@@ -1,4 +1,4 @@
-// Copyright (C) 2021-2025 Daniel Mueller <deso@posteo.net>
+// Copyright (C) 2021-2026 Daniel Mueller <deso@posteo.net>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::cmp::Ordering;
@@ -7,12 +7,12 @@ use std::rc::Rc;
 
 use async_trait::async_trait;
 
-use gui::derive::Widget;
 use gui::Cap;
 use gui::Handleable;
 use gui::Id;
 use gui::MutCap;
 use gui::Widget;
+use gui::derive::Widget;
 
 use crate::tags::Tag;
 use crate::tasks::Task;

@@ -4,15 +4,15 @@
 use std::rc::Rc;
 use std::str::FromStr as _;
 
-use anyhow::anyhow;
 use anyhow::Result;
+use anyhow::anyhow;
 
 use crate::formula::Formula;
-use crate::ser::view::formula_to_cnf;
+use crate::ser::ToSerde;
 use crate::ser::view::FormulaPair;
 use crate::ser::view::TagLit as SerTagLit;
 use crate::ser::view::View as SerView;
-use crate::ser::ToSerde;
+use crate::ser::view::formula_to_cnf;
 use crate::tags::Tag;
 use crate::tags::Templates;
 use crate::tasks::Task;
@@ -327,9 +327,9 @@ mod tests {
   use crate::ser::tags::Templates as SerTemplates;
   use crate::ser::tasks::Tasks as SerTasks;
   use crate::tags::Templates;
+  use crate::test::COMPLETE_TAG;
   use crate::test::make_tasks;
   use crate::test::make_tasks_with_tags;
-  use crate::test::COMPLETE_TAG;
 
 
   /// Create a view with the given number of tasks in it.

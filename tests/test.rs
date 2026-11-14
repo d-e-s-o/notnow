@@ -1,14 +1,16 @@
-// Copyright (C) 2022-2024 Daniel Mueller <deso@posteo.net>
+// Copyright (C) 2022-2026 Daniel Mueller <deso@posteo.net>
 // SPDX-License-Identifier: GPL-3.0-or-later
+
+//! An end-to-end test for `notnow`.
 
 use std::io::stdout;
 
-use notnow::run_prog;
-use notnow::test::default_tasks_and_tags;
 use notnow::DirCap;
 use notnow::Paths;
 use notnow::TaskState;
 use notnow::UiConfig;
+use notnow::run_prog;
+use notnow::test::default_tasks_and_tags;
 
 use tempfile::TempDir;
 
@@ -19,7 +21,7 @@ use tokio::test;
 #[test]
 async fn prog_running() {
   // Open a bunch of dialogs to exercise as many code paths as possible.
-  static KEYS: [u8; 6] = [b't', b'\n', b'\n', b'\n', b'w', b'q'];
+  static KEYS: [u8; 6] = *b"t\n\n\nwq";
 
   let (ui_config, task_state) = default_tasks_and_tags();
 

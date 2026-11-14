@@ -1,4 +1,4 @@
-// Copyright (C) 2024 Daniel Mueller <deso@posteo.net>
+// Copyright (C) 2024-2026 Daniel Mueller <deso@posteo.net>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::borrow::Cow;
@@ -12,9 +12,9 @@ use std::path::Component;
 use std::path::Path;
 use std::path::PathBuf;
 
-use anyhow::anyhow;
 use anyhow::Context as _;
 use anyhow::Result;
+use anyhow::anyhow;
 
 use dirs::cache_dir;
 use dirs::config_dir;

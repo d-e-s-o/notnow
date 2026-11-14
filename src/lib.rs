@@ -38,20 +38,20 @@ pub use crate::state::TaskState;
 pub use crate::ui::Config as UiConfig;
 pub use crate::ui::State as UiState;
 
+use std::fs::File;
 use std::fs::create_dir_all;
 use std::fs::remove_file;
-use std::fs::File;
-use std::io::stdin;
-use std::io::stdout;
 use std::io::ErrorKind;
 use std::io::Read;
 use std::io::Result as IoResult;
 use std::io::Write;
+use std::io::stdin;
+use std::io::stdout;
 use std::os::fd::AsFd;
 use std::path::Path;
-use std::sync::mpsc::channel;
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc::Sender;
+use std::sync::mpsc::channel;
 use std::thread;
 
 use anyhow::Context as _;
@@ -357,9 +357,11 @@ mod tests {
     let lock_file = NamedTempFile::new().unwrap();
     let force = false;
     let error = with_lockfile(lock_file.path(), force, || Ok(())).unwrap_err();
-    assert!(error
-      .to_string()
-      .contains(&lock_file.path().display().to_string()));
+    assert!(
+      error
+        .to_string()
+        .contains(&lock_file.path().display().to_string())
+    );
   }
 
   /// Check that `with_lockfile` behaves correctly in the presence of a
@@ -381,9 +383,11 @@ mod tests {
     let lock_file = NamedTempFile::new().unwrap();
     let force = false;
     let error = with_lockfile(lock_file.path(), force, || bail!("42")).unwrap_err();
-    assert!(error
-      .to_string()
-      .contains(&lock_file.path().display().to_string()));
+    assert!(
+      error
+        .to_string()
+        .contains(&lock_file.path().display().to_string())
+    );
   }
 
   /// Check that `with_lockfile` behaves correctly if no lock file is

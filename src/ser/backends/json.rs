@@ -1,11 +1,11 @@
-// Copyright (C) 2022 Daniel Mueller <deso@posteo.net>
+// Copyright (C) 2022-2026 Daniel Mueller <deso@posteo.net>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use serde::Deserialize;
 use serde::Serialize;
+use serde_json::Error as JsonError;
 use serde_json::from_slice as from_json;
 use serde_json::to_vec_pretty as to_json;
-use serde_json::Error as JsonError;
 
 use super::Backend;
 

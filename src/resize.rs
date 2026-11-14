@@ -38,6 +38,8 @@ use std::io::Result;
 use std::sync::mpsc::Sender;
 use std::thread;
 
+use libc::SIG_ERR;
+use libc::SIGWINCH;
 use libc::c_int;
 use libc::c_void;
 use libc::pipe;
@@ -45,8 +47,6 @@ use libc::read;
 use libc::signal;
 use libc::size_t;
 use libc::write;
-use libc::SIGWINCH;
-use libc::SIG_ERR;
 
 use crate::Event;
 
@@ -86,17 +86,19 @@ pub fn receive_window_resizes(send_event: Sender<Result<Event>>) -> Result<()> {
   }
   let read_fd = fds[0];
 
-  thread::spawn(move || loop {
-    let mut buffer = [0];
-    let result = unsafe { read(read_fd, buffer.as_mut_ptr() as *mut c_void, 1) };
-    if result < 0 {
-      if Error::last_os_error().kind() != ErrorKind::Interrupted {
-        continue
+  thread::spawn(move || {
+    loop {
+      let mut buffer = [0];
+      let result = unsafe { read(read_fd, buffer.as_mut_ptr() as *mut c_void, 1) };
+      if result < 0 {
+        if Error::last_os_error().kind() != ErrorKind::Interrupted {
+          continue
+        }
       }
-    }
 
-    let result = check(result, -1).map(|_| Event::Resize);
-    send_event.send(result).unwrap();
+      let result = check(result, -1).map(|_| Event::Resize);
+      send_event.send(result).unwrap();
+    }
   });
   Ok(())
 }

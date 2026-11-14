@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Daniel Mueller <deso@posteo.net>
+// Copyright (C) 2022-2026 Daniel Mueller <deso@posteo.net>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::convert::TryFrom;
@@ -16,10 +16,10 @@ use crate::ser::tags::Template;
 use crate::ser::tags::Templates;
 use crate::ser::tasks::TasksMeta;
 
+use super::SerICal;
 use super::util::emit_list;
 use super::util::parse_list;
 use super::util::try_from_calendar_with_single_todo;
-use super::SerICal;
 
 
 /// The name of the property used for storing templates.
@@ -100,8 +100,8 @@ mod tests {
 
   use crate::ser::tags::Id as TagId;
 
-  use super::super::iCal;
   use super::super::Backend;
+  use super::super::iCal;
 
 
   /// Make sure that we can serialize and deserialize a `TasksMeta`

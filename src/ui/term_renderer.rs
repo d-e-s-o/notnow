@@ -1,11 +1,11 @@
-// Copyright (C) 2018-2025 Daniel Mueller <deso@posteo.net>
+// Copyright (C) 2018-2026 Daniel Mueller <deso@posteo.net>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::cell::Cell;
 use std::cell::RefCell;
+use std::cmp::Ordering;
 use std::cmp::max;
 use std::cmp::min;
-use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::io::BufWriter;
@@ -29,6 +29,7 @@ use gui::Renderable;
 use gui::Renderer;
 use gui::Widget as _;
 
+use crate::LINE_END;
 use crate::colors::Color;
 use crate::colors::Colors;
 use crate::tasks::Task;
@@ -36,7 +37,6 @@ use crate::text;
 use crate::text::Cursor;
 use crate::text::DisplayWidth as _;
 use crate::text::Width;
-use crate::LINE_END;
 
 use super::detail_dialog::DetailDialog;
 use super::detail_dialog::DetailDialogData;
@@ -753,13 +753,13 @@ where
         self.colors.in_out_success_bg,
         None,
       ),
-      InOut::Search(ref s) => (
+      InOut::Search(s) => (
         SEARCH_TEXT,
         self.colors.in_out_status_fg,
         self.colors.in_out_status_bg,
         Some(s.as_ref()),
       ),
-      InOut::Error(ref e) => (
+      InOut::Error(e) => (
         ERROR_TEXT,
         self.colors.in_out_error_fg,
         self.colors.in_out_error_bg,
@@ -1115,13 +1115,13 @@ mod tests {
     use termion::screen::IntoAlternateScreen as _;
     use tokio::runtime::Builder;
 
-    use crate::test::default_tasks_and_tags;
-    use crate::ui::Renderer as TermUiRenderer;
-    use crate::ui::UiData as TermUiData;
     use crate::DirCap;
     use crate::TaskState;
     use crate::UiConfig;
     use crate::UiState;
+    use crate::test::default_tasks_and_tags;
+    use crate::ui::Renderer as TermUiRenderer;
+    use crate::ui::UiData as TermUiData;
 
     let rt = Builder::new_current_thread().build().unwrap();
 

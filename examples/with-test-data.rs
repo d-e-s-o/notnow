@@ -1,17 +1,19 @@
-// Copyright (C) 2022-2024 Daniel Mueller <deso@posteo.net>
+// Copyright (C) 2022-2026 Daniel Mueller <deso@posteo.net>
 // SPDX-License-Identifier: GPL-3.0-or-later
+
+//! Run the `notnow` UI on some sample data.
 
 use std::io::stdin;
 use std::io::stdout;
 
 use anyhow::Result;
 
-use notnow::run_prog;
-use notnow::test::default_tasks_and_tags;
 use notnow::DirCap;
 use notnow::Paths;
 use notnow::TaskState;
 use notnow::UiConfig;
+use notnow::run_prog;
+use notnow::test::default_tasks_and_tags;
 
 use tempfile::TempDir;
 

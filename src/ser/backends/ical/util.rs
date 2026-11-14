@@ -1,13 +1,13 @@
-// Copyright (C) 2022 Daniel Mueller <deso@posteo.net>
+// Copyright (C) 2022-2026 Daniel Mueller <deso@posteo.net>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::fmt::Display;
 use std::str::FromStr;
 
-use anyhow::bail;
 use anyhow::Context as _;
 use anyhow::Error;
 use anyhow::Result;
+use anyhow::bail;
 
 use icalendar::Calendar;
 use icalendar::CalendarComponent;

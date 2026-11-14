@@ -1,4 +1,4 @@
-// Copyright (C) 2017-2025 Daniel Mueller <deso@posteo.net>
+// Copyright (C) 2017-2026 Daniel Mueller <deso@posteo.net>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 //! Definitions pertaining UI configuration and task state of the
@@ -10,20 +10,20 @@ use std::io::ErrorKind;
 use std::path::Path;
 use std::rc::Rc;
 
-use anyhow::anyhow;
 use anyhow::Context as _;
 use anyhow::Result;
+use anyhow::anyhow;
 
-use crate::ser::backends::iCal;
 use crate::ser::backends::Backend;
+use crate::ser::backends::iCal;
 
-use tokio::fs::create_dir_all;
-use tokio::fs::read_dir;
-use tokio::fs::remove_file;
 use tokio::fs::DirEntry;
 use tokio::fs::File;
 use tokio::fs::OpenOptions;
 use tokio::fs::ReadDir;
+use tokio::fs::create_dir_all;
+use tokio::fs::read_dir;
+use tokio::fs::remove_file;
 use tokio::io::AsyncReadExt as _;
 use tokio::io::AsyncWriteExt as _;
 
@@ -32,12 +32,12 @@ use uuid::uuid;
 use crate::cap::DirCap;
 use crate::cap::FileCap;
 use crate::cap::WriteGuard;
+use crate::ser::ToSerde;
 use crate::ser::state::TaskState as SerTaskState;
 use crate::ser::tasks::Id as SerTaskId;
 use crate::ser::tasks::Task as SerTask;
 use crate::ser::tasks::Tasks as SerTasks;
 use crate::ser::tasks::TasksMeta as SerTasksMeta;
-use crate::ser::ToSerde;
 use crate::tags::Templates;
 use crate::tasks::Tasks;
 

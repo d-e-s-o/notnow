@@ -8,8 +8,8 @@ use std::process::ExitCode;
 
 use clap::Parser as _;
 
-use notnow::run;
 use notnow::Args;
+use notnow::run;
 
 
 fn main() -> ExitCode {

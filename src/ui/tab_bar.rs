@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2025 Daniel Mueller <deso@posteo.net>
+// Copyright (C) 2018-2026 Daniel Mueller <deso@posteo.net>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::cmp::max;
@@ -8,12 +8,12 @@ use std::rc::Rc;
 
 use async_trait::async_trait;
 
-use gui::derive::Widget;
 use gui::Cap;
 use gui::Handleable;
 use gui::Id;
 use gui::MutCap;
 use gui::Widget;
+use gui::derive::Widget;
 
 use crate::tags::Tag;
 use crate::tasks::Task;
@@ -576,7 +576,7 @@ impl Handleable<Event, Message> for TabBar {
     cap: &mut dyn MutCap<Event, Message>,
   ) -> Option<Message> {
     match message {
-      Message::GetCopiedTask(ref mut task) => {
+      Message::GetCopiedTask(task) => {
         let data = self.data::<TabBarData>(cap);
         task.clone_from(&data.copied_task);
         None

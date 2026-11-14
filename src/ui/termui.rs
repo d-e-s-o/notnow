@@ -1,4 +1,4 @@
-// Copyright (C) 2017-2025 Daniel Mueller <deso@posteo.net>
+// Copyright (C) 2017-2026 Daniel Mueller <deso@posteo.net>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 use std::ffi::OsString;
@@ -11,11 +11,11 @@ use anyhow::Result;
 
 use async_trait::async_trait;
 
-use gui::derive::Widget;
 use gui::Handleable;
 use gui::Id;
 use gui::MutCap;
 use gui::Widget;
+use gui::derive::Widget;
 
 use crate::cap::DirCap;
 use crate::colors::Colors;
@@ -376,6 +376,8 @@ mod tests {
 
   use tokio::test;
 
+  use crate::LINE_END;
+  use crate::ser::ToSerde as _;
   use crate::ser::state::TaskState as SerTaskState;
   use crate::ser::state::UiConfig as SerUiConfig;
   use crate::ser::state::UiState as SerUiState;
@@ -384,14 +386,12 @@ mod tests {
   use crate::ser::tasks::TasksMeta as SerTasksMeta;
   use crate::ser::view::FormulaPair;
   use crate::ser::view::View as SerView;
-  use crate::ser::ToSerde as _;
   use crate::state::TaskState;
+  use crate::test::COMPLETE_TAG;
   use crate::test::default_tasks_and_tags;
   use crate::test::make_task_summaries;
   use crate::test::make_tasks;
   use crate::test::make_tasks_with_tags;
-  use crate::test::COMPLETE_TAG;
-  use crate::LINE_END;
 
 
   impl From<Key> for Event {
