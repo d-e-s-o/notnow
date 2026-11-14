@@ -98,13 +98,14 @@ where
 /// Align string centrally in the given `width` or cut it off if it is too long.
 fn align_center(string: impl Into<String>, width: usize) -> String {
   let mut string = string.into();
-  let length = string.len();
+  let length = string.display_width().as_usize();
 
   match length.cmp(&width) {
     Ordering::Greater => {
       // Note: May underflow if width < 3. That's not really a supported
       //       use case, though, so we ignore it here.
-      string.replace_range(width - 3..length, "...");
+      let clipped = text::clip(&string, Width::from(width - 3));
+      string = clipped.to_string() + "...";
     },
     Ordering::Less => {
       let pad_right = (width - length) / 2;
@@ -1060,6 +1061,21 @@ mod tests {
     assert_eq!(align_center("hello", 4), "h...");
     assert_eq!(align_center("hello", 5), "hello");
     assert_eq!(align_center("that's a test", 8), "that'...");
+  }
+
+  /// Check that `align_center` measures and crops by display
+  /// width, without ever cutting a multi-byte character in half.
+  #[test]
+  fn align_and_crop_multibyte() {
+    // Wide characters count as two columns for both centering and
+    // cropping, multi-byte narrow characters as a single column.
+    assert_eq!(align_center("⚠｜ä｜", 8), " ⚠｜ä｜ ");
+    assert_eq!(align_center("⚠｜ä｜⚠", 7), "⚠｜ä｜⚠");
+    assert_eq!(align_center("⚠｜attn｜⚠", 9), "⚠｜att...");
+
+    let title = "⚠｜attn｜⚠｜";
+    assert_eq!(align_center(title, 8), "⚠｜at...");
+    assert_eq!(align_center(title, 6), "⚠｜...");
   }
 
   /// Check that we ca properly clip a string using `clip`.

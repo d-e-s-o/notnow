@@ -1,6 +1,8 @@
 Unreleased
 ----------
 - Added support for editing a view's tag formula via `v-e` key sequence
+- Fixed a crash when a tab title containing multi-byte characters needed
+  to be cropped
 - Bumped minimum supported Rust version to `1.85`
 
 
